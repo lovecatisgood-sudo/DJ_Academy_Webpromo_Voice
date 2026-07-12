@@ -136,7 +136,16 @@ export async function POST(request: Request) {
         requestId: response.headers.get("x-request-id"),
         data,
       });
-      return corsJson(request, { error: "Voice agent is unavailable. Please try again shortly." }, { status: 502 });
+      return corsJson(
+        request,
+        {
+          error: "Voice agent is unavailable. Please try again shortly.",
+          code: "openai_client_secret_failed",
+          upstreamStatus: response.status,
+          requestId: response.headers.get("x-request-id"),
+        },
+        { status: 502 },
+      );
     }
 
     const clientSecret = extractClientSecret(data);
@@ -145,7 +154,15 @@ export async function POST(request: Request) {
       console.error("OpenAI client secret response was missing a usable value.", {
         requestId: response.headers.get("x-request-id"),
       });
-      return corsJson(request, { error: "Voice agent is unavailable. Please try again shortly." }, { status: 502 });
+      return corsJson(
+        request,
+        {
+          error: "Voice agent is unavailable. Please try again shortly.",
+          code: "openai_client_secret_missing",
+          requestId: response.headers.get("x-request-id"),
+        },
+        { status: 502 },
+      );
     }
 
     const sql = getSql();
@@ -165,6 +182,13 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error(error);
-    return corsJson(request, { error: "Voice agent is unavailable. Please try again shortly." }, { status: 500 });
+    return corsJson(
+      request,
+      {
+        error: "Voice agent is unavailable. Please try again shortly.",
+        code: "session_failed",
+      },
+      { status: 500 },
+    );
   }
 }
