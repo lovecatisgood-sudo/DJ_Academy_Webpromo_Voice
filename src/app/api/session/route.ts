@@ -5,6 +5,7 @@ import { buildVoiceAgentSystemPrompt, captureLeadTool } from "@/lib/prompt";
 import { createSessionContext } from "@/lib/session-context";
 import { corsJson, corsNoContent } from "@/lib/cors";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { buildVersion } from "@/lib/build-info";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,13 +41,31 @@ export function OPTIONS(request: Request) {
 export async function GET(request: Request) {
   try {
     const settings = await getCachedSettings();
-    return corsJson(request, {
-      agentEnabled: settings.agent_enabled,
-      maxCallSeconds: settings.max_call_seconds,
-    });
+    return corsJson(
+      request,
+      {
+        agentEnabled: settings.agent_enabled,
+        maxCallSeconds: settings.max_call_seconds,
+        buildVersion,
+      },
+      {
+        headers: {
+          "X-DJAI-Build": buildVersion,
+        },
+      },
+    );
   } catch (error) {
     console.error(error);
-    return corsJson(request, { agentEnabled: false }, { status: 200 });
+    return corsJson(
+      request,
+      { agentEnabled: false, buildVersion },
+      {
+        status: 200,
+        headers: {
+          "X-DJAI-Build": buildVersion,
+        },
+      },
+    );
   }
 }
 
@@ -143,8 +162,9 @@ export async function POST(request: Request) {
           code: "openai_client_secret_failed",
           upstreamStatus: response.status,
           requestId: response.headers.get("x-request-id"),
+          buildVersion,
         },
-        { status: 502 },
+        { status: 502, headers: { "X-DJAI-Build": buildVersion } },
       );
     }
 
@@ -160,8 +180,9 @@ export async function POST(request: Request) {
           error: "Voice agent is unavailable. Please try again shortly.",
           code: "openai_client_secret_missing",
           requestId: response.headers.get("x-request-id"),
+          buildVersion,
         },
-        { status: 502 },
+        { status: 502, headers: { "X-DJAI-Build": buildVersion } },
       );
     }
 
@@ -179,7 +200,8 @@ export async function POST(request: Request) {
       maxCallSeconds: settings.max_call_seconds,
       greeting: settings.greeting,
       modelId: settings.model_id,
-    });
+      buildVersion,
+    }, { headers: { "X-DJAI-Build": buildVersion } });
   } catch (error) {
     console.error(error);
     return corsJson(
@@ -187,8 +209,9 @@ export async function POST(request: Request) {
       {
         error: "Voice agent is unavailable. Please try again shortly.",
         code: "session_failed",
+        buildVersion,
       },
-      { status: 500 },
+      { status: 500, headers: { "X-DJAI-Build": buildVersion } },
     );
   }
 }
