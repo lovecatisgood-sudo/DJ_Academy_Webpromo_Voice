@@ -5,7 +5,8 @@ Last updated: 2026-07-13
 ## Runtime Status
 
 - Deployed app: `https://voice.djai.academy`
-- Latest live backend build marker: `voice-fix-2026-07-12-2308`
+- Latest verified local backend build marker: `consultative-agent-2026-07-13-0015`
+- Previous live backend build marker: `voice-fix-2026-07-12-2308`
 - Live `POST /api/session` has been verified returning an OpenAI Realtime ephemeral client secret starting with `ek_`.
 - The earlier live failure was OpenAI `401` from Hostinger runtime `OPENAI_API_KEY`; it was resolved after the correct runtime key was applied and the app restarted.
 
@@ -17,6 +18,8 @@ Last updated: 2026-07-13
 - The document default language and metadata are Thai-led.
 - Public admin link is not displayed on the landing page.
 - `/widget-demo` was removed; the voice agent is embedded as a production section, not a demo page.
+- Voice agent prompt is now consultative-sales focused: discovery before recommendation, benefit selling, objection handling, multilingual switching, and value-first consultation closing.
+- Realtime defaults are aligned to the stronger demo setup where supported: `gpt-realtime-2.1`, `gpt-realtime-whisper`, Marin voice, far-field noise reduction, server VAD with 30s idle timeout, audio-only output, 4096 max output tokens, and low reasoning effort.
 
 ## Verification Already Run
 
@@ -24,6 +27,7 @@ Last updated: 2026-07-13
 - `npm run typecheck`
 - `npm run verify:source`
 - `npm run hostinger:build`
+- Local `POST /api/session` check returning an `ek_` client secret with `modelId: gpt-realtime-2.1`
 - Headless rendered smoke check for Thai default and English mode
 - `npm run verify:archive`
 - Live session check against `https://voice.djai.academy/api/session`

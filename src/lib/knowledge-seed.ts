@@ -16,7 +16,8 @@ export const initialKnowledgeMarkdown = `# DJAI Academy Voice Agent Knowledge
 ### Landing Page
 - Promotional price: 5,000 THB.
 - Original listed price: 10,000 THB.
-- Best for launching an idea with a single focused page.
+- Promotion is valid for July and August 2026.
+- Best for a single product, campaign, lead generation, ads, promotions, menus, portfolios, and simple business launches.
 - Includes: 1 custom-designed page, SEO optimization, AI Chat Bot (Auto CTA) 1-month free trial, first-year hosting, mobile responsive layout, and fast turnaround.
 - Renewal note: 3,000 THB/year after the first year.
 
@@ -31,9 +32,27 @@ export const initialKnowledgeMarkdown = `# DJAI Academy Voice Agent Knowledge
 - Promotional price: 10,000 THB.
 - Original listed price: 20,000 THB.
 - Best for a full 5-page business website.
-- Includes: 5 custom-designed pages, SEO optimization, AI Chat Bot (Auto CTA) 1-month free trial, first-year hosting, contact form, social media integration, mobile responsive layout, and priority support.
+- Includes: 5 custom-designed pages, responsive design, SEO-ready structure, professional UI, contact page, gallery, business information, contact form, social media integration, first-year hosting, mobile responsive layout, and priority support.
 - Landing page comparison states that buying 5 pages individually would be 15,000 THB, the bundle price is 10,000 THB, and the customer saves 5,000 THB.
 - Renewal note: 3,000 THB/year after the first year.
+
+## AI Sales Chatbot
+- Acts like a professional salesperson on the website.
+- Can answer questions, recommend products or services, handle objections, collect leads, qualify prospects, and help book appointments.
+- Available 24/7.
+- Supports multiple languages.
+- Useful when paid traffic is being lost, visitors have questions before buying, or staff cannot respond instantly.
+
+## AI Voice Agent
+- Works like an AI receptionist or AI phone sales assistant.
+- Can answer calls, handle FAQs, qualify customers, book appointments, transfer leads, and collect information.
+- Supports multiple languages.
+- Useful when the business misses calls, needs faster first response, needs multilingual reception, or wants to qualify leads before a human call.
+
+## Custom Development And Automation Signals
+- Investigate further if the visitor mentions Excel, paper, manual work, inventory, POS, CRM, scheduling, membership, booking, reports, multiple branches, internal systems, many employees, or repetitive tasks.
+- Custom development, apps, games, automation, and voice agents are quotation-based unless a specific package is listed here.
+- Do not immediately pitch software. First ask how they do the process today and what the business impact is.
 
 ## Trust And Included-Service Claims
 - The landing page states: no hidden fees, money-back guarantee, and free revisions.
@@ -50,6 +69,7 @@ export const initialKnowledgeMarkdown = `# DJAI Academy Voice Agent Knowledge
 - Course details, schedules, and prices must be confirmed by the DJAI team unless listed here.
 
 ## Contact Policy
-- When a visitor shows meaningful interest, collect their name, one usable contact method, project need, and preferred callback time.
-- Tell visitors the DJAI team will contact them. Do not claim a booking is confirmed.
+- When a visitor shows meaningful interest, collect their name, company or business name if available, one or more usable contact methods, project need, and preferred callback or consultation time.
+- Tell visitors the DJAI consultant will review their business context before the consultation so the call can focus on specific opportunities.
+- Do not claim a booking is fully confirmed.
 `;

@@ -1,1 +1,1 @@
-export const buildVersion = "voice-fix-2026-07-12-2308";
+export const buildVersion = "consultative-agent-2026-07-13-0015";

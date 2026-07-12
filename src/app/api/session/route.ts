@@ -128,20 +128,40 @@ export async function POST(request: Request) {
           model: settings.model_id,
           instructions: prompt,
           audio: {
-            output: {
-              voice: settings.voice,
-            },
             input: {
+              format: {
+                type: "audio/pcm",
+                rate: 24000,
+              },
               transcription: {
                 model: settings.transcription_model,
               },
+              noise_reduction: {
+                type: "far_field",
+              },
               turn_detection: {
                 type: "server_vad",
+                threshold: 0.5,
+                prefix_padding_ms: 300,
+                silence_duration_ms: 500,
+                idle_timeout_ms: 30000,
               },
             },
+            output: {
+              format: {
+                type: "audio/pcm",
+                rate: 24000,
+              },
+              voice: settings.voice,
+            },
           },
+          output_modalities: ["audio"],
           tools: [captureLeadTool],
           tool_choice: "auto",
+          max_output_tokens: 4096,
+          reasoning: {
+            effort: "low",
+          },
         },
       }),
       signal: AbortSignal.timeout(15000),
