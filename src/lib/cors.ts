@@ -11,9 +11,28 @@ function allowedOrigins() {
     .filter(Boolean);
 }
 
+function requestOrigins(request: Request) {
+  const origins = new Set<string>();
+
+  try {
+    origins.add(new URL(request.url).origin);
+  } catch {
+  }
+
+  const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+
+  if (forwardedHost) {
+    origins.add(`${forwardedProto}://${forwardedHost}`);
+  }
+
+  return origins;
+}
+
 export function corsHeaders(request: Request) {
   const origin = request.headers.get("origin");
   const allowed = allowedOrigins();
+  const sameAppOrigins = requestOrigins(request);
   const headers = new Headers({
     "Access-Control-Allow-Methods": publicMethods,
     "Access-Control-Allow-Headers": publicHeaders,
@@ -25,13 +44,13 @@ export function corsHeaders(request: Request) {
     return headers;
   }
 
-  if (allowed.includes("*")) {
-    headers.set("Access-Control-Allow-Origin", "*");
+  if (sameAppOrigins.has(origin) || allowed.includes(origin)) {
+    headers.set("Access-Control-Allow-Origin", origin);
     return headers;
   }
 
-  if (allowed.includes(origin)) {
-    headers.set("Access-Control-Allow-Origin", origin);
+  if (allowed.includes("*")) {
+    headers.set("Access-Control-Allow-Origin", "*");
   }
 
   return headers;

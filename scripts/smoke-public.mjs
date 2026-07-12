@@ -42,4 +42,28 @@ if (!allowOrigin) {
   throw new Error("/api/session preflight did not include access-control-allow-origin");
 }
 
+const statusPreflight = await assertResponse("/api/session", 204, {
+  method: "OPTIONS",
+  headers: {
+    Origin: origin,
+    "Access-Control-Request-Method": "GET",
+    "Access-Control-Request-Headers": "Accept",
+  },
+});
+
+const allowMethods = statusPreflight.headers.get("access-control-allow-methods") || "";
+const allowHeaders = statusPreflight.headers.get("access-control-allow-headers") || "";
+
+if (!statusPreflight.headers.get("access-control-allow-origin")) {
+  throw new Error("/api/session GET preflight did not include access-control-allow-origin");
+}
+
+if (!allowMethods.split(",").map((value) => value.trim()).includes("GET")) {
+  throw new Error("/api/session preflight does not allow GET status checks");
+}
+
+if (!allowHeaders.split(",").map((value) => value.trim().toLowerCase()).includes("accept")) {
+  throw new Error("/api/session preflight does not allow the Accept header");
+}
+
 console.log(`Public smoke test passed for ${baseUrl}`);
