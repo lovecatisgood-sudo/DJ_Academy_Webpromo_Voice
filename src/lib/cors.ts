@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { optionalEnv } from "./env";
 
-const publicMethods = "POST, OPTIONS";
-const publicHeaders = "Content-Type";
+const publicMethods = "GET, POST, OPTIONS";
+const publicHeaders = "Content-Type, Accept";
 
 function allowedOrigins() {
   return (optionalEnv("WIDGET_ALLOWED_ORIGINS") || "*")

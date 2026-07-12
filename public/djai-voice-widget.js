@@ -344,11 +344,25 @@
         this.pc = new RTCPeerConnection();
         this.audioEl = document.createElement("audio");
         this.audioEl.autoplay = true;
+        this.audioEl.playsInline = true;
+        this.audioEl.setAttribute("aria-hidden", "true");
+        this.audioEl.style.position = "fixed";
+        this.audioEl.style.width = "1px";
+        this.audioEl.style.height = "1px";
+        this.audioEl.style.opacity = "0";
+        this.audioEl.style.pointerEvents = "none";
+        document.body.appendChild(this.audioEl);
         this.pc.ontrack = (event) => {
           this.audioEl.srcObject = event.streams[0];
+          this.audioEl.play().catch(() => {});
         };
+        this.pc.addEventListener("connectionstatechange", () => {
+          if (this.pc?.connectionState === "failed") {
+            this.setVisualState("error", "Audio connection failed. Please try again.");
+          }
+        });
 
-        this.pc.addTrack(this.localStream.getTracks()[0]);
+        this.pc.addTrack(this.localStream.getTracks()[0], this.localStream);
         this.dc = this.pc.createDataChannel("oai-events");
         this.dc.addEventListener("open", () => {
           this.setVisualState("listening", "Listening");
@@ -385,7 +399,12 @@
         });
         this.startTimer(Number(tokenData.maxCallSeconds || 0));
       } catch (error) {
-        this.addTranscript("system", error instanceof Error ? error.message : "Voice agent is unavailable.");
+        const message = error instanceof DOMException && error.name === "NotAllowedError"
+          ? "Microphone permission was blocked."
+          : error instanceof Error
+            ? error.message
+            : "Voice agent is unavailable.";
+        this.addTranscript("system", message);
         await this.endCall("Voice agent unavailable", { save: false });
       } finally {
         if (this.startButton && !this.pc) {
@@ -402,13 +421,12 @@
           headers: { Accept: "application/json" },
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.agentEnabled === false) {
+        if (response.ok && data.agentEnabled === false) {
           this.setVisualState("ended", "Voice agent is offline");
           if (this.startButton) this.startButton.disabled = true;
         }
       } catch {
-        this.setVisualState("ended", "Voice agent is offline");
-        if (this.startButton) this.startButton.disabled = true;
+        this.setVisualState("idle", "Ready to talk");
       }
     }
 
@@ -456,6 +474,7 @@
       }
       if (this.dc) this.dc.close();
       if (this.pc) this.pc.close();
+      if (this.audioEl) this.audioEl.remove();
 
       this.pc = null;
       this.dc = null;

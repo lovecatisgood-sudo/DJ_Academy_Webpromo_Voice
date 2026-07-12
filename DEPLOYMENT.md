@@ -11,7 +11,7 @@ ADMIN_USERNAME="admin"
 ADMIN_PASSWORD="change-me"
 SESSION_PASSWORD="at-least-32-random-characters"
 SESSION_SIGNING_SECRET="another-32-random-character-secret"
-WIDGET_ALLOWED_ORIGINS="https://djai.academy,https://www.djai.academy"
+WIDGET_ALLOWED_ORIGINS="https://djai.academy,https://www.djai.academy,https://voice.djai.academy,https://dev.djai.academy"
 ```
 
 In Hostinger's environment-variable form, paste only each value. **Do not include the surrounding
@@ -25,7 +25,7 @@ messages; rotate a credential immediately if it is exposed.
 `OPENAI_API_KEY` is used only by the server to mint short-lived Realtime client secrets. It must never be exposed to browser code.
 
 The Realtime model, transcription model, voice, greeting, language mode, call length, daily cap, and knowledge document are seeded by migration and editable from Admin Settings.
-`WIDGET_ALLOWED_ORIGINS` controls which sites can call the public widget APIs from a browser. Use comma-separated origins.
+`WIDGET_ALLOWED_ORIGINS` controls which sites can call the public widget APIs from a browser. Use comma-separated origins and include every domain where the widget is loaded, without paths or trailing slashes.
 
 ## Runtime
 
