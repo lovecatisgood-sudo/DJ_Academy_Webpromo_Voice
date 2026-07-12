@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "DJAI Academy",
+  title: "DJAI Academy | เว็บไซต์ AI และ Voice Sales Agent",
   description:
-    "Professional design, built-in SEO, AI chatbot, voice sales agent, and hosting included in DJAI website packages.",
+    "แพ็กเกจเว็บไซต์พร้อมดีไซน์มืออาชีพ SEO, AI chatbot, voice sales agent และโฮสติ้งสำหรับธุรกิจไทยและอังกฤษ",
   keywords: [
     "DJAI Academy",
     "website packages",
@@ -26,7 +26,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="th">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
