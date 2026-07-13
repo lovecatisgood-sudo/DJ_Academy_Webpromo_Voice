@@ -28,6 +28,10 @@ export async function POST(request: Request) {
 
     const lead = parseLeadPayload(body.lead);
     const sql = getSql();
+    const phone = lead.contact_type === "phone" ? lead.contact : null;
+    const email = lead.contact_type === "email" ? lead.contact : null;
+    const lineId = lead.contact_type === "line" ? lead.contact : null;
+    const otherContact = lead.contact_type === "other" ? lead.contact : null;
 
     const rows = (await sql`
       with conversation_row as (
@@ -37,20 +41,50 @@ export async function POST(request: Request) {
         returning id
       ),
       lead_row as (
-        insert into leads (conversation_id, name, contact, contact_type, need, preferred_time)
+        insert into leads (
+          conversation_id,
+          name,
+          contact,
+          contact_type,
+          need,
+          preferred_time,
+          status,
+          client_name,
+          phone,
+          email,
+          line_id,
+          other_contact,
+          preferred_meeting_time,
+          updated_at
+        )
         select
           id,
           ${lead.name},
           ${lead.contact},
           ${lead.contact_type},
           ${lead.need},
-          ${lead.preferred_time}
+          ${lead.preferred_time},
+          'pending_follow_up',
+          ${lead.name},
+          ${phone},
+          ${email},
+          ${lineId},
+          ${otherContact},
+          ${lead.preferred_time},
+          now()
         from conversation_row
         on conflict (conversation_id, contact) do update set
           name = excluded.name,
           contact_type = excluded.contact_type,
           need = excluded.need,
-          preferred_time = excluded.preferred_time
+          preferred_time = excluded.preferred_time,
+          client_name = coalesce(nullif(leads.client_name, ''), excluded.client_name),
+          phone = coalesce(nullif(leads.phone, ''), excluded.phone),
+          email = coalesce(nullif(leads.email, ''), excluded.email),
+          line_id = coalesce(nullif(leads.line_id, ''), excluded.line_id),
+          other_contact = coalesce(nullif(leads.other_contact, ''), excluded.other_contact),
+          preferred_meeting_time = coalesce(nullif(leads.preferred_meeting_time, ''), excluded.preferred_meeting_time),
+          updated_at = now()
         returning id
       )
       select id from lead_row

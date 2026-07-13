@@ -35,8 +35,20 @@ BASE_URL=http://localhost:3000 pnpm smoke:no-secrets
 
 See [DEPLOYMENT.md](./DEPLOYMENT.md) for Hostinger Cloud env vars, build/start commands, and the WordPress embed snippet.
 See [ACCEPTANCE.md](./ACCEPTANCE.md) for the live voice acceptance run.
+See [PROJECT_STATE.md](./PROJECT_STATE.md) for the latest handoff state before continuing work.
 
 For Hostinger build-script dropdowns, choose `build` / `pnpm build` if that is the only option. It runs the full deployment build.
+
+## V1.5 Admin Workflow
+
+The V1.5 admin workflow is implemented locally and documented here:
+
+- [DJAI_Voice_Admin_V1_5_PRD.md](./DJAI_Voice_Admin_V1_5_PRD.md)
+- [DJAI_Voice_Admin_V1_5_Architecture.md](./DJAI_Voice_Admin_V1_5_Architecture.md)
+- [DJAI_Voice_Admin_V1_5_UIUX_Design.md](./DJAI_Voice_Admin_V1_5_UIUX_Design.md)
+- [DJAI_Voice_Admin_V1_5_Implementation_Plan.md](./DJAI_Voice_Admin_V1_5_Implementation_Plan.md)
+
+Run the live acceptance gate after deploying the latest ZIP.
 
 ## Handoff Archive
 

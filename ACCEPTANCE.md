@@ -10,6 +10,7 @@ Record:
 - WordPress page URL containing the widget
 - Admin URL
 - Neon project/database name
+- Deployed `buildVersion`
 - `knowledge_version` before testing
 
 Verify:
@@ -28,6 +29,37 @@ Expected:
 - Health returns `{ "ok": true }`.
 - Widget script returns `200`.
 - Preflight returns `204` with `access-control-allow-origin` for `https://djai.academy`.
+- Health response `buildVersion` matches the intended deployment.
+
+## Provider Checks
+
+OpenAI is the recommended production provider.
+
+1. In Admin Settings, set:
+   - Voice provider: OpenAI Realtime
+   - Model ID: `gpt-realtime-2.1`
+   - Voice: `marin`
+   - Transcription model: `gpt-realtime-whisper`
+2. Start a call from the production page.
+
+Expected:
+
+- `/api/session` returns `provider: "openai"`.
+- Browser connects to OpenAI over WebRTC.
+- The agent is not easily interrupted by short acknowledgements like "right", "okay", "ครับ", or "ค่ะ".
+
+Optional Gemini check:
+
+1. In Admin Settings, set:
+   - Voice provider: Gemini Live Preview
+   - Model ID: `gemini-3.1-flash-live-preview`
+2. Start a short test call.
+
+Expected:
+
+- `/api/session` returns `provider: "gemini"`.
+- Gemini uses a constrained Live WebSocket URL with a short-lived token.
+- Switching back to OpenAI works without code changes or redeploy.
 
 ## Browser Security Checks
 
@@ -117,3 +149,5 @@ Expected:
 ## Pass Criteria
 
 V1 acceptance passes when all five golden scenarios, Admin Settings, and Kill Switch tests produce the expected evidence.
+
+Before V1.5 admin work starts, V1 acceptance should pass again with the current restored behavior prompt and provider settings.

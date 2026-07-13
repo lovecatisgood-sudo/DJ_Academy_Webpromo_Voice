@@ -4,6 +4,8 @@ import type { ConversationLanguage, TranscriptItem } from "@/lib/types";
 import { corsJson, corsNoContent } from "@/lib/cors";
 import { readJsonBody } from "@/lib/http-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getCachedSettings } from "@/lib/settings-cache";
+import { analyzeAndPersistConversation } from "@/lib/conversation-post-analysis";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +69,7 @@ export async function POST(request: Request) {
     const pageUrl = typeof body.page_url === "string" ? body.page_url.slice(0, 1000) : null;
     const language = parseLanguage(body.language);
     const sql = getSql();
+    const settings = await getCachedSettings();
 
     await sql`
       insert into conversations (
@@ -77,7 +80,8 @@ export async function POST(request: Request) {
         language,
         page_url,
         transcript,
-        had_lead
+        had_lead,
+        analysis_status
       )
       values (
         ${session.conversationId},
@@ -87,7 +91,8 @@ export async function POST(request: Request) {
         ${language},
         ${pageUrl},
         ${JSON.stringify(transcript)},
-        exists(select 1 from leads where conversation_id = ${session.conversationId})
+        exists(select 1 from leads where conversation_id = ${session.conversationId}),
+        ${settings.analysis_enabled && transcript.length ? "pending" : "skipped"}
       )
       on conflict (id) do update set
         ended_at = excluded.ended_at,
@@ -95,10 +100,17 @@ export async function POST(request: Request) {
         language = excluded.language,
         page_url = excluded.page_url,
         transcript = excluded.transcript,
-        had_lead = conversations.had_lead or excluded.had_lead
+        had_lead = conversations.had_lead or excluded.had_lead,
+        analysis_status = excluded.analysis_status,
+        analysis_error = null
     `;
 
-    return corsJson(request, { ok: true });
+    if (!settings.analysis_enabled || !transcript.length) {
+      return corsJson(request, { ok: true, analysis: "skipped" });
+    }
+
+    const analysis = await analyzeAndPersistConversation(session.conversationId, { settings });
+    return corsJson(request, { ok: true, analysis });
   } catch (error) {
     console.error(error);
     return corsJson(request, { error: error instanceof Error ? error.message : "Conversation save failed." }, { status: 400 });

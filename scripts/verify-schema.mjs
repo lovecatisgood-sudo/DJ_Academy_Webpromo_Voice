@@ -22,6 +22,8 @@ const requiredSettingsColumns = [
   "daily_session_cap int",
   "model_id text",
   "transcription_model text",
+  "analysis_enabled boolean",
+  "analysis_model_id text",
 ];
 const requiredConversationColumns = [
   "started_at timestamptz",
@@ -31,6 +33,20 @@ const requiredConversationColumns = [
   "page_url text",
   "transcript jsonb",
   "had_lead boolean",
+  "summary text",
+  "business_type text",
+  "main_problem text",
+  "business_goal text",
+  "interest_level text",
+  "concern_or_objection text",
+  "recommended_service text",
+  "next_action text",
+  "analysis_status text",
+  "analysis_error text",
+  "analysis_model_id text",
+  "analysis_updated_at timestamptz",
+  "starred boolean",
+  "deleted_at timestamptz",
 ];
 const requiredLeadColumns = [
   "conversation_id uuid references conversations(id)",
@@ -40,6 +56,18 @@ const requiredLeadColumns = [
   "need text",
   "preferred_time text",
   "status text",
+  "client_name text",
+  "company_name text",
+  "phone text",
+  "email text",
+  "line_id text",
+  "whatsapp text",
+  "other_contact text",
+  "preferred_contact_method text",
+  "preferred_meeting_day text",
+  "preferred_meeting_time text",
+  "admin_notes text",
+  "updated_at timestamptz",
 ];
 const requiredIndexes = [
   "leads_conversation_contact_unique",
@@ -47,6 +75,10 @@ const requiredIndexes = [
   "conversations_had_lead_idx",
   "leads_created_at_idx",
   "leads_status_idx",
+  "conversations_starred_idx",
+  "conversations_deleted_at_idx",
+  "conversations_analysis_status_idx",
+  "leads_updated_at_idx",
 ];
 
 for (const table of requiredTables) {

@@ -17,6 +17,8 @@ const requiredColumns = {
     "daily_session_cap",
     "model_id",
     "transcription_model",
+    "analysis_enabled",
+    "analysis_model_id",
     "updated_at",
   ],
   conversations: [
@@ -27,6 +29,20 @@ const requiredColumns = {
     "page_url",
     "transcript",
     "had_lead",
+    "summary",
+    "business_type",
+    "main_problem",
+    "business_goal",
+    "interest_level",
+    "concern_or_objection",
+    "recommended_service",
+    "next_action",
+    "analysis_status",
+    "analysis_error",
+    "analysis_model_id",
+    "analysis_updated_at",
+    "starred",
+    "deleted_at",
   ],
   leads: [
     "conversation_id",
@@ -37,6 +53,18 @@ const requiredColumns = {
     "need",
     "preferred_time",
     "status",
+    "client_name",
+    "company_name",
+    "phone",
+    "email",
+    "line_id",
+    "whatsapp",
+    "other_contact",
+    "preferred_contact_method",
+    "preferred_meeting_day",
+    "preferred_meeting_time",
+    "admin_notes",
+    "updated_at",
   ],
 };
 
@@ -46,6 +74,10 @@ const requiredIndexes = [
   "conversations_had_lead_idx",
   "leads_created_at_idx",
   "leads_status_idx",
+  "conversations_starred_idx",
+  "conversations_deleted_at_idx",
+  "conversations_analysis_status_idx",
+  "leads_updated_at_idx",
 ];
 
 function fail(message) {
@@ -80,7 +112,11 @@ async function main() {
         'conversations_started_at_idx',
         'conversations_had_lead_idx',
         'leads_created_at_idx',
-        'leads_status_idx'
+        'leads_status_idx',
+        'conversations_starred_idx',
+        'conversations_deleted_at_idx',
+        'conversations_analysis_status_idx',
+        'leads_updated_at_idx'
       )
   `;
   const actualIndexes = new Set(indexRows.map((row) => row.indexname));

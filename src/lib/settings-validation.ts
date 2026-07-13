@@ -9,6 +9,8 @@ export type SettingsInput = {
   daily_session_cap?: unknown;
   model_id?: unknown;
   transcription_model?: unknown;
+  analysis_enabled?: unknown;
+  analysis_model_id?: unknown;
 };
 
 export type NormalizedSettings = {
@@ -22,6 +24,8 @@ export type NormalizedSettings = {
   daily_session_cap?: number;
   model_id?: string;
   transcription_model?: string;
+  analysis_enabled?: boolean;
+  analysis_model_id?: string;
 };
 
 function cleanString(value: unknown, maxLength: number) {
@@ -58,6 +62,14 @@ export function normalizeSettingsInput(input: SettingsInput, mode: "form" | "pat
 
   if (mode === "form") {
     output.agent_enabled = input.agent_enabled === "on";
+  }
+
+  if (typeof input.analysis_enabled === "boolean") {
+    output.analysis_enabled = input.analysis_enabled;
+  }
+
+  if (mode === "form" && input.analysis_enabled !== undefined) {
+    output.analysis_enabled = input.analysis_enabled === "on";
   }
 
   const greeting = cleanString(input.greeting, 4000);
@@ -106,6 +118,10 @@ export function normalizeSettingsInput(input: SettingsInput, mode: "form" | "pat
 
   if (input.transcription_model !== undefined) {
     output.transcription_model = requiredIdentifier(input.transcription_model, "Transcription model");
+  }
+
+  if (input.analysis_model_id !== undefined) {
+    output.analysis_model_id = requiredIdentifier(input.analysis_model_id, "Analysis model ID");
   }
 
   return output;

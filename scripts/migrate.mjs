@@ -126,6 +126,8 @@ async function migrate() {
         daily_session_cap int default 100,
         model_id text default 'gpt-realtime-2.1',
         transcription_model text default 'gpt-realtime-whisper',
+        analysis_enabled boolean default true,
+        analysis_model_id text default 'gpt-4o-mini',
         updated_at timestamptz default now()
       )
     `,
@@ -137,8 +139,18 @@ async function migrate() {
       alter table settings
       add column if not exists voice_provider text default 'openai'
     `,
+    tx`
+      alter table settings
+      add column if not exists analysis_enabled boolean default true
+    `,
+    tx`
+      alter table settings
+      add column if not exists analysis_model_id text default 'gpt-4o-mini'
+    `,
     tx`alter table settings alter column model_id set default 'gpt-realtime-2.1'`,
     tx`alter table settings alter column transcription_model set default 'gpt-realtime-whisper'`,
+    tx`alter table settings alter column analysis_enabled set default true`,
+    tx`alter table settings alter column analysis_model_id set default 'gpt-4o-mini'`,
     tx`
       create table if not exists conversations (
         id uuid primary key default gen_random_uuid(),
@@ -148,9 +160,40 @@ async function migrate() {
         language text,
         page_url text,
         transcript jsonb,
-        had_lead boolean default false
+        had_lead boolean default false,
+        summary text,
+        business_type text,
+        main_problem text,
+        business_goal text,
+        interest_level text default 'unknown',
+        concern_or_objection text,
+        recommended_service text,
+        next_action text,
+        analysis_status text default 'pending',
+        analysis_error text,
+        analysis_model_id text,
+        analysis_updated_at timestamptz,
+        starred boolean default false,
+        deleted_at timestamptz
       )
     `,
+    tx`alter table conversations add column if not exists summary text`,
+    tx`alter table conversations add column if not exists business_type text`,
+    tx`alter table conversations add column if not exists main_problem text`,
+    tx`alter table conversations add column if not exists business_goal text`,
+    tx`alter table conversations add column if not exists interest_level text default 'unknown'`,
+    tx`alter table conversations add column if not exists concern_or_objection text`,
+    tx`alter table conversations add column if not exists recommended_service text`,
+    tx`alter table conversations add column if not exists next_action text`,
+    tx`alter table conversations add column if not exists analysis_status text default 'pending'`,
+    tx`alter table conversations add column if not exists analysis_error text`,
+    tx`alter table conversations add column if not exists analysis_model_id text`,
+    tx`alter table conversations add column if not exists analysis_updated_at timestamptz`,
+    tx`alter table conversations add column if not exists starred boolean default false`,
+    tx`alter table conversations add column if not exists deleted_at timestamptz`,
+    tx`alter table conversations alter column interest_level set default 'unknown'`,
+    tx`alter table conversations alter column analysis_status set default 'pending'`,
+    tx`alter table conversations alter column starred set default false`,
     tx`
       create table if not exists leads (
         id uuid primary key default gen_random_uuid(),
@@ -161,9 +204,35 @@ async function migrate() {
         contact_type text,
         need text,
         preferred_time text,
-        status text default 'new'
+        status text default 'pending_follow_up',
+        client_name text,
+        company_name text,
+        phone text,
+        email text,
+        line_id text,
+        whatsapp text,
+        other_contact text,
+        preferred_contact_method text,
+        preferred_meeting_day text,
+        preferred_meeting_time text,
+        admin_notes text,
+        updated_at timestamptz default now()
       )
     `,
+    tx`alter table leads add column if not exists client_name text`,
+    tx`alter table leads add column if not exists company_name text`,
+    tx`alter table leads add column if not exists phone text`,
+    tx`alter table leads add column if not exists email text`,
+    tx`alter table leads add column if not exists line_id text`,
+    tx`alter table leads add column if not exists whatsapp text`,
+    tx`alter table leads add column if not exists other_contact text`,
+    tx`alter table leads add column if not exists preferred_contact_method text`,
+    tx`alter table leads add column if not exists preferred_meeting_day text`,
+    tx`alter table leads add column if not exists preferred_meeting_time text`,
+    tx`alter table leads add column if not exists admin_notes text`,
+    tx`alter table leads add column if not exists updated_at timestamptz default now()`,
+    tx`alter table leads alter column status set default 'pending_follow_up'`,
+    tx`alter table leads alter column updated_at set default now()`,
     tx`
       create unique index if not exists leads_conversation_contact_unique
       on leads (conversation_id, contact)
@@ -185,6 +254,22 @@ async function migrate() {
       on leads (status)
     `,
     tx`
+      create index if not exists conversations_starred_idx
+      on conversations (starred)
+    `,
+    tx`
+      create index if not exists conversations_deleted_at_idx
+      on conversations (deleted_at)
+    `,
+    tx`
+      create index if not exists conversations_analysis_status_idx
+      on conversations (analysis_status)
+    `,
+    tx`
+      create index if not exists leads_updated_at_idx
+      on leads (updated_at desc)
+    `,
+    tx`
       insert into settings (
         id,
         agent_enabled,
@@ -197,7 +282,9 @@ async function migrate() {
         max_call_seconds,
         daily_session_cap,
         model_id,
-        transcription_model
+        transcription_model,
+        analysis_enabled,
+        analysis_model_id
       )
       values (
         1,
@@ -211,7 +298,9 @@ async function migrate() {
         600,
         100,
         'gpt-realtime-2.1',
-        'gpt-realtime-whisper'
+        'gpt-realtime-whisper',
+        true,
+        'gpt-4o-mini'
       )
       on conflict (id) do nothing
     `,
@@ -220,6 +309,8 @@ async function migrate() {
         voice_provider = case when voice_provider is null or voice_provider not in ('openai', 'gemini') then 'openai' else voice_provider end,
         model_id = case when model_id = 'gpt-realtime' then 'gpt-realtime-2.1' else model_id end,
         transcription_model = case when transcription_model = 'gpt-4o-mini-transcribe' then 'gpt-realtime-whisper' else transcription_model end,
+        analysis_enabled = coalesce(analysis_enabled, true),
+        analysis_model_id = coalesce(nullif(analysis_model_id, ''), 'gpt-4o-mini'),
         greeting = case
           when greeting = 'Hi, this is DJAI Academy. Tell me what you want to build, and I will help you choose the right next step.'
             then 'Hi, I am DJ from DJAI Academy. What kind of business are you running, and what are you trying to improve right now?'
@@ -228,6 +319,23 @@ async function migrate() {
         knowledge_md = case when knowledge_md = ${legacyKnowledgeMarkdown} then ${initialKnowledgeMarkdown} else knowledge_md end,
         updated_at = now()
       where id = 1
+    `,
+    tx`
+      update leads set
+        status = case
+          when status = 'new' then 'pending_follow_up'
+          when status = 'contacted' then 'follow_up_later'
+          when status = 'closed' then 'deal_closed'
+          when status in ('pending_follow_up', 'appointment_set', 'follow_up_later', 'deal_closed', 'no_deal') then status
+          else 'pending_follow_up'
+        end,
+        client_name = coalesce(nullif(client_name, ''), nullif(name, '')),
+        preferred_meeting_time = coalesce(nullif(preferred_meeting_time, ''), nullif(preferred_time, '')),
+        phone = case when contact_type = 'phone' then coalesce(nullif(phone, ''), contact) else phone end,
+        email = case when contact_type = 'email' then coalesce(nullif(email, ''), contact) else email end,
+        line_id = case when contact_type = 'line' then coalesce(nullif(line_id, ''), contact) else line_id end,
+        other_contact = case when contact_type = 'other' then coalesce(nullif(other_contact, ''), contact) else other_contact end,
+        updated_at = coalesce(updated_at, created_at, now())
     `,
   ]);
 }

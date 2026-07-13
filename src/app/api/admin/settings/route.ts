@@ -33,6 +33,8 @@ export async function PATCH(request: Request) {
       daily_session_cap = coalesce(${settings.daily_session_cap ?? null}, daily_session_cap),
       model_id = coalesce(${settings.model_id ?? null}, model_id),
       transcription_model = coalesce(${settings.transcription_model ?? null}, transcription_model),
+      analysis_enabled = coalesce(${settings.analysis_enabled ?? null}, analysis_enabled),
+      analysis_model_id = coalesce(${settings.analysis_model_id ?? null}, analysis_model_id),
       knowledge_version = knowledge_version + 1,
       updated_at = now()
     where id = 1
