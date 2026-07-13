@@ -1,1 +1,1 @@
-export const buildVersion = "admin-v15-workflow-2026-07-13";
+export const buildVersion = "admin-saas-inbox-2026-07-13";

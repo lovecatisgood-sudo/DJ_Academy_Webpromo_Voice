@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/admin-auth";
+import { requireMasterAdmin } from "@/lib/admin-auth";
 import { getSql } from "@/lib/db";
 import { invalidateSettingsCache } from "@/lib/settings-cache";
 import { readJsonBody } from "@/lib/http-guards";
@@ -9,14 +9,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  await requireAdmin();
+  await requireMasterAdmin();
   const sql = getSql();
   const rows = (await sql`select * from settings where id = 1 limit 1`) as Record<string, unknown>[];
   return NextResponse.json(rows[0] || null);
 }
 
 export async function PATCH(request: Request) {
-  await requireAdmin();
+  await requireMasterAdmin();
   const body = (await readJsonBody(request, 70000)) as Record<string, unknown>;
   const settings = normalizeSettingsInput(body, "patch");
   const sql = getSql();
@@ -35,6 +35,11 @@ export async function PATCH(request: Request) {
       transcription_model = coalesce(${settings.transcription_model ?? null}, transcription_model),
       analysis_enabled = coalesce(${settings.analysis_enabled ?? null}, analysis_enabled),
       analysis_model_id = coalesce(${settings.analysis_model_id ?? null}, analysis_model_id),
+      booking_enabled = coalesce(${settings.booking_enabled ?? null}, booking_enabled),
+      active_booking_admin_id = coalesce(${settings.active_booking_admin_id ?? null}, active_booking_admin_id),
+      default_timezone = coalesce(${settings.default_timezone ?? null}, default_timezone),
+      require_booking_confirmation = coalesce(${settings.require_booking_confirmation ?? null}, require_booking_confirmation),
+      default_booking_window_days = coalesce(${settings.default_booking_window_days ?? null}, default_booking_window_days),
       knowledge_version = knowledge_version + 1,
       updated_at = now()
     where id = 1

@@ -95,6 +95,21 @@
         #djai-voice-agent .djai-floating-log:empty {
           display: none;
         }
+        #djai-voice-agent .djai-booking-cta {
+          display: block;
+          margin: 0 14px 14px;
+          border-radius: 12px;
+          background: linear-gradient(135deg, #22d3ee, #2563eb);
+          padding: 11px 14px;
+          color: #fff;
+          font-size: 13px;
+          font-weight: 800;
+          text-align: center;
+          text-decoration: none;
+        }
+        #djai-voice-agent .djai-booking-cta[hidden] {
+          display: none;
+        }
       </style>
       <div class="djai-floating-card" role="region" aria-label="DJAI voice sales agent">
         <div class="djai-floating-top">
@@ -109,6 +124,7 @@
           <button type="button" data-djai-mute hidden>Mute</button>
           <button type="button" data-djai-end hidden>End</button>
         </div>
+        <a class="djai-booking-cta" data-djai-booking hidden target="_blank" rel="noopener">Book consultation</a>
         <div class="djai-floating-log" data-djai-transcript></div>
       </div>
     `;
@@ -160,6 +176,7 @@
       this.startButton = container.querySelector("[data-djai-start]");
       this.muteButton = container.querySelector("[data-djai-mute]");
       this.endButton = container.querySelector("[data-djai-end]");
+      this.bookingLink = container.querySelector("[data-djai-booking]");
       this.transcriptEl = container.querySelector("[data-djai-transcript]");
       this.pc = null;
       this.dc = null;
@@ -227,6 +244,16 @@
       }
       if (this.muteButton) this.muteButton.hidden = !active;
       if (this.endButton) this.endButton.hidden = !active;
+    }
+
+    showBookingCta(booking) {
+      if (!this.bookingLink || !booking || !booking.available || !booking.url) return;
+      this.bookingLink.href = booking.url;
+      this.bookingLink.hidden = false;
+      this.bookingLink.textContent = getSelectedLanguage() === "en" ? "Book consultation" : "เลือกเวลานัดปรึกษา";
+      this.addTranscript("system", getSelectedLanguage() === "en"
+        ? "A booking button is ready if you want to choose a consultation time."
+        : "ปุ่มเลือกเวลานัดปรึกษาพร้อมแล้ว");
     }
 
     startTimer(maxSeconds) {
@@ -308,10 +335,12 @@
         this.sendToolOutput(callId, {
           ok: response.ok,
           leadId: result.leadId || null,
+          bookingAvailable: Boolean(result.booking?.available),
           error: response.ok ? null : result.error || "Lead capture failed.",
         });
 
         if (response.ok) {
+          this.showBookingCta(result.booking);
           this.addTranscript("system", "Your details were sent to DJAI for follow-up.");
           return;
         }
@@ -341,10 +370,12 @@
         output = {
           ok: response.ok,
           leadId: result.leadId || null,
+          bookingAvailable: Boolean(result.booking?.available),
           error: response.ok ? null : result.error || "Lead capture failed.",
         };
 
         if (response.ok) {
+          this.showBookingCta(result.booking);
           this.addTranscript("system", "Your details were sent to DJAI for follow-up.");
         } else {
           this.addTranscript("system", "DJAI could not save those details yet. Please repeat the contact information.");
@@ -708,6 +739,10 @@
       this.transcript = [];
       this.functionArgs = new Map();
       this.processedToolCalls = new Set();
+      if (this.bookingLink) {
+        this.bookingLink.hidden = true;
+        this.bookingLink.removeAttribute("href");
+      }
       if (this.transcriptEl) this.transcriptEl.innerHTML = "";
       this.setVisualState("connecting", "Connecting");
       this.startButton.disabled = true;

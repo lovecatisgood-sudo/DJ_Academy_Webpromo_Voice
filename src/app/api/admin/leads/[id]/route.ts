@@ -13,7 +13,7 @@ export async function PATCH(
     params: Promise<{ id: string }>;
   },
 ) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const { id } = await params;
   const body = (await request.json()) as { status?: string };
 
@@ -22,6 +22,14 @@ export async function PATCH(
   }
 
   const sql = getSql();
-  await sql`update leads set status = ${body.status}, updated_at = now() where id = ${id}`;
+  await sql`
+    update leads
+    set status = ${body.status}, updated_at = now()
+    where id = ${id}
+      and (
+        ${admin.role === "master_admin"}::boolean
+        or assigned_admin_id = ${admin.id}
+      )
+  `;
   return NextResponse.json({ ok: true });
 }

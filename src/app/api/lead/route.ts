@@ -4,6 +4,7 @@ import { verifySessionContext } from "@/lib/session-context";
 import { corsJson, corsNoContent } from "@/lib/cors";
 import { readJsonBody } from "@/lib/http-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { createBookingContext } from "@/lib/booking-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +34,23 @@ export async function POST(request: Request) {
     const lineId = lead.contact_type === "line" ? lead.contact : null;
     const otherContact = lead.contact_type === "other" ? lead.contact : null;
 
+    const [bookingProfile] = (await sql`
+      select
+        s.booking_enabled,
+        acp.booking_slug
+      from settings s
+      left join admin_calendar_profiles acp
+        on acp.admin_user_id = s.active_booking_admin_id
+        and acp.is_active = true
+      left join admin_users au
+        on au.id = s.active_booking_admin_id
+        and au.is_active = true
+        and au.deleted_at is null
+      where s.id = 1
+        and s.booking_enabled = true
+        and au.id is not null
+      limit 1
+    `) as { booking_enabled: boolean; booking_slug: string | null }[];
     const rows = (await sql`
       with conversation_row as (
         insert into conversations (id, started_at, had_lead)
@@ -55,6 +73,7 @@ export async function POST(request: Request) {
           line_id,
           other_contact,
           preferred_meeting_time,
+          assigned_admin_id,
           updated_at
         )
         select
@@ -71,6 +90,7 @@ export async function POST(request: Request) {
           ${lineId},
           ${otherContact},
           ${lead.preferred_time},
+          (select active_booking_admin_id from settings where id = 1 and booking_enabled = true),
           now()
         from conversation_row
         on conflict (conversation_id, contact) do update set
@@ -84,13 +104,37 @@ export async function POST(request: Request) {
           line_id = coalesce(nullif(leads.line_id, ''), excluded.line_id),
           other_contact = coalesce(nullif(leads.other_contact, ''), excluded.other_contact),
           preferred_meeting_time = coalesce(nullif(leads.preferred_meeting_time, ''), excluded.preferred_meeting_time),
+          assigned_admin_id = coalesce(leads.assigned_admin_id, excluded.assigned_admin_id),
           updated_at = now()
         returning id
       )
       select id from lead_row
     `) as { id: string }[];
+    const leadId = rows[0]?.id ?? null;
+    const bookingContext = leadId && bookingProfile?.booking_slug
+      ? createBookingContext({
+          leadId,
+          conversationId: session.conversationId,
+          clientName: lead.name || null,
+          companyName: null,
+          email,
+          phone,
+          lineId,
+          whatsapp: null,
+        })
+      : null;
+    const bookingUrl = bookingContext && bookingProfile?.booking_slug
+      ? `${new URL(request.url).origin}/book/${bookingProfile.booking_slug}?context=${encodeURIComponent(bookingContext)}`
+      : null;
 
-    return corsJson(request, { ok: true, leadId: rows[0]?.id ?? null });
+    return corsJson(request, {
+      ok: true,
+      leadId,
+      booking: {
+        available: Boolean(bookingUrl),
+        url: bookingUrl,
+      },
+    });
   } catch (error) {
     console.error(error);
     return corsJson(request, { error: error instanceof Error ? error.message : "Lead capture failed." }, { status: 400 });

@@ -11,6 +11,11 @@ export type SettingsInput = {
   transcription_model?: unknown;
   analysis_enabled?: unknown;
   analysis_model_id?: unknown;
+  booking_enabled?: unknown;
+  active_booking_admin_id?: unknown;
+  default_timezone?: unknown;
+  require_booking_confirmation?: unknown;
+  default_booking_window_days?: unknown;
 };
 
 export type NormalizedSettings = {
@@ -26,6 +31,11 @@ export type NormalizedSettings = {
   transcription_model?: string;
   analysis_enabled?: boolean;
   analysis_model_id?: string;
+  booking_enabled?: boolean;
+  active_booking_admin_id?: string | null;
+  default_timezone?: string;
+  require_booking_confirmation?: boolean;
+  default_booking_window_days?: number;
 };
 
 function cleanString(value: unknown, maxLength: number) {
@@ -72,6 +82,22 @@ export function normalizeSettingsInput(input: SettingsInput, mode: "form" | "pat
     output.analysis_enabled = input.analysis_enabled === "on";
   }
 
+  if (typeof input.booking_enabled === "boolean") {
+    output.booking_enabled = input.booking_enabled;
+  }
+
+  if (mode === "form" && input.booking_enabled !== undefined) {
+    output.booking_enabled = input.booking_enabled === "on";
+  }
+
+  if (typeof input.require_booking_confirmation === "boolean") {
+    output.require_booking_confirmation = input.require_booking_confirmation;
+  }
+
+  if (mode === "form" && input.require_booking_confirmation !== undefined) {
+    output.require_booking_confirmation = input.require_booking_confirmation === "on";
+  }
+
   const greeting = cleanString(input.greeting, 4000);
   if (greeting !== undefined) output.greeting = greeting;
 
@@ -98,6 +124,12 @@ export function normalizeSettingsInput(input: SettingsInput, mode: "form" | "pat
     output.daily_session_cap = dailySessionCap;
   }
 
+  if (input.default_booking_window_days !== undefined) {
+    const bookingWindowDays = clampNumber(input.default_booking_window_days, 1, 365);
+    if (!bookingWindowDays) throw new Error("Booking window is invalid.");
+    output.default_booking_window_days = bookingWindowDays;
+  }
+
   if (input.voice !== undefined) {
     output.voice = requiredIdentifier(input.voice, "Voice");
   }
@@ -122,6 +154,27 @@ export function normalizeSettingsInput(input: SettingsInput, mode: "form" | "pat
 
   if (input.analysis_model_id !== undefined) {
     output.analysis_model_id = requiredIdentifier(input.analysis_model_id, "Analysis model ID");
+  }
+
+  if (input.active_booking_admin_id !== undefined) {
+    const value = cleanString(input.active_booking_admin_id, 80);
+    if (!value) {
+      output.active_booking_admin_id = null;
+    } else if (/^[0-9a-fA-F-]{36}$/.test(value)) {
+      output.active_booking_admin_id = value;
+    } else {
+      throw new Error("Active booking admin is invalid.");
+    }
+  }
+
+  if (input.default_timezone !== undefined) {
+    const timezone = cleanString(input.default_timezone, 80);
+
+    if (!timezone || !/^[A-Za-z0-9_+\-./]+$/.test(timezone)) {
+      throw new Error("Default timezone is invalid.");
+    }
+
+    output.default_timezone = timezone;
   }
 
   return output;

@@ -15,7 +15,7 @@ function statusValue(value: string | null) {
 }
 
 export async function GET(request: Request) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const params = new URL(request.url).searchParams;
   const status = statusValue(params.get("status"));
   const q = (params.get("q") || "").trim().slice(0, 120);
@@ -50,6 +50,10 @@ export async function GET(request: Request) {
     left join conversations on conversations.id = leads.conversation_id
     where (${status} = 'all' or leads.status = ${status})
       and (${includeDeleted} or conversations.deleted_at is null or conversations.id is null)
+      and (
+        ${admin.role === "master_admin"}::boolean
+        or leads.assigned_admin_id = ${admin.id}
+      )
       and (
         ${q} = ''
         or coalesce(leads.client_name, leads.name, '') ilike ${search}

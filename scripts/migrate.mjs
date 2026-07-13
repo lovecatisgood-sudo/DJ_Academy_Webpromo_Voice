@@ -1,8 +1,20 @@
+import { randomBytes, scryptSync } from "node:crypto";
 import { neon } from "@neondatabase/serverless";
-import { redactError, requireDatabaseUrl } from "./env-utils.mjs";
+import { readEnv, redactError, requireDatabaseUrl } from "./env-utils.mjs";
 import { loadLocalEnv } from "./local-env.mjs";
 
 loadLocalEnv();
+
+function hashPassword(password) {
+  const salt = randomBytes(16).toString("base64url");
+  const key = scryptSync(password, salt, 64).toString("base64url");
+  return `scrypt$${salt}$${key}`;
+}
+
+const seedAdminUsername = readEnv("ADMIN_USERNAME");
+const seedAdminPassword = readEnv("ADMIN_PASSWORD");
+const seedAdminName = seedAdminUsername || "Master Admin";
+const seedAdminPasswordHash = seedAdminPassword ? hashPassword(seedAdminPassword) : "";
 
 const legacyKnowledgeMarkdown = `# DJAI Academy Voice Agent Knowledge
 
@@ -113,6 +125,42 @@ async function migrate() {
   await sql.transaction((tx) => [
     tx`create extension if not exists pgcrypto`,
     tx`
+      create table if not exists admin_users (
+        id uuid primary key default gen_random_uuid(),
+        name text not null,
+        username text unique not null,
+        email text unique,
+        password_hash text not null,
+        role text not null default 'admin',
+        is_active boolean not null default true,
+        last_login_at timestamptz,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now(),
+        deleted_at timestamptz
+      )
+    `,
+    tx`alter table admin_users add column if not exists name text`,
+    tx`alter table admin_users add column if not exists username text`,
+    tx`alter table admin_users add column if not exists email text`,
+    tx`alter table admin_users add column if not exists password_hash text`,
+    tx`alter table admin_users add column if not exists role text not null default 'admin'`,
+    tx`alter table admin_users add column if not exists is_active boolean not null default true`,
+    tx`alter table admin_users add column if not exists last_login_at timestamptz`,
+    tx`alter table admin_users add column if not exists created_at timestamptz not null default now()`,
+    tx`alter table admin_users add column if not exists updated_at timestamptz not null default now()`,
+    tx`alter table admin_users add column if not exists deleted_at timestamptz`,
+    tx`alter table admin_users alter column role set default 'admin'`,
+    tx`alter table admin_users alter column is_active set default true`,
+    tx`alter table admin_users alter column created_at set default now()`,
+    tx`alter table admin_users alter column updated_at set default now()`,
+    tx`
+      insert into admin_users (name, username, password_hash, role, is_active)
+      select ${seedAdminName}, ${seedAdminUsername}, ${seedAdminPasswordHash}, 'master_admin', true
+      where ${seedAdminUsername} <> ''
+        and ${seedAdminPasswordHash} <> ''
+        and not exists (select 1 from admin_users where deleted_at is null)
+    `,
+    tx`
       create table if not exists settings (
         id int primary key default 1,
         agent_enabled boolean default true,
@@ -128,6 +176,11 @@ async function migrate() {
         transcription_model text default 'gpt-realtime-whisper',
         analysis_enabled boolean default true,
         analysis_model_id text default 'gpt-4o-mini',
+        booking_enabled boolean default true,
+        active_booking_admin_id uuid references admin_users(id),
+        default_timezone text default 'Asia/Bangkok',
+        require_booking_confirmation boolean default true,
+        default_booking_window_days int default 30,
         updated_at timestamptz default now()
       )
     `,
@@ -147,10 +200,34 @@ async function migrate() {
       alter table settings
       add column if not exists analysis_model_id text default 'gpt-4o-mini'
     `,
+    tx`
+      alter table settings
+      add column if not exists booking_enabled boolean default true
+    `,
+    tx`
+      alter table settings
+      add column if not exists active_booking_admin_id uuid references admin_users(id)
+    `,
+    tx`
+      alter table settings
+      add column if not exists default_timezone text default 'Asia/Bangkok'
+    `,
+    tx`
+      alter table settings
+      add column if not exists require_booking_confirmation boolean default true
+    `,
+    tx`
+      alter table settings
+      add column if not exists default_booking_window_days int default 30
+    `,
     tx`alter table settings alter column model_id set default 'gpt-realtime-2.1'`,
     tx`alter table settings alter column transcription_model set default 'gpt-realtime-whisper'`,
     tx`alter table settings alter column analysis_enabled set default true`,
     tx`alter table settings alter column analysis_model_id set default 'gpt-4o-mini'`,
+    tx`alter table settings alter column booking_enabled set default true`,
+    tx`alter table settings alter column default_timezone set default 'Asia/Bangkok'`,
+    tx`alter table settings alter column require_booking_confirmation set default true`,
+    tx`alter table settings alter column default_booking_window_days set default 30`,
     tx`
       create table if not exists conversations (
         id uuid primary key default gen_random_uuid(),
@@ -174,7 +251,8 @@ async function migrate() {
         analysis_model_id text,
         analysis_updated_at timestamptz,
         starred boolean default false,
-        deleted_at timestamptz
+        deleted_at timestamptz,
+        assigned_admin_id uuid references admin_users(id)
       )
     `,
     tx`alter table conversations add column if not exists summary text`,
@@ -191,6 +269,7 @@ async function migrate() {
     tx`alter table conversations add column if not exists analysis_updated_at timestamptz`,
     tx`alter table conversations add column if not exists starred boolean default false`,
     tx`alter table conversations add column if not exists deleted_at timestamptz`,
+    tx`alter table conversations add column if not exists assigned_admin_id uuid references admin_users(id)`,
     tx`alter table conversations alter column interest_level set default 'unknown'`,
     tx`alter table conversations alter column analysis_status set default 'pending'`,
     tx`alter table conversations alter column starred set default false`,
@@ -216,6 +295,7 @@ async function migrate() {
         preferred_meeting_day text,
         preferred_meeting_time text,
         admin_notes text,
+        assigned_admin_id uuid references admin_users(id),
         updated_at timestamptz default now()
       )
     `,
@@ -230,9 +310,132 @@ async function migrate() {
     tx`alter table leads add column if not exists preferred_meeting_day text`,
     tx`alter table leads add column if not exists preferred_meeting_time text`,
     tx`alter table leads add column if not exists admin_notes text`,
+    tx`alter table leads add column if not exists assigned_admin_id uuid references admin_users(id)`,
     tx`alter table leads add column if not exists updated_at timestamptz default now()`,
     tx`alter table leads alter column status set default 'pending_follow_up'`,
     tx`alter table leads alter column updated_at set default now()`,
+    tx`
+      create table if not exists admin_calendar_profiles (
+        id uuid primary key default gen_random_uuid(),
+        admin_user_id uuid not null references admin_users(id),
+        display_name text not null,
+        booking_slug text unique not null,
+        timezone text not null default 'Asia/Bangkok',
+        meeting_title text not null default 'DJAI Consultation',
+        meeting_location text,
+        default_duration_minutes int not null default 30,
+        buffer_before_minutes int not null default 0,
+        buffer_after_minutes int not null default 0,
+        minimum_notice_minutes int not null default 240,
+        max_bookings_per_day int,
+        booking_window_days int not null default 30,
+        is_active boolean not null default true,
+        allow_admin_self_edit boolean not null default true,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      )
+    `,
+    tx`
+      create table if not exists availability_rules (
+        id uuid primary key default gen_random_uuid(),
+        admin_user_id uuid not null references admin_users(id),
+        weekday int not null,
+        start_time time not null,
+        end_time time not null,
+        timezone text not null default 'Asia/Bangkok',
+        is_active boolean not null default true,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      )
+    `,
+    tx`
+      create table if not exists availability_overrides (
+        id uuid primary key default gen_random_uuid(),
+        admin_user_id uuid not null references admin_users(id),
+        override_type text not null,
+        starts_at timestamptz not null,
+        ends_at timestamptz not null,
+        reason text,
+        created_by_admin_id uuid references admin_users(id),
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      )
+    `,
+    tx`
+      create table if not exists meeting_types (
+        id uuid primary key default gen_random_uuid(),
+        name text not null,
+        description text,
+        duration_minutes int not null default 30,
+        is_default boolean not null default false,
+        is_active boolean not null default true,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      )
+    `,
+    tx`
+      create table if not exists appointments (
+        id uuid primary key default gen_random_uuid(),
+        lead_id uuid references leads(id),
+        conversation_id uuid references conversations(id),
+        assigned_admin_id uuid references admin_users(id),
+        assigned_admin_name_snapshot text,
+        meeting_type_id uuid references meeting_types(id),
+        status text not null default 'pending_confirmation',
+        source text not null default 'voice_agent',
+        start_at timestamptz not null,
+        end_at timestamptz not null,
+        timezone text not null default 'Asia/Bangkok',
+        duration_minutes int not null,
+        client_name text not null,
+        company_name text,
+        email text not null,
+        phone text,
+        line_id text,
+        whatsapp text,
+        note text,
+        meeting_location text,
+        admin_notes text,
+        confirmed_at timestamptz,
+        rejected_at timestamptz,
+        cancelled_at timestamptz,
+        completed_at timestamptz,
+        no_show_at timestamptz,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now(),
+        deleted_at timestamptz
+      )
+    `,
+    tx`
+      insert into meeting_types (name, description, duration_minutes, is_default, is_active)
+      select 'Free Consultation', 'Initial consultation for qualified DJAI leads.', 30, true, true
+      where not exists (select 1 from meeting_types where is_default = true)
+    `,
+    tx`
+      insert into admin_calendar_profiles (
+        admin_user_id,
+        display_name,
+        booking_slug,
+        timezone,
+        meeting_title,
+        default_duration_minutes
+      )
+      select
+        au.id,
+        au.name,
+        lower(regexp_replace(au.username, '[^a-zA-Z0-9]+', '-', 'g')),
+        'Asia/Bangkok',
+        'DJAI Consultation',
+        30
+      from admin_users au
+      where au.role = 'master_admin'
+        and au.deleted_at is null
+        and not exists (
+          select 1 from admin_calendar_profiles acp where acp.admin_user_id = au.id
+        )
+      order by au.created_at asc
+      limit 1
+    `,
     tx`
       create unique index if not exists leads_conversation_contact_unique
       on leads (conversation_id, contact)
@@ -252,6 +455,54 @@ async function migrate() {
     tx`
       create index if not exists leads_status_idx
       on leads (status)
+    `,
+    tx`
+      create index if not exists admin_users_role_idx
+      on admin_users (role)
+    `,
+    tx`
+      create index if not exists admin_users_deleted_at_idx
+      on admin_users (deleted_at)
+    `,
+    tx`
+      create index if not exists conversations_assigned_admin_idx
+      on conversations (assigned_admin_id)
+    `,
+    tx`
+      create index if not exists leads_assigned_admin_idx
+      on leads (assigned_admin_id)
+    `,
+    tx`
+      create unique index if not exists admin_calendar_profiles_admin_unique
+      on admin_calendar_profiles (admin_user_id)
+    `,
+    tx`
+      create index if not exists admin_calendar_profiles_admin_idx
+      on admin_calendar_profiles (admin_user_id)
+    `,
+    tx`
+      create index if not exists availability_rules_admin_weekday_idx
+      on availability_rules (admin_user_id, weekday)
+    `,
+    tx`
+      create index if not exists availability_overrides_admin_time_idx
+      on availability_overrides (admin_user_id, starts_at, ends_at)
+    `,
+    tx`
+      create index if not exists appointments_assigned_admin_time_idx
+      on appointments (assigned_admin_id, start_at)
+    `,
+    tx`
+      create index if not exists appointments_lead_idx
+      on appointments (lead_id)
+    `,
+    tx`
+      create index if not exists appointments_conversation_idx
+      on appointments (conversation_id)
+    `,
+    tx`
+      create index if not exists appointments_status_idx
+      on appointments (status)
     `,
     tx`
       create index if not exists conversations_starred_idx
@@ -284,7 +535,11 @@ async function migrate() {
         model_id,
         transcription_model,
         analysis_enabled,
-        analysis_model_id
+        analysis_model_id,
+        booking_enabled,
+        default_timezone,
+        require_booking_confirmation,
+        default_booking_window_days
       )
       values (
         1,
@@ -300,7 +555,11 @@ async function migrate() {
         'gpt-realtime-2.1',
         'gpt-realtime-whisper',
         true,
-        'gpt-4o-mini'
+        'gpt-4o-mini',
+        true,
+        'Asia/Bangkok',
+        true,
+        30
       )
       on conflict (id) do nothing
     `,
@@ -311,6 +570,14 @@ async function migrate() {
         transcription_model = case when transcription_model = 'gpt-4o-mini-transcribe' then 'gpt-realtime-whisper' else transcription_model end,
         analysis_enabled = coalesce(analysis_enabled, true),
         analysis_model_id = coalesce(nullif(analysis_model_id, ''), 'gpt-4o-mini'),
+        booking_enabled = coalesce(booking_enabled, true),
+        active_booking_admin_id = coalesce(
+          active_booking_admin_id,
+          (select id from admin_users where role = 'master_admin' and is_active = true and deleted_at is null order by created_at asc limit 1)
+        ),
+        default_timezone = coalesce(nullif(default_timezone, ''), 'Asia/Bangkok'),
+        require_booking_confirmation = coalesce(require_booking_confirmation, true),
+        default_booking_window_days = coalesce(default_booking_window_days, 30),
         greeting = case
           when greeting = 'Hi, this is DJAI Academy. Tell me what you want to build, and I will help you choose the right next step.'
             then 'Hi, I am DJ from DJAI Academy. What kind of business are you running, and what are you trying to improve right now?'

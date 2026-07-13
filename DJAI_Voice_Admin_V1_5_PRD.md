@@ -1,73 +1,150 @@
-# DJAI Voice Admin V1.5 PRD
+# DJAI Voice Agent Admin V1.5 PRD
 
-**Project:** DJAI Voice Sales Agent Admin Upgrade  
-**Version:** 1.5 draft  
+**Project:** DJAI Voice Sales Agent Admin + Appointment Upgrade  
+**Version:** 1.5 final plan  
 **Date:** 13 July 2026  
 **Owner:** DJAI Academy  
-**Status:** Product/design plan for review before implementation
+**Status:** Product plan for implementation
 
 ---
 
 ## 1. Product Goal
 
-Upgrade the current minimal voice-agent admin from a transcript storage panel into a sales follow-up workspace.
+Upgrade the current voice-agent admin from a single-admin transcript/lead dashboard into a practical sales operations workspace for DJAI Academy.
 
-The voice agent's job remains live selling: diagnose, recommend, handle objections, and capture a lead. The admin's job is post-call operations: understand what happened, identify the lead quality, organize follow-up, update client details, and help DJAI close business.
+The voice agent's job remains live selling: diagnose the visitor's business, recommend the right DJAI service, handle objections, capture lead details, and push qualified visitors toward a consultation.
 
-V1.5 must keep the live call simple and reliable. Post-call summary, lead cleanup, contact extraction, status management, notes, starring, deletion, and export happen after the call.
+The admin system's job is follow-up operations:
 
----
+- Understand each conversation quickly.
+- Organize leads.
+- Manage lead status.
+- Manage multiple admins.
+- Let admins control their own availability.
+- Let the AI agent hand qualified visitors to a booking page.
+- Let master admin view and control the team's appointment pipeline.
 
-## 2. Problems To Solve
-
-The current admin has these gaps:
-
-- Full transcripts are shown too directly; admins need a summary first.
-- Lead contact details are stored as one generic `contact` field instead of structured client fields.
-- There is no post-call intelligence: no business type, problem, concern, interest level, recommended service, or next action.
-- Lead workflow is too basic: `new`, `contacted`, `closed` is not enough for real follow-up.
-- Conversations cannot be starred, deleted, searched, or exported.
-- Admin notes do not exist.
-- Settings expose technical fields too raw, making it easy to break model/provider setup.
+This version is not a full Calendly clone and not a full CRM. It is the minimum production-grade appointment and follow-up layer needed for the voice-agent sales product.
 
 ---
 
-## 3. Product Principles
+## 2. Product Principles
 
 1. **Do not change live sales behavior without approval.** The user's behavioral prompt is product logic and must not be rewritten casually.
-2. **Voice sells; text model summarizes.** The realtime voice model should not spend call time summarizing or evaluating itself.
-3. **Raw transcript is secondary.** The admin should first see the useful sales summary, then expand the full transcript only when needed.
-4. **Structured client details are first-class.** Name, company, phone, email, LINE, WhatsApp, and preferred time must be editable fields.
-5. **Admin is the final authority.** AI fills suggestions; admin can edit status, notes, contact fields, and summary-related fields.
-6. **No V2 infrastructure creep.** No queue, Redis, workers, RAG, calendar tools, notifications, or multi-user roles in this phase.
+2. **Voice sells; text model summarizes.** Realtime voice handles the call. A cheaper text model handles post-call intelligence.
+3. **Lead capture comes before booking.** The AI should collect contact details before showing the booking link.
+4. **Booking is the conversion handoff.** The AI should not read long URLs aloud; the widget should show a clear booking CTA.
+5. **Master admin controls the operation.** Master admin can create admins, delete/deactivate admins, view all calendars, and set the active AI booking admin.
+6. **Normal admin gets a personal work desk.** Normal admins see their own leads, appointments, and availability, not company-wide controls.
+7. **Admin is the final authority.** AI fills summaries and suggestions; admins can edit statuses, notes, contact fields, and appointments.
+8. **No V2 infrastructure creep.** No calendar OAuth, Google/Outlook sync, email invites, notifications, payments, RAG, workers, Redis, or multi-tenancy in this version.
 
 ---
 
-## 4. In Scope
+## 3. Problems To Solve
 
-### Post-Call Analysis
+The existing admin workflow has these gaps:
 
-After a conversation is saved, the backend runs a cheaper text model to analyze the transcript and tool-captured lead data.
+- Only one hardcoded admin exists.
+- No real admin-user management.
+- No appointment scheduling layer after a visitor agrees to a consultation.
+- No availability management.
+- No booking page connected to voice-agent leads.
+- No appointment confirmation/rejection workflow.
+- Master admin cannot see or control team calendars.
+- Normal admins do not have a scoped personal work queue.
+- Full transcripts are too prominent; admins need summary and intelligence first.
+- Lead details need structured fields.
+- Lead status needs to reflect sales follow-up reality.
 
-Default analyzer:
+---
+
+## 4. User Roles
+
+### Visitor
+
+The website visitor talks to the voice agent.
+
+Visitor can:
+
+- Speak with the voice sales agent.
+- Provide contact details.
+- Click the booking CTA after lead capture.
+- Select an available appointment slot.
+- Submit required booking fields.
+
+Visitor cannot:
+
+- See admin pages.
+- See internal calendar details.
+- Book unavailable slots.
+
+### Normal Admin
+
+Normal admin is a DJAI operator or sales/admin team member.
+
+Normal admin can:
+
+- Log in with credentials created by master admin.
+- View assigned leads.
+- View conversations linked to assigned leads/appointments.
+- View and manage their own appointments.
+- Confirm/reject their own appointments.
+- Mark appointments completed/no-show/cancelled.
+- Add notes.
+- Edit their own availability if allowed.
+- Change their own password/profile fields.
+
+Normal admin cannot:
+
+- Create/delete admins.
+- View all-admin calendars.
+- Set the active AI booking admin.
+- Change global voice/provider/knowledge settings.
+- Delete conversations globally.
+- Export all company records unless later allowed.
+
+### Master Admin
+
+Master admin is the owner/operator role.
+
+Master admin can:
+
+- Do everything normal admin can.
+- Create admin accounts manually.
+- Edit admin accounts.
+- Change/reset admin passwords.
+- Deactivate admins.
+- Soft-delete admins.
+- View all admins' calendars.
+- Confirm/reject/reassign any appointment.
+- Edit any admin's availability.
+- Set which admin calendar the AI booking flow uses.
+- View all leads, conversations, and appointments.
+- Access global Settings.
+
+Master admin guardrails:
+
+- Cannot delete themselves.
+- Cannot delete or downgrade the last remaining master admin.
+- Deleting an admin is soft delete.
+- Historical records remain visible after admin deletion.
+- If deleting the active booking admin, master admin must choose a replacement or disable booking.
+
+---
+
+## 5. In Scope
+
+### A. Post-Call Intelligence
+
+After `/api/conversation` saves a transcript, the backend runs a cheaper text model.
+
+Default:
 
 - Provider: OpenAI
 - Model: `gpt-4o-mini`
 
-Reasons:
-
-- OpenAI API key is already required.
-- Strong enough for JSON extraction and summarization.
-- Cheaper than realtime voice model usage.
-- Less integration risk than adding a second text provider immediately.
-
-Future option:
-
-- Add Gemini text model switching later if cost/quality testing justifies it.
-
-### Extracted Conversation Intelligence
-
-The analyzer should produce:
+Analyzer output:
 
 - Short summary
 - Business type
@@ -77,15 +154,23 @@ The analyzer should produce:
 - Concern or objection
 - Recommended DJAI service
 - Suggested next action
-- Whether the conversation has usable lead contact details
+- Lead/no-lead classification
+- Structured contact details
 
-### Extracted Client Details
+Rules:
 
-The analyzer should fill these fields when present:
+- Use transcript and tool-captured lead data only.
+- Do not invent details.
+- Do not overwrite admin notes.
+- Failure must not block transcript saving.
+
+### B. Structured Leads
+
+Lead fields:
 
 - Client name
 - Company name
-- Phone number
+- Phone
 - Email
 - LINE ID
 - WhatsApp
@@ -93,15 +178,10 @@ The analyzer should fill these fields when present:
 - Preferred contact method
 - Preferred meeting day
 - Preferred meeting time
-
-Extraction rules:
-
-- Extract only details present in transcript or tool call data.
-- Do not invent missing contact details.
-- If uncertain, leave blank or mark as unclear in summary/notes.
-- Any conversation with a usable contact method is considered a lead.
-
-### Lead Workflow
+- Need/problem
+- Status
+- Admin notes
+- Assigned admin
 
 Lead statuses:
 
@@ -111,223 +191,402 @@ Lead statuses:
 - `deal_closed`
 - `no_deal`
 
-Admin can move a lead between statuses anytime.
+Any conversation with a usable contact method is considered a lead.
 
-### Conversation Organization
+### C. Conversation Organization
 
 Admin can:
 
-- Filter conversations by all, leads, no leads, starred.
+- View summary-first conversation list.
+- Filter by all, leads, no leads, starred, failed analysis.
+- Search conversations.
 - Star/unstar conversations.
-- Delete conversations.
-- View full transcript only after opening or expanding it.
-- Export conversations/leads to CSV.
+- Soft-delete conversations, master only by default.
+- Regenerate analysis.
+- Export conversations to CSV.
+- Expand transcript only when needed.
 
-### Admin Notes
+### D. Multi-Admin Accounts
 
-Admin can save notes on leads/client records.
+Add admin-user management.
 
-Notes are manual and never overwritten by AI regeneration.
+Admin user fields:
+
+- Name
+- Username or email
+- Password hash
+- Role: `master_admin` or `admin`
+- Status: active, inactive, deleted
+- Last login
+- Created/updated/deleted timestamps
+
+Master admin can:
+
+- Create admin.
+- Edit admin.
+- Change/reset password.
+- Deactivate admin.
+- Delete admin.
+- View deleted/deactivated admins.
+
+This version uses manual credential creation. Email invite setup is deferred.
+
+### E. Appointment Module
+
+Add appointment management tied to leads and conversations.
+
+Appointment statuses:
+
+- `pending_confirmation`
+- `confirmed`
+- `rejected`
+- `cancelled`
+- `completed`
+- `no_show`
+
+Appointment fields:
+
+- Assigned admin
+- Lead
+- Conversation
+- Meeting type
+- Start/end time
+- Timezone
+- Customer details
+- Meeting location/link/instruction
+- Source: voice agent / manual
+- Internal notes
+- Status timestamps
+
+Admin actions:
+
+- Confirm
+- Reject
+- Reschedule
+- Reassign, master only by default
+- Cancel
+- Mark completed
+- Mark no-show
+- Add notes
+
+### F. Availability And Booking
+
+Each admin can have a calendar profile.
+
+Calendar profile fields:
+
+- Display name
+- Booking slug
+- Timezone
+- Meeting title
+- Meeting location/link/instruction
+- Default meeting duration
+- Active/inactive
+
+Availability:
+
+- Weekly recurring availability.
+- Multiple time ranges per day.
+- Block full days.
+- Block specific time ranges.
+- Optional blocked-time reason.
+- Booking rules:
+  - Duration
+  - Buffer before
+  - Buffer after
+  - Minimum notice
+  - Maximum bookings per day
+  - Booking window, for example 30 days ahead
+
+Only one admin calendar is active for AI-agent booking at a time:
+
+- Stored as `active_booking_admin_id`.
+- Master admin can change it.
+- If none is selected, booking CTA is disabled.
+
+### G. Public Booking Page
+
+Public booking page:
+
+- URL by booking slug, for example `/book/dj`.
+- Shows available days and time slots.
+- Requires name and email.
+- Optional phone, LINE, WhatsApp, company, note.
+- Supports prefilled fields from voice-agent lead context.
+- Prevents double booking.
+- Creates appointment as `pending_confirmation`.
+- Links appointment to lead and conversation when available.
+
+### H. Voice Agent Booking CTA
+
+After the voice agent gets appointment agreement and captures lead details:
+
+1. Voice agent calls `capture_lead`.
+2. Widget shows `Book consultation` CTA.
+3. CTA opens public booking page with signed lead/conversation context.
+4. Visitor chooses a time.
+5. Appointment appears in admin as `pending_confirmation`.
+6. Admin confirms or rejects.
+
+The AI should not read long booking URLs aloud.
+
+### I. Admin Dashboards
+
+Master admin sees:
+
+- Company-wide overview.
+- All-admin appointment queues.
+- All-admin calendar.
+- Team page.
+- Active AI booking admin controls.
+
+Normal admin sees:
+
+- Personal overview.
+- Own appointments.
+- Own leads.
+- Own availability.
+- Scoped conversations.
+
+See:
+
+- `Master_admin_V1.5_UIUX.md`
+- `Normal_Admin_UIUX.md`
+
+### J. CSV Export
+
+Export support:
+
+- Conversations
+- Leads
+- Appointments
+
+CSV must escape formula-like values starting with `=`, `+`, `-`, or `@`.
 
 ---
 
-## 5. Out Of Scope For V1.5
+## 6. Out Of Scope For This Version
 
-- CRM owners/users/roles.
-- Calendar booking tools.
-- LINE/email notifications.
-- Audio recording/playback.
+- Google Calendar sync.
+- Outlook/Microsoft calendar sync.
+- Calendar OAuth.
+- External calendar webhooks.
+- Email invite flow for new admins.
+- Password reset by email.
+- Email/SMS/LINE reminders.
+- Customer self-service reschedule/cancel.
+- Payments.
+- Round robin.
+- Multiple active AI booking calendars.
+- Collective/group meetings.
+- Meeting polls.
+- CRM owners beyond assigned admin.
+- Multi-tenant SaaS accounts.
 - RAG/vector search.
-- Job queue, Redis, workers.
-- Multi-tenant admin.
-- Automatic lead scoring beyond a simple interest level.
-- AI-generated outbound messages.
-- File uploads.
+- Redis, queues, workers.
+- Audio recording/playback.
+- AI-generated outbound follow-up messages.
 
 ---
 
-## 6. V1 Completion Gate Before V1.5 Build
+## 7. Primary User Flows
 
-Before implementing V1.5, confirm the current V1 launch baseline still passes after recent provider, prompt, and VAD changes.
-
-Required checks:
-
-- OpenAI provider works on production with `gpt-realtime-2.1`, `marin`, and `gpt-realtime-whisper`.
-- Gemini provider remains optional and switchable, not a replacement for OpenAI.
-- Voice widget starts from the production landing section and from the embeddable script.
-- Browser never receives `OPENAI_API_KEY` or `GEMINI_API_KEY`.
-- OpenAI audio path remains browser-to-OpenAI WebRTC; audio does not pass through DJAI server.
-- Settings/knowledge save invalidates the in-process cache and affects new calls without redeploy.
-- Knowledge document is injected once at session creation.
-- Agent only states prices/facts from the knowledge document.
-- Lead tool call writes to Neon and appears in Admin.
-- Conversation transcript saves on normal end and tab close.
-- Kill switch blocks new sessions immediately; UI should clearly show the agent is offline.
-- Daily cap and per-IP rate limits still work.
-- Thai and English golden-call scenarios pass with the restored original behavioral prompt.
-- `buildVersion` should be updated before deployment so production errors can be traced to the right build.
-
-Known V1 items to verify carefully:
-
-- The current widget checks offline status on mount and blocks `/api/session`, but it does not continuously poll. If "kill switch hides widget immediately" is interpreted literally, add lightweight polling or hide/disable on failed start before calling V1 complete.
-- The admin works for V1 storage, but it is intentionally minimal. V1.5 should not be started until V1 lead capture, transcript saving, provider switching, and knowledge updates are stable.
-
----
-
-## 7. User Roles
-
-### Admin
-
-Single DJAI operator using `/admin`.
-
-Needs to:
-
-- See what calls happened.
-- Understand which conversations matter.
-- Follow up with leads.
-- Track status.
-- Add notes.
-- Export records.
-- Edit settings safely.
-
-### Visitor
-
-No admin interaction. Visitor only talks to the voice agent.
-
----
-
-## 8. Primary User Flows
-
-### Flow A: New Lead Captured
+### Flow A: Voice Lead Captured
 
 1. Visitor talks to voice agent.
-2. Voice agent collects contact details.
-3. Voice agent calls `capture_lead`.
-4. Browser saves transcript at call end.
-5. Backend stores conversation.
-6. Backend runs post-call analyzer.
-7. Analyzer fills summary, interest level, problem, concern, recommended service, and client details.
-8. Admin sees lead under `Pending follow up`.
-9. Admin opens lead, reviews summary, expands transcript if needed, adds notes, and updates status.
+2. Voice agent diagnoses problem and recommends service.
+3. Visitor shows meaningful interest.
+4. Voice agent collects contact details.
+5. Voice agent calls `capture_lead`.
+6. Lead appears in admin as `pending_follow_up`.
+7. Conversation saves at call end.
+8. Analyzer fills summary, client details, interest level, problem, concern, recommendation, and next action.
 
-### Flow B: Conversation With No Lead
+### Flow B: Voice Lead Books Appointment
 
-1. Visitor talks but does not provide usable contact.
-2. Conversation saves transcript.
-3. Analyzer summarizes conversation and marks `has_lead=false`.
-4. Admin sees it under `No leads`.
-5. Admin can star it, delete it, or review transcript.
+1. Visitor agrees to consultation.
+2. Voice agent collects contact details first.
+3. Voice agent captures lead.
+4. Widget shows booking CTA.
+5. Visitor opens booking page.
+6. Visitor selects available slot.
+7. Visitor submits required name/email and optional contact details.
+8. Appointment is created as `pending_confirmation`.
+9. Lead status becomes `appointment_set` or remains linked to pending appointment depending on UI language.
+10. Assigned admin/master admin confirms or rejects.
 
-### Flow C: Manual Lead Cleanup
+### Flow C: Master Admin Creates Admin
 
-1. Admin opens lead detail.
-2. Admin edits name/company/contact fields.
-3. Admin updates lead status.
-4. Admin adds internal notes.
-5. Changes save without regenerating AI summary.
+1. Master admin opens Team.
+2. Clicks Create admin.
+3. Enters name, username/email, temporary password, role.
+4. Saves account.
+5. New admin can log in with created credentials.
 
-### Flow D: Regenerate Summary
+### Flow D: Master Admin Deletes Admin
 
-1. Admin opens conversation detail.
-2. Admin clicks `Regenerate summary`.
-3. Backend re-runs analyzer using the saved transcript and existing tool data.
-4. AI fields are updated.
-5. Admin notes and manually edited status are preserved.
+1. Master admin opens Team.
+2. Clicks Delete admin.
+3. System checks:
+   - Is this the current user?
+   - Is this the last master admin?
+   - Is this the active booking admin?
+   - Does this admin have future appointments?
+4. If future appointments exist, master admin chooses reassign, leave unassigned, or cancel.
+5. If active booking admin, master admin selects replacement or disables booking.
+6. Admin is soft-deleted and cannot log in.
+7. Historical records remain visible.
 
-### Flow E: Export
+### Flow E: Normal Admin Confirms Appointment
 
-1. Admin clicks export.
-2. System returns CSV of filtered conversations/leads.
-3. CSV includes summaries, client details, status, notes, and timestamps.
+1. Normal admin opens Overview or Appointments.
+2. Sees pending confirmation.
+3. Reviews customer details and lead intelligence.
+4. Confirms or rejects.
+5. Adds notes.
+6. Appointment status updates.
+
+### Flow F: Master Admin Views All Calendars
+
+1. Master admin opens Appointments.
+2. Selects Calendar view.
+3. Uses filter: All admins or one admin.
+4. Reviews pending, confirmed, blocked, completed, no-show, cancelled slots.
+5. Opens appointment drawer to confirm, reject, reassign, or update status.
+
+### Flow G: Availability Management
+
+1. Admin opens personal availability.
+2. Sets weekly availability.
+3. Adds blocked full days or time ranges.
+4. Saves.
+5. Public booking page immediately uses updated slots.
+
+Master admin can do this for any admin.
 
 ---
 
-## 9. Functional Requirements
+## 8. Page-Level Product Requirements
 
-### Conversation List
+### Overview
 
-Must show:
+Master admin:
 
-- Date/time
-- Lead/no lead badge
-- Star state
-- Client/company if known
-- Interest level
-- Main problem
-- Recommended service
-- Next action
-- Status when lead exists
+- Company-wide metrics.
+- All-admin filters.
+- Pending confirmation queue.
+- Today's appointments.
+- High-interest leads.
+- Warnings for no active booking admin or no availability.
 
-Must not show full transcript by default.
+Normal admin:
 
-### Conversation Detail
+- Personal metrics.
+- Own pending confirmations.
+- Own appointments today.
+- Own follow-up leads.
 
-Must show:
+### Conversations
 
-- Summary card
-- Client details card
-- Lead status controls when contact exists
-- Admin notes
-- Star/unstar
-- Delete
-- Regenerate summary
-- Expandable full transcript
+- Summary-first list.
+- Transcript collapsed by default.
+- Lead/no-lead badge.
+- Appointment badge when linked.
+- Filters and search.
+- Master can delete.
+- Regenerate analysis where allowed.
 
-### Leads List
+### Leads
 
-Must show:
+- Structured contact fields.
+- Status filters.
+- Assigned admin.
+- Appointment status.
+- Notes preview.
+- CSV export, master company-wide and normal scoped.
 
-- Lead status filters
-- Client name/company
-- Phone/email/LINE/WhatsApp
-- Interest level
-- Main problem
-- Concern/objection
-- Recommended service
-- Next action
-- Last updated/created time
-- Notes preview
+### Appointments
 
-### Lead Detail/Edit
+- List and calendar view.
+- Status filters.
+- Date controls.
+- Master admin filter by all/specific admin.
+- Normal admin scoped to self.
+- Detail drawer.
+- Confirm/reject/reschedule/cancel/complete/no-show actions.
 
-V1.5 can implement lead editing inside conversation detail first. A separate lead detail page is optional if list complexity grows.
+### Team
 
-Editable fields:
+Master-only.
 
-- Client name
-- Company name
-- Phone
-- Email
-- LINE
-- WhatsApp
-- Other contact
-- Preferred contact method
-- Preferred meeting day/time
-- Lead status
-- Admin notes
+- Create admin.
+- Edit admin.
+- Reset password.
+- Deactivate.
+- Delete.
+- View calendar.
+- Set active AI booking admin.
+- View deleted/deactivated admins.
 
 ### Settings
 
-Add a Post-Call Analysis section:
+Master settings:
 
-- Enable/disable analysis.
-- Analysis model ID, default `gpt-4o-mini`.
-- Regenerate missing/failed summaries manually.
+- Voice agent controls.
+- Provider/model controls.
+- Knowledge document.
+- Post-call analysis.
+- Booking settings.
+- Active AI booking admin.
 
-Voice provider settings remain separate from text analysis settings.
+Normal admin settings:
+
+- Profile.
+- Change password.
+- Personal availability/calendar fields where allowed.
+
+### Public Booking Page
+
+- Clean customer-facing page.
+- Shows available slots only.
+- Required name/email.
+- Optional phone, LINE, WhatsApp, company, note.
+- Creates pending appointment.
+- Handles no availability state.
+- Handles disabled booking state.
 
 ---
 
-## 10. Success Criteria
+## 9. Success Criteria
 
 V1.5 is successful when:
 
-- Admin can understand a call without reading the full transcript.
-- Leads with contact details appear automatically in the Leads workflow.
-- Admin can edit client details and status.
-- Admin can add notes.
-- Admin can star important conversations.
-- Admin can delete conversations.
-- Admin can export conversations/leads to CSV.
-- Post-call analysis failure never prevents transcript saving.
-- The live voice agent behavior is not changed by analysis features.
+- Master admin can create, edit, deactivate, and delete admins safely.
+- Normal admins can log in and see only their scoped work.
+- Master admin can view all admins' calendars.
+- Only one admin calendar can be selected for AI booking.
+- Admin availability produces accurate public booking slots.
+- Visitor can book after a voice-agent lead capture.
+- Appointment appears in admin as pending confirmation.
+- Admin can confirm/reject appointment.
+- Lead, conversation, and appointment records are linked.
+- Admin can understand a call without opening transcript.
+- Analyzer failure never prevents transcript saving.
+- The live voice-agent sales behavior is not changed by appointment/admin features.
+
+---
+
+## 10. Implementation Priority
+
+Recommended build order:
+
+1. Multi-admin auth foundation and role permissions.
+2. Team page for master admin.
+3. Appointment data model and appointment list.
+4. Availability model and editor.
+5. Public booking page and slot calculation.
+6. Voice widget booking CTA after lead capture.
+7. Master all-admin calendar view.
+8. Normal admin scoped overview/leads/conversations.
+9. CSV export for appointments.
+10. Final acceptance run.

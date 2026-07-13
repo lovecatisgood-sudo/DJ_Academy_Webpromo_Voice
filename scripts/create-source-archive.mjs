@@ -22,6 +22,8 @@ const paths = [
   "DJAI_Voice_Admin_V1_5_Architecture.md",
   "DJAI_Voice_Admin_V1_5_UIUX_Design.md",
   "DJAI_Voice_Admin_V1_5_Implementation_Plan.md",
+  "Master_admin_V1.5_UIUX.md",
+  "Normal_Admin_UIUX.md",
   "scripts",
   "src",
   "public",

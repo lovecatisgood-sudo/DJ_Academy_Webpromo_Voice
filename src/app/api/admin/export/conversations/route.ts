@@ -9,7 +9,7 @@ function filterValue(value: string | null) {
 }
 
 export async function GET(request: Request) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const params = new URL(request.url).searchParams;
   const filter = filterValue(params.get("filter"));
   const q = (params.get("q") || "").trim().slice(0, 120);
@@ -37,6 +37,15 @@ export async function GET(request: Request) {
       summary
     from conversations
     where (${includeDeleted} or deleted_at is null)
+      and (
+        ${admin.role === "master_admin"}::boolean
+        or assigned_admin_id = ${admin.id}
+        or exists (
+          select 1 from leads
+          where leads.conversation_id = conversations.id
+            and leads.assigned_admin_id = ${admin.id}
+        )
+      )
       and (
         ${filter} = 'all'
         or (${filter} = 'leads' and had_lead)

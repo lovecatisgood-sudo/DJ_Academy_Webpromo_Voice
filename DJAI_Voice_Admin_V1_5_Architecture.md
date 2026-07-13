@@ -1,104 +1,195 @@
-# DJAI Voice Admin V1.5 Architecture
+# DJAI Voice Agent Admin V1.5 Architecture
 
-**Project:** Post-call intelligence and admin workflow upgrade  
-**Version:** 1.5 draft  
+**Project:** Multi-admin, post-call intelligence, and appointment booking upgrade  
+**Version:** 1.5 final plan  
 **Date:** 13 July 2026  
-**Status:** Architecture plan for review before implementation
+**Status:** Architecture plan for implementation
 
 ---
 
 ## 1. Architecture Summary
 
-V1.5 adds post-call text analysis and a richer admin workflow while keeping the existing voice-call architecture intact.
+V1.5 keeps the existing live voice architecture intact and adds three operational layers:
+
+1. Post-call text intelligence.
+2. Multi-admin account and permission system.
+3. Native appointment/availability/booking module.
 
 The live call path remains:
 
 ```text
-Browser widget -> /api/session -> OpenAI/Gemini Live -> /api/lead -> /api/conversation
+Browser widget
+  -> POST /api/session
+  -> OpenAI Realtime or Gemini Live
+  -> POST /api/lead
+  -> POST /api/conversation
 ```
 
-The new post-call path starts only after `/api/conversation` receives a transcript:
+The post-call path starts after transcript save:
 
 ```text
-/api/conversation
+POST /api/conversation
   -> save transcript
   -> run analyzer with gpt-4o-mini
-  -> store conversation summary + client fields
-  -> update/create lead when contact exists
+  -> store conversation intelligence
+  -> update/create structured lead
 ```
 
-No audio passes through our server. No database reads occur during the live call except the existing cached settings read at session creation.
+The appointment path starts after a qualified lead agrees to consultation:
+
+```text
+Voice agent captures lead
+  -> widget shows booking CTA
+  -> /book/[slug]?context=...
+  -> visitor selects available slot
+  -> POST /api/bookings
+  -> appointment pending confirmation
+  -> admin confirms/rejects
+```
+
+No audio passes through the DJAI server. The OpenAI/Gemini API keys never reach the browser. Calendar availability is native to this app in V1.5; there is no Google/Outlook OAuth sync yet.
 
 ---
 
-## 2. V1 Baseline Requirements Before Expansion
+## 2. Core Boundaries
 
-V1.5 must not mask or destabilize the V1 voice-agent launch path.
+### Live Voice Boundary
 
-Before implementation, verify:
+Keep unchanged:
 
-- `/api/session` returns valid OpenAI and Gemini session payloads when each provider is selected.
-- OpenAI payload is accepted by the upstream Realtime API with the configured VAD fields.
-- Browser OpenAI path uses WebRTC directly to OpenAI.
-- Browser Gemini path uses the constrained Live WebSocket endpoint with a short-lived token.
-- `/api/lead` validates signed session context and writes only server-validated lead payloads.
-- `/api/conversation` accepts `sendBeacon` text/plain JSON and normal JSON fetch.
-- Settings save invalidates cache.
-- Conversation reservation and daily cap are idempotent and do not create duplicate lead/conversation rows.
-- Production `buildVersion` is updated whenever a deployment contains behavior or provider changes.
+- Settings and knowledge are read from in-process cache at session creation.
+- Knowledge is injected once per voice session.
+- Browser connects directly to OpenAI/Gemini.
+- The only live-call tool remains lead capture unless a separate booking tool is explicitly approved later.
 
-If any V1 acceptance check fails, fix V1 first before adding analyzer/admin workflow code.
+The voice agent should not book a time directly in this version. It should collect contact details and trigger the widget booking CTA.
 
----
+### Post-Call Boundary
 
-## 3. Model Responsibilities
+The analyzer receives:
 
-### Realtime Voice Model
+- Transcript.
+- Existing lead/tool data.
+- Basic metadata.
 
-Responsible for:
+The analyzer must not receive:
 
-- Live conversation.
-- Discovery.
-- Benefit selling.
-- Objection handling.
-- Contact collection.
-- Calling `capture_lead`.
-
-Not responsible for:
-
-- Final post-call summary.
-- Lead scoring.
-- Transcript analysis.
+- Full voice system prompt.
+- Full knowledge document unless later required.
 - Admin notes.
 
-### Text Analyzer Model
+### Appointment Boundary
 
-Default:
+V1.5 appointment scheduling is native and simple:
 
-- `gpt-4o-mini`
+- Weekly availability.
+- Blocked times.
+- Internal appointments.
+- No external calendar sync.
+- No reminder automation.
+- No payments.
 
-Responsible for:
+---
 
-- Transcript summarization.
-- Structured extraction.
-- Contact cleanup.
-- Interest level.
-- Concern/objection detection.
-- Suggested next action.
+## 3. Roles And Permissions
 
-The analyzer must output strict JSON. The server validates and stores only accepted fields.
+### Role Values
+
+```text
+master_admin
+admin
+```
+
+### Permission Matrix
+
+| Capability | Master admin | Normal admin |
+|---|---:|---:|
+| View all conversations | Yes | No, scoped |
+| View assigned conversations | Yes | Yes |
+| Soft-delete conversations | Yes | No |
+| View all leads | Yes | No, scoped |
+| Edit assigned leads | Yes | Yes |
+| Reassign leads | Yes | No |
+| View all appointments | Yes | No |
+| View own appointments | Yes | Yes |
+| Confirm/reject own appointment | Yes | Yes |
+| Confirm/reject any appointment | Yes | No |
+| Reassign appointments | Yes | No |
+| View all calendars | Yes | No |
+| Edit own availability | Yes | Yes, if allowed |
+| Edit any availability | Yes | No |
+| Create admin | Yes | No |
+| Edit/delete admin | Yes | No |
+| Set active booking admin | Yes | No |
+| Edit global voice settings | Yes | No |
+| Edit knowledge document | Yes | No |
+| Export all records | Yes | No |
+
+### Server-Side Enforcement
+
+All permissions must be enforced in server actions/API routes, not only hidden in UI.
+
+Normal admin queries must always include scoping by:
+
+- `assigned_admin_id`
+- or appointment ownership
+- or lead ownership
+- or conversation linked through assigned lead/appointment
 
 ---
 
 ## 4. Database Changes
 
+Use additive migrations. Keep old columns until compatibility risk is gone.
+
+### `admin_users`
+
+```sql
+create table admin_users (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  username text unique not null,
+  email text unique,
+  password_hash text not null,
+  role text not null default 'admin',
+  is_active boolean not null default true,
+  last_login_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+```
+
+Allowed roles:
+
+```text
+master_admin
+admin
+```
+
+Soft delete:
+
+- Set `deleted_at`.
+- Set `is_active=false`.
+- Do not remove historical references.
+
+Bootstrap:
+
+- Existing env-based hardcoded admin becomes the first `master_admin`.
+- Migration/seed should create it if no `admin_users` row exists.
+
 ### `settings`
 
-Add:
+Existing settings remain. Add:
 
 ```sql
 analysis_enabled boolean default true,
-analysis_model_id text default 'gpt-4o-mini'
+analysis_model_id text default 'gpt-4o-mini',
+booking_enabled boolean default true,
+active_booking_admin_id uuid references admin_users(id),
+default_timezone text default 'Asia/Bangkok',
+require_booking_confirmation boolean default true,
+default_booking_window_days int default 30
 ```
 
 Optional later:
@@ -107,11 +198,9 @@ Optional later:
 analysis_provider text default 'openai'
 ```
 
-Recommendation for V1.5: keep provider implicit as OpenAI to reduce UI and deployment risk.
-
 ### `conversations`
 
-Add:
+Existing conversation fields remain. Add/confirm:
 
 ```sql
 summary text,
@@ -130,7 +219,13 @@ starred boolean default false,
 deleted_at timestamptz
 ```
 
-Accepted `interest_level` values:
+Optional assignment:
+
+```sql
+assigned_admin_id uuid references admin_users(id)
+```
+
+Accepted `interest_level`:
 
 ```text
 low
@@ -139,7 +234,7 @@ high
 unknown
 ```
 
-Accepted `analysis_status` values:
+Accepted `analysis_status`:
 
 ```text
 pending
@@ -150,7 +245,7 @@ skipped
 
 ### `leads`
 
-Add:
+Existing lead fields remain. Add/confirm:
 
 ```sql
 client_name text,
@@ -164,10 +259,11 @@ preferred_contact_method text,
 preferred_meeting_day text,
 preferred_meeting_time text,
 admin_notes text,
+assigned_admin_id uuid references admin_users(id),
 updated_at timestamptz default now()
 ```
 
-Update accepted `status` values:
+Accepted lead statuses:
 
 ```text
 pending_follow_up
@@ -177,21 +273,388 @@ deal_closed
 no_deal
 ```
 
-Compatibility:
+Migration mapping:
 
-- Existing `name`, `contact`, `contact_type`, `need`, and `preferred_time` should remain for backward compatibility during migration.
-- New UI should prefer structured fields.
-- Existing leads with `new` should migrate to `pending_follow_up`.
-- Existing `contacted` can migrate to `follow_up_later` unless user prefers `appointment_set`.
-- Existing `closed` can migrate to `deal_closed`.
+```text
+new -> pending_follow_up
+contacted -> follow_up_later
+closed -> deal_closed
+```
+
+### `admin_calendar_profiles`
+
+```sql
+create table admin_calendar_profiles (
+  id uuid primary key default gen_random_uuid(),
+  admin_user_id uuid not null references admin_users(id),
+  display_name text not null,
+  booking_slug text unique not null,
+  timezone text not null default 'Asia/Bangkok',
+  meeting_title text not null default 'DJAI Consultation',
+  meeting_location text,
+  default_duration_minutes int not null default 30,
+  buffer_before_minutes int not null default 0,
+  buffer_after_minutes int not null default 0,
+  minimum_notice_minutes int not null default 240,
+  max_bookings_per_day int,
+  booking_window_days int not null default 30,
+  is_active boolean not null default true,
+  allow_admin_self_edit boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+```
+
+### `availability_rules`
+
+Weekly recurring availability.
+
+```sql
+create table availability_rules (
+  id uuid primary key default gen_random_uuid(),
+  admin_user_id uuid not null references admin_users(id),
+  weekday int not null,
+  start_time time not null,
+  end_time time not null,
+  timezone text not null default 'Asia/Bangkok',
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+```
+
+`weekday` values:
+
+```text
+0 Sunday
+1 Monday
+...
+6 Saturday
+```
+
+### `availability_overrides`
+
+Blocked time and date-specific availability.
+
+```sql
+create table availability_overrides (
+  id uuid primary key default gen_random_uuid(),
+  admin_user_id uuid not null references admin_users(id),
+  override_type text not null,
+  starts_at timestamptz not null,
+  ends_at timestamptz not null,
+  reason text,
+  created_by_admin_id uuid references admin_users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+```
+
+Accepted `override_type`:
+
+```text
+blocked
+extra_available
+```
+
+### `meeting_types`
+
+Start with one default meeting type.
+
+```sql
+create table meeting_types (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  description text,
+  duration_minutes int not null default 30,
+  is_default boolean not null default false,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+```
+
+### `appointments`
+
+```sql
+create table appointments (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid references leads(id),
+  conversation_id uuid references conversations(id),
+  assigned_admin_id uuid references admin_users(id),
+  assigned_admin_name_snapshot text,
+  meeting_type_id uuid references meeting_types(id),
+  status text not null default 'pending_confirmation',
+  source text not null default 'voice_agent',
+  start_at timestamptz not null,
+  end_at timestamptz not null,
+  timezone text not null default 'Asia/Bangkok',
+  duration_minutes int not null,
+  client_name text not null,
+  company_name text,
+  email text not null,
+  phone text,
+  line_id text,
+  whatsapp text,
+  note text,
+  meeting_location text,
+  admin_notes text,
+  confirmed_at timestamptz,
+  rejected_at timestamptz,
+  cancelled_at timestamptz,
+  completed_at timestamptz,
+  no_show_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+```
+
+Accepted appointment statuses:
+
+```text
+pending_confirmation
+confirmed
+rejected
+cancelled
+completed
+no_show
+```
+
+Accepted appointment sources:
+
+```text
+voice_agent
+manual
+public_booking
+```
+
+### Optional Audit Table
+
+Recommended if time allows:
+
+```sql
+create table admin_audit_events (
+  id uuid primary key default gen_random_uuid(),
+  actor_admin_id uuid references admin_users(id),
+  action text not null,
+  target_type text not null,
+  target_id uuid,
+  metadata jsonb,
+  created_at timestamptz not null default now()
+);
+```
+
+If not implemented immediately, core tables should still include enough timestamps to debug operations.
 
 ---
 
-## 5. Analyzer Contract
+## 5. Slot Calculation
+
+Availability is computed server-side only.
+
+Input:
+
+- Calendar profile.
+- Weekly availability rules.
+- Availability overrides.
+- Existing appointments.
+- Requested date range.
+
+Algorithm:
+
+1. Resolve timezone.
+2. Generate candidate time windows from weekly rules.
+3. Add `extra_available` overrides.
+4. Remove `blocked` overrides.
+5. Remove existing non-rejected/non-cancelled appointment windows.
+6. Apply buffer before/after.
+7. Apply minimum notice.
+8. Apply booking window.
+9. Apply max bookings per day.
+10. Return slots in timezone-aware ISO format.
+
+Appointment statuses that block time:
+
+```text
+pending_confirmation
+confirmed
+completed
+no_show
+```
+
+Appointment statuses that do not block future booking:
+
+```text
+rejected
+cancelled
+```
+
+Before creating an appointment, repeat conflict checks inside the booking transaction/action. Never trust slots generated earlier by the browser.
+
+---
+
+## 6. Public APIs And Server Actions
+
+Prefer server actions for admin forms. Use public API routes for widget/booking flows.
+
+### Public Existing APIs
+
+```text
+POST /api/session
+POST /api/lead
+POST /api/conversation
+```
+
+Update `/api/lead`:
+
+- Keep current capture behavior.
+- Return lead ID and safe booking context if lead capture succeeds.
+- Do not expose sensitive admin data.
+
+Update `/api/conversation`:
+
+- Save transcript.
+- Run analyzer if enabled.
+- Link/update leads.
+- Never fail transcript save because analyzer fails.
+
+### Public Booking APIs
+
+```text
+GET /api/booking/slots?slug=...&from=...&to=...
+POST /api/booking/appointments
+```
+
+`GET /api/booking/slots`:
+
+- Public.
+- Rate-limited.
+- Returns available slots for the booking slug.
+- Does not expose internal notes or private admin data.
+
+`POST /api/booking/appointments`:
+
+- Public.
+- Rate-limited.
+- Validates booking slug, slot, required fields.
+- Validates signed lead/conversation context when present.
+- Rechecks conflicts server-side.
+- Creates appointment as `pending_confirmation`.
+- Links lead/conversation when valid.
+- Updates lead status toward appointment workflow.
+
+### Admin Auth Actions
+
+```text
+loginAction
+logoutAction
+changeOwnPasswordAction
+```
+
+Session should store:
+
+```json
+{
+  "adminUserId": "uuid",
+  "role": "master_admin|admin",
+  "name": "string"
+}
+```
+
+### Master Admin Team Actions
+
+```text
+createAdminUserAction
+updateAdminUserAction
+resetAdminPasswordAction
+deactivateAdminUserAction
+deleteAdminUserAction
+setActiveBookingAdminAction
+```
+
+`deleteAdminUserAction` must:
+
+- Reject deleting self.
+- Reject deleting/downgrading last master admin.
+- Soft-delete only.
+- Reassign/cancel/leave future appointments based on explicit master-admin choice.
+- Replace or disable active booking admin if needed.
+
+### Appointment Actions
+
+```text
+confirmAppointmentAction
+rejectAppointmentAction
+cancelAppointmentAction
+rescheduleAppointmentAction
+reassignAppointmentAction
+markAppointmentCompletedAction
+markAppointmentNoShowAction
+updateAppointmentNotesAction
+```
+
+Normal admin action scope:
+
+- Only appointments where `assigned_admin_id=session.adminUserId`.
+
+Master admin action scope:
+
+- Any appointment.
+
+### Availability Actions
+
+```text
+updateCalendarProfileAction
+updateWeeklyAvailabilityAction
+createAvailabilityOverrideAction
+deleteAvailabilityOverrideAction
+```
+
+Normal admin scope:
+
+- Own calendar only.
+- Only fields allowed by profile/settings.
+
+Master admin scope:
+
+- Any admin calendar.
+
+### Existing Admin Actions To Keep
+
+```text
+updateConversationIntelligenceAction
+deleteConversationAction
+toggleConversationStarAction
+regenerateConversationAnalysisAction
+updateLeadAction
+```
+
+Update scoping:
+
+- Master admin: all records.
+- Normal admin: assigned/linked records only.
+
+### Export Routes
+
+```text
+GET /api/admin/export/conversations.csv
+GET /api/admin/export/leads.csv
+GET /api/admin/export/appointments.csv
+```
+
+Export scope:
+
+- Master admin: all filtered records.
+- Normal admin: scoped filtered records.
+
+CSV values must be escaped against spreadsheet formula injection.
+
+---
+
+## 7. Analyzer Contract
 
 ### Input
-
-The analyzer receives:
 
 ```json
 {
@@ -209,16 +672,11 @@ The analyzer receives:
       "need": "string",
       "preferred_time": "string"
     }
-  ],
-  "knowledge_excerpt": "optional short context if needed"
+  ]
 }
 ```
 
-Do not send the full system prompt to the analyzer. It only needs the transcript and lead data.
-
 ### Output
-
-The analyzer must return strict JSON:
 
 ```json
 {
@@ -248,204 +706,186 @@ The analyzer must return strict JSON:
 }
 ```
 
-### Analyzer Rules
+Rules:
 
-- Use only transcript/tool data.
-- Do not invent contact details.
-- If phone/email/LINE/WhatsApp/other usable contact exists, `has_lead=true`.
-- If the visitor gives fake/example details, mention uncertainty in summary and leave questionable fields blank where possible.
-- Keep summary concise.
-- Extract business signals even when no lead exists.
-- Admin notes are never generated or overwritten by the analyzer.
-
----
-
-## 6. Backend Modules
-
-Add:
-
-```text
-src/lib/conversation-analysis.ts
-src/lib/conversation-analysis-schema.ts
-src/lib/admin-export.ts
-```
-
-### `conversation-analysis.ts`
-
-Responsibilities:
-
-- Build analyzer prompt.
-- Call OpenAI text model.
-- Parse JSON.
-- Validate fields.
-- Return normalized analysis result.
-
-### `conversation-analysis-schema.ts`
-
-Responsibilities:
-
-- Runtime validation without adding a new dependency.
-- Normalize strings and enums.
+- Strict JSON only.
+- Validate all fields server-side.
 - Clamp field lengths.
-
-### `admin-export.ts`
-
-Responsibilities:
-
-- Convert filtered conversations/leads into CSV.
-- Escape values correctly.
+- Do not invent contact details.
+- Leave uncertain values blank.
+- Admin notes are never overwritten.
 
 ---
 
-## 7. API And Actions
+## 8. Frontend Structure
 
-### Existing Public APIs
-
-`POST /api/conversation`
-
-Update behavior:
-
-1. Validate session context.
-2. Save transcript.
-3. Set `analysis_status='pending'` if analysis enabled.
-4. Attempt analysis synchronously after saving.
-5. On success, update conversation and lead/client fields.
-6. On failure, set `analysis_status='failed'` and store safe error message.
-
-Important:
-
-- Transcript saving must succeed even if analysis fails.
-- Analysis should have a timeout.
-- Analysis should not be retried automatically in a loop.
-
-### New Admin APIs / Server Actions
-
-Recommended server actions first, API routes only where needed.
-
-Add actions:
+Recommended route structure:
 
 ```text
-updateConversationAction
-deleteConversationAction
-toggleConversationStarAction
-regenerateConversationAnalysisAction
-updateLeadAction
+src/app/admin/page.tsx
+src/app/admin/conversations/page.tsx
+src/app/admin/conversations/[id]/page.tsx
+src/app/admin/leads/page.tsx
+src/app/admin/appointments/page.tsx
+src/app/admin/team/page.tsx
+src/app/admin/settings/page.tsx
+src/app/book/[slug]/page.tsx
 ```
 
-Add CSV route:
+Recommended admin components:
 
 ```text
-GET /api/admin/export/conversations.csv
-GET /api/admin/export/leads.csv
+AdminNav
+RoleGate
+AppointmentList
+AppointmentCalendar
+AppointmentDetailDrawer
+AvailabilityEditor
+TeamTable
+AdminUserForm
+DeleteAdminDialog
+BookingSlotPicker
 ```
 
-Optional API routes if client-side forms require them:
+Master UI reference:
 
-```text
-PATCH /api/admin/conversations/[id]
-DELETE /api/admin/conversations/[id]
-POST /api/admin/conversations/[id]/analyze
-PATCH /api/admin/leads/[id]
-```
+- `Master_admin_V1.5_UIUX.md`
+
+Normal admin UI reference:
+
+- `Normal_Admin_UIUX.md`
 
 ---
 
-## 8. Data Flow Details
+## 9. Security
 
-### Lead Creation And Cleanup
+### Passwords
 
-Current voice tool call can create a lead during the call.
+- Store password hashes only.
+- Never store plaintext passwords.
+- Use a slow password hash available in the current stack.
+- If adding a dependency for password hashing is needed, ask before adding it.
 
-After transcript analysis:
+### Sessions
 
-- If a lead already exists, update missing structured fields.
-- If no lead exists but analyzer finds usable contact details, create one.
-- If no usable contact exists, set `had_lead=false`.
-- If a lead exists, set `had_lead=true`.
+- Existing cookie session should move from env-only admin to database-backed admin users.
+- Cookie must include admin user ID and role.
+- Refresh role/status from DB on protected admin requests or invalidate session when user is inactive/deleted.
 
-Do not overwrite admin-edited fields blindly.
+### Public Booking
 
-Recommended strategy:
+- Rate-limit slot and booking endpoints.
+- Validate all public inputs.
+- Signed lead/conversation context should expire.
+- Never expose admin emails unless intentionally used as display contact.
+- Do not expose internal notes.
 
-- Analyzer may fill blank fields.
-- Admin edits should take priority.
-- Add `updated_at` to leads.
-- Later, add per-field source tracking if needed. Not required for V1.5.
+### Role Enforcement
 
-### Soft Delete
+- UI hiding is not enough.
+- Every server action/API must check role and record scope.
 
-Use `deleted_at` instead of hard delete.
+### Data Preservation
 
-Default admin lists exclude deleted conversations.
-
-CSV export should exclude deleted by default, with optional `includeDeleted=1`.
-
-### Starred
-
-Store on `conversations.starred`.
-
-Starred is independent from lead status.
-
----
-
-## 9. Performance And Reliability
-
-### Timeout
-
-Post-call analysis should use a short timeout, e.g. 15 seconds.
-
-If it times out:
-
-- Save transcript.
-- Mark analysis failed.
-- Show `Regenerate summary` in admin.
-
-### Cost Control
-
-- Use `gpt-4o-mini`.
-- Send transcript and lead data only.
-- Do not send full knowledge document unless needed.
-- Cap transcript text length for analysis if extremely long.
-- Keep output JSON concise.
-
-### Security
-
-- Admin APIs require admin cookie.
-- Public analysis cannot be triggered directly by visitors except through signed conversation save.
-- Export routes require admin.
-- CSV must escape formula-like values that start with `=`, `+`, `-`, or `@`.
+- Use soft delete for admins and conversations.
+- Preserve historical appointment ownership with `assigned_admin_name_snapshot`.
 
 ---
 
 ## 10. Migration Plan
 
-1. Add nullable columns first.
-2. Migrate existing lead statuses:
-   - `new` -> `pending_follow_up`
-   - `contacted` -> `follow_up_later`
-   - `closed` -> `deal_closed`
-3. Backfill structured lead fields conservatively from old `name/contact/contact_type/preferred_time`.
-4. Do not auto-analyze all old transcripts during migration.
-5. Admin can regenerate summaries per conversation.
+1. Add `admin_users`.
+2. Seed first master admin from existing env credentials when table is empty.
+3. Add settings columns for booking and active booking admin.
+4. Add/confirm post-call intelligence columns.
+5. Add structured lead columns and assignment.
+6. Migrate lead statuses.
+7. Add calendar profile, availability, meeting type, and appointment tables.
+8. Seed default meeting type.
+9. Create calendar profile for first master admin.
+10. Point `active_booking_admin_id` to first master admin if booking is enabled.
+11. Update auth to use DB admin users.
+12. Add admin role scoping.
+
+Backward compatibility:
+
+- Existing env admin can remain as emergency fallback only during migration if needed.
+- Remove fallback after DB login is verified.
 
 ---
 
-## 11. Verification Plan
+## 11. Reliability And Cost
 
-Local checks:
+Post-call analysis:
+
+- Timeout around 15 seconds.
+- Mark failed on error.
+- Allow manual regenerate.
+- Use `gpt-4o-mini`.
+- Send transcript and lead data only.
+
+Booking:
+
+- Recheck conflicts on submission.
+- Handle no-slot state.
+- Handle disabled booking.
+- Handle active admin missing/no availability.
+
+No queues/workers in this version:
+
+- Analysis can run synchronously after transcript save.
+- If latency becomes a problem, worker/queue is a V2 trigger.
+
+---
+
+## 12. Verification Plan
+
+### Build Checks
 
 - `npm run verify:source`
 - `npm run typecheck`
 - `npm run hostinger:build`
-- Manual admin smoke test.
+- `npm run verify:archive`
 
-Functional checks:
+### Auth Checks
 
-- Conversation with contact creates/updates lead.
-- Conversation without contact appears under No leads.
-- Analyzer failure does not block transcript save.
-- Admin can edit lead details.
-- Admin notes persist after regenerate.
-- Star/unstar works.
-- Soft delete hides conversation from normal lists.
-- CSV export opens and contains expected escaped fields.
+- Existing master admin can log in.
+- Master admin can create normal admin.
+- Normal admin can log in.
+- Normal admin cannot access Team.
+- Normal admin cannot access master-only server actions.
+- Deleted/deactivated admin cannot log in.
+
+### Appointment Checks
+
+- Master admin can set active booking admin.
+- Admin can set weekly availability.
+- Admin can block time.
+- Booking page shows only available slots.
+- Booking submission creates pending appointment.
+- Double booking is blocked.
+- Admin can confirm/reject.
+- Lead/conversation/appointment links display correctly.
+
+### Role Checks
+
+- Master admin sees all calendars.
+- Normal admin sees only their own calendar.
+- Master admin can reassign appointment.
+- Normal admin cannot reassign appointment.
+- Master admin can delete admin with required guardrails.
+
+### Voice Flow Checks
+
+- Voice agent still captures lead.
+- Widget shows booking CTA after lead capture.
+- Booking CTA uses signed context.
+- Voice behavior prompt remains unchanged unless explicitly approved.
+
+### Regression Checks
+
+- OpenAI provider still works.
+- Gemini provider remains optional.
+- Transcript saving still works.
+- Post-call analysis failure does not block transcript save.
+- CSV exports still escape risky values.
