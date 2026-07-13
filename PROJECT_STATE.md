@@ -112,19 +112,19 @@ The ZIP has been rebuilt after the restored prompt, OpenAI VAD changes, and admi
 
 ## Current Uncommitted Changes
 
-As of this state update, these local changes are not committed:
+There are no uncommitted local changes at this handoff checkpoint.
 
-- Restored original behavior prompt in `src/lib/prompt.ts`.
-- OpenAI VAD interruption fix in `src/app/api/session/route.ts`.
-- Updated prompt source verifier in `scripts/verify-source.mjs`.
-- Added V1.5 PRD/architecture/UIUX documents.
-- Added post-call analysis pipeline and structured analysis persistence.
-- Added V1.5 admin workflow UI/actions/export endpoints.
-- Added completion-audit fixes for overview metrics, active nav, delete confirmation, editable intelligence fields, filtered exports, and `.csv` export aliases.
-- Added schema migrations and live-schema verifier coverage for V1.5 fields.
-- Updated README and acceptance docs for V1.5 planning and V1 gate.
+Current local branch:
 
-Commit before handoff/deployment if this state is approved.
+```text
+main...origin/main
+```
+
+Current commit:
+
+```text
+99b0e79 Implement admin V1.5 workflow
+```
 
 ## Hostinger Env Notes
 
@@ -146,7 +146,7 @@ If `POST /api/session` returns OpenAI `upstreamStatus:401`, Hostinger is using a
 Last known commit:
 
 ```text
-71cf86c Add Gemini Live voice provider and deployment hardening
+99b0e79 Implement admin V1.5 workflow
 ```
 
-Local `git push` previously failed because the shell had no GitHub credentials. If Hostinger deploys from GitHub, push from an authenticated terminal or deploy the ZIP directly.
+Local `main` is currently clean against `origin/main` based on `git status --branch --short`.
