@@ -6,13 +6,17 @@ import { createSessionContext } from "@/lib/session-context";
 import { corsJson, corsNoContent } from "@/lib/cors";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { buildVersion } from "@/lib/build-info";
+import { readJsonBody } from "@/lib/http-guards";
+import { mintGeminiLiveToken } from "@/lib/gemini-live";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function getSafetyIdentifier(request: Request) {
+  const realIp = request.headers.get("x-real-ip")?.trim();
   const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwardedFor || request.headers.get("x-real-ip") || "unknown";
+  const candidate = realIp || forwardedFor || "unknown";
+  return /^[A-Za-z0-9.:_-]{1,80}$/.test(candidate) ? candidate : "unknown";
 }
 
 function extractClientSecret(data: unknown) {
@@ -46,6 +50,7 @@ export async function GET(request: Request) {
       {
         agentEnabled: settings.agent_enabled,
         maxCallSeconds: settings.max_call_seconds,
+        voiceProvider: settings.voice_provider,
         buildVersion,
       },
       {
@@ -69,20 +74,66 @@ export async function GET(request: Request) {
   }
 }
 
-async function getTodaySessionCount() {
+function sanitizePageUrl(value: unknown) {
+  if (typeof value !== "string") return "";
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return `${parsed.origin}${parsed.pathname}`.slice(0, 1000);
+  } catch {
+    return "";
+  }
+}
+
+async function reserveConversation(conversationId: string, pageUrl: string, dailySessionCap: number) {
   const sql = getSql();
   const rows = (await sql`
-    select count(*)::text as count
-    from conversations
-    where started_at >= date_trunc('day', now() at time zone 'Asia/Bangkok') at time zone 'Asia/Bangkok'
-  `) as { count: string }[];
+    with locked as (
+      select pg_advisory_xact_lock(514124712)
+    ),
+    quota as (
+      select count(*)::int as count
+      from conversations, locked
+      where started_at >= date_trunc('day', now() at time zone 'Asia/Bangkok') at time zone 'Asia/Bangkok'
+    ),
+    inserted as (
+      insert into conversations (id, started_at, page_url, transcript, had_lead)
+      select ${conversationId}, now(), ${pageUrl || null}, '[]'::jsonb, false
+      from quota
+      where count < ${dailySessionCap}
+      on conflict (id) do nothing
+      returning id
+    )
+    select id::text as id from inserted
+  `) as { id: string }[];
 
-  return Number(rows[0]?.count || 0);
+  return Boolean(rows[0]?.id);
+}
+
+async function cleanupReservedConversation(conversationId: string) {
+  const sql = getSql();
+  await sql`
+    delete from conversations
+    where id = ${conversationId}
+      and ended_at is null
+      and had_lead = false
+      and transcript = '[]'::jsonb
+  `;
 }
 
 export async function POST(request: Request) {
+  let reservedConversationId: string | null = null;
+
   try {
-    const body = (await request.json().catch(() => ({}))) as { pageUrl?: string };
+    let body: { pageUrl?: string; preferredLanguage?: string };
+
+    try {
+      body = (await readJsonBody(request, 4096)) as { pageUrl?: string; preferredLanguage?: string };
+    } catch {
+      return corsJson(request, { error: "Invalid session request." }, { status: 400 });
+    }
+
     const settings = await getCachedSettings();
     const rateLimit = checkRateLimit(getSafetyIdentifier(request), 12, 60 * 60 * 1000);
 
@@ -101,18 +152,58 @@ export async function POST(request: Request) {
       return corsJson(request, { error: "Voice agent is currently offline." }, { status: 403 });
     }
 
-    const sessionCount = await getTodaySessionCount();
+    const pageUrl = sanitizePageUrl(body.pageUrl);
+    const preferredLanguage = body.preferredLanguage === "th" || body.preferredLanguage === "en"
+      ? body.preferredLanguage
+      : "auto";
+    const prompt = buildVoiceAgentSystemPrompt({
+      settings,
+      pageUrl,
+      preferredLanguage,
+      provider: settings.voice_provider,
+      now: new Date(),
+    });
+    const sessionContext = createSessionContext(settings.max_call_seconds + 900, settings.max_call_seconds);
+    reservedConversationId = sessionContext.conversationId;
 
-    if (sessionCount >= settings.daily_session_cap) {
+    if (!(await reserveConversation(sessionContext.conversationId, pageUrl, settings.daily_session_cap))) {
+      reservedConversationId = null;
       return corsJson(request, { error: "Daily voice session cap reached." }, { status: 429 });
     }
 
-    const pageUrl = typeof body.pageUrl === "string" ? body.pageUrl.slice(0, 1000) : "";
-    const prompt = buildVoiceAgentSystemPrompt({ settings, pageUrl, now: new Date() });
-    const sessionContext = createSessionContext(settings.max_call_seconds + 900);
-
     if (process.env.NODE_ENV !== "production") {
       console.info("\n--- DJAI VOICE AGENT SYSTEM PROMPT ---\n%s\n--- END PROMPT ---\n", prompt);
+    }
+
+    if (settings.voice_provider === "gemini") {
+      try {
+        const gemini = await mintGeminiLiveToken(settings, prompt);
+
+        return corsJson(request, {
+          provider: "gemini",
+          gemini,
+          sessionContext,
+          conversationId: sessionContext.conversationId,
+          maxCallSeconds: settings.max_call_seconds,
+          greeting: settings.greeting,
+          modelId: settings.model_id,
+          buildVersion,
+        }, { headers: { "X-DJAI-Build": buildVersion } });
+      } catch (error) {
+        console.error("Gemini Live token error", error);
+        await cleanupReservedConversation(sessionContext.conversationId);
+        reservedConversationId = null;
+
+        return corsJson(
+          request,
+          {
+            error: "Voice agent is unavailable. Please try again shortly.",
+            code: "gemini_live_token_failed",
+            buildVersion,
+          },
+          { status: 502, headers: { "X-DJAI-Build": buildVersion } },
+        );
+      }
     }
 
     const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
@@ -175,6 +266,8 @@ export async function POST(request: Request) {
         requestId: response.headers.get("x-request-id"),
         data,
       });
+      await cleanupReservedConversation(sessionContext.conversationId);
+      reservedConversationId = null;
       return corsJson(
         request,
         {
@@ -194,6 +287,8 @@ export async function POST(request: Request) {
       console.error("OpenAI client secret response was missing a usable value.", {
         requestId: response.headers.get("x-request-id"),
       });
+      await cleanupReservedConversation(sessionContext.conversationId);
+      reservedConversationId = null;
       return corsJson(
         request,
         {
@@ -206,14 +301,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const sql = getSql();
-    await sql`
-      insert into conversations (id, started_at, page_url, transcript, had_lead)
-      values (${sessionContext.conversationId}, now(), ${pageUrl || null}, '[]'::jsonb, false)
-      on conflict (id) do nothing
-    `;
-
     return corsJson(request, {
+      provider: "openai",
       clientSecret,
       sessionContext,
       conversationId: sessionContext.conversationId,
@@ -223,6 +312,12 @@ export async function POST(request: Request) {
       buildVersion,
     }, { headers: { "X-DJAI-Build": buildVersion } });
   } catch (error) {
+    if (reservedConversationId) {
+      await cleanupReservedConversation(reservedConversationId).catch((cleanupError) => {
+        console.error("Failed to clean up reserved conversation", cleanupError);
+      });
+    }
+
     console.error(error);
     return corsJson(
       request,

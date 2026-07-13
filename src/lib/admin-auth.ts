@@ -30,7 +30,7 @@ function constantEquals(left: string, right: string) {
 
 function buildCookieValue(username: string) {
   const expiresAt = Math.floor(Date.now() / 1000) + maxAgeSeconds;
-  const payload = `${username}.${expiresAt}`;
+  const payload = Buffer.from(JSON.stringify({ username, expiresAt })).toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
 
@@ -45,6 +45,30 @@ function verifyCookieValue(value: string | undefined) {
   }
 
   const parts = value.split(".");
+
+  if (parts.length === 2) {
+    const [encodedPayload, signature] = parts;
+
+    if (!constantEquals(signature, signWithSecret(encodedPayload, secret))) {
+      return false;
+    }
+
+    try {
+      const parsed = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as {
+        username?: unknown;
+        expiresAt?: unknown;
+      };
+
+      return (
+        typeof parsed.username === "string" &&
+        typeof parsed.expiresAt === "number" &&
+        parsed.expiresAt >= Math.floor(Date.now() / 1000)
+      );
+    } catch {
+      return false;
+    }
+  }
+
   if (parts.length !== 3) {
     return false;
   }

@@ -136,6 +136,20 @@
     return "mixed";
   }
 
+  function getSelectedLanguage() {
+    const queryLanguage = new URLSearchParams(window.location.search).get("lang");
+    if (queryLanguage === "th" || queryLanguage === "en") return queryLanguage;
+
+    try {
+      const storedLanguage = window.localStorage.getItem("djai-language");
+      if (storedLanguage === "th" || storedLanguage === "en") return storedLanguage;
+    } catch {
+    }
+
+    const documentLanguage = document.documentElement.lang?.slice(0, 2).toLowerCase();
+    return documentLanguage === "en" ? "en" : "th";
+  }
+
   class VoiceController {
     constructor(container) {
       this.container = container;
@@ -149,12 +163,20 @@
       this.transcriptEl = container.querySelector("[data-djai-transcript]");
       this.pc = null;
       this.dc = null;
+      this.ws = null;
       this.localStream = null;
       this.audioEl = null;
+      this.inputAudioContext = null;
+      this.inputAudioSource = null;
+      this.inputAudioProcessor = null;
+      this.playbackAudioContext = null;
+      this.playbackCursor = 0;
+      this.geminiAudioSources = new Set();
       this.sessionContext = null;
       this.startedAt = 0;
       this.transcript = [];
       this.functionArgs = new Map();
+      this.processedToolCalls = new Set();
       this.closed = true;
       this.muted = false;
       this.timer = 0;
@@ -185,7 +207,7 @@
       if (!this.transcriptEl) return;
       const row = document.createElement("div");
       row.className = "voice-agent-line";
-      const label = role === "user" ? "You" : role === "assistant" ? "DJAI" : "System";
+      const label = role === "user" ? "You" : role === "assistant" ? "DJAI" : role === "tool" ? "Tool" : "System";
       row.innerHTML = `<strong>${label}</strong><br>${this.escape(clean)}`;
       this.transcriptEl.appendChild(row);
       this.transcriptEl.scrollTop = this.transcriptEl.scrollHeight;
@@ -230,29 +252,150 @@
       }
     }
 
-    async postLead(callId, args) {
-      const response = await fetch(`${apiBase}/api/lead`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionContext: this.sessionContext, lead: args }),
-      });
-      const result = await response.json().catch(() => ({}));
+    sendGeminiEvent(event) {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify(event));
+      }
+    }
 
+    async parseGeminiEventData(data) {
+      if (typeof data === "string") {
+        return JSON.parse(data);
+      }
+
+      if (data instanceof Blob) {
+        return JSON.parse(await data.text());
+      }
+
+      if (data instanceof ArrayBuffer) {
+        return JSON.parse(new TextDecoder().decode(data));
+      }
+
+      if (ArrayBuffer.isView(data)) {
+        return JSON.parse(new TextDecoder().decode(data));
+      }
+
+      throw new Error("Unsupported Gemini message format.");
+    }
+
+    sendToolOutput(callId, output) {
+      if (!callId) return;
       this.sendEvent({
         type: "conversation.item.create",
         item: {
           type: "function_call_output",
           call_id: callId,
-          output: JSON.stringify({ ok: response.ok, leadId: result.leadId || null }),
+          output: JSON.stringify(output),
         },
       });
       this.sendEvent({ type: "response.create" });
+    }
 
-      if (response.ok) {
-        this.addTranscript("system", "Your details were sent to DJAI for follow-up.");
-      } else {
+    async postLead(callId, args) {
+      this.addTranscript(
+        "tool",
+        `capture_lead: ${args.name || "visitor"} | ${args.contact || "contact provided"} | ${args.need || "need captured"}`,
+      );
+
+      try {
+        const response = await fetch(`${apiBase}/api/lead`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionContext: this.sessionContext, lead: args }),
+        });
+        const result = await response.json().catch(() => ({}));
+
+        this.sendToolOutput(callId, {
+          ok: response.ok,
+          leadId: result.leadId || null,
+          error: response.ok ? null : result.error || "Lead capture failed.",
+        });
+
+        if (response.ok) {
+          this.addTranscript("system", "Your details were sent to DJAI for follow-up.");
+          return;
+        }
+
+        this.addTranscript("system", "DJAI could not save those details yet. Please repeat the contact information.");
+      } catch {
+        this.sendToolOutput(callId, { ok: false, leadId: null, error: "Lead capture request failed." });
         this.addTranscript("system", "DJAI could not save those details yet. Please repeat the contact information.");
       }
+    }
+
+    async postGeminiLead(callId, name, args) {
+      this.addTranscript(
+        "tool",
+        `capture_lead: ${args.name || "visitor"} | ${args.contact || "contact provided"} | ${args.need || "need captured"}`,
+      );
+
+      let output = { ok: false, leadId: null, error: "Lead capture failed." };
+
+      try {
+        const response = await fetch(`${apiBase}/api/lead`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionContext: this.sessionContext, lead: args }),
+        });
+        const result = await response.json().catch(() => ({}));
+        output = {
+          ok: response.ok,
+          leadId: result.leadId || null,
+          error: response.ok ? null : result.error || "Lead capture failed.",
+        };
+
+        if (response.ok) {
+          this.addTranscript("system", "Your details were sent to DJAI for follow-up.");
+        } else {
+          this.addTranscript("system", "DJAI could not save those details yet. Please repeat the contact information.");
+        }
+      } catch {
+        output = { ok: false, leadId: null, error: "Lead capture request failed." };
+        this.addTranscript("system", "DJAI could not save those details yet. Please repeat the contact information.");
+      }
+
+      this.sendGeminiEvent({
+        toolResponse: {
+          functionResponses: [
+            {
+              id: callId,
+              name,
+              response: output,
+            },
+          ],
+        },
+      });
+    }
+
+    handleToolCall(callId, argumentText) {
+      if (!callId || this.processedToolCalls.has(callId)) {
+        return;
+      }
+
+      this.processedToolCalls.add(callId);
+
+      let args = {};
+      try {
+        args = JSON.parse(argumentText || "{}");
+      } catch {
+        this.sendToolOutput(callId, { ok: false, leadId: null, error: "Invalid lead arguments." });
+        this.addTranscript("system", "DJAI could not read those details clearly. Please repeat the contact information.");
+        return;
+      }
+
+      this.postLead(callId, args);
+    }
+
+    handleGeminiToolCall(functionCall) {
+      const callId = functionCall.id || `${functionCall.name || "capture_lead"}-${Date.now()}`;
+      const name = functionCall.name || "capture_lead";
+
+      if (name !== "capture_lead" || this.processedToolCalls.has(callId)) {
+        return;
+      }
+
+      this.processedToolCalls.add(callId);
+      this.postGeminiLead(callId, name, functionCall.args || {});
     }
 
     maybeHandleToolCall(event) {
@@ -263,10 +406,7 @@
 
       if (event.type === "response.function_call_arguments.done" && event.call_id) {
         this.functionArgs.set(event.call_id, event.arguments || this.functionArgs.get(event.call_id) || "{}");
-        const args = JSON.parse(this.functionArgs.get(event.call_id) || "{}");
-        this.postLead(event.call_id, args).catch(() => {
-          this.addTranscript("system", "DJAI could not save those details yet. Please repeat the contact information.");
-        });
+        this.handleToolCall(event.call_id, this.functionArgs.get(event.call_id) || "{}");
         return;
       }
 
@@ -274,16 +414,14 @@
       const item = event.item || output.find((candidate) => candidate.type === "function_call");
       if (item && item.type === "function_call" && item.name === "capture_lead") {
         const callId = item.call_id || item.id;
-        const args = JSON.parse(item.arguments || this.functionArgs.get(callId) || "{}");
-        this.postLead(callId, args).catch(() => {
-          this.addTranscript("system", "DJAI could not save those details yet. Please repeat the contact information.");
-        });
+        this.handleToolCall(callId, item.arguments || this.functionArgs.get(callId) || "{}");
       }
     }
 
     handleServerEvent(event) {
       if (event.type === "error") {
-        this.setVisualState("error", "Call interrupted. Please try again.");
+        this.addTranscript("system", "Call interrupted. Please try again.");
+        this.endCall("Call interrupted. Please try again.");
         return;
       }
 
@@ -310,12 +448,266 @@
       this.maybeHandleToolCall(event);
     }
 
+    base64FromArrayBuffer(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      const chunkSize = 0x8000;
+
+      for (let index = 0; index < bytes.length; index += chunkSize) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(index, index + chunkSize));
+      }
+
+      return btoa(binary);
+    }
+
+    downsampleTo16Khz(input, inputRate) {
+      if (inputRate === 16000) {
+        return input;
+      }
+
+      const ratio = inputRate / 16000;
+      const outputLength = Math.floor(input.length / ratio);
+      const output = new Float32Array(outputLength);
+
+      for (let outputIndex = 0; outputIndex < outputLength; outputIndex += 1) {
+        const start = Math.floor(outputIndex * ratio);
+        const end = Math.min(Math.floor((outputIndex + 1) * ratio), input.length);
+        let sum = 0;
+        let count = 0;
+
+        for (let inputIndex = start; inputIndex < end; inputIndex += 1) {
+          sum += input[inputIndex];
+          count += 1;
+        }
+
+        output[outputIndex] = count ? sum / count : input[start] || 0;
+      }
+
+      return output;
+    }
+
+    pcm16FromFloat32(input) {
+      const buffer = new ArrayBuffer(input.length * 2);
+      const view = new DataView(buffer);
+
+      for (let index = 0; index < input.length; index += 1) {
+        const sample = Math.max(-1, Math.min(1, input[index]));
+        view.setInt16(index * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      }
+
+      return buffer;
+    }
+
+    stopGeminiPlayback() {
+      this.geminiAudioSources.forEach((source) => {
+        try {
+          source.stop();
+        } catch {
+        }
+      });
+      this.geminiAudioSources.clear();
+
+      if (this.playbackAudioContext) {
+        this.playbackCursor = this.playbackAudioContext.currentTime;
+      } else {
+        this.playbackCursor = 0;
+      }
+    }
+
+    playGeminiAudio(base64Audio) {
+      if (!base64Audio) return;
+
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      if (!this.playbackAudioContext) {
+        this.playbackAudioContext = new AudioContextClass({ sampleRate: 24000 });
+        this.playbackCursor = this.playbackAudioContext.currentTime;
+      }
+
+      const binary = atob(base64Audio);
+      const pcm = new Int16Array(binary.length / 2);
+
+      for (let index = 0; index < pcm.length; index += 1) {
+        const low = binary.charCodeAt(index * 2);
+        const high = binary.charCodeAt(index * 2 + 1);
+        const value = (high << 8) | low;
+        pcm[index] = value >= 0x8000 ? value - 0x10000 : value;
+      }
+
+      const audioBuffer = this.playbackAudioContext.createBuffer(1, pcm.length, 24000);
+      const channel = audioBuffer.getChannelData(0);
+
+      for (let index = 0; index < pcm.length; index += 1) {
+        channel[index] = pcm[index] / 0x8000;
+      }
+
+      const source = this.playbackAudioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(this.playbackAudioContext.destination);
+      this.geminiAudioSources.add(source);
+      source.onended = () => {
+        this.geminiAudioSources.delete(source);
+      };
+
+      const startAt = Math.max(this.playbackCursor, this.playbackAudioContext.currentTime + 0.02);
+      source.start(startAt);
+      this.playbackCursor = startAt + audioBuffer.duration;
+    }
+
+    handleGeminiMessage(message) {
+      if (message.setupComplete) {
+        this.setVisualState("listening", "Listening");
+        this.setActiveControls(true);
+        this.startGeminiAudioInput();
+        this.sendGeminiEvent({
+          clientContent: {
+            turns: [
+              {
+                role: "user",
+                parts: [{ text: "Start the conversation now with the configured greeting. Keep it short." }],
+              },
+            ],
+            turnComplete: true,
+          },
+        });
+        return;
+      }
+
+      if (message.serverContent) {
+        const content = message.serverContent;
+
+        if (content.interrupted) {
+          this.stopGeminiPlayback();
+        }
+
+        if (content.inputTranscription?.text) {
+          this.addTranscript("user", content.inputTranscription.text);
+        }
+
+        if (content.outputTranscription?.text) {
+          this.addTranscript("assistant", content.outputTranscription.text);
+        }
+
+        const parts = Array.isArray(content.modelTurn?.parts) ? content.modelTurn.parts : [];
+        parts.forEach((part) => {
+          const inlineData = part.inlineData || part.inline_data;
+          if (inlineData?.data && String(inlineData.mimeType || inlineData.mime_type || "").includes("audio")) {
+            this.setVisualState("speaking", "Speaking");
+            this.playGeminiAudio(inlineData.data);
+          }
+        });
+
+        if (content.turnComplete) {
+          this.setVisualState("listening", "Listening");
+        }
+      }
+
+      if (message.toolCall?.functionCalls) {
+        message.toolCall.functionCalls.forEach((functionCall) => this.handleGeminiToolCall(functionCall));
+      }
+
+      if (message.goAway) {
+        this.addTranscript("system", "Call connection is closing.");
+        this.endCall("Call connection closing");
+      }
+    }
+
+    startGeminiAudioInput() {
+      if (!this.localStream || this.inputAudioProcessor) return;
+
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) {
+        throw new Error("Audio input is not supported in this browser.");
+      }
+
+      this.inputAudioContext = new AudioContextClass();
+      this.inputAudioSource = this.inputAudioContext.createMediaStreamSource(this.localStream);
+      this.inputAudioProcessor = this.inputAudioContext.createScriptProcessor(4096, 1, 1);
+      this.inputAudioProcessor.onaudioprocess = (event) => {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN || this.muted) return;
+
+        const input = event.inputBuffer.getChannelData(0);
+        const downsampled = this.downsampleTo16Khz(input, this.inputAudioContext.sampleRate);
+        const pcm = this.pcm16FromFloat32(downsampled);
+
+        this.sendGeminiEvent({
+          realtimeInput: {
+            audio: {
+              data: this.base64FromArrayBuffer(pcm),
+              mimeType: "audio/pcm;rate=16000",
+            },
+          },
+        });
+      };
+      this.inputAudioSource.connect(this.inputAudioProcessor);
+      this.inputAudioProcessor.connect(this.inputAudioContext.destination);
+    }
+
+    async startGeminiSession(tokenData) {
+      if (!tokenData.gemini?.websocketUrl) {
+        throw new Error("Voice agent is unavailable.");
+      }
+
+      await new Promise((resolve, reject) => {
+        let settled = false;
+        const timeout = window.setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            reject(new Error("Voice agent is unavailable."));
+          }
+        }, 10000);
+
+        this.ws = new WebSocket(tokenData.gemini.websocketUrl);
+        this.ws.addEventListener("open", () => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeout);
+          const modelId = tokenData.modelId || "gemini-3.1-flash-live-preview";
+          this.sendGeminiEvent({
+            setup: {
+              model: modelId.startsWith("models/") ? modelId : `models/${modelId}`,
+            },
+          });
+          resolve();
+        });
+        this.ws.addEventListener("message", async (event) => {
+          try {
+            this.handleGeminiMessage(await this.parseGeminiEventData(event.data));
+          } catch {
+            this.addTranscript("system", "Call interrupted. Please try again.");
+            this.endCall("Call interrupted. Please try again.");
+          }
+        });
+        this.ws.addEventListener("close", () => {
+          if (!this.closed) {
+            this.addTranscript("system", "Call connection closed.");
+            this.endCall("Call connection closed");
+          }
+        });
+        this.ws.addEventListener("error", () => {
+          if (!settled) {
+            settled = true;
+            window.clearTimeout(timeout);
+            reject(new Error("Voice agent is unavailable."));
+            return;
+          }
+
+          if (!this.closed) {
+            this.addTranscript("system", "Call connection interrupted.");
+            this.endCall("Call connection interrupted");
+          }
+        });
+      });
+    }
+
     async startCall() {
-      if (this.pc || !this.startButton) return;
+      if (this.pc || this.ws || !this.startButton) return;
 
       this.closed = false;
       this.transcript = [];
       this.functionArgs = new Map();
+      this.processedToolCalls = new Set();
       if (this.transcriptEl) this.transcriptEl.innerHTML = "";
       this.setVisualState("connecting", "Connecting");
       this.startButton.disabled = true;
@@ -326,7 +718,7 @@
         const tokenResponse = await fetch(`${apiBase}/api/session`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pageUrl: window.location.href }),
+          body: JSON.stringify({ pageUrl: window.location.href, preferredLanguage: getSelectedLanguage() }),
         });
         const tokenData = await tokenResponse.json().catch(() => ({}));
 
@@ -334,13 +726,20 @@
           throw new Error(tokenData.error || "Voice agent is unavailable.");
         }
 
+        this.sessionContext = tokenData.sessionContext;
+        this.startedAt = Date.now();
+
+        if (tokenData.provider === "gemini") {
+          await this.startGeminiSession(tokenData);
+          this.startTimer(Number(tokenData.maxCallSeconds || 0));
+          return;
+        }
+
         const token = getClientSecret(tokenData);
         if (!token) {
           throw new Error("Voice agent is unavailable.");
         }
 
-        this.sessionContext = tokenData.sessionContext;
-        this.startedAt = Date.now();
         this.pc = new RTCPeerConnection();
         this.audioEl = document.createElement("audio");
         this.audioEl.autoplay = true;
@@ -357,8 +756,10 @@
           this.audioEl.play().catch(() => {});
         };
         this.pc.addEventListener("connectionstatechange", () => {
-          if (this.pc?.connectionState === "failed") {
-            this.setVisualState("error", "Audio connection failed. Please try again.");
+          const state = this.pc?.connectionState;
+          if (!this.closed && (state === "failed" || state === "disconnected" || state === "closed")) {
+            this.addTranscript("system", "Audio connection interrupted.");
+            this.endCall("Audio connection interrupted");
           }
         });
 
@@ -373,7 +774,20 @@
           try {
             this.handleServerEvent(JSON.parse(message.data));
           } catch {
-            this.setVisualState("error", "Call interrupted. Please try again.");
+            this.addTranscript("system", "Call interrupted. Please try again.");
+            this.endCall("Call interrupted. Please try again.");
+          }
+        });
+        this.dc.addEventListener("close", () => {
+          if (!this.closed) {
+            this.addTranscript("system", "Call connection closed.");
+            this.endCall("Call connection closed");
+          }
+        });
+        this.dc.addEventListener("error", () => {
+          if (!this.closed) {
+            this.addTranscript("system", "Call connection interrupted.");
+            this.endCall("Call connection interrupted");
           }
         });
 
@@ -407,7 +821,7 @@
         this.addTranscript("system", message);
         await this.endCall("Voice agent unavailable", { save: false });
       } finally {
-        if (this.startButton && !this.pc) {
+        if (this.startButton && !this.pc && !this.ws) {
           this.startButton.disabled = false;
           this.startButton.hidden = false;
         }
@@ -472,14 +886,30 @@
       if (this.localStream) {
         this.localStream.getTracks().forEach((track) => track.stop());
       }
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.sendGeminiEvent({ realtimeInput: { audioStreamEnd: true } });
+      }
       if (this.dc) this.dc.close();
       if (this.pc) this.pc.close();
+      if (this.ws) this.ws.close();
+      if (this.inputAudioProcessor) this.inputAudioProcessor.disconnect();
+      if (this.inputAudioSource) this.inputAudioSource.disconnect();
+      if (this.inputAudioContext) await this.inputAudioContext.close().catch(() => {});
+      this.stopGeminiPlayback();
+      if (this.playbackAudioContext) await this.playbackAudioContext.close().catch(() => {});
       if (this.audioEl) this.audioEl.remove();
 
       this.pc = null;
       this.dc = null;
+      this.ws = null;
       this.localStream = null;
       this.audioEl = null;
+      this.inputAudioContext = null;
+      this.inputAudioSource = null;
+      this.inputAudioProcessor = null;
+      this.playbackAudioContext = null;
+      this.playbackCursor = 0;
+      this.geminiAudioSources.clear();
       this.muted = false;
       if (this.muteButton) this.muteButton.textContent = "Mute";
       if (this.startButton) {

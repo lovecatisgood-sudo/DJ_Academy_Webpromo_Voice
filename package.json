@@ -19,15 +19,17 @@
     "verify:env": "node --env-file-if-exists=.env.local scripts/verify-env.mjs",
     "verify:source": "node scripts/verify-source.mjs",
     "verify:schema": "node scripts/verify-schema.mjs",
+    "verify:live-schema": "node --env-file-if-exists=.env.local scripts/verify-live-schema.mjs",
     "verify:standalone": "node scripts/verify-standalone.mjs",
     "smoke:public": "node scripts/smoke-public.mjs",
     "smoke:no-secrets": "node scripts/smoke-no-secrets.mjs",
-    "hostinger:build": "npm run verify:env && npm run migrate && npm run verify:source && npm run verify:schema && npm run next:build && npm run prepare:standalone && npm run verify:standalone",
+    "hostinger:build": "npm run verify:env && npm run migrate && npm run verify:source && npm run verify:schema && npm run verify:live-schema && npm run typecheck && npm run next:build && npm run prepare:standalone && npm run verify:standalone",
     "deploy": "npm run hostinger:build",
     "package:source": "node scripts/create-source-archive.mjs",
     "verify:archive": "node scripts/verify-archive.mjs"
   },
   "dependencies": {
+    "@google/genai": "^2.11.0",
     "@neondatabase/serverless": "^1.0.1",
     "next": "^15.4.0",
     "react": "^19.1.0",

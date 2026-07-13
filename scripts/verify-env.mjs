@@ -11,9 +11,9 @@ const required = [
   "ADMIN_PASSWORD",
   "SESSION_PASSWORD",
   "SESSION_SIGNING_SECRET",
+  "WIDGET_ALLOWED_ORIGINS",
 ];
 
-const optional = ["WIDGET_ALLOWED_ORIGINS"];
 const missing = required.filter((name) => !readEnv(name));
 
 if (missing.length) {
@@ -37,6 +37,10 @@ if (!readEnv("OPENAI_API_KEY").startsWith("sk-")) {
   process.exit(1);
 }
 
+if (readEnv("GEMINI_API_KEY") && !readEnv("GEMINI_API_KEY").startsWith("AIza")) {
+  console.warn("GEMINI_API_KEY is set but does not look like a standard Gemini API key.");
+}
+
 if (readEnv("SESSION_PASSWORD").length < 32) {
   console.error("SESSION_PASSWORD must be at least 32 characters.");
   process.exit(1);
@@ -49,22 +53,18 @@ if (readEnv("SESSION_SIGNING_SECRET").length < 32) {
 
 const allowedOrigins = readEnv("WIDGET_ALLOWED_ORIGINS");
 
-if (!allowedOrigins) {
-  console.warn(`Optional ${optional[0]} is not set. Public widget API CORS will default to '*'.`);
-} else {
-  for (const origin of allowedOrigins.split(",").map((value) => value.trim())) {
-    try {
-      const parsed = new URL(origin);
+for (const origin of allowedOrigins.split(",").map((value) => value.trim())) {
+  try {
+    const parsed = new URL(origin);
 
-      if (!["http:", "https:"].includes(parsed.protocol) || parsed.origin !== origin) {
-        throw new Error();
-      }
-    } catch {
-      console.error(
-        `WIDGET_ALLOWED_ORIGINS contains an invalid origin. Use origins such as https://djai.academy without paths or trailing slashes.`,
-      );
-      process.exit(1);
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.origin !== origin) {
+      throw new Error();
     }
+  } catch {
+    console.error(
+      `WIDGET_ALLOWED_ORIGINS contains an invalid origin. Use origins such as https://djai.academy without paths or trailing slashes.`,
+    );
+    process.exit(1);
   }
 }
 

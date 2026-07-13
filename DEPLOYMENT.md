@@ -7,6 +7,7 @@ For local `.env.local`, use standard dotenv syntax (quotes are allowed):
 ```bash
 DATABASE_URL="postgresql://USER:PASSWORD@HOST/dbname?sslmode=require"
 OPENAI_API_KEY="sk-..."
+GEMINI_API_KEY="AIza..." # optional; required only for the Gemini Live provider
 ADMIN_USERNAME="admin"
 ADMIN_PASSWORD="change-me"
 SESSION_PASSWORD="at-least-32-random-characters"
@@ -22,9 +23,10 @@ Copy `DATABASE_URL` directly from the Neon dashboard. If a password is inserted 
 reserved characters in it. Never paste connection strings or API keys into deployment logs or support
 messages; rotate a credential immediately if it is exposed.
 
-`OPENAI_API_KEY` is used only by the server to mint short-lived Realtime client secrets. It must never be exposed to browser code.
+`OPENAI_API_KEY` is used only by the server to mint short-lived OpenAI Realtime client secrets. It must never be exposed to browser code.
+`GEMINI_API_KEY` is optional and is used only by the server to mint short-lived Gemini Live ephemeral tokens when `voice_provider=gemini`.
 
-The Realtime model, transcription model, voice, greeting, language mode, call length, daily cap, and knowledge document are seeded by migration and editable from Admin Settings.
+The voice provider, model, transcription model, voice, greeting, language mode, call length, daily cap, and knowledge document are seeded by migration and editable from Admin Settings. OpenAI remains the default provider. To test Gemini Live, set provider to `Gemini Live Preview` and model ID to `gemini-3.1-flash-live-preview`.
 `WIDGET_ALLOWED_ORIGINS` controls which sites can call the public widget APIs from a browser. Use comma-separated origins and include every domain where the widget is loaded, without paths or trailing slashes.
 
 ## Runtime
@@ -40,14 +42,15 @@ pnpm verify:env
 pnpm migrate
 pnpm verify:source
 pnpm verify:schema
+pnpm verify:live-schema
 pnpm typecheck
 pnpm build
 pnpm verify:standalone
 pnpm dev
 ```
 
-`pnpm build` runs the environment check, idempotent migration, source and schema checks, Next.js build,
-and standalone asset preparation and verification.
+`pnpm build` runs the environment check, idempotent migration, source schema checks, live Neon schema
+verification, TypeScript check, Next.js build, and standalone asset preparation and verification.
 
 Open:
 
@@ -65,6 +68,10 @@ BASE_URL=http://localhost:3000 pnpm smoke:no-secrets
 ## Hostinger Cloud
 
 Use the project as a Node app.
+
+The production entry point is the Next.js app in `src/app/page.tsx`, which serves assets from
+`public/`. Do not deploy the legacy root `index.html` or root `assets/` folder as a static site; those
+files are not the production voice-agent app path.
 
 Configure the detected application as:
 

@@ -18,6 +18,7 @@ function assert(condition, message) {
 const packageJson = JSON.parse(read("package.json"));
 const browserWidget = read("public/djai-voice-widget.js");
 const promptSource = read("src/lib/prompt.ts");
+const geminiLiveSource = read("src/lib/gemini-live.ts");
 const sessionRoute = read("src/app/api/session/route.ts");
 const leadRoute = read("src/app/api/lead/route.ts");
 const conversationRoute = read("src/app/api/conversation/route.ts");
@@ -72,12 +73,31 @@ assert(
   "Realtime model, voice, and transcription model must come from settings.",
 );
 assert(
+  geminiLiveSource.includes("BidiGenerateContentConstrained") &&
+    geminiLiveSource.includes("access_token="),
+  "Gemini Live ephemeral tokens must use the constrained WebSocket endpoint with access_token.",
+);
+assert(
+  browserWidget.indexOf('if (tokenData.provider === "gemini")') !== -1 &&
+    browserWidget.indexOf('const token = getClientSecret(tokenData)') !== -1 &&
+    browserWidget.indexOf('if (tokenData.provider === "gemini")') <
+      browserWidget.indexOf('const token = getClientSecret(tokenData)'),
+  "Gemini widget path must run before requiring an OpenAI client secret.",
+);
+assert(
+  browserWidget.includes("parseGeminiEventData") &&
+    browserWidget.includes("data instanceof Blob") &&
+    browserWidget.includes("data instanceof ArrayBuffer") &&
+    !browserWidget.includes("handleGeminiMessage(JSON.parse(event.data))"),
+  "Gemini widget must decode string, Blob, or ArrayBuffer WebSocket messages before JSON parsing.",
+);
+assert(
   sessionRoute.includes("checkRateLimit") && sessionRoute.includes("daily_session_cap"),
   "Session route must enforce per-IP and daily session caps.",
 );
 assert(
   sessionRoute.includes("insert into conversations") && sessionRoute.includes("client_secrets"),
-  "Session route must create a conversation stub after minting a client secret.",
+  "Session route must reserve a conversation stub and mint a client secret.",
 );
 assert(
   sessionRoute.includes("export function OPTIONS") &&
@@ -96,7 +116,7 @@ assert(
 );
 assert(
   conversationRoute.includes("sendBeacon") === false &&
-    conversationRoute.includes("parseRequestBody"),
+    conversationRoute.includes("readJsonBody"),
   "Conversation API must accept beacon-compatible request bodies.",
 );
 

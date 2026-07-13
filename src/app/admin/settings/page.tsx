@@ -42,6 +42,17 @@ export default async function SettingsPage({
           </label>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <label className="block text-sm text-slate-300">
+              Voice provider
+              <select
+                name="voice_provider"
+                className="mt-2 w-full rounded-md border border-white/10 bg-[#0a1128] px-3 py-2 text-white"
+                defaultValue={settings.voice_provider || "openai"}
+              >
+                <option value="openai">OpenAI Realtime</option>
+                <option value="gemini">Gemini Live Preview</option>
+              </select>
+            </label>
+            <label className="block text-sm text-slate-300">
               Voice
               <input
                 name="voice"
@@ -85,6 +96,9 @@ export default async function SettingsPage({
               className="mt-2 w-full rounded-md border border-white/10 bg-[#0a1128] px-3 py-2 text-white"
               defaultValue={settings.model_id}
             />
+            <span className="mt-2 block text-xs text-slate-500">
+              Use `gpt-realtime-2.1` for OpenAI or `gemini-3.1-flash-live-preview` for Gemini.
+            </span>
           </label>
           <label className="mt-5 block text-sm text-slate-300">
             Transcription model

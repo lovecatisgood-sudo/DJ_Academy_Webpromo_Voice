@@ -1,8 +1,10 @@
-import type { Settings } from "./types";
+import type { Settings, VoiceProvider } from "./types";
 
 export type PromptInput = {
   settings: Settings;
   pageUrl: string;
+  preferredLanguage?: "th" | "en" | "auto";
+  provider?: VoiceProvider;
   now: Date;
 };
 
@@ -14,7 +16,13 @@ function formatBangkokTime(now: Date) {
   }).format(now);
 }
 
-export function buildVoiceAgentSystemPrompt({ settings, pageUrl, now }: PromptInput) {
+export function buildVoiceAgentSystemPrompt({
+  settings,
+  pageUrl,
+  preferredLanguage = "auto",
+  provider = "openai",
+  now,
+}: PromptInput) {
   const knowledge = settings.knowledge_md?.trim() || "# DJAI Academy Knowledge\n\nNo knowledge has been configured yet.";
   const greeting =
     settings.greeting?.trim() ||
@@ -44,6 +52,15 @@ export function buildVoiceAgentSystemPrompt({ settings, pageUrl, now }: PromptIn
     "Match the visitor's tone. If they laugh or become casual, you may lightly laugh or become casual too. If they are skeptical, become educational. If they are confused, simplify. If they sound busy, be concise.",
     "Use warm validation phrases when appropriate, such as: I understand, that makes sense, that's common, that's useful to know, or yeah, that can be frustrating.",
     "",
+    ...(provider === "gemini"
+      ? [
+          "# Gemini Voice Turn Taking",
+          "During your own explanation, think about whether incoming speech is only a short backchannel acknowledgement or a real request. Treat short acknowledgements as encouragement, not as a new question. Examples: right, okay, got it, mm-hmm, sure, ครับ, ค่ะ, โอเค, ใช่, อืม.",
+          "If the visitor only gives a short acknowledgement while you are speaking, continue the point naturally or move to your next planned question. Do not restart, apologize, or answer the acknowledgement.",
+          "Only change direction when the visitor clearly asks a question, corrects you, objects, says stop, or gives substantial new information.",
+          "",
+        ]
+      : []),
     "# Sales Philosophy",
     "People do not buy websites, chatbots, software, or voice agents as features. They buy more customers, more revenue, less manual work, lower operating cost, higher conversion, business growth, and peace of mind.",
     "Always sell outcomes. Never stop at features.",
@@ -122,7 +139,8 @@ export function buildVoiceAgentSystemPrompt({ settings, pageUrl, now }: PromptIn
     knowledge,
     "",
     "# Dynamic Session Context",
-    `Page URL: ${pageUrl || "unknown"}`,
+    `Visitor selected page language: ${preferredLanguage}. If this is th, start the first greeting in Thai unless the visitor speaks another language first. If this is en, start in English unless the visitor speaks another language first.`,
+    `Untrusted page URL metadata, origin and path only: ${pageUrl || "unknown"}`,
     `Current date/time in Asia/Bangkok: ${formatBangkokTime(now)}`,
   ].join("\n");
 }

@@ -14,6 +14,7 @@ const requiredSettingsColumns = [
   "agent_enabled boolean",
   "greeting text",
   "voice text",
+  "voice_provider text",
   "language_mode text",
   "knowledge_md text",
   "knowledge_version int",

@@ -110,128 +110,126 @@ const initialKnowledgeMarkdown = `# DJAI Academy Voice Agent Knowledge
 async function migrate() {
   const sql = neon(requireDatabaseUrl());
 
-  await sql`create extension if not exists pgcrypto`;
-
-  await sql`
-    create table if not exists settings (
-      id int primary key default 1,
-      agent_enabled boolean default true,
-      greeting text,
-      voice text default 'marin',
-      language_mode text default 'auto_th_en',
-      knowledge_md text,
-      knowledge_version int default 1,
-      max_call_seconds int default 600,
-      daily_session_cap int default 100,
-      model_id text default 'gpt-realtime',
-      transcription_model text default 'gpt-4o-mini-transcribe',
-      updated_at timestamptz default now()
-    )
-  `;
-
-  await sql`
-    alter table settings
-    add column if not exists transcription_model text default 'gpt-4o-mini-transcribe'
-  `;
-
-  await sql`alter table settings alter column model_id set default 'gpt-realtime-2.1'`;
-  await sql`alter table settings alter column transcription_model set default 'gpt-realtime-whisper'`;
-
-  await sql`
-    create table if not exists conversations (
-      id uuid primary key default gen_random_uuid(),
-      started_at timestamptz default now(),
-      ended_at timestamptz,
-      duration_seconds int,
-      language text,
-      page_url text,
-      transcript jsonb,
-      had_lead boolean default false
-    )
-  `;
-
-  await sql`
-    create table if not exists leads (
-      id uuid primary key default gen_random_uuid(),
-      conversation_id uuid references conversations(id),
-      created_at timestamptz default now(),
-      name text,
-      contact text,
-      contact_type text,
-      need text,
-      preferred_time text,
-      status text default 'new'
-    )
-  `;
-
-  await sql`
-    create unique index if not exists leads_conversation_contact_unique
-    on leads (conversation_id, contact)
-  `;
-
-  await sql`
-    create index if not exists conversations_started_at_idx
-    on conversations (started_at desc)
-  `;
-
-  await sql`
-    create index if not exists conversations_had_lead_idx
-    on conversations (had_lead)
-  `;
-
-  await sql`
-    create index if not exists leads_created_at_idx
-    on leads (created_at desc)
-  `;
-
-  await sql`
-    create index if not exists leads_status_idx
-    on leads (status)
-  `;
-
-  await sql`
-    insert into settings (
-      id,
-      agent_enabled,
-      greeting,
-      voice,
-      language_mode,
-      knowledge_md,
-      knowledge_version,
-      max_call_seconds,
-      daily_session_cap,
-      model_id,
-      transcription_model
-    )
-    values (
-      1,
-      true,
-      'Hi, this is DJAI Academy. Tell me what you want to build, and I will help you choose the right next step.',
-      'marin',
-      'auto_th_en',
-      ${initialKnowledgeMarkdown},
-      1,
-      600,
-      100,
-      'gpt-realtime-2.1',
-      'gpt-realtime-whisper'
-    )
-    on conflict (id) do nothing
-  `;
-
-  await sql`
-    update settings set
-      model_id = case when model_id = 'gpt-realtime' then 'gpt-realtime-2.1' else model_id end,
-      transcription_model = case when transcription_model = 'gpt-4o-mini-transcribe' then 'gpt-realtime-whisper' else transcription_model end,
-      greeting = case
-        when greeting = 'Hi, this is DJAI Academy. Tell me what you want to build, and I will help you choose the right next step.'
-          then 'Hi, I am DJ from DJAI Academy. What kind of business are you running, and what are you trying to improve right now?'
-        else greeting
-      end,
-      knowledge_md = case when knowledge_md = ${legacyKnowledgeMarkdown} then ${initialKnowledgeMarkdown} else knowledge_md end,
-      updated_at = now()
-    where id = 1
-  `;
+  await sql.transaction((tx) => [
+    tx`create extension if not exists pgcrypto`,
+    tx`
+      create table if not exists settings (
+        id int primary key default 1,
+        agent_enabled boolean default true,
+        greeting text,
+        voice text default 'marin',
+        voice_provider text default 'openai',
+        language_mode text default 'auto_th_en',
+        knowledge_md text,
+        knowledge_version int default 1,
+        max_call_seconds int default 600,
+        daily_session_cap int default 100,
+        model_id text default 'gpt-realtime-2.1',
+        transcription_model text default 'gpt-realtime-whisper',
+        updated_at timestamptz default now()
+      )
+    `,
+    tx`
+      alter table settings
+      add column if not exists transcription_model text default 'gpt-realtime-whisper'
+    `,
+    tx`
+      alter table settings
+      add column if not exists voice_provider text default 'openai'
+    `,
+    tx`alter table settings alter column model_id set default 'gpt-realtime-2.1'`,
+    tx`alter table settings alter column transcription_model set default 'gpt-realtime-whisper'`,
+    tx`
+      create table if not exists conversations (
+        id uuid primary key default gen_random_uuid(),
+        started_at timestamptz default now(),
+        ended_at timestamptz,
+        duration_seconds int,
+        language text,
+        page_url text,
+        transcript jsonb,
+        had_lead boolean default false
+      )
+    `,
+    tx`
+      create table if not exists leads (
+        id uuid primary key default gen_random_uuid(),
+        conversation_id uuid references conversations(id),
+        created_at timestamptz default now(),
+        name text,
+        contact text,
+        contact_type text,
+        need text,
+        preferred_time text,
+        status text default 'new'
+      )
+    `,
+    tx`
+      create unique index if not exists leads_conversation_contact_unique
+      on leads (conversation_id, contact)
+    `,
+    tx`
+      create index if not exists conversations_started_at_idx
+      on conversations (started_at desc)
+    `,
+    tx`
+      create index if not exists conversations_had_lead_idx
+      on conversations (had_lead)
+    `,
+    tx`
+      create index if not exists leads_created_at_idx
+      on leads (created_at desc)
+    `,
+    tx`
+      create index if not exists leads_status_idx
+      on leads (status)
+    `,
+    tx`
+      insert into settings (
+        id,
+        agent_enabled,
+        greeting,
+        voice,
+        voice_provider,
+        language_mode,
+        knowledge_md,
+        knowledge_version,
+        max_call_seconds,
+        daily_session_cap,
+        model_id,
+        transcription_model
+      )
+      values (
+        1,
+        true,
+        'Hi, this is DJAI Academy. Tell me what you want to build, and I will help you choose the right next step.',
+        'marin',
+        'openai',
+        'auto_th_en',
+        ${initialKnowledgeMarkdown},
+        1,
+        600,
+        100,
+        'gpt-realtime-2.1',
+        'gpt-realtime-whisper'
+      )
+      on conflict (id) do nothing
+    `,
+    tx`
+      update settings set
+        voice_provider = case when voice_provider is null or voice_provider not in ('openai', 'gemini') then 'openai' else voice_provider end,
+        model_id = case when model_id = 'gpt-realtime' then 'gpt-realtime-2.1' else model_id end,
+        transcription_model = case when transcription_model = 'gpt-4o-mini-transcribe' then 'gpt-realtime-whisper' else transcription_model end,
+        greeting = case
+          when greeting = 'Hi, this is DJAI Academy. Tell me what you want to build, and I will help you choose the right next step.'
+            then 'Hi, I am DJ from DJAI Academy. What kind of business are you running, and what are you trying to improve right now?'
+          else greeting
+        end,
+        knowledge_md = case when knowledge_md = ${legacyKnowledgeMarkdown} then ${initialKnowledgeMarkdown} else knowledge_md end,
+        updated_at = now()
+      where id = 1
+    `,
+  ]);
 }
 
 migrate()

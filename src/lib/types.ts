@@ -1,12 +1,14 @@
 export type ContactType = "phone" | "line" | "email" | "other";
 export type LeadStatus = "new" | "contacted" | "closed";
 export type ConversationLanguage = "th" | "en" | "mixed";
+export type VoiceProvider = "openai" | "gemini";
 
 export type Settings = {
   id: number;
   agent_enabled: boolean;
   greeting: string | null;
   voice: string;
+  voice_provider: VoiceProvider;
   language_mode: string;
   knowledge_md: string | null;
   knowledge_version: number;

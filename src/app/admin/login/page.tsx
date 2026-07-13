@@ -18,7 +18,11 @@ export default async function LoginPage({
         <div className="mb-6">
           <div className="text-sm font-semibold text-cyan-200">DJAI Admin</div>
           <h1 className="mt-2 text-2xl font-semibold text-white">Sign in</h1>
-          {params.error ? <p className="mt-3 text-sm text-red-200">Invalid admin credentials.</p> : null}
+          {params.error ? (
+            <p className="mt-3 text-sm text-red-200">
+              {params.error === "rate" ? "Too many attempts. Try again shortly." : "Invalid admin credentials."}
+            </p>
+          ) : null}
         </div>
         <label className="mb-4 block text-sm text-slate-300">
           Username

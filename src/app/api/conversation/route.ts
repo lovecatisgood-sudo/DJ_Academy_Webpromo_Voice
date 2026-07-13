@@ -2,6 +2,8 @@ import { getSql } from "@/lib/db";
 import { verifySessionContext } from "@/lib/session-context";
 import type { ConversationLanguage, TranscriptItem } from "@/lib/types";
 import { corsJson, corsNoContent } from "@/lib/cors";
+import { readJsonBody } from "@/lib/http-guards";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,16 +12,7 @@ export function OPTIONS(request: Request) {
   return corsNoContent(request);
 }
 
-async function parseRequestBody(request: Request) {
-  const contentType = request.headers.get("content-type") || "";
-
-  if (contentType.includes("application/json")) {
-    return request.json();
-  }
-
-  const text = await request.text();
-  return text ? JSON.parse(text) : {};
-}
+const transcriptRoles = new Set(["user", "assistant", "tool", "system"]);
 
 function parseTranscript(value: unknown): TranscriptItem[] {
   if (!Array.isArray(value)) {
@@ -32,7 +25,7 @@ function parseTranscript(value: unknown): TranscriptItem[] {
         return false;
       }
       const row = item as Record<string, unknown>;
-      return typeof row.role === "string" && typeof row.text === "string";
+      return typeof row.role === "string" && transcriptRoles.has(row.role) && typeof row.text === "string";
     })
     .slice(0, 500)
     .map((item) => ({
@@ -48,7 +41,7 @@ function parseLanguage(value: unknown): ConversationLanguage {
 
 export async function POST(request: Request) {
   try {
-    const body = (await parseRequestBody(request)) as {
+    const body = (await readJsonBody(request, 250000)) as {
       sessionContext?: unknown;
       duration_seconds?: unknown;
       language?: unknown;
@@ -56,8 +49,21 @@ export async function POST(request: Request) {
       transcript?: unknown;
     };
     const session = verifySessionContext(body.sessionContext);
+    const rateLimit = checkRateLimit(`conversation:${session.conversationId}`, 20, 60 * 60 * 1000);
+
+    if (!rateLimit.allowed) {
+      return corsJson(
+        request,
+        { error: "Too many conversation save attempts for this session." },
+        { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } },
+      );
+    }
+
     const transcript = parseTranscript(body.transcript);
-    const duration = typeof body.duration_seconds === "number" ? Math.max(0, Math.round(body.duration_seconds)) : null;
+    const maxDuration = session.maxCallSeconds + 60;
+    const duration = typeof body.duration_seconds === "number"
+      ? Math.min(maxDuration, Math.max(0, Math.round(body.duration_seconds)))
+      : null;
     const pageUrl = typeof body.page_url === "string" ? body.page_url.slice(0, 1000) : null;
     const language = parseLanguage(body.language);
     const sql = getSql();

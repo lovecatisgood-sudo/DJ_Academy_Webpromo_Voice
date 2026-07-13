@@ -5,10 +5,13 @@ const publicMethods = "GET, POST, OPTIONS";
 const publicHeaders = "Content-Type, Accept";
 
 function allowedOrigins() {
-  return (optionalEnv("WIDGET_ALLOWED_ORIGINS") || "*")
+  const configured = optionalEnv("WIDGET_ALLOWED_ORIGINS");
+  const fallback = process.env.NODE_ENV === "production" ? "" : "*";
+
+  return (configured || fallback)
     .split(",")
     .map((origin) => origin.trim())
-    .filter(Boolean);
+    .filter((origin) => origin && (process.env.NODE_ENV !== "production" || origin !== "*"));
 }
 
 function requestOrigins(request: Request) {

@@ -4,6 +4,9 @@ import { redirect } from "next/navigation";
 import { clearAdminCookie, requireAdmin, setAdminCookie, validateAdminCredentials } from "@/lib/admin-auth";
 import { getSql } from "@/lib/db";
 import { invalidateSettingsCache } from "@/lib/settings-cache";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { normalizeSettingsInput } from "@/lib/settings-validation";
+import { headers } from "next/headers";
 
 function text(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -15,9 +18,25 @@ function numberValue(formData: FormData, key: string, fallback: number) {
   return Number.isFinite(value) ? value : fallback;
 }
 
+async function adminLoginKeys(username: string) {
+  const headerStore = await headers();
+  const realIp = headerStore.get("x-real-ip")?.trim();
+  const forwardedFor = headerStore.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const candidate = realIp || forwardedFor || "unknown";
+  const client = /^[A-Za-z0-9.:_-]{1,80}$/.test(candidate) ? candidate : "unknown";
+  return [`admin-login-ip:${client}`, `admin-login-user:${client}:${username || "empty"}`];
+}
+
 export async function loginAction(formData: FormData) {
   const username = text(formData, "username");
   const password = text(formData, "password");
+  const [ipKey, userKey] = await adminLoginKeys(username);
+  const ipRateLimit = checkRateLimit(ipKey, 20, 15 * 60 * 1000);
+  const userRateLimit = checkRateLimit(userKey, 8, 15 * 60 * 1000);
+
+  if (!ipRateLimit.allowed || !userRateLimit.allowed) {
+    redirect("/admin/login?error=rate");
+  }
 
   if (!validateAdminCredentials(username, password)) {
     redirect("/admin/login?error=1");
@@ -35,32 +54,32 @@ export async function logoutAction() {
 export async function saveSettingsAction(formData: FormData) {
   await requireAdmin();
   const sql = getSql();
-  const agentEnabled = formData.get("agent_enabled") === "on";
-  const greeting = text(formData, "greeting");
-  const voice = text(formData, "voice");
-  const languageMode = text(formData, "language_mode");
-  const knowledgeMd = text(formData, "knowledge_md");
-  const maxCallSeconds = Math.max(60, numberValue(formData, "max_call_seconds", 600));
-  const dailySessionCap = Math.max(1, numberValue(formData, "daily_session_cap", 100));
-  const modelId = text(formData, "model_id");
-  const transcriptionModel = text(formData, "transcription_model");
-
-  if (!voice || !languageMode || !modelId || !transcriptionModel) {
-    throw new Error("Voice, language mode, model ID, and transcription model are required.");
-  }
+  const settings = normalizeSettingsInput({
+    agent_enabled: formData.get("agent_enabled") === "on" ? "on" : "",
+    greeting: text(formData, "greeting"),
+    voice: text(formData, "voice"),
+    voice_provider: text(formData, "voice_provider"),
+    language_mode: text(formData, "language_mode"),
+    knowledge_md: text(formData, "knowledge_md"),
+    max_call_seconds: numberValue(formData, "max_call_seconds", 600),
+    daily_session_cap: numberValue(formData, "daily_session_cap", 100),
+    model_id: text(formData, "model_id"),
+    transcription_model: text(formData, "transcription_model"),
+  }, "form");
 
   await sql`
     update settings set
-      agent_enabled = ${agentEnabled},
-      greeting = ${greeting},
-      voice = ${voice},
-      language_mode = ${languageMode},
-      knowledge_md = ${knowledgeMd},
+      agent_enabled = ${settings.agent_enabled ?? false},
+      greeting = ${settings.greeting ?? ""},
+      voice = ${settings.voice ?? ""},
+      voice_provider = ${settings.voice_provider ?? "openai"},
+      language_mode = ${settings.language_mode ?? ""},
+      knowledge_md = ${settings.knowledge_md ?? ""},
       knowledge_version = knowledge_version + 1,
-      max_call_seconds = ${maxCallSeconds},
-      daily_session_cap = ${dailySessionCap},
-      model_id = ${modelId},
-      transcription_model = ${transcriptionModel},
+      max_call_seconds = ${settings.max_call_seconds ?? 600},
+      daily_session_cap = ${settings.daily_session_cap ?? 100},
+      model_id = ${settings.model_id ?? ""},
+      transcription_model = ${settings.transcription_model ?? ""},
       updated_at = now()
     where id = 1
   `;
