@@ -20,8 +20,9 @@ P7 Voice Agent Basic is in progress. Its current foundation establishes a strict
 provider-neutral opaque grant/message contract, deterministic disclosure,
 interruption, reconnect, and terminal minute intent lifecycle, plus a separately
 deployable gateway health/capacity and fail-closed authorization boundary.
-Migrations `0029_voice_basic_authority`, `0030_voice_runtime_recovery`, and
-`0031_voice_sales_core` add forced-RLS deployment/session/turn state,
+Migrations `0029_voice_basic_authority`, `0030_voice_runtime_recovery`,
+`0031_voice_sales_core`, and `0032_voice_outcomes_retention` add forced-RLS
+deployment/session/turn/outcome/callback state,
 Gen1-only exact-origin grant issuance, atomic maximum-minute and concurrency
 reservation, bounded reconnect, database-derived exactly-once settlement,
 gateway heartbeats, durable stale-session reaping, and audited pause/resume/
@@ -47,6 +48,13 @@ callback copy, entitled actions, quality evidence, immutable publish, install,
 and deployment state. Analysts receive a complete read-only view. Customer
 minutes, concurrency, public health, and 30-day call evidence are sourced from
 tenant-scoped durable records rather than placeholder values.
+Voice follow-up actions now create durable pending callback requests and return
+the provider-neutral `callback_requested` terminal signal. Shared Inbox shows
+call outcome, summary, duration, settled minutes, and callback due state. Tenant
+Master Admins can configure plan-capped transcript retention while recording
+remains disabled; the privacy worker tombstones expired message and Voice-turn
+content, and contact erasure also redacts Voice structured turn data. Voice
+takeover release now correctly restores the `voice` automation mode.
 
 P6 AI Chatbot Premium social local engineering is complete on the P1-P5 authority.
 The controlled delivery order is LINE, WhatsApp, then Messenger. All three
@@ -162,10 +170,11 @@ scripts/use-node24.sh pnpm run qa:p3-ui
 scripts/use-node24.sh pnpm run qa:p4-flowbot
 scripts/use-node24.sh pnpm run qa:p5-ai-chat
 scripts/use-node24.sh pnpm run qa:p6-line
+scripts/use-node24.sh pnpm run qa:p7-voice
 ```
 
 All passed on 2026-07-15. The database gate now applies migrations `0000` through
-`0031` and includes the complete local LINE, WhatsApp, and Messenger inbound, Sales Core
+`0032` and includes the complete local LINE, WhatsApp, and Messenger inbound, Sales Core
 commit, outbound retry, partial-progress, service-window, quantity-ledger,
 delivery-status, opt-out, and quota-release journeys. Full verification passes
 across 30 packages/apps, and the API production build contains 93 route handlers,
@@ -177,6 +186,7 @@ surfaces. P7 production Chromium additionally passes the Voice widget and tenant
 ten-tab Voice Agent Studio for admin and analyst roles on desktop and mobile,
 while the database gate covers Studio conflict/publish/isolation plus
 immutable Voice playbook pins, idempotent Sales Core turns/actions, transcripts,
-usage, reconnect, settlement, and recovery. These results do not authorize Voice
+usage, reconnect, settlement, recovery, callback outcomes, retention enforcement,
+privacy erasure, and human-to-Voice release. These results do not authorize Voice
 or social production activation, AI Chat self-service, or paid launch without
 the remaining engineering and external acceptance gates.

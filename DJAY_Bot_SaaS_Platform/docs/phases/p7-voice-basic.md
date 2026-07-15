@@ -97,6 +97,15 @@ activation, and named-merchant acceptance remain pending.
     immutable publishing. Active calls retain their original playbook pins.
     Tenant analysts receive the same operational visibility with every mutation
     control disabled or absent.
+24. Migration `0032_voice_outcomes_retention` adds forced-RLS durable call
+    outcomes and callback requests, converts Voice follow-up actions into the
+    provider-neutral callback terminal path, and exposes safe outcome, duration,
+    settled-minute, and callback state in the shared Inbox.
+25. Tenant Master Admins can configure plan-capped Voice transcript retention
+    while recording remains disabled. The restricted privacy worker replaces
+    expired message and Voice-turn content with audit tombstones, privacy exports
+    include safe Voice records without grant digests, and contact erasure redacts
+    Voice structured output. Human takeover can safely release back to Voice.
 
 ## Non-goals for this foundation
 
@@ -105,14 +114,14 @@ activation, and named-merchant acceptance remain pending.
 
 ## Next slice
 
-Complete live English/Thai quality, latency, silence/noise, interruption, and
-reconnect evaluation with restricted staging credentials. Add the reviewed
-legacy migration and retention/erasure treatment, then obtain named-merchant
+Add and rehearse the reviewed legacy Voice migration. Then complete live
+English/Thai quality, latency, silence/noise, interruption, and reconnect
+evaluation with restricted staging credentials and obtain named-merchant
 acceptance before enabling the paused runtime in production.
 
 ## Rollback
 
 Keep `VOICE_RUNTIME_ENABLED=false`, remove the gateway deployment, and roll back
 the voice API/runtime code. Application rollback must remain compatible with
-migration `0029`; session, usage, and lease evidence is retained for audit and
-reconciliation.
+migrations `0029` through `0032`; session, usage, lease, outcome, callback, and
+retention evidence is retained for audit and reconciliation.

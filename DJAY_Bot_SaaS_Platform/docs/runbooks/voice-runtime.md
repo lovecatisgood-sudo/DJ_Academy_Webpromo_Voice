@@ -27,10 +27,11 @@ latency gate, retention review, and named merchant acceptance are complete.
 
 ## Activation sequence
 
-1. Apply migrations through `0031_voice_sales_core` and confirm the
+1. Apply migrations through `0032_voice_outcomes_retention` and confirm the
    runtime is `paused` with reason `activation_required`.
 2. Start the worker with the Voice reaper enabled. Confirm repeated idle cycles
    complete without errors before starting the gateway.
+   Keep privacy processing enabled so the hourly transcript-retention sweep runs.
 3. Start the gateway with admission paused. Readiness remains false unless the
    restricted media credential plus context and Sales Core turn endpoints are configured.
 4. Validate the approved media adapter. Run the complete desktop,
@@ -100,7 +101,7 @@ path.
 
 ## Rollback
 
-Application rollback must remain compatible with migrations `0029` and `0030`.
+Application rollback must remain compatible with migrations `0029` through `0032`.
 Pause admission first, allow active sessions to finish or use emergency stop,
 then verify no reservations or leases remain open. Do not drop recovery columns,
 functions, controls, or immutable usage/audit evidence during rollback.
