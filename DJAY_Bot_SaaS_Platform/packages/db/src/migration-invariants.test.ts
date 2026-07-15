@@ -21,6 +21,7 @@ const aiRuntimeMigration = readFileSync(resolve(import.meta.dirname, "../migrati
 const aiNotificationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0019_ai_chat_notifications.sql"), "utf8");
 const aiSocialMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0020_ai_chat_social_line.sql"), "utf8");
 const aiSocialWorkerMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0021_ai_chat_social_workers.sql"), "utf8");
+const aiSocialSessionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0022_ai_chat_social_sessions.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -186,6 +187,16 @@ describe("P6 AI Chat Premium social migration invariants", () => {
     expect(aiSocialWorkerMigration).toContain("'dead_letter'");
     expect(aiSocialWorkerMigration).toContain("plan.plan_key = 'ai_chat_premium'");
     expect(aiSocialWorkerMigration).toContain("REVOKE ALL ON FUNCTION tenancy.claim_ai_social_inbound");
+  });
+
+  it("serializes subjects and creates metered social turns only in worker context", () => {
+    expect(aiSocialSessionMigration).toContain("earlier_receipt.subject_hash = candidate_receipt.subject_hash");
+    expect(aiSocialSessionMigration).toContain("'ai_social_worker'");
+    expect(aiSocialSessionMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.begin_ai_social_turn");
+    expect(aiSocialSessionMigration).toContain("'ai:social:turn:' || runtime.receipt_id::text");
+    expect(aiSocialSessionMigration).toContain("session.status = 'active'");
+    expect(aiSocialSessionMigration).toContain("conversation.automation_mode = 'ai_text'");
+    expect(aiSocialSessionMigration).toContain("REVOKE ALL ON FUNCTION tenancy.begin_ai_social_turn");
   });
 });
 

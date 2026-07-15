@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0021_ai_chat_social_workers";
+export const currentSchemaVersion = "0022_ai_chat_social_sessions";
 
 export { PostgresAuthStore } from "./auth-store";
 export { BillingWebhookStore } from "./billing-webhook-store";

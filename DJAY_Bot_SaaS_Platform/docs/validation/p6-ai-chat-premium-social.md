@@ -2,7 +2,7 @@
 
 - Result: LINE security and connection-operations slices passed
 - Date: 2026-07-15
-- Database migrations: `0020_ai_chat_social_line`, `0021_ai_chat_social_workers`
+- Database migrations: `0020_ai_chat_social_line` through `0022_ai_chat_social_sessions`
 - P6 phase status: Active; not complete
 - Production activation: Disabled
 
@@ -25,6 +25,8 @@
 - Envelope-encrypted external subject IDs and reply tokens in immutable receipts.
 - Worker-only inbound claim leases with `SKIP LOCKED`, current Premium authority,
   exponential retry, terminal dead letters, and safe audited error codes.
+- Per-subject worker serialization plus idempotent contact, LINE conversation,
+  pinned playbook session, inbound message, quota reservation, and AI turn setup.
 
 ## Executed gates
 
@@ -34,7 +36,7 @@ scripts/test-db-integration.sh
 scripts/use-node24.sh pnpm run verify
 ```
 
-All passed. PostgreSQL 16 applied migrations `0000` through `0021`. The P6
+All passed. PostgreSQL 16 applied migrations `0000` through `0022`. The P6
 integration journey proved:
 
 - an active Premium snapshot can create a LINE connection;
@@ -55,6 +57,8 @@ integration journey proved:
 - the restricted worker decrypts subject/reply/credential material only for an
   authorized claim, retries the same durable item, and can terminate it as a
   safe dead letter.
+- retrying a claimed inbound event reuses its contact, conversation, session,
+  turn, and reservation instead of duplicating domain state or quota.
 
 Unit coverage also proves changed raw bodies fail LINE signature verification.
 The full production API build contains:
@@ -66,7 +70,7 @@ The full production API build contains:
 
 ## Remaining before LINE engineering completion
 
-- Social session/contact/conversation creation and Sales Core processing.
+- Sales Core generation plus atomic structured-action/usage commit.
 - Channel-native LINE outbound rendering, delivery, and status visibility.
 - Subject identity review candidates without automatic merge.
 - Channel quantity/fee events with approved rate treatment.

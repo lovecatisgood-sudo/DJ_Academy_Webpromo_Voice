@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import type { AiTurnContext } from "@djay/ai-chat-runtime";
 import { createOpaqueToken, hashOpaqueToken, openJson, sealJson } from "@djay/auth";
 import type { TenantContext } from "@djay/tenancy";
 import { z } from "zod";
@@ -344,6 +345,7 @@ export class AiSocialWorkerStore {
         deliveryStatus: typeof normalized.deliveryStatus === "string" ? normalized.deliveryStatus : null,
         attemptCount: row.attempt_count,
         processingAllowed: row.processing_allowed,
+        subjectCiphertext,
         externalSubject: row.processing_allowed && subjectCiphertext
           ? encryptedValueSchema.parse(openJson(subjectCiphertext, this.envelopeKey)).value : null,
         replyToken: row.processing_allowed && replyTokenCiphertext
@@ -353,6 +355,45 @@ export class AiSocialWorkerStore {
         credentialKeyVersion: row.credential_key_version,
       } as const;
     });
+  }
+
+  async beginTurn(claim: Readonly<{
+    outboxId: string;
+    eventType: "inbound.message" | "delivery.status" | "subject.opt_out";
+    processingAllowed: boolean;
+    subjectCiphertext: string | null;
+    text: string | null;
+  }>): Promise<AiTurnContext> {
+    if (claim.eventType !== "inbound.message" || !claim.processingAllowed
+      || !claim.subjectCiphertext || !claim.text) throw new Error("ai_social_turn_not_allowed");
+    const customerMessageHash = createHash("sha256").update(claim.text).digest();
+    const sessionHash = createHash("sha256").update(`social-session:${randomUUID()}`).digest();
+    return this.client.begin(async (sql) => {
+      await sql`
+        SELECT set_config('app.service', 'ai_social_worker', true),
+               set_config('app.request_id', ${randomUUID()}, true)
+      `;
+      const rows = await sql<{
+        sessionId: string; tenantId: string; conversationId: string;
+        playbook: unknown | null; language: "th" | "en"; authority: unknown | null;
+        turnSequence: number; recentMessages: unknown; knowledgeChunks: unknown;
+        replayResponse: AiTurnContext["replayResponse"];
+      }[]>`
+        SELECT session_id AS "sessionId", tenant_id AS "tenantId",
+               conversation_id AS "conversationId", playbook_json AS playbook,
+               language, authority_json AS authority, turn_sequence AS "turnSequence",
+               recent_messages AS "recentMessages", knowledge_chunks AS "knowledgeChunks",
+               replay_response_json AS "replayResponse"
+        FROM tenancy.begin_ai_social_turn(
+          ${claim.outboxId}::uuid, ${claim.subjectCiphertext},
+          ${randomUUID()}::uuid, ${randomUUID()}::uuid, ${randomUUID()}::uuid,
+          ${sessionHash}, ${randomUUID()}::uuid, ${randomUUID()}::uuid,
+          ${claim.text}, ${customerMessageHash}
+        )
+      `;
+      if (!rows[0]) throw new Error("ai_social_turn_not_available");
+      return rows[0];
+    }) as Promise<AiTurnContext>;
   }
 
   async finish(outboxId: string, processed: boolean, safeErrorCode: string | null, deadLetter = false) {

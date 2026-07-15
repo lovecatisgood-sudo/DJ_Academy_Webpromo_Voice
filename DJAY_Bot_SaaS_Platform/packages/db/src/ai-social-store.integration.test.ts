@@ -71,6 +71,15 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
         })}, digest(${premiumSnapshotId}, 'sha256')
       )
     `;
+    await adminClient!`
+      INSERT INTO tenancy.quota_accounts (
+        tenant_id, subscription_id, product_key, customer_unit, period_start,
+        period_end, included_quantity, safety_cap_quantity
+      ) VALUES (
+        ${tenantId}::uuid, ${premiumSubscriptionId}::uuid, 'ai_chat', 'ai_response',
+        now() - interval '1 minute', now() + interval '30 days', 100, 120
+      )
+    `;
 
     const authoring = new AiChatStore(tenantClient!);
     const agent = await authoring.createAgent(context, {
@@ -154,10 +163,34 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
       credentials: { channel: "line", channelAccessToken: "rotated-line-access-token" },
     });
     if (!claimed) throw new Error("Expected social inbound claim.");
+    const turn = await worker.beginTurn(claimed);
+    expect(turn).toMatchObject({ tenantId, language: "en", turnSequence: 1, replayResponse: null });
+    expect(turn.playbook).toBeTruthy(); expect(turn.authority).toBeTruthy();
     await worker.finish(claimed.outboxId, false, "gateway_unavailable");
     const retried = await worker.claim(new Date(Date.now() + 60_000));
     expect(retried).toMatchObject({ outboxId: claimed.outboxId, attemptCount: 2, processingAllowed: true });
     if (!retried) throw new Error("Expected social inbound retry.");
+    const retriedTurn = await worker.beginTurn(retried);
+    expect(retriedTurn).toMatchObject({ sessionId: turn.sessionId, conversationId: turn.conversationId, turnSequence: 1 });
+    const socialRuntimeEvidence = await adminClient!<{
+      subjects: number; contacts: number; conversations: number; sessions: number;
+      turns: number; reservations: number; subject_plaintext: boolean;
+    }[]>`
+      SELECT
+        1::int AS subjects,
+        (SELECT count(*)::int FROM tenancy.contacts contact WHERE contact.tenant_id = subject.tenant_id AND contact.id = subject.contact_id) AS contacts,
+        (SELECT count(*)::int FROM tenancy.conversations conversation WHERE conversation.tenant_id = subject.tenant_id AND conversation.id = subject.conversation_id AND conversation.channel_kind = 'line') AS conversations,
+        (SELECT count(*)::int FROM tenancy.ai_sessions session WHERE session.tenant_id = subject.tenant_id AND session.id = subject.session_id) AS sessions,
+        (SELECT count(*)::int FROM tenancy.ai_turns turn WHERE turn.tenant_id = subject.tenant_id AND turn.session_id = subject.session_id) AS turns,
+        (SELECT count(*)::int FROM tenancy.usage_reservations reservation WHERE reservation.tenant_id = subject.tenant_id AND reservation.idempotency_key LIKE 'ai:social:turn:%') AS reservations,
+        subject.external_subject_ciphertext LIKE '%line-user-123%' AS subject_plaintext
+      FROM tenancy.ai_social_subjects subject
+      WHERE subject.tenant_id = ${tenantId}::uuid
+    `;
+    expect(socialRuntimeEvidence[0]).toEqual({
+      subjects: 1, contacts: 1, conversations: 1, sessions: 1,
+      turns: 1, reservations: 1, subject_plaintext: false,
+    });
     await worker.finish(retried.outboxId, true, null);
     await expect(worker.claim(new Date(Date.now() + 120_000))).resolves.toBeNull();
     await runtime.receive({

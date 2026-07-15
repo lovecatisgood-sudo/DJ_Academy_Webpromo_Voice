@@ -43,6 +43,8 @@ This slice delivers:
    reauthorization, audit history, and revocation.
 10. Encrypted subject/reply material and worker-only inbound claim, retry, and
     dead-letter operations with claim-time Premium reauthorization.
+11. Per-subject serialization and idempotent shared contact, conversation,
+    pinned session, inbound message, quota reservation, and AI turn creation.
 
 ## Non-goals for this slice
 
