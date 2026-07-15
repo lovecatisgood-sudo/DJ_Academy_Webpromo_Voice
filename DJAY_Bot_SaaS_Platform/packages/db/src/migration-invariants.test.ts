@@ -34,6 +34,7 @@ const voiceSalesCoreMigration = readFileSync(resolve(import.meta.dirname, "../mi
 const voiceOutcomesRetentionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0032_voice_outcomes_retention.sql"), "utf8");
 const voiceTextLegacyMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0033_voice_text_legacy_migration.sql"), "utf8");
 const voiceAdvancedRoutingMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0034_voice_advanced_routing.sql"), "utf8");
+const voiceAdvancedDeploymentMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0035_voice_advanced_deployments.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -485,6 +486,19 @@ describe("P7 Voice Basic database migration invariants", () => {
     expect(voiceAdvancedRoutingMigration).toContain("target_action NOT IN ('start_canary', 'promote', 'rollback')");
     expect(voiceAdvancedRoutingMigration).toContain("change_record.status <> 'canary'");
     expect(voiceAdvancedRoutingMigration).toContain("voice_routing_change_stale");
+  });
+
+  it("binds every Voice deployment and session to one generation without tenant routing disclosure", () => {
+    expect(voiceAdvancedDeploymentMigration).toContain("ADD COLUMN capability_profile text NOT NULL DEFAULT 'voice_gen1'");
+    expect(voiceAdvancedDeploymentMigration).toContain("FOREIGN KEY (tenant_id, deployment_id, capability_profile)");
+    expect(voiceAdvancedDeploymentMigration).toContain("REFERENCES tenancy.voice_deployments(tenant_id, id, capability_profile)");
+    expect(voiceAdvancedDeploymentMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.voice_profile_available");
+    expect(voiceAdvancedDeploymentMigration).toContain("session_user <> 'djay_runtime'");
+    expect(voiceAdvancedDeploymentMigration).toContain("candidate.status = 'qualified'");
+    expect(voiceAdvancedDeploymentMigration).toContain("control.mode = 'running'");
+    expect(voiceAdvancedDeploymentMigration).toContain("ADD COLUMN admission_enabled boolean NOT NULL DEFAULT false");
+    expect(voiceAdvancedDeploymentMigration).toContain("control.admission_enabled = true");
+    expect(voiceAdvancedDeploymentMigration).not.toMatch(/RETURNS[^;]+provider|RETURNS[^;]+model/i);
   });
 
   it("settles from connection history and reaps grants, stale transports, and emergency stops", () => {

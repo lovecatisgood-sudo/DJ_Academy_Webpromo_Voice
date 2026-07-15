@@ -160,7 +160,7 @@ async function inspectThai() {
 async function inspectTenantWorkspace() {
   if (!tenantUrl) return;
   const context = await browser.newContext({ viewport: { width: 1365, height: 900 } }); const page = await context.newPage();
-  let createCalls = 0; let revokeCalls = 0; let studioSaveCalls = 0; let readOnly = false;
+  let createCalls = 0; let revokeCalls = 0; let studioSaveCalls = 0; let readOnly = false; let advanced = false;
   const workspace = { tenantId: "20000000-0000-4000-8000-000000000001", slug: "voice-studio", businessName: "Voice Studio", role: "tenant_master_admin" };
   const deployment = { id: "30000000-0000-4000-8000-000000000001", name: "Main website", agentName: "Mali", businessName: "Merchant Store", keyPrefix: "djay_voice_deploy_ab", allowedOrigins: ["https://merchant.example"], defaultLocale: "en", maxCallSeconds: 900, reconnectWindowSeconds: 30, status: "active" };
   const definition = {
@@ -194,12 +194,20 @@ async function inspectTenantWorkspace() {
     if (path === "/tenant/support-access") return respond({ grants: [] });
     if (path === "/tenant/knowledge") return respond({ sources: [{ id: "60000000-0000-4000-8000-000000000001", revisionId: "70000000-0000-4000-8000-000000000001", name: "Approved services", sourceKind: "text", status: "ready", version: 1 }] });
     if (path === "/tenant/ai-chat/notifications") return respond({ notifications: [{ id: "80000000-0000-4000-8000-000000000001", name: "Sales inbox", allowedTemplateKeys: ["ai_chat.lead_qualified"], status: "active" }] });
-    if (path === "/tenant/voice/deployments" && method === "GET") return respond({ capability: { enabled: true, publicLabel: "First-Generation Voice Engine" }, deployments: [deployment] });
+    if (path === "/tenant/voice/deployments" && method === "GET") {
+      const publicLabel = advanced ? "Second-Generation Voice Engine" : "First-Generation Voice Engine";
+      return respond({ capability: { enabled: true, publicLabel }, deployments: [{ ...deployment, publicLabel }] });
+    }
     if (path === "/tenant/voice/deployments" && method === "POST") {
       createCalls += 1;
       return respond({ status: "created", deploymentId: crypto.randomUUID(), deploymentKey: `djay_voice_deploy_${"a".repeat(48)}` }, 201);
     }
-    if (path.endsWith(`/${deployment.id}/studio`) && method === "GET") return respond({ studio: { ...studio, editable: !readOnly } });
+    if (path.endsWith(`/${deployment.id}/studio`) && method === "GET") return respond({ studio: {
+      ...studio, editable: !readOnly,
+      publicLabel: advanced ? "Second-Generation Voice Engine" : "First-Generation Voice Engine",
+      health: advanced ? "route_unavailable" : "ready",
+      runtimeAvailability: advanced ? "unavailable" : "available",
+    } });
     if (path.endsWith(`/${deployment.id}/studio`) && method === "PATCH") { studioSaveCalls += 1; return respond({ status: "updated", revision: 2 }); }
     if (path.endsWith(`/${deployment.id}/studio`) && method === "POST") return respond({ status: "published", version: 2, playbookVersionId: crypto.randomUUID() });
     if (path.endsWith(`/${deployment.id}`) && method === "PATCH") { if (route.request().postDataJSON().action === "revoke") revokeCalls += 1; return respond({ status: "updated", deploymentStatus: "revoked" }); }
@@ -242,10 +250,13 @@ async function inspectTenantWorkspace() {
   if (dimensions.width > dimensions.viewport + 1) failures.push(`tenant: horizontal overflow ${dimensions.width}/${dimensions.viewport}`);
   if (restricted.test(dimensions.text)) failures.push("tenant: restricted routing identity visible");
   await page.screenshot({ path: "/tmp/djay-p7-voice-tenant.png", fullPage: true });
-  await page.setViewportSize({ width: 390, height: 844 }); await page.reload({ waitUntil: "networkidle" });
+  advanced = true; await page.setViewportSize({ width: 390, height: 844 }); await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Mali" }).waitFor();
-  const mobile = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth }));
+  await page.getByText("Second-Generation activation is pending internal route qualification.", { exact: true }).waitFor();
+  await page.getByText("It will never fall back to First-Generation.", { exact: false }).waitFor();
+  const mobile = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth, text: document.body.innerText }));
   if (mobile.width > mobile.viewport + 1) failures.push(`tenant-mobile: horizontal overflow ${mobile.width}/${mobile.viewport}`);
+  if (restricted.test(mobile.text)) failures.push("tenant-mobile: Advanced notice exposed restricted routing identity");
   await page.screenshot({ path: "/tmp/djay-p7-voice-tenant-mobile.png", fullPage: true });
   readOnly = true; await page.setViewportSize({ width: 1365, height: 900 }); await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Mali" }).waitFor();

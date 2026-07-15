@@ -17,9 +17,12 @@ type Deployment = {
   id: string; name: string; keyPrefix: string; allowedOrigins: string[]; defaultLocale: "th" | "en";
   maxCallSeconds: number; reconnectWindowSeconds: number; status: "active" | "disabled" | "revoked";
   agentName: string; businessName: string;
+  publicLabel: "First-Generation Voice Engine" | "Second-Generation Voice Engine";
 };
 type Studio = {
-  publicLabel: "First-Generation Voice Engine"; health: "ready" | "disabled" | "revoked" | "setup_required";
+  publicLabel: "First-Generation Voice Engine" | "Second-Generation Voice Engine";
+  health: "ready" | "disabled" | "revoked" | "setup_required" | "route_unavailable";
+  runtimeAvailability: "available" | "unavailable";
   editable: boolean;
   deployment: Deployment & {
     greetingTh: string; greetingEn: string; automatedDisclosureTh: string; automatedDisclosureEn: string;
@@ -36,7 +39,7 @@ type Studio = {
     averageConnectedSeconds: number | null; lastCallAt: string | null;
   };
 };
-type VoiceResult = { capability: { enabled: true; publicLabel: "First-Generation Voice Engine" } | null; deployments: Deployment[] };
+type VoiceResult = { capability: { enabled: true; publicLabel: "First-Generation Voice Engine" | "Second-Generation Voice Engine" } | null; deployments: Deployment[] };
 type Knowledge = { id: string; revisionId: string; name: string; sourceKind: string; status: string; version: number };
 type Notification = { id: string; name: string; allowedTemplateKeys: string[]; status: string };
 type Tab = "voice" | "playbook" | "knowledge" | "entry" | "disclosure" | "transfer" | "actions" | "test" | "quality" | "deploy";
@@ -181,7 +184,7 @@ export default function VoicePage() {
       }),
     });
     const body = await response.json(); setWorking(false);
-    if (!response.ok) { setMessage(response.status === 403 ? "Voice Agent Basic is not active for this workspace." : "Deployment could not be created."); return; }
+    if (!response.ok) { setMessage(response.status === 403 ? "An active Voice Agent subscription is required for this workspace." : "Deployment could not be created."); return; }
     setDeploymentKey(body.deploymentKey); setMessage("Deployment created. Copy its key now; it will not be shown again.");
     form.reset(); setActiveTab("deploy"); await load(body.deploymentId);
   }
@@ -201,8 +204,9 @@ export default function VoicePage() {
   return <main className="workspace-shell">
     <WorkspaceSidebar active="voice" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} />
     <section className="workspace-main"><WorkspaceSupportBanner tenantId={session.selectedTenantId} />
-      <header className="workspace-header voice-studio-header"><div><p>Voice Agent Studio</p><h1>{studio?.deployment.agentName || "Voice Agent Basic"}</h1></div><div className="voice-header-state"><span className="generation-pill">{studio?.publicLabel || result.capability?.publicLabel || "Unavailable"}</span>{studio ? <span className={`health-pill health-${studio.health}`}>{studio.health.replaceAll("_", " ")}</span> : null}</div></header>
+      <header className="workspace-header voice-studio-header"><div><p>Voice Agent Studio</p><h1>{studio?.deployment.agentName || (result.capability?.publicLabel === "Second-Generation Voice Engine" ? "Voice Agent Advanced" : "Voice Agent Basic")}</h1></div><div className="voice-header-state"><span className="generation-pill">{studio?.publicLabel || result.capability?.publicLabel || "Unavailable"}</span>{studio ? <span className={`health-pill health-${studio.health}`}>{studio.health.replaceAll("_", " ")}</span> : null}</div></header>
       {studio ? <>
+        {studio.publicLabel === "Second-Generation Voice Engine" && studio.runtimeAvailability === "unavailable" ? <div className="voice-availability-notice" role="status"><strong>Second-Generation activation is pending internal route qualification.</strong><span>The deployment can be prepared now, but calls return neutral unavailability until a reviewed Gen2 route is active. It will never fall back to First-Generation.</span></div> : null}
         <section className="voice-summary-band" aria-label="Voice Agent summary">
           <label>Agent<select value={selectedId} onChange={(event) => { setSelectedId(event.target.value); setMessage(""); void loadStudio(event.target.value); }}>{result.deployments.map((item) => <option key={item.id} value={item.id}>{item.agentName} · {item.name}</option>)}</select></label>
           <div><strong>{studio.usage.usedMinutes}</strong><span>Minutes used</span><small>{formatLimit(studio.usage.includedMinutes, " included")}</small></div>
@@ -260,6 +264,7 @@ export default function VoicePage() {
         {activeTab === "test" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Safe preflight</p><h2>Test Call</h2></div><span>{studio.health === "ready" ? "Ready on approved origin" : "Action required"}</span></div><div className="readiness-list">
           <div><strong>Published playbook</strong><span>{studio.deployment.currentPublishedVersion ? `Version ${studio.deployment.currentPublishedVersion}` : "Publish required"}</span></div>
           <div><strong>Browser origin</strong><span>{studio.deployment.allowedOrigins.join(", ")}</span></div>
+          <div><strong>Voice engine availability</strong><span>{studio.runtimeAvailability === "available" ? "Available" : "Pending internal activation"}</span></div>
           <div><strong>Audio contract</strong><span>Microphone permission · PCM16 · interruption enabled</span></div>
           <div><strong>Runtime policy</strong><span>Disclosure first · recording off · bounded reconnect</span></div>
         </div><p className="control-copy">Run the installed widget on an approved origin. Test sessions consume reserved minutes and create real transcript/action evidence; use staging contact details only.</p></section> : null}
@@ -274,7 +279,7 @@ export default function VoicePage() {
             <label>Deployment name<input name="name" minLength={2} maxLength={160} required /></label><label>Business name<input name="businessName" minLength={2} maxLength={200} required /></label><label>Voice agent name<input name="agentName" minLength={2} maxLength={100} required /></label><label>Allowed website origin<input name="origin" type="url" placeholder="https://www.example.com" required /></label><label>Default language<select name="defaultLocale" defaultValue="en"><option value="en">English</option><option value="th">Thai</option></select></label><label>English greeting<input name="greetingEn" defaultValue="Hello, how can I help?" maxLength={1000} required /></label><label>Thai greeting<input name="greetingTh" defaultValue="สวัสดีครับ มีอะไรให้ช่วยได้บ้าง?" maxLength={1000} required /></label><label>English disclosure<input name="automatedDisclosureEn" defaultValue="This is our automated voice assistant." minLength={8} maxLength={500} required /></label><label>Thai disclosure<input name="automatedDisclosureTh" defaultValue="นี่คือผู้ช่วยเสียงอัตโนมัติของเรา" minLength={8} maxLength={500} required /></label><label>Maximum call seconds<input name="maxCallSeconds" type="number" min={30} max={14400} defaultValue={900} required /></label><label>Reconnect window seconds<input name="reconnectWindowSeconds" type="number" min={0} max={300} defaultValue={30} required /></label><button disabled={working}>Create deployment</button>
           </form></details> : null}
         </section> : null}
-      </> : <section className="tool-band"><div className="band-heading"><div><p>Voice Agent Studio</p><h2>No Voice deployment</h2></div></div><p className="control-copy">{result.capability ? "Create the first exact-origin Voice deployment to open the Studio." : "Voice Agent Basic is not active for this workspace."}</p>{canDeploy && result.capability ? <form className="voice-deploy first-voice-deploy" onSubmit={create}><label>Deployment name<input name="name" minLength={2} maxLength={160} required /></label><label>Business name<input name="businessName" minLength={2} maxLength={200} required /></label><label>Voice agent name<input name="agentName" minLength={2} maxLength={100} required /></label><label>Allowed website origin<input name="origin" type="url" placeholder="https://www.example.com" required /></label><label>Default language<select name="defaultLocale" defaultValue="en"><option value="en">English</option><option value="th">Thai</option></select></label><label>English greeting<input name="greetingEn" defaultValue="Hello, how can I help?" required /></label><label>Thai greeting<input name="greetingTh" defaultValue="สวัสดีครับ มีอะไรให้ช่วยได้บ้าง?" required /></label><label>English disclosure<input name="automatedDisclosureEn" defaultValue="This is our automated voice assistant." minLength={8} required /></label><label>Thai disclosure<input name="automatedDisclosureTh" defaultValue="นี่คือผู้ช่วยเสียงอัตโนมัติของเรา" minLength={8} required /></label><label>Maximum call seconds<input name="maxCallSeconds" type="number" min={30} max={14400} defaultValue={900} required /></label><label>Reconnect window seconds<input name="reconnectWindowSeconds" type="number" min={0} max={300} defaultValue={30} required /></label><button disabled={working}>Create deployment</button></form> : null}</section>}
+      </> : <section className="tool-band"><div className="band-heading"><div><p>Voice Agent Studio</p><h2>No Voice deployment</h2></div></div><p className="control-copy">{result.capability ? `Create the first exact-origin ${result.capability.publicLabel} deployment to open the Studio.` : "Voice Agent is not active for this workspace."}</p>{canDeploy && result.capability ? <form className="voice-deploy first-voice-deploy" onSubmit={create}><label>Deployment name<input name="name" minLength={2} maxLength={160} required /></label><label>Business name<input name="businessName" minLength={2} maxLength={200} required /></label><label>Voice agent name<input name="agentName" minLength={2} maxLength={100} required /></label><label>Allowed website origin<input name="origin" type="url" placeholder="https://www.example.com" required /></label><label>Default language<select name="defaultLocale" defaultValue="en"><option value="en">English</option><option value="th">Thai</option></select></label><label>English greeting<input name="greetingEn" defaultValue="Hello, how can I help?" required /></label><label>Thai greeting<input name="greetingTh" defaultValue="สวัสดีครับ มีอะไรให้ช่วยได้บ้าง?" required /></label><label>English disclosure<input name="automatedDisclosureEn" defaultValue="This is our automated voice assistant." minLength={8} required /></label><label>Thai disclosure<input name="automatedDisclosureTh" defaultValue="นี่คือผู้ช่วยเสียงอัตโนมัติของเรา" minLength={8} required /></label><label>Maximum call seconds<input name="maxCallSeconds" type="number" min={30} max={14400} defaultValue={900} required /></label><label>Reconnect window seconds<input name="reconnectWindowSeconds" type="number" min={0} max={300} defaultValue={30} required /></label><button disabled={working}>Create deployment</button></form> : null}</section>}
     </section>
   </main>;
 }

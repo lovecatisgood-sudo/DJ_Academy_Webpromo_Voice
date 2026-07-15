@@ -14,33 +14,23 @@ function validOrigin(value: string) {
   } catch { return null; }
 }
 
-async function hasBasicAuthority(sql: postgres.TransactionSql, tenantId: string) {
-  const rows = await sql<{ allowed: boolean }[]>`
-    SELECT true AS allowed
-    FROM tenancy.entitlement_snapshots snapshot
-    JOIN tenancy.product_subscriptions subscription
-      ON subscription.tenant_id = snapshot.tenant_id AND subscription.id = snapshot.subscription_id
-      AND subscription.status IN ('active', 'trialing', 'scheduled_change')
-    JOIN catalog.plan_versions version ON version.id = snapshot.plan_version_id
-    JOIN catalog.plans plan ON plan.id = version.plan_id
-      AND plan.product_key = 'voice' AND plan.plan_key = 'voice_basic_gen1'
-    WHERE snapshot.tenant_id = ${tenantId}::uuid AND snapshot.product_key = 'voice'
-      AND snapshot.access_mode = 'active'
-      AND snapshot.resolved_json->'entitlements'->>'voice.enabled' = 'true'
-      AND snapshot.resolved_json->'entitlements'->>'voice.capability_profile' = 'voice_gen1'
-    ORDER BY snapshot.created_at DESC, snapshot.id DESC LIMIT 1
-  `;
-  return Boolean(rows[0]?.allowed);
+type VoiceCapabilityProfile = "voice_gen1" | "voice_gen2";
+type VoicePublicLabel = "First-Generation Voice Engine" | "Second-Generation Voice Engine";
+
+function publicLabel(profile: VoiceCapabilityProfile): VoicePublicLabel {
+  return profile === "voice_gen1" ? "First-Generation Voice Engine" : "Second-Generation Voice Engine";
 }
 
 async function voiceAuthority(sql: postgres.TransactionSql, tenantId: string) {
   const rows = await sql<{
     snapshotId: string; subscriptionId: string; accessMode: "none" | "read_only" | "active";
+    capabilityProfile: VoiceCapabilityProfile; planKey: "voice_basic_gen1" | "voice_advanced_gen2";
     entitlements: Record<string, boolean | string | number | null>;
     allowances: Record<string, number | null>; limits: Record<string, number | null>;
   }[]>`
     SELECT snapshot.id AS "snapshotId", snapshot.subscription_id AS "subscriptionId",
-           snapshot.access_mode AS "accessMode",
+           snapshot.access_mode AS "accessMode", plan.plan_key AS "planKey",
+           snapshot.resolved_json->'entitlements'->>'voice.capability_profile' AS "capabilityProfile",
            COALESCE(snapshot.resolved_json->'entitlements', '{}'::jsonb) AS entitlements,
            COALESCE(snapshot.resolved_json->'allowances', '{}'::jsonb) AS allowances,
            COALESCE(snapshot.resolved_json->'limits', '{}'::jsonb) AS limits
@@ -49,42 +39,63 @@ async function voiceAuthority(sql: postgres.TransactionSql, tenantId: string) {
       ON subscription.tenant_id = snapshot.tenant_id AND subscription.id = snapshot.subscription_id
       AND subscription.status IN ('active', 'trialing', 'scheduled_change')
     JOIN catalog.plan_versions version ON version.id = snapshot.plan_version_id
-    JOIN catalog.plans plan ON plan.id = version.plan_id
-      AND plan.product_key = 'voice' AND plan.plan_key = 'voice_basic_gen1'
+    JOIN catalog.plans plan ON plan.id = version.plan_id AND plan.product_key = 'voice'
     WHERE snapshot.tenant_id = ${tenantId}::uuid AND snapshot.product_key = 'voice'
+      AND snapshot.resolved_json->'entitlements'->>'voice.enabled' = 'true'
+      AND ((plan.plan_key = 'voice_basic_gen1'
+          AND snapshot.resolved_json->'entitlements'->>'voice.capability_profile' = 'voice_gen1')
+        OR (plan.plan_key = 'voice_advanced_gen2'
+          AND snapshot.resolved_json->'entitlements'->>'voice.capability_profile' = 'voice_gen2'))
     ORDER BY snapshot.created_at DESC, snapshot.id DESC LIMIT 1
   `;
   return rows[0] ?? null;
+}
+
+async function hasVoiceAuthority(
+  sql: postgres.TransactionSql,
+  tenantId: string,
+  capabilityProfile?: VoiceCapabilityProfile,
+) {
+  const authority = await voiceAuthority(sql, tenantId);
+  return authority?.accessMode === "active"
+    && authority.entitlements["voice.enabled"] === true
+    && (!capabilityProfile || authority.capabilityProfile === capabilityProfile)
+    ? authority : null;
 }
 
 export class VoiceDeploymentStore {
   constructor(private readonly client: DatabaseClient) {}
 
   async list(context: TenantContext) {
-    return withTenantTransaction(this.client, context, async ({ sql }) => ({
-      capability: await hasBasicAuthority(sql, context.tenantId) ? {
-        enabled: true as const, publicLabel: "First-Generation Voice Engine" as const,
-      } : null,
-      deployments: await sql<{
-        id: string; name: string; keyPrefix: string; allowedOrigins: string[];
-        defaultLocale: "th" | "en"; maxCallSeconds: number; reconnectWindowSeconds: number;
-        status: "active" | "disabled" | "revoked"; agentName: string; businessName: string;
-        createdAt: Date; updatedAt: Date;
-      }[]>`
-        SELECT deployment.id, deployment.name, deployment.key_prefix AS "keyPrefix",
-               deployment.allowed_origins AS "allowedOrigins",
-               deployment.default_locale AS "defaultLocale", deployment.max_call_seconds AS "maxCallSeconds",
-               reconnect_window_seconds AS "reconnectWindowSeconds", deployment.status,
-               agent.name AS "agentName", playbook.playbook_json->>'businessName' AS "businessName",
-               deployment.created_at AS "createdAt", deployment.updated_at AS "updatedAt"
-        FROM tenancy.voice_deployments deployment
-        JOIN tenancy.ai_agents agent ON agent.tenant_id = deployment.tenant_id AND agent.id = deployment.agent_id
-        JOIN tenancy.ai_playbook_versions playbook ON playbook.tenant_id = agent.tenant_id
-          AND playbook.id = agent.current_published_playbook_version_id
-        WHERE deployment.tenant_id = ${context.tenantId}::uuid
-        ORDER BY deployment.created_at DESC, deployment.id DESC
-      `,
-    }));
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const authority = await hasVoiceAuthority(sql, context.tenantId);
+      return {
+        capability: authority
+          ? { enabled: true as const, publicLabel: publicLabel(authority.capabilityProfile) }
+          : null,
+        deployments: await sql<{
+          id: string; name: string; keyPrefix: string; allowedOrigins: string[];
+          defaultLocale: "th" | "en"; maxCallSeconds: number; reconnectWindowSeconds: number;
+          status: "active" | "disabled" | "revoked"; agentName: string; businessName: string;
+          publicLabel: VoicePublicLabel; createdAt: Date; updatedAt: Date;
+        }[]>`
+          SELECT deployment.id, deployment.name, deployment.key_prefix AS "keyPrefix",
+                 deployment.allowed_origins AS "allowedOrigins",
+                 deployment.default_locale AS "defaultLocale", deployment.max_call_seconds AS "maxCallSeconds",
+                 reconnect_window_seconds AS "reconnectWindowSeconds", deployment.status,
+                 agent.name AS "agentName", playbook.playbook_json->>'businessName' AS "businessName",
+                 CASE deployment.capability_profile WHEN 'voice_gen1' THEN 'First-Generation Voice Engine'
+                   ELSE 'Second-Generation Voice Engine' END AS "publicLabel",
+                 deployment.created_at AS "createdAt", deployment.updated_at AS "updatedAt"
+          FROM tenancy.voice_deployments deployment
+          JOIN tenancy.ai_agents agent ON agent.tenant_id = deployment.tenant_id AND agent.id = deployment.agent_id
+          JOIN tenancy.ai_playbook_versions playbook ON playbook.tenant_id = agent.tenant_id
+            AND playbook.id = agent.current_published_playbook_version_id
+          WHERE deployment.tenant_id = ${context.tenantId}::uuid
+          ORDER BY deployment.created_at DESC, deployment.id DESC
+        `,
+      };
+    });
   }
 
   async getStudio(context: TenantContext, deploymentId: string) {
@@ -95,6 +106,7 @@ export class VoiceDeploymentStore {
         automatedDisclosureTh: string; automatedDisclosureEn: string;
         maxCallSeconds: number; reconnectWindowSeconds: number;
         status: "active" | "disabled" | "revoked"; agentId: string; agentName: string;
+        capabilityProfile: VoiceCapabilityProfile;
         currentPublishedPlaybookVersionId: string | null; currentPublishedVersion: number | null;
         draftRevision: number; definition: unknown; knowledgeRevisionIds: string[]; draftUpdatedAt: Date;
       }[]>`
@@ -105,6 +117,7 @@ export class VoiceDeploymentStore {
                deployment.automated_disclosure_en AS "automatedDisclosureEn",
                deployment.max_call_seconds AS "maxCallSeconds",
                deployment.reconnect_window_seconds AS "reconnectWindowSeconds", deployment.status,
+               deployment.capability_profile AS "capabilityProfile",
                agent.id AS "agentId", agent.name AS "agentName",
                agent.current_published_playbook_version_id AS "currentPublishedPlaybookVersionId",
                published.version AS "currentPublishedVersion", draft.revision AS "draftRevision",
@@ -120,9 +133,15 @@ export class VoiceDeploymentStore {
           AND published.id = agent.current_published_playbook_version_id
         WHERE deployment.tenant_id = ${context.tenantId}::uuid AND deployment.id = ${deploymentId}::uuid
       `;
-      const deployment = rows[0];
-      if (!deployment) return null;
+      const deploymentRecord = rows[0];
+      if (!deploymentRecord) return null;
+      const { capabilityProfile, ...deployment } = deploymentRecord;
       const authority = await voiceAuthority(sql, context.tenantId);
+      const authorityMatches = authority?.capabilityProfile === capabilityProfile;
+      const availabilityRows = await sql<{ available: boolean }[]>`
+        SELECT tenancy.voice_profile_available(${capabilityProfile}) AS available
+      `;
+      const profileAvailable = availabilityRows[0]?.available ?? false;
       const quotaRows = await sql<{
         includedMinutes: number | null; usedMinutes: number; reservedMinutes: number;
         periodStart: Date; periodEnd: Date;
@@ -171,12 +190,16 @@ export class VoiceDeploymentStore {
       };
       const health = deployment.status === "revoked" ? "revoked"
         : deployment.status === "disabled" ? "disabled"
-          : deployment.currentPublishedPlaybookVersionId ? "ready" : "setup_required";
+          : !deployment.currentPublishedPlaybookVersionId ? "setup_required"
+            : capabilityProfile === "voice_gen2" && !profileAvailable ? "route_unavailable"
+              : "ready";
       return {
-        deployment, publicLabel: "First-Generation Voice Engine" as const, health,
+        deployment, publicLabel: publicLabel(capabilityProfile), health,
         editable: authority?.accessMode === "active"
+          && authorityMatches
           && authority.entitlements["voice.enabled"] === true
-          && authority.entitlements["voice.capability_profile"] === "voice_gen1",
+          && authority.entitlements["voice.capability_profile"] === capabilityProfile,
+        runtimeAvailability: profileAvailable ? "available" as const : "unavailable" as const,
         usage: {
           ...quota, activeCalls: activeRows[0]?.activeCalls ?? 0,
           concurrencyLimit: authority?.limits.concurrent_calls ?? null,
@@ -211,13 +234,19 @@ export class VoiceDeploymentStore {
     try { new Intl.DateTimeFormat("en", { timeZone: definition.timezone }).format(new Date()); }
     catch { return { status: "validation_failed" as const }; }
     return withTenantTransaction(this.client, context, async ({ sql }) => {
-      if (!(await hasBasicAuthority(sql, context.tenantId))) return { status: "not_entitled" as const };
-      const deployments = await sql<{ agentId: string; status: "active" | "disabled" | "revoked" }[]>`
-        SELECT agent_id AS "agentId", status FROM tenancy.voice_deployments
+      const deployments = await sql<{
+        agentId: string; status: "active" | "disabled" | "revoked";
+        capabilityProfile: VoiceCapabilityProfile;
+      }[]>`
+        SELECT agent_id AS "agentId", status, capability_profile AS "capabilityProfile"
+        FROM tenancy.voice_deployments
         WHERE tenant_id = ${context.tenantId}::uuid AND id = ${deploymentId}::uuid FOR UPDATE
       `;
       const deployment = deployments[0];
       if (!deployment) return { status: "not_found" as const };
+      if (!(await hasVoiceAuthority(sql, context.tenantId, deployment.capabilityProfile))) {
+        return { status: "not_entitled" as const };
+      }
       if (deployment.status === "revoked") return { status: "not_allowed" as const };
       const revisionIds = [...new Set(input.knowledgeRevisionIds)];
       const available = revisionIds.length ? await sql<{ count: number }[]>`
@@ -272,12 +301,13 @@ export class VoiceDeploymentStore {
 
   async publishStudio(context: TenantContext, deploymentId: string) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
-      if (!(await hasBasicAuthority(sql, context.tenantId))) return { status: "not_entitled" as const };
       const rows = await sql<{
         agentId: string; status: "active" | "disabled" | "revoked";
+        capabilityProfile: VoiceCapabilityProfile;
         definition: unknown; knowledgeRevisionIds: string[];
       }[]>`
         SELECT deployment.agent_id AS "agentId", deployment.status,
+               deployment.capability_profile AS "capabilityProfile",
                draft.definition_json AS definition, draft.knowledge_revision_ids AS "knowledgeRevisionIds"
         FROM tenancy.voice_deployments deployment
         JOIN tenancy.ai_playbook_drafts draft
@@ -287,6 +317,9 @@ export class VoiceDeploymentStore {
       `;
       const row = rows[0];
       if (!row) return { status: "not_found" as const };
+      if (!(await hasVoiceAuthority(sql, context.tenantId, row.capabilityProfile))) {
+        return { status: "not_entitled" as const };
+      }
       if (row.status === "revoked") return { status: "not_allowed" as const };
       const available = row.knowledgeRevisionIds.length ? await sql<{ count: number }[]>`
         SELECT count(*)::int AS count FROM tenancy.knowledge_source_revisions
@@ -343,7 +376,8 @@ export class VoiceDeploymentStore {
     automatedDisclosureEn: string; maxCallSeconds: number; reconnectWindowSeconds: number;
   }>) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
-      if (!(await hasBasicAuthority(sql, context.tenantId))) return { status: "not_entitled" as const };
+      const authority = await hasVoiceAuthority(sql, context.tenantId);
+      if (!authority) return { status: "not_entitled" as const };
       const origins = [...new Set(input.allowedOrigins.map(validOrigin))];
       if (!origins.length || origins.some((origin) => origin === null)) return { status: "validation_failed" as const };
       const deploymentId = randomUUID(); const agentId = randomUUID(); const playbookVersionId = randomUUID();
@@ -393,12 +427,13 @@ export class VoiceDeploymentStore {
       `;
       await sql`
         INSERT INTO tenancy.voice_deployments (
-          id, tenant_id, agent_id, name, deployment_key_hash, key_prefix, allowed_origins,
+          id, tenant_id, agent_id, name, capability_profile, deployment_key_hash, key_prefix, allowed_origins,
           default_locale, greeting_th, greeting_en, automated_disclosure_th,
           automated_disclosure_en, max_call_seconds, reconnect_window_seconds,
           created_by_membership_id
         ) VALUES (
           ${deploymentId}::uuid, ${context.tenantId}::uuid, ${agentId}::uuid, ${input.name},
+          ${authority.capabilityProfile},
           ${hashOpaqueToken(deploymentKey)}, ${deploymentKey.slice(0, 20)}, ${origins as string[]},
           ${input.defaultLocale}, ${input.greetingTh}, ${input.greetingEn},
           ${input.automatedDisclosureTh}, ${input.automatedDisclosureEn},
@@ -412,7 +447,10 @@ export class VoiceDeploymentStore {
         ) VALUES (
           ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
           'voice.deployment.created', 'voice_deployment', ${deploymentId}, ${context.requestId},
-          'succeeded', ${sql.json({ allowedOriginCount: origins.length, publicLabel: "First-Generation Voice Engine" })}
+          'succeeded', ${sql.json({
+            allowedOriginCount: origins.length,
+            publicLabel: publicLabel(authority.capabilityProfile),
+          })}
         )
       `;
       return { status: "created" as const, deploymentId, deploymentKey };
@@ -421,14 +459,18 @@ export class VoiceDeploymentStore {
 
   async changeStatus(context: TenantContext, deploymentId: string, action: "enable" | "disable" | "revoke") {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
-      const rows = await sql<{ status: "active" | "disabled" | "revoked" }[]>`
-        SELECT status FROM tenancy.voice_deployments
+      const rows = await sql<{
+        status: "active" | "disabled" | "revoked"; capabilityProfile: VoiceCapabilityProfile;
+      }[]>`
+        SELECT status, capability_profile AS "capabilityProfile" FROM tenancy.voice_deployments
         WHERE tenant_id = ${context.tenantId}::uuid AND id = ${deploymentId}::uuid FOR UPDATE
       `;
       const current = rows[0];
       if (!current) return { status: "not_found" as const };
       if (current.status === "revoked") return { status: action === "revoke" ? "unchanged" as const : "not_allowed" as const };
-      if (action === "enable" && !(await hasBasicAuthority(sql, context.tenantId))) return { status: "not_entitled" as const };
+      if (action === "enable" && !(await hasVoiceAuthority(sql, context.tenantId, current.capabilityProfile))) {
+        return { status: "not_entitled" as const };
+      }
       const next = action === "enable" ? "active" : action === "disable" ? "disabled" : "revoked";
       if (current.status === next) return { status: "unchanged" as const };
       await sql`

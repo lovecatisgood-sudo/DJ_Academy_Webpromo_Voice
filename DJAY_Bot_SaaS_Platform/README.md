@@ -31,8 +31,9 @@ controls are implemented. The restartable legacy Voice/Text migration and its
 PostgreSQL rehearsal are also complete; external live quality and merchant
 acceptance remain pending. P8 Voice Advanced is active: its Platform-only Gen2
 qualification, reviewed canary/rollback, incident pause, independent credit
-review, and role-aware operations UI are implemented, while tenant entitlement,
-runtime, analytics, load, and live acceptance remain pending. Gen2 and the Voice runtime
+review, role-aware operations UI, and generation-pinned prepare-only tenant
+deployments are implemented, while Gen2 session/runtime, analytics, load, and
+live acceptance remain pending. Gen2 and the Voice runtime
 activation is disabled by default. FlowBot remains limited to named pilots until three
 real isolated tenant acceptances pass. AI Chat Basic also requires an approved
 live routing-profile evaluation and named merchant acceptance before production

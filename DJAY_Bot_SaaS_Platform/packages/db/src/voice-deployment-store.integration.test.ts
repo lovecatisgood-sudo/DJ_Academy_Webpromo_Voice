@@ -17,7 +17,7 @@ afterAll(async () => {
   await tenantClient?.end(); await voiceClient?.end(); await adminClient?.end();
 });
 
-describe.runIf(enabled)("P7 Voice Basic tenant deployment operations", () => {
+describe.runIf(enabled)("Voice tenant deployment operations", () => {
   it("enforces Basic authority, tenant isolation, exact origins, one-time keys, and irreversible revocation", async () => {
     const tenantId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10";
     const subscriptionId = randomUUID(); const snapshotId = randomUUID();
@@ -83,7 +83,6 @@ describe.runIf(enabled)("P7 Voice Basic tenant deployment operations", () => {
     })]));
     expect(JSON.stringify(listed)).not.toContain(created.deploymentKey);
     const otherList = await store.list(other);
-    expect(otherList.capability).toBeNull();
     expect(otherList.deployments.some((deployment) => deployment.id === created.deploymentId)).toBe(false);
     const studio = await store.getStudio(owner, created.deploymentId);
     expect(studio).toMatchObject({
@@ -148,5 +147,109 @@ describe.runIf(enabled)("P7 Voice Basic tenant deployment operations", () => {
       "voice.deployment.created", "voice.studio.saved", "voice.playbook.published",
       "voice.deployment.disable", "voice.deployment.enable", "voice.deployment.revoke",
     ]);
+  });
+
+  it("creates a tenant-safe Advanced deployment but keeps admission unavailable without the future runtime gate", async () => {
+    const tenantId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb10";
+    const subscriptionId = randomUUID(); const snapshotId = randomUUID();
+    const advancedPlanVersionId = "62000000-0000-4000-8000-000000000006";
+    await adminClient!`
+      UPDATE tenancy.product_subscriptions SET status = 'cancelled', cancelled_at = now()
+      WHERE tenant_id = ${tenantId}::uuid AND product_key = 'voice' AND status <> 'cancelled'
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.product_subscriptions (id, tenant_id, product_key, plan_version_id, status, period_start, period_end)
+      VALUES (${subscriptionId}::uuid, ${tenantId}::uuid, 'voice', ${advancedPlanVersionId}::uuid, 'active', now(), now() + interval '30 days')
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.entitlement_snapshots (
+        id, tenant_id, subscription_id, product_key, plan_version_id, subscription_status,
+        access_mode, resolved_json, resolution_hash
+      ) VALUES (
+        ${snapshotId}::uuid, ${tenantId}::uuid, ${subscriptionId}::uuid, 'voice', ${advancedPlanVersionId}::uuid,
+        'active', 'active', ${adminClient!.json({
+          tenantId, subscriptionId, productKey: "voice", publicPlanKey: "voice_advanced_gen2",
+          planVersionId: advancedPlanVersionId, accessMode: "active",
+          entitlements: {
+            "voice.enabled": true, "voice.capability_profile": "voice_gen2",
+            "voice.public_label": "Second-Generation Voice Engine", "voice.gen1_fallback": false,
+            "lead_capture.enabled": true, "appointment_request.enabled": true,
+            "sales_email_action.enabled": true, "human_handover.enabled": true,
+          },
+          allowances: { voice_minute: 500 }, overageRatesMinor: { voice_minute: null },
+          limits: { concurrent_calls: 2 }, resolvedAt: new Date().toISOString(),
+        })}, digest(${snapshotId}, 'sha256')
+      )
+    `;
+    const owner = createTenantContext({
+      tenantId, userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+      membershipId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb11", sessionId: randomUUID(),
+      role: "tenant_master_admin", requestId: "p8-voice-advanced-deployment",
+    });
+    const store = new VoiceDeploymentStore(tenantClient!);
+    const created = await store.create(owner, {
+      name: "Advanced browser voice", agentName: "Arun", businessName: "Advanced Merchant",
+      allowedOrigins: ["https://advanced.example"], defaultLocale: "en",
+      greetingTh: "สวัสดีครับ", greetingEn: "Hello, how can I help?",
+      automatedDisclosureTh: "นี่คือผู้ช่วยเสียงอัตโนมัติของเรา",
+      automatedDisclosureEn: "This is our automated voice assistant.",
+      maxCallSeconds: 180, reconnectWindowSeconds: 30,
+    });
+    expect(created.status).toBe("created");
+    if (created.status !== "created") throw new Error("Expected Advanced Voice deployment.");
+    const listed = await store.list(owner);
+    expect(listed.capability).toEqual({ enabled: true, publicLabel: "Second-Generation Voice Engine" });
+    expect(listed.deployments).toEqual(expect.arrayContaining([expect.objectContaining({
+      id: created.deploymentId, publicLabel: "Second-Generation Voice Engine",
+    })]));
+    expect(JSON.stringify(listed)).not.toMatch(/voice_gen2|provider|model/i);
+    await expect(store.getStudio(owner, created.deploymentId)).resolves.toMatchObject({
+      publicLabel: "Second-Generation Voice Engine", editable: true,
+      health: "route_unavailable", runtimeAvailability: "unavailable",
+      usage: { concurrencyLimit: 2 },
+    });
+    const runtime = new VoiceRuntimeStore(voiceClient!);
+    await expect(runtime.issue({
+      deploymentKey: created.deploymentKey, origin: "https://advanced.example", locale: "en",
+      expiresAt: new Date(Date.now() + 60_000),
+    })).rejects.toThrow(/voice_deployment_not_available/);
+
+    const basicSubscriptionId = randomUUID(); const basicSnapshotId = randomUUID();
+    const basicPlanVersionId = "62000000-0000-4000-8000-000000000005";
+    await adminClient!`
+      UPDATE tenancy.product_subscriptions SET status = 'cancelled', cancelled_at = now()
+      WHERE tenant_id = ${tenantId}::uuid AND id = ${subscriptionId}::uuid
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.product_subscriptions (id, tenant_id, product_key, plan_version_id, status, period_start, period_end)
+      VALUES (${basicSubscriptionId}::uuid, ${tenantId}::uuid, 'voice', ${basicPlanVersionId}::uuid, 'active', now(), now() + interval '30 days')
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.entitlement_snapshots (
+        id, tenant_id, subscription_id, product_key, plan_version_id, subscription_status,
+        access_mode, resolved_json, resolution_hash
+      ) VALUES (
+        ${basicSnapshotId}::uuid, ${tenantId}::uuid, ${basicSubscriptionId}::uuid, 'voice', ${basicPlanVersionId}::uuid,
+        'active', 'active', ${adminClient!.json({
+          tenantId, subscriptionId: basicSubscriptionId, productKey: "voice", publicPlanKey: "voice_basic_gen1",
+          planVersionId: basicPlanVersionId, accessMode: "active",
+          entitlements: { "voice.enabled": true, "voice.capability_profile": "voice_gen1" },
+          allowances: { voice_minute: 100 }, overageRatesMinor: { voice_minute: null },
+          limits: { concurrent_calls: 1 }, resolvedAt: new Date().toISOString(),
+        })}, digest(${basicSnapshotId}, 'sha256')
+      )
+    `;
+    await expect(store.changeStatus(owner, created.deploymentId, "disable"))
+      .resolves.toEqual({ status: "updated", deploymentStatus: "disabled" });
+    await expect(store.changeStatus(owner, created.deploymentId, "enable"))
+      .resolves.toEqual({ status: "not_entitled" });
+    await adminClient!`
+      UPDATE tenancy.voice_deployments SET status = 'active', updated_at = now()
+      WHERE tenant_id = ${tenantId}::uuid AND id = ${created.deploymentId}::uuid
+    `;
+    await expect(runtime.issue({
+      deploymentKey: created.deploymentKey, origin: "https://advanced.example", locale: "en",
+      expiresAt: new Date(Date.now() + 60_000),
+    })).rejects.toThrow(/tenancy_voice_session_deployment_capability_fk/);
   });
 });

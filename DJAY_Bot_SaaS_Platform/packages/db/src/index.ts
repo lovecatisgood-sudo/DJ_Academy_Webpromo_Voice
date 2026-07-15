@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0034_voice_advanced_routing";
+export const currentSchemaVersion = "0035_voice_advanced_deployments";
 
 export { PostgresAuthStore } from "./auth-store";
 export { BillingWebhookStore } from "./billing-webhook-store";

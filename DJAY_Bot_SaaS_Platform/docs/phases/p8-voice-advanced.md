@@ -4,8 +4,8 @@
 
 In progress. The Platform-only Gen2 qualification, two-person routing change,
 reviewed canary, explicit promotion/rollback, incident pause, and independent
-credit-review foundation is implemented locally. The Second-Generation tenant
-entitlement/deployment/runtime path, equivalent-profile media qualification,
+credit-review foundation and prepare-only Second-Generation tenant deployment
+path are implemented locally. The Gen2 session/runtime path, equivalent-profile media qualification,
 advanced analytics, load/margin validation, and live acceptance remain pending.
 Gen2 therefore remains unavailable and paused by default.
 
@@ -48,6 +48,18 @@ Gen2 therefore remains unavailable and paused by default.
 10. Every successful mutation appends an immutable Platform audit event without
     copying restricted provider/model identity or freeform operational text into
     the shared audit stream.
+11. Migration `0035_voice_advanced_deployments` binds every deployment to the
+    server-resolved entitlement generation and adds a same-tenant composite
+    deployment/session generation foreign key.
+12. Tenant Studio supports the public Second-Generation label, prepare-only
+    Advanced deployments, and a neutral route-unavailable state without exposing
+    capability, route, provider, or model identifiers.
+13. A separate Gen2 admission flag defaults false. Route promotion alone cannot
+    enable tenant calls, and Advanced issuance remains provider-neutrally
+    unavailable until the restricted runtime/media gate is delivered.
+14. Downgrading an Advanced tenant cannot reinterpret its existing deployment as
+    Basic: editing/enabling loses authority and the database rejects any Gen1
+    session bound to that Gen2 deployment.
 
 ## Schema, API, and event contract
 
@@ -57,6 +69,9 @@ Gen2 therefore remains unavailable and paused by default.
   ownership but no tenant, platform, public, or runtime table grant.
 - APIs: `GET/POST /platform/voice/routing` and
   `GET /platform/voice/incidents`.
+- Tenant APIs retain their existing deployment/Studio routes; generation is
+  resolved server-side and only the approved public label/availability is added
+  to their DTOs.
 - Audit actions: `voice.route_candidate.*`, `voice.routing_change.*`, and
   `voice.incident.*`.
 - Provider/model/region identifiers are never returned by public or tenant APIs.
@@ -71,6 +86,8 @@ Gen2 therefore remains unavailable and paused by default.
 - Control version, timestamps, actor IDs, evidence digests, state transitions,
   incident severity, and audit events provide operational evidence without
   storing credentials, prompts, raw audio, transcript content, prices, or cost.
+- Tenants cannot choose a generation in request payloads. Generation comes from
+  the latest active immutable entitlement snapshot and is pinned on deployment.
 
 ## Tests and migration
 
@@ -80,22 +97,24 @@ Gen2 therefore remains unavailable and paused by default.
 - PostgreSQL 16 integration proves denied direct access, denied self-review,
   qualification, approval, blocked direct promotion, canary, promotion, incident
   pause, separate finance review, resolution, rollback, and immutable auditing.
+- Deployment integration proves server-resolved Advanced creation, exact-origin
+  isolation, public-label-only DTOs, default unavailable admission, entitlement
+  mismatch denial, and database-enforced no-Gen1 fallback after downgrade.
 - Node 24 typechecking covers the database store, API routes, and Platform Master.
 - Platform desktop/mobile browser acceptance covers role-safe rendering,
   responsive layout, and tenant/provider confidentiality.
 
 ## Non-goals for this foundation
 
-- Activating Gen2 tenant entitlements, deployment issuance, media transport, or
-  production traffic.
+- Activating Gen2 session issuance, media transport, or production traffic.
 - Choosing a provider/model, alternative Gen2 route, commercial rate, credit
   amount, quality threshold, or margin policy without approved evidence.
 - Gen1 routing changes or any Gen2-to-Gen1 fallback.
 
 ## Next slice
 
-Implement the Gen2 tenant entitlement/deployment and restricted runtime route
-assignment against this authority, then add the equivalent-profile evaluation
+Implement restricted Gen2 session issuance and runtime route assignment against
+this authority, then add the equivalent-profile evaluation
 suite and Advanced analytics. The runtime must return provider-neutral
 unavailability until an active reviewed route exists.
 
@@ -103,5 +122,6 @@ unavailability until an active reviewed route exists.
 
 Keep Gen2 paused, stop all Advanced admission, and use the reviewed rollback
 action for any canary/active change. Application rollback must remain compatible
-with migration `0034`; candidate, approval, incident, credit-review, and audit
-evidence is retained. Do not delete or rewrite route history.
+with migrations `0034` and `0035`; candidate, approval, incident, deployment,
+credit-review, and audit evidence is retained. Existing deployments remain
+generation-pinned. Do not delete or rewrite route history.

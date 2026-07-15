@@ -6,6 +6,10 @@ This runbook governs internal `voice_gen2` route qualification. It does not
 authorize production traffic. Tenants see only `Second-Generation Voice Engine`;
 provider, model, and region identifiers stay inside Platform Master.
 
+Advanced tenant deployments may be prepared while admission is disabled. The
+tenant sees a neutral pending-activation notice; route promotion alone does not
+enable calls. Do not treat a created deployment as runtime acceptance.
+
 ## Qualify and canary
 
 1. Platform Owner or AI Operations proposes a Gen2 provider/model/region

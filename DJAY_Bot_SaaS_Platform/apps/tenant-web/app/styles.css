@@ -204,7 +204,11 @@ a { color: #126149; text-underline-offset: 3px; }
 .health-healthy { background: #dff3e9; color: #165d45; }
 .health-ready { background: #dff3e9; color: #165d45; }
 .health-degraded { background: #fff1cc; color: #725410; }
+.health-route_unavailable { background: #fff1cc; color: #725410; }
 .health-failed { background: #fbe4df; color: #8a3024; }
+.voice-availability-notice { display: grid; gap: 5px; margin: 18px 24px 0; padding: 14px 16px; border-left: 4px solid #b17a12; background: #fff8e6; color: #60470f; }
+.voice-availability-notice strong { font-size: 13px; }
+.voice-availability-notice span { font-size: 12px; line-height: 1.5; }
 .credential-rotation { padding-top: 8px; border-top: 1px solid #e1e5e3; }
 .credential-rotation summary { cursor: pointer; color: #315d50; font-weight: 700; }
 .social-delivery-metrics { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 0; color: #68716e; font-size: 11px; }
