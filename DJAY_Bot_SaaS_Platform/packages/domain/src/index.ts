@@ -84,7 +84,7 @@ const allowedModeTransitions: Readonly<Record<string, readonly string[]>> = Obje
   flowbot: ["ai_text", "human", "closed"],
   ai_text: ["human", "closed"],
   voice: ["human", "closed"],
-  human: ["flowbot", "ai_text", "closed"],
+  human: ["flowbot", "ai_text", "voice", "closed"],
   closed: [],
 });
 

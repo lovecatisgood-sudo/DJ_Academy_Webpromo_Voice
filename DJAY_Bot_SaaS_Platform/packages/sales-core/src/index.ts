@@ -130,6 +130,7 @@ export function buildSalesCorePolicy(context: SalesCoreContext): string {
     "Use only the approved knowledge and claims below. Never invent price, availability, guarantees, discounts, or appointments.",
     "Propose effects only through the exact structured action allow-list. Never claim an action succeeded.",
     "An appointment action is a request pending merchant confirmation and requires two to five time options.",
+    "For a requested phone callback, use follow_up.create with a due time. Never claim the callback has already happened.",
     "Match the customer language. If asked about internal technology, describe yourself only as the business's automated assistant.",
     `Business: ${context.businessName}. Assistant: ${context.agentName}. Locale: ${context.locale}. Tone: ${context.tone}.`,
     `Sales goal: ${context.salesGoal}`,

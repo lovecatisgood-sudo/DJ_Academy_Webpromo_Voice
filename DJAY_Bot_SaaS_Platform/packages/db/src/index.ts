@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0030_voice_runtime_recovery";
+export const currentSchemaVersion = "0032_voice_outcomes_retention";
 
 export { PostgresAuthStore } from "./auth-store";
 export { BillingWebhookStore } from "./billing-webhook-store";

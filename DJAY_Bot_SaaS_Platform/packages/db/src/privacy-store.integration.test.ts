@@ -38,6 +38,25 @@ describe.runIf(enabled)("P3 privacy processing", () => {
     const exportJob = pending[0]!;
     const encryptionKey = randomBytes(32);
     const privacy = new PrivacyStore(workerClient!);
+    const expiredMessageId = randomUUID();
+    await adminClient!`
+      INSERT INTO tenancy.messages (
+        id, tenant_id, conversation_id, sequence, actor_type, direction, content_json, created_at
+      ) SELECT ${expiredMessageId}::uuid, conversation.tenant_id, conversation.id, 999,
+        'customer', 'inbound', '{"text":"expired transcript"}'::jsonb, now() - interval '100 days'
+      FROM tenancy.conversations conversation
+      WHERE conversation.tenant_id = ${contextA.tenantId}::uuid
+        AND conversation.contact_id = ${exportJob.contact_id}::uuid
+      ORDER BY conversation.started_at LIMIT 1
+    `;
+    await expect(privacy.applyRetention(new Date(), 100, "privacy-retention-worker")).resolves.toMatchObject({
+      messagesRedacted: 1,
+    });
+    const retained = await adminClient!<{ type: string; text: string }[]>`
+      SELECT content_json->>'type' AS type, content_json->>'text' AS text
+      FROM tenancy.messages WHERE id = ${expiredMessageId}::uuid
+    `;
+    expect(retained[0]).toEqual({ type: "retained_tombstone", text: "[transcript expired]" });
     await expect(privacy.processNext(encryptionKey, "privacy-export-worker")).resolves.toMatchObject({
       status: "completed", jobId: exportJob.id, jobType: "export",
     });
@@ -45,7 +64,7 @@ describe.runIf(enabled)("P3 privacy processing", () => {
     const artifact = await tenantPrivacy.readExport(contextA, exportJob.id, encryptionKey);
     expect(artifact?.format).toBe("djay-privacy-export-v1");
     expect(artifact?.data.contacts).toHaveLength(1);
-    expect(artifact?.data.messages).toHaveLength(2);
+    expect(artifact?.data.messages).toHaveLength(3);
     expect(artifact?.data.leads).toHaveLength(1);
     await expect(tenantPrivacy.readExport(contextB, exportJob.id, encryptionKey)).resolves.toBeNull();
 

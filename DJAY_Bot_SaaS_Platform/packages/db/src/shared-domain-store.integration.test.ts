@@ -101,6 +101,13 @@ describe.runIf(enabled)("P3 shared domain repositories", () => {
     expect(await store.listInbox(contextB)).toHaveLength(0);
     await expect(store.releaseConversation(contextA, conversation.conversationId)).resolves.toEqual({ status: "released", automationMode: "ai_text" });
 
+    const retention = await store.getRetentionPolicy(contextA);
+    expect(retention).toMatchObject({ transcriptDays: 365, recordingDays: 0 });
+    await expect(store.updateRetentionPolicy(contextA, 90)).resolves.toMatchObject({
+      status: "updated", transcriptDays: 90, recordingDays: 0,
+    });
+    await expect(store.getRetentionPolicy(contextA)).resolves.toMatchObject({ transcriptDays: 90, recordingDays: 0 });
+
     await expect(store.createKnowledgeSource(contextA, {
       name: "Service facts", sourceKind: "text", content: "Approved service information.",
     })).resolves.toMatchObject({ status: "created" });

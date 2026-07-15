@@ -22,6 +22,7 @@ describe("shared domain contracts", () => {
 
   it("keeps closed conversations terminal", () => {
     expect(canTransitionMode("flowbot", "human")).toBe(true);
+    expect(canTransitionMode("human", "voice")).toBe(true);
     expect(canTransitionMode("closed", "ai_text")).toBe(false);
   });
 });

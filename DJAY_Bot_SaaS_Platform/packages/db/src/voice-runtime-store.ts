@@ -107,7 +107,7 @@ export class VoiceRuntimeStore {
   }>) {
     const rows = await this.client<{ result: AiPublicResponse & {
       actionStatuses: { actionId: string; status: "succeeded" }[];
-      terminalReason: "transferred" | null;
+      terminalReason: "transferred" | "callback_requested" | null;
     } }[]>`
       SELECT tenancy.commit_voice_turn(
         ${input.sessionId}::uuid, ${input.connectionId}::uuid, ${input.inputId}::uuid,

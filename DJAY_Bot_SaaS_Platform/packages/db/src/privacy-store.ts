@@ -63,6 +63,21 @@ export class PrivacyStore {
     }
   }
 
+  async applyRetention(now: Date = new Date(), limit = 1000, requestId: string = randomUUID()) {
+    return this.client.begin(async (sql) => {
+      await sql`
+        SELECT set_config('app.service', 'retention_worker', true),
+               set_config('app.request_id', ${requestId}, true)
+      `;
+      const rows = await sql<{ messagesRedacted: number; voiceTurnsRedacted: number }[]>`
+        SELECT messages_redacted AS "messagesRedacted",
+               voice_turns_redacted AS "voiceTurnsRedacted"
+        FROM tenancy.apply_retention_policies(${now}, ${limit})
+      `;
+      return rows[0] ?? { messagesRedacted: 0, voiceTurnsRedacted: 0 };
+    });
+  }
+
   private async setWorkerContext(sql: postgres.TransactionSql, tenantId: string, requestId: string) {
     await sql`
       SELECT set_config('app.service', 'privacy_worker', true),
@@ -166,6 +181,43 @@ export class PrivacyStore {
           OR EXISTS (SELECT 1 FROM tenancy.leads lead WHERE lead.tenant_id = request.tenant_id
             AND lead.contact_id = ${contactId}::uuid AND lead.id::text = request.input_json->>'leadId')
         ) ORDER BY request.id
+      `;
+      data.voiceSessions = await sql<ExportRow[]>`
+        SELECT session.id, session.deployment_id AS "deploymentId",
+          session.contact_id AS "contactId", session.conversation_id AS "conversationId",
+          session.capability_profile AS "capabilityProfile", session.public_label AS "publicLabel",
+          session.locale, session.status, session.settled_minutes AS "settledMinutes",
+          session.settled_elapsed_seconds AS "settledElapsedSeconds",
+          session.connected_at AS "connectedAt", session.ended_at AS "endedAt",
+          session.terminal_reason AS "terminalReason", session.created_at AS "createdAt"
+        FROM tenancy.voice_sessions session
+        WHERE session.tenant_id = ${job.tenantId}::uuid
+          AND (${contactId}::uuid IS NULL OR session.contact_id = ${contactId}::uuid)
+        ORDER BY session.id
+      `;
+      data.voiceTurns = await sql<ExportRow[]>`
+        SELECT turn.* FROM tenancy.voice_turns turn
+        JOIN tenancy.voice_sessions session
+          ON session.tenant_id = turn.tenant_id AND session.id = turn.session_id
+        WHERE turn.tenant_id = ${job.tenantId}::uuid
+          AND (${contactId}::uuid IS NULL OR session.contact_id = ${contactId}::uuid)
+        ORDER BY turn.session_id, turn.turn_sequence
+      `;
+      data.voiceOutcomes = await sql<ExportRow[]>`
+        SELECT outcome.* FROM tenancy.voice_call_outcomes outcome
+        JOIN tenancy.voice_sessions session
+          ON session.tenant_id = outcome.tenant_id AND session.id = outcome.session_id
+        WHERE outcome.tenant_id = ${job.tenantId}::uuid
+          AND (${contactId}::uuid IS NULL OR session.contact_id = ${contactId}::uuid)
+        ORDER BY outcome.id
+      `;
+      data.voiceCallbacks = await sql<ExportRow[]>`
+        SELECT callback.* FROM tenancy.voice_callback_requests callback
+        JOIN tenancy.voice_sessions session
+          ON session.tenant_id = callback.tenant_id AND session.id = callback.session_id
+        WHERE callback.tenant_id = ${job.tenantId}::uuid
+          AND (${contactId}::uuid IS NULL OR session.contact_id = ${contactId}::uuid)
+        ORDER BY callback.id
       `;
 
       const artifact: PrivacyExport = {

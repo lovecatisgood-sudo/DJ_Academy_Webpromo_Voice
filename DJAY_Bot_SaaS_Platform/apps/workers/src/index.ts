@@ -83,6 +83,7 @@ const aiSocialDelivery = createSocialDeliveryClient({
   metaGraphBaseUrl: env.AI_SOCIAL_META_GRAPH_BASE_URL,
 });
 let stopping = false;
+let nextRetentionSweepAt = 0;
 
 function socialErrorCode(error: unknown) {
   if (error instanceof AiTextRuntimeError || error instanceof ProviderGatewayError) return error.code;
@@ -116,6 +117,13 @@ process.on("SIGTERM", () => { stopping = true; });
 process.on("SIGINT", () => { stopping = true; });
 
 do {
+  if (env.PRIVACY_WORKER_ENABLED === "true" && Date.now() >= nextRetentionSweepAt) {
+    const result = await privacyStore.applyRetention();
+    nextRetentionSweepAt = Date.now() + 3_600_000;
+    if (result.messagesRedacted || result.voiceTurnsRedacted) {
+      console.info("retention_sweep_complete", result);
+    }
+  }
   if (env.VOICE_REAPER_ENABLED === "true") {
     const now = new Date();
     const reaped = await voiceReaper.reap({

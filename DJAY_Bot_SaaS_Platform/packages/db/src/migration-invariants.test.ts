@@ -31,6 +31,7 @@ const socialOperationsMigration = readFileSync(resolve(import.meta.dirname, "../
 const voiceBasicAuthorityMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0029_voice_basic_authority.sql"), "utf8");
 const voiceRecoveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0030_voice_runtime_recovery.sql"), "utf8");
 const voiceSalesCoreMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0031_voice_sales_core.sql"), "utf8");
+const voiceOutcomesRetentionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0032_voice_outcomes_retention.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -487,5 +488,22 @@ describe("P7 Voice Basic database migration invariants", () => {
     expect(voiceSalesCoreMigration).toContain("voice_action_not_entitled");
     expect(voiceSalesCoreMigration).toContain("operations.voice_native_usage");
     expect(voiceSalesCoreMigration).not.toMatch(/openai|anthropic|gemini|gpt-|claude-/i);
+  });
+
+  it("persists tenant-isolated call outcomes and callbacks without exposing the core commit function", () => {
+    expect(voiceOutcomesRetentionMigration).toContain("CREATE TABLE tenancy.voice_call_outcomes");
+    expect(voiceOutcomesRetentionMigration).toContain("CREATE TABLE tenancy.voice_callback_requests");
+    expect(voiceOutcomesRetentionMigration).toContain("ALTER TABLE tenancy.voice_call_outcomes FORCE ROW LEVEL SECURITY");
+    expect(voiceOutcomesRetentionMigration).toContain("ALTER TABLE tenancy.voice_callback_requests FORCE ROW LEVEL SECURITY");
+    expect(voiceOutcomesRetentionMigration).toContain("REVOKE ALL ON FUNCTION tenancy.commit_voice_turn_core");
+    expect(voiceOutcomesRetentionMigration).toContain("'terminalReason', 'callback_requested'");
+  });
+
+  it("restricts transcript retention enforcement to the privacy worker service identity", () => {
+    expect(voiceOutcomesRetentionMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.apply_retention_policies");
+    expect(voiceOutcomesRetentionMigration).toContain("session_user <> 'djay_worker'");
+    expect(voiceOutcomesRetentionMigration).toContain("current_setting('app.service', true) IS DISTINCT FROM 'retention_worker'");
+    expect(voiceOutcomesRetentionMigration).toContain("retained_tombstone");
+    expect(voiceOutcomesRetentionMigration).toContain("GRANT EXECUTE ON FUNCTION tenancy.apply_retention_policies");
   });
 });

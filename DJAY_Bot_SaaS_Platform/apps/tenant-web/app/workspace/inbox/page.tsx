@@ -5,7 +5,13 @@ import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
-type Conversation = { id: string; contactName: string; productKey: string; channelKind: string; automationMode: string; status: string; lastMessage: string | null; lastMessageAt: string | null };
+type Conversation = {
+  id: string; contactName: string; productKey: string; channelKind: string;
+  automationMode: string; status: string; lastMessage: string | null; lastMessageAt: string | null;
+  voiceStatus: string | null; voiceTerminalReason: string | null; voiceMinutes: number | null;
+  voiceDurationSeconds: number | null; voiceOutcome: string | null; voiceSummary: string | null;
+  callbackStatus: string | null; callbackDueAt: string | null;
+};
 type Message = { id: string; sequence: number; actorType: string; direction: string; text: string; createdAt: string };
 
 export default function InboxPage() {
@@ -55,7 +61,13 @@ export default function InboxPage() {
         </div>
         <section className="conversation-panel" aria-label="Selected conversation">
           {selected ? <>
-            <header><div><strong>{selected.contactName}</strong><span>{selected.automationMode.replaceAll("_", " ")} / {selected.status}</span></div><div>{selected.automationMode === "human" ? <button type="button" className="secondary-command" disabled={working} onClick={() => void transition("release")}>Release automation</button> : <button type="button" className="secondary-command" disabled={working} onClick={() => void transition("takeover")}>Take over</button>}</div></header>
+            <header><div><strong>{selected.contactName}</strong><span>{selected.automationMode.replaceAll("_", " ")} / {selected.status}</span></div><div>{selected.status === "open" ? selected.automationMode === "human" ? <button type="button" className="secondary-command" disabled={working} onClick={() => void transition("release")}>Release automation</button> : <button type="button" className="secondary-command" disabled={working} onClick={() => void transition("takeover")}>Take over</button> : null}</div></header>
+            {selected.productKey === "voice" ? <section className="voice-call-summary" aria-label="Voice call outcome">
+              <div><span>Outcome</span><strong>{selected.voiceOutcome?.replaceAll("_", " ") || selected.voiceTerminalReason?.replaceAll("_", " ") || "In progress"}</strong></div>
+              <div><span>Call usage</span><strong>{selected.voiceMinutes ?? 0} min{selected.voiceDurationSeconds !== null ? ` / ${selected.voiceDurationSeconds}s` : ""}</strong></div>
+              <div><span>Callback</span><strong>{selected.callbackStatus ? `${selected.callbackStatus}${selected.callbackDueAt ? ` · ${new Date(selected.callbackDueAt).toLocaleString()}` : ""}` : "Not requested"}</strong></div>
+              <p>{selected.voiceSummary || "The durable call summary will appear after the first completed turn."}</p>
+            </section> : null}
             <div className="message-stream">{messages.map((message) => <div className={`message-bubble ${message.direction}`} key={message.id}><span>{message.actorType}</span><p>{message.text}</p><time>{new Date(message.createdAt).toLocaleString()}</time></div>)}</div>
             {selected.status !== "closed" && selected.automationMode === "human" ? <form className="reply-form" onSubmit={reply}><label><span className="visually-hidden">Reply</span><textarea name="text" rows={3} maxLength={20000} placeholder="Write a reply" required /></label><button type="submit" disabled={working}>{working ? "Sending..." : "Send reply"}</button></form> : selected.status === "closed" ? <div className="closed-line">This conversation is closed.</div> : <div className="closed-line">Take over before replying.</div>}
             {notice ? <p className="inline-message" role="alert">{notice}</p> : null}

@@ -69,6 +69,9 @@ a { color: #126149; text-underline-offset: 3px; }
 .record-form button { padding: 0 18px; }
 .lead-form { grid-template-columns: minmax(180px, 1fr) minmax(200px, 1.4fr) minmax(140px, .7fr) auto; }
 .privacy-form { grid-template-columns: minmax(160px, .6fr) minmax(220px, 1fr) auto; }
+.retention-form { max-width: 720px; display: grid; grid-template-columns: minmax(180px, .8fr) minmax(180px, .8fr) auto; align-items: end; gap: 14px; margin-top: 20px; }
+.retention-form select, .retention-form input { width: 100%; height: 46px; }
+.retention-form button { padding: 0 18px; }
 .knowledge-form { max-width: 900px; margin-top: 22px; }
 .knowledge-form > div { display: grid; grid-template-columns: 1fr 180px; gap: 14px; }
 .knowledge-form select { height: 46px; padding-top: 0; padding-bottom: 0; }
@@ -109,6 +112,11 @@ a { color: #126149; text-underline-offset: 3px; }
 .conversation-panel > header { min-height: 62px; height: auto; padding: 12px 20px; }
 .conversation-panel > header div { display: grid; gap: 4px; }
 .conversation-panel > header span { color: #68706d; font-size: 11px; text-transform: capitalize; }
+.voice-call-summary { width: auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 0; border-bottom: 1px solid #d8e1de; background: #d8e1de; }
+.voice-call-summary > div { min-width: 0; display: grid; gap: 5px; padding: 12px 16px; background: #f2f7f5; }
+.voice-call-summary span { color: #65706c; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.voice-call-summary strong { overflow-wrap: anywhere; color: #194b3e; font-size: 12px; text-transform: capitalize; }
+.voice-call-summary p { grid-column: 1 / -1; margin: 0; padding: 11px 16px; background: #fff; color: #56625e; font-size: 12px; line-height: 1.45; text-transform: none; }
 .message-stream { min-height: 260px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 24px; background: #fff; }
 .message-bubble { width: min(78%, 620px); padding: 12px 14px; border: 1px solid #d5dcda; border-radius: 6px; background: #f4f6f5; }
 .message-bubble.outbound { align-self: end; border-color: #b8d8cd; background: #e7f3ef; }
@@ -267,7 +275,7 @@ a { color: #126149; text-underline-offset: 3px; }
   .workspace-shell aside .quiet-command { margin-top: 18px; }
   .stage-control { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .inline-form { grid-template-columns: 1fr; align-items: stretch; }
-  .record-form, .lead-form, .privacy-form, .knowledge-form > div { grid-template-columns: 1fr; }
+  .record-form, .lead-form, .privacy-form, .retention-form, .knowledge-form > div { grid-template-columns: 1fr; }
   .data-row { grid-template-columns: 1fr; gap: 9px; padding: 16px 0; }
   .secondary-command { justify-self: start; }
   .mfa-enrollment { grid-template-columns: 1fr; }
@@ -276,6 +284,8 @@ a { color: #126149; text-underline-offset: 3px; }
   .inbox-layout { grid-template-columns: 1fr; }
   .conversation-list { max-height: 300px; border-right: 0; border-bottom: 1px solid #dce1df; }
   .conversation-panel { min-height: 520px; }
+  .voice-call-summary { grid-template-columns: 1fr; }
+  .voice-call-summary p { grid-column: auto; }
   .reply-form { grid-template-columns: 1fr; }
   .reply-form button { width: 100%; }
   .flowbot-create, .flowbot-deploy { grid-template-columns: 1fr; }

@@ -180,7 +180,10 @@ export class SharedDomainStore {
       id: string; contactId: string; contactName: string; leadId: string | null;
       productKey: string; publicPlanKey: string; channelKind: string; automationMode: string;
       status: string; assignedMembershipId: string | null; lastMessage: string | null;
-      lastMessageAt: Date | null; updatedAt: Date;
+      lastMessageAt: Date | null; updatedAt: Date; voiceStatus: string | null;
+      voiceTerminalReason: string | null; voiceMinutes: number | null;
+      voiceDurationSeconds: number | null; voiceOutcome: string | null;
+      voiceSummary: string | null; callbackStatus: string | null; callbackDueAt: Date | null;
     }[]>`
       SELECT conversation.id, conversation.contact_id AS "contactId",
              contact.display_name AS "contactName", conversation.lead_id AS "leadId",
@@ -188,7 +191,12 @@ export class SharedDomainStore {
              conversation.channel_kind AS "channelKind", conversation.automation_mode AS "automationMode",
              conversation.status, conversation.assigned_membership_id AS "assignedMembershipId",
              COALESCE(last_message.content_json->>'text', last_message.content_json->'content'->>'text') AS "lastMessage",
-             last_message.created_at AS "lastMessageAt", conversation.updated_at AS "updatedAt"
+             last_message.created_at AS "lastMessageAt", conversation.updated_at AS "updatedAt",
+             voice.status AS "voiceStatus", voice.terminal_reason AS "voiceTerminalReason",
+             voice.settled_minutes AS "voiceMinutes",
+             voice.settled_elapsed_seconds AS "voiceDurationSeconds",
+             outcome.outcome_code AS "voiceOutcome", outcome.summary_text AS "voiceSummary",
+             callback.status AS "callbackStatus", callback.due_at AS "callbackDueAt"
       FROM tenancy.conversations conversation
       JOIN tenancy.contacts contact ON contact.id = conversation.contact_id
         AND contact.tenant_id = conversation.tenant_id
@@ -197,6 +205,16 @@ export class SharedDomainStore {
         WHERE message.tenant_id = conversation.tenant_id AND message.conversation_id = conversation.id
         ORDER BY message.sequence DESC LIMIT 1
       ) last_message ON true
+      LEFT JOIN tenancy.voice_sessions voice
+        ON voice.tenant_id = conversation.tenant_id AND voice.conversation_id = conversation.id
+      LEFT JOIN tenancy.voice_call_outcomes outcome
+        ON outcome.tenant_id = voice.tenant_id AND outcome.session_id = voice.id
+      LEFT JOIN LATERAL (
+        SELECT request.status, request.due_at
+        FROM tenancy.voice_callback_requests request
+        WHERE request.tenant_id = voice.tenant_id AND request.session_id = voice.id
+        ORDER BY request.created_at DESC, request.id DESC LIMIT 1
+      ) callback ON true
       WHERE conversation.tenant_id = ${context.tenantId}::uuid
       ORDER BY COALESCE(last_message.created_at, conversation.started_at) DESC
       LIMIT 500
@@ -356,7 +374,7 @@ export class SharedDomainStore {
       if (conversation.automation_mode !== "human") return { status: "not_in_handover" as const };
       const targetMode = conversation.product_key === "flowbot" ? "flowbot"
         : conversation.product_key === "ai_chat" ? "ai_text"
-          : conversation.product_key === "voice_agent" ? "voice" : null;
+          : conversation.product_key === "voice" ? "voice" : null;
       if (!targetMode || !canTransitionMode("human", targetMode)) return { status: "transition_denied" as const };
       await sql`
         UPDATE tenancy.conversations
@@ -484,6 +502,69 @@ export class SharedDomainStore {
       ORDER BY job.requested_at DESC
       LIMIT 200
     `);
+  }
+
+  async getRetentionPolicy(context: TenantContext) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{
+        transcriptDays: number; recordingDays: number; voicePlanMaximumDays: number | null; updatedAt: Date;
+      }[]>`
+        SELECT policy.message_days AS "transcriptDays", policy.recording_days AS "recordingDays",
+          voice_limit.maximum_days AS "voicePlanMaximumDays", policy.updated_at AS "updatedAt"
+        FROM tenancy.retention_policies policy
+        LEFT JOIN LATERAL (
+          SELECT min(NULLIF(snapshot.resolved_json->'limits'->>'retention_days', '')::integer) AS maximum_days
+          FROM tenancy.entitlement_snapshots snapshot
+          JOIN tenancy.product_subscriptions subscription
+            ON subscription.tenant_id = snapshot.tenant_id AND subscription.id = snapshot.subscription_id
+          WHERE snapshot.tenant_id = policy.tenant_id AND snapshot.product_key = 'voice'
+            AND snapshot.access_mode = 'active'
+            AND subscription.status IN ('active', 'trialing', 'scheduled_change')
+        ) voice_limit ON true
+        WHERE policy.tenant_id = ${context.tenantId}::uuid
+      `;
+      return rows[0] ?? null;
+    });
+  }
+
+  async updateRetentionPolicy(context: TenantContext, transcriptDays: number) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const limits = await sql<{ maximum_days: number | null }[]>`
+        SELECT min(NULLIF(snapshot.resolved_json->'limits'->>'retention_days', '')::integer) AS maximum_days
+        FROM tenancy.entitlement_snapshots snapshot
+        JOIN tenancy.product_subscriptions subscription
+          ON subscription.tenant_id = snapshot.tenant_id AND subscription.id = snapshot.subscription_id
+        WHERE snapshot.tenant_id = ${context.tenantId}::uuid AND snapshot.product_key = 'voice'
+          AND snapshot.access_mode = 'active'
+          AND subscription.status IN ('active', 'trialing', 'scheduled_change')
+      `;
+      const maximumDays = limits[0]?.maximum_days ?? null;
+      if (maximumDays !== null && transcriptDays > maximumDays) {
+        return { status: "limit_exceeded" as const, maximumDays };
+      }
+      await sql`
+        INSERT INTO tenancy.retention_policies (
+          tenant_id, message_days, recording_days, updated_by_membership_id, updated_at
+        ) VALUES (
+          ${context.tenantId}::uuid, ${transcriptDays}, 0, ${context.membershipId}::uuid, now()
+        ) ON CONFLICT (tenant_id) DO UPDATE SET
+          message_days = EXCLUDED.message_days,
+          recording_days = 0,
+          updated_by_membership_id = EXCLUDED.updated_by_membership_id,
+          updated_at = now()
+      `;
+      await sql`
+        INSERT INTO tenancy.audit_logs (
+          tenant_id, actor_user_id, actor_membership_id, action, target_type,
+          target_id, request_id, result, metadata
+        ) VALUES (
+          ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+          'retention.policy_updated', 'retention_policy', ${context.tenantId},
+          ${context.requestId}, 'succeeded', ${sql.json({ transcriptDays, recordingDays: 0 })}
+        )
+      `;
+      return { status: "updated" as const, transcriptDays, recordingDays: 0, maximumDays };
+    });
   }
 
   async listActiveSupportAccess(context: TenantContext) {

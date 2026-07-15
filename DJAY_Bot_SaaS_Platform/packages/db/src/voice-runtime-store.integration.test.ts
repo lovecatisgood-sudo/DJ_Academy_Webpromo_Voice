@@ -1,23 +1,28 @@
 import { randomUUID } from "node:crypto";
 import { hashOpaqueToken } from "@djay/auth";
+import { createTenantContext } from "@djay/tenancy";
 import { voiceSessionGrantSchema } from "@djay/voice-runtime";
 import { afterAll, describe, expect, it } from "vitest";
 import { createDatabaseClient } from "./client";
 import { VoiceRuntimeStore } from "./voice-runtime-store";
 import { VoiceReaperStore } from "./voice-operations-store";
+import { SharedDomainStore } from "./shared-domain-store";
 
 const voiceUrl = process.env.VOICE_DATABASE_URL;
 const adminUrl = process.env.ADMIN_DATABASE_URL;
 const workerUrl = process.env.WORKER_DATABASE_URL;
-const enabled = Boolean(voiceUrl && adminUrl && workerUrl);
+const tenantUrl = process.env.TENANT_DATABASE_URL;
+const enabled = Boolean(voiceUrl && adminUrl && workerUrl && tenantUrl);
 const voiceClient = enabled ? createDatabaseClient(voiceUrl!) : null;
 const adminClient = enabled ? createDatabaseClient(adminUrl!) : null;
 const workerClient = enabled ? createDatabaseClient(workerUrl!) : null;
+const tenantClient = enabled ? createDatabaseClient(tenantUrl!) : null;
 
 afterAll(async () => {
   await voiceClient?.end();
   await adminClient?.end();
   await workerClient?.end();
+  await tenantClient?.end();
 });
 
 describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
@@ -221,6 +226,56 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
       FROM tenancy.voice_sessions session WHERE session.id = ${issued.sessionId}::uuid
     `;
     expect(effects[0]).toEqual({ leads: 1, appointments: 1, nativeUsage: 1, turns: 1 });
+    const tenantContext = createTenantContext({
+      tenantId, userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", membershipId,
+      sessionId: randomUUID(), role: "tenant_master_admin", requestId: `voice-release-${randomUUID()}`,
+    });
+    const shared = new SharedDomainStore(tenantClient!);
+    await expect(shared.takeOverConversation(tenantContext, turnContext.conversationId)).resolves.toMatchObject({ status: "accepted" });
+    await expect(shared.releaseConversation(tenantContext, turnContext.conversationId)).resolves.toEqual({
+      status: "released", automationMode: "voice",
+    });
+
+    const callbackInputId = randomUUID();
+    await runtime.beginTurn({
+      sessionId: issued.sessionId, connectionId: firstConnectionId, inputId: callbackInputId,
+      message: "Please call me back tomorrow morning.",
+    });
+    const callbackDueAt = new Date(Date.now() + 86_400_000).toISOString();
+    const callbackOutput = {
+      schemaVersion: "sales-core.v1" as const, stage: "S9_ACTION_CLOSE" as const,
+      intent: "callback_request", facts: [], knowledgeCitations: [],
+      responseGoal: "Record the requested callback without claiming completion",
+      proposedActions: [
+        { type: "lead.capture" as const, name: "Alex", email: "alex@example.com", need: "Callback" },
+        { type: "follow_up.create" as const, note: "Customer requested a callback", dueAt: callbackDueAt },
+      ], handover: null,
+      customerResponse: "I recorded your callback request for the team.",
+      channelResponse: { format: "text" as const, quickReplies: [] },
+    };
+    await expect(runtime.commitTurn({
+      sessionId: issued.sessionId, connectionId: firstConnectionId, inputId: callbackInputId,
+      output: callbackOutput,
+      publicResponse: {
+        status: "completed", inputId: callbackInputId, text: callbackOutput.customerResponse,
+        quickReplies: [], nextTurnSequence: 3,
+      },
+      nativeUsage: { inputUnits: 10, outputUnits: 8 },
+    })).resolves.toMatchObject({ terminalReason: "callback_requested" });
+    const durableOutcome = await adminClient!<{
+      outcome: string; summary: string; callbackStatus: string; callbackDueAt: Date;
+    }[]>`
+      SELECT outcome.outcome_code AS outcome, outcome.summary_text AS summary,
+        callback.status AS "callbackStatus", callback.due_at AS "callbackDueAt"
+      FROM tenancy.voice_call_outcomes outcome
+      JOIN tenancy.voice_callback_requests callback
+        ON callback.tenant_id = outcome.tenant_id AND callback.session_id = outcome.session_id
+      WHERE outcome.session_id = ${issued.sessionId}::uuid
+    `;
+    expect(durableOutcome[0]).toMatchObject({
+      outcome: "callback_requested", summary: "The customer requested a callback.", callbackStatus: "pending",
+    });
+    expect(durableOutcome[0]?.callbackDueAt.toISOString()).toBe(callbackDueAt);
     const afterReserve = await adminClient!<{ reserved: number; settled: number; reservations: number; leases: number }[]>`
       SELECT account.reserved_quantity::int AS reserved, account.settled_quantity::int AS settled,
         (SELECT count(*)::int FROM tenancy.usage_reservations reservation
@@ -270,7 +325,7 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
     `;
 
     await expect(runtime.finish({
-      sessionId: issued.sessionId, connectionId: reconnectId, elapsedSeconds: 62, terminalReason: "completed",
+      sessionId: issued.sessionId, connectionId: reconnectId, elapsedSeconds: 62, terminalReason: "callback_requested",
     })).resolves.toEqual({ status: "ended", customerMinutes: 2, replayed: false });
     await expect(runtime.finish({
       sessionId: issued.sessionId, connectionId: reconnectId, elapsedSeconds: 1, terminalReason: "unavailable",

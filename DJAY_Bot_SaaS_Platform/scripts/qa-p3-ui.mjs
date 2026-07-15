@@ -10,6 +10,7 @@ const workspace = { tenantId: "20000000-0000-4000-8000-000000000001", slug: "bro
 const contact = { id: "50000000-0000-4000-8000-000000000001", displayName: "Narin Customer", locale: "th", consentStatus: "granted", identities: [{ kind: "email", value: "narin@example.test", verificationStatus: "verified" }], leadCount: 1, updatedAt: new Date().toISOString() };
 const lead = { id: "60000000-0000-4000-8000-000000000001", contactId: contact.id, contactName: contact.displayName, title: "Premium service enquiry", source: "AI Chatbot", status: "pending_follow_up", updatedAt: new Date().toISOString() };
 const conversation = { id: "70000000-0000-4000-8000-000000000001", contactId: contact.id, contactName: contact.displayName, leadId: lead.id, productKey: "ai_chat", publicPlanKey: "ai_chat_premium", channelKind: "web", automationMode: "human", status: "open", assignedMembershipId: null, lastMessage: "Could we confirm tomorrow afternoon?", lastMessageAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+const voiceConversation = { id: "70000000-0000-4000-8000-000000000002", contactId: contact.id, contactName: "Mali Voice Lead", leadId: lead.id, productKey: "voice", publicPlanKey: "voice_basic_gen1", channelKind: "voice", automationMode: "closed", status: "closed", assignedMembershipId: null, lastMessage: "I recorded your callback request for the team.", lastMessageAt: new Date().toISOString(), updatedAt: new Date().toISOString(), voiceStatus: "ended", voiceTerminalReason: "callback_requested", voiceMinutes: 2, voiceDurationSeconds: 62, voiceOutcome: "callback_requested", voiceSummary: "The customer requested a callback.", callbackStatus: "pending", callbackDueAt: new Date(Date.now() + 86_400_000).toISOString() };
 const messages = [
   { id: "71000000-0000-4000-8000-000000000001", sequence: 1, actorType: "customer", direction: "inbound", text: "I would like details about your premium service.", createdAt: new Date(Date.now() - 60_000).toISOString() },
   { id: "71000000-0000-4000-8000-000000000002", sequence: 2, actorType: "human", direction: "outbound", text: "Certainly. Could we confirm tomorrow afternoon?", createdAt: new Date().toISOString() },
@@ -26,10 +27,11 @@ async function mockTenant(page) {
     if (path === "/tenant/support-access") return json(route, { grants: [{ id: "grant", reason: "Investigating a merchant-reported message delivery issue.", startsAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3_600_000).toISOString() }] });
     if (path === "/tenant/contacts") return json(route, route.request().method() === "GET" ? { contacts: [contact] } : { status: "created", contactId: crypto.randomUUID() }, route.request().method() === "GET" ? 200 : 201);
     if (path === "/tenant/leads") return json(route, route.request().method() === "GET" ? { leads: [lead] } : { status: "created", leadId: crypto.randomUUID() }, route.request().method() === "GET" ? 200 : 201);
-    if (path === "/tenant/conversations") return json(route, { conversations: [conversation] });
+    if (path === "/tenant/conversations") return json(route, { conversations: [voiceConversation, conversation] });
     if (path.endsWith("/messages")) return json(route, route.request().method() === "GET" ? { messages } : { status: "created", messageId: crypto.randomUUID(), sequence: 3 }, route.request().method() === "GET" ? 200 : 201);
     if (path === "/tenant/knowledge") return json(route, route.request().method() === "GET" ? { sources: [{ id: "80000000-0000-4000-8000-000000000001", name: "Approved service guide", sourceKind: "text", status: "active", version: 2, revisionCreatedAt: new Date().toISOString() }] } : { status: "created" }, route.request().method() === "GET" ? 200 : 201);
     if (path === "/tenant/privacy-jobs") return json(route, route.request().method() === "GET" ? { jobs: [{ id: "90000000-0000-4000-8000-000000000001", contactId: contact.id, contactName: contact.displayName, jobType: "export", status: "completed", requestedAt: new Date().toISOString(), completedAt: new Date().toISOString() }] } : { status: "accepted" }, route.request().method() === "GET" ? 200 : 202);
+    if (path === "/tenant/retention-policy") return json(route, route.request().method() === "GET" ? { policy: { transcriptDays: 90, recordingDays: 0, voicePlanMaximumDays: 365, updatedAt: new Date().toISOString() } } : { status: "updated", transcriptDays: 90, recordingDays: 0, maximumDays: 365 });
     return json(route, { status: "not_found" }, 404);
   });
 }
@@ -65,6 +67,8 @@ async function inspect(url, name, viewport, mock) {
   }));
   if (result.bodyWidth > result.viewportWidth + 1) failures.push(`${name}: horizontal overflow ${result.bodyWidth}/${result.viewportWidth}`);
   if (restricted.test(result.bodyText)) failures.push(`${name}: restricted provider/model term visible`);
+  if (name.startsWith("inbox-") && !result.bodyText.includes("The customer requested a callback.")) failures.push(`${name}: Voice outcome summary missing`);
+  if (name.startsWith("data-") && !result.bodyText.includes("Transcript retention")) failures.push(`${name}: retention controls missing`);
   if (name.startsWith("platform-") && !result.bodyText.includes("Runtime admission and recovery")) failures.push(`${name}: Voice operations control missing`);
   await page.screenshot({ path: `/tmp/djay-p3-${name}.png`, fullPage: true });
   await context.close();
