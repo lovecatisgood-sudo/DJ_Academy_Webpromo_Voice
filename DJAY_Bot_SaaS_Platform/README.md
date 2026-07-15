@@ -39,6 +39,7 @@ scripts/test-db-integration.sh
 scripts/use-node24.sh pnpm run qa:p3-ui
 scripts/use-node24.sh pnpm run qa:p4-flowbot
 scripts/use-node24.sh pnpm run qa:p5-ai-chat
+scripts/use-node24.sh pnpm run qa:p6-line
 scripts/use-node24.sh pnpm run dev
 ```
 

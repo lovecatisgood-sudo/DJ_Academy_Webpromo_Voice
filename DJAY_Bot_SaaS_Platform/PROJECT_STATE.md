@@ -18,8 +18,9 @@ Last updated: 2026-07-15
 
 P6 builds AI Chatbot Premium social channels on the completed P1-P5 authority.
 The controlled delivery order is LINE, WhatsApp, then Messenger. Active LINE
-work covers secure connection operations plus signed, deduplicated, ordered
-webhook receipt. P5 AI Chatbot Basic remains Web-only and provider-neutral.
+work now covers secure connection operations, signed and ordered inbound events,
+idempotent Sales Core turns, atomic actions and usage, and durable outbound
+delivery. P5 AI Chatbot Basic remains Web-only and provider-neutral.
 
 ## P4 release checkpoint
 
@@ -45,9 +46,9 @@ merchant sign-off, but the external rollout gate does not block P5 engineering.
   Platform AI Operations controls.
 - Public charging remains disabled while ADR-008 commercial values are unresolved.
 
-## P6 LINE foundation checkpoint
+## P6 LINE runtime checkpoint
 
-The first P6 slice is implemented locally:
+The LINE runtime and delivery slices are implemented locally:
 
 - Premium-only LINE connection creation and revocation.
 - One-time opaque webhook keys and separately encrypted channel credentials.
@@ -68,10 +69,24 @@ The first P6 slice is implemented locally:
 - Migration `0022_ai_chat_social_sessions` serializes work per subject and
   idempotently creates the connection-scoped contact, LINE conversation, pinned
   AI session, customer message, metered AI turn, and quota reservation.
+- Migration `0023_ai_chat_social_commit` atomically commits the shared Sales
+  Core action set, AI transcript message, native usage, settled quota, and one
+  outbound reply. Commit-time authority loss fails closed and releases quota.
+- Migration `0024_ai_chat_social_delivery` adds worker-only `SKIP LOCKED`
+  delivery claims, bounded retry/dead-letter state, immutable attempted-quantity
+  events, and provider receipt IDs without inventing channel rates.
+- The worker uses the shared AI text runtime and channel-native LINE renderer,
+  retries transient failures, terminates credential/action failures, applies
+  opt-outs even after entitlement loss, and never counts a blocked request as
+  an attempted channel unit.
+- Tenant operators can see delivered, pending, failed, and attempted-unit totals.
+  Production Chromium covers owner actions, viewer restrictions, secrets,
+  desktop/mobile overflow, console errors, and provider-identity leakage.
 
-This does not yet include outbound LINE delivery, AI response commit/actions,
-WhatsApp, Messenger, identity review, channel fee usage, or omnichannel
-analytics. P6 remains active.
+This does not yet include social identity review candidates, WhatsApp,
+Messenger, approved monetary rate treatment, or omnichannel analytics. LINE
+still requires restricted staging credentials and real platform acceptance.
+P6 remains active and production social activation remains disabled.
 
 ## Latest verification
 
@@ -81,13 +96,14 @@ scripts/test-db-integration.sh
 scripts/use-node24.sh pnpm run qa:p3-ui
 scripts/use-node24.sh pnpm run qa:p4-flowbot
 scripts/use-node24.sh pnpm run qa:p5-ai-chat
+scripts/use-node24.sh pnpm run qa:p6-line
 ```
 
 All passed on 2026-07-15. The database gate now applies migrations `0000` through
-`0022` and includes the P6 LINE connection/receipt/worker/session journey. Full verification
-passes across 27 packages/apps, and the API production build contains 65 dynamic
-routes. Production Chromium passes AI Chat Basic desktop/mobile authoring plus
-built-widget streaming, replay, and handover. These results validate the first
-P6 engineering slice but do not authorize social production activation, AI Chat
-self-service, or paid launch without the remaining engineering and external
-acceptance gates.
+`0024` and includes the complete local LINE inbound, Sales Core commit, outbound
+retry, quantity-ledger, delivery-status, opt-out, and quota-release journey. Full
+verification passes across 27 packages/apps, and the API production build
+contains 65 dynamic routes. Production Chromium passes AI Chat Basic plus the
+P6 LINE tenant operations surface. These results do not authorize social
+production activation, AI Chat self-service, or paid launch without the
+remaining engineering and external acceptance gates.

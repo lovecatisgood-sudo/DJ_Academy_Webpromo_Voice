@@ -194,6 +194,9 @@ a { color: #126149; text-underline-offset: 3px; }
 .health-failed { background: #fbe4df; color: #8a3024; }
 .credential-rotation { padding-top: 8px; border-top: 1px solid #e1e5e3; }
 .credential-rotation summary { cursor: pointer; color: #315d50; font-weight: 700; }
+.social-delivery-metrics { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 0; color: #68716e; font-size: 11px; }
+.social-delivery-metrics span { display: inline-flex; gap: 4px; }
+.social-delivery-metrics strong { color: #164c3d; }
 @media (max-width: 760px) {
   .workspace-shell { grid-template-columns: 1fr; }
   .workspace-shell aside { border-right: 0; border-bottom: 1px solid #dce1df; }

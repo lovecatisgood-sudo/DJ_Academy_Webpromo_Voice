@@ -25,7 +25,7 @@ Production social activation remains disabled.
 - Keep provider/model identity absent from tenant, public, widget, export, log,
   and user-visible error contracts.
 
-## First LINE slice
+## Delivered LINE slices
 
 This slice delivers:
 
@@ -45,19 +45,27 @@ This slice delivers:
     dead-letter operations with claim-time Premium reauthorization.
 11. Per-subject serialization and idempotent shared contact, conversation,
     pinned session, inbound message, quota reservation, and AI turn creation.
+12. Shared Sales Core generation plus atomic structured actions, transcript,
+    usage settlement, and one durable outbound reply.
+13. Channel-native LINE reply/push delivery with bounded retry, dead-letter,
+    provider receipt IDs, and exact attempted-quantity events.
+14. Delivery-status and opt-out control handling, including opt-out after
+    entitlement loss and delayed provider-failure visibility.
+15. Tenant delivery metrics and production-browser owner/viewer operations QA.
 
 ## Non-goals for this slice
 
-- AI response generation or outbound LINE delivery.
 - WhatsApp or Messenger routes.
 - Media ingestion, arbitrary recipient entry, marketing, or bulk sending.
 - Template management, identity merge, omnichannel analytics, or channel rate
-  pricing.
+  pricing. Identity candidates may only support explicit review, never automatic
+  merge.
 
 ## Schema and API impact
 
-- Migration `0020_ai_chat_social_line` adds social connections, subject offsets,
-  and immutable inbound receipts.
+- Migrations `0020` through `0024` add social connections, immutable inbound
+  receipts, subject/session initialization, atomic response commit, outbound
+  delivery, and immutable channel quantity events.
 - Tenant routes manage LINE connections under `ai_chat.channels.manage`.
 - The public LINE webhook route is opaque-key addressed and uses only the
   restricted AI runtime database role.
@@ -66,15 +74,18 @@ This slice delivers:
 
 - Disable or revoke every social connection.
 - Remove the public LINE webhook route from the deployed application.
-- Application rollback must remain compatible with migration `0020`; tables and
+- Application rollback must remain compatible with migrations `0020`-`0024`; tables and
   receipts are retained for audit and replay safety.
 
 ## Gate for the next slice
 
 - Full workspace verification passes.
-- PostgreSQL 16 applies migrations `0000` through `0020`.
+- PostgreSQL 16 applies migrations `0000` through `0024`.
 - AI Basic cannot create or resolve a LINE connection.
 - Wrong-tenant IDs disclose nothing and mutate nothing.
 - Invalid signatures create no receipt.
 - Exact event replay returns the original receipt and creates no new work.
 - Older subject events are retained as out of order and are not processable.
+- Retried turns and deliveries do not duplicate contacts, actions, usage, or
+  provider receipt state.
+- Opt-out closes automation and delayed delivery failure is visible to tenants.

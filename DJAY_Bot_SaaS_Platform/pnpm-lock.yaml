@@ -207,9 +207,15 @@ importers:
 
   apps/workers:
     dependencies:
+      '@djay/ai-chat-runtime':
+        specifier: workspace:*
+        version: link:../../packages/ai-chat-runtime
       '@djay/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@djay/channel-adapters':
+        specifier: workspace:*
+        version: link:../../packages/channel-adapters
       '@djay/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -225,6 +231,9 @@ importers:
       '@djay/platform-auth':
         specifier: workspace:*
         version: link:../../packages/platform-auth
+      '@djay/provider-gateway':
+        specifier: workspace:*
+        version: link:../../packages/provider-gateway
       '@node-rs/argon2':
         specifier: 2.0.2
         version: 2.0.2

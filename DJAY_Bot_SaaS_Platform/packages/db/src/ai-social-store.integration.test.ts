@@ -42,6 +42,8 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
       "ai.enabled": true, "sales_core.enabled": true, "knowledge.enabled": true,
       "ai.text": true, "channel.web": true, "channel.line": true,
       "channel.whatsapp": true, "channel.messenger": true,
+      "lead_capture.enabled": true, "appointment_request.enabled": true,
+      "human_handover.enabled": true, "sales_email_action.enabled": false,
     };
     await adminClient!`
       UPDATE tenancy.product_subscriptions SET status = 'cancelled', cancelled_at = now()
@@ -191,8 +193,111 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
       subjects: 1, contacts: 1, conversations: 1, sessions: 1,
       turns: 1, reservations: 1, subject_plaintext: false,
     });
-    await worker.finish(retried.outboxId, true, null);
+    const firstStart = new Date(Date.now() + 172_800_000).toISOString();
+    const secondStart = new Date(Date.now() + 259_200_000).toISOString();
+    const customerResponse = "I recorded your consultation request. The merchant still needs to confirm a time.";
+    const committed = await worker.commitTurn({
+      outboxId: retried.outboxId,
+      output: {
+        schemaVersion: "sales-core.v1", stage: "S8_APPOINTMENT", intent: "request_consultation",
+        facts: [], knowledgeCitations: [], responseGoal: "Capture and request consultation",
+        proposedActions: [
+          { type: "lead.capture", name: "LINE Customer", email: "line@example.test", need: "Consultation" },
+          { type: "sales_fact.record", factType: "appointment_preference", value: "Weekday" },
+          { type: "appointment.request", timezone: "Asia/Bangkok", confirmationClaim: "pending_merchant_confirmation", options: [
+            { startAt: firstStart, endAt: new Date(new Date(firstStart).getTime() + 1_800_000).toISOString() },
+            { startAt: secondStart, endAt: new Date(new Date(secondStart).getTime() + 1_800_000).toISOString() },
+          ] },
+        ],
+        handover: null, customerResponse,
+        channelResponse: { format: "text", quickReplies: ["Ask another question"] },
+      },
+      publicResponse: {
+        status: "completed", inputId: claimed.receiptId, text: customerResponse,
+        quickReplies: ["Ask another question"], nextTurnSequence: 2,
+      },
+      nativeUsage: { inputUnits: 90, outputUnits: 35, cachedUnits: 4 },
+    });
+    expect(committed).toMatchObject({ status: "completed", inputId: claimed.receiptId });
     await expect(worker.claim(new Date(Date.now() + 120_000))).resolves.toBeNull();
+    const committedEvidence = await adminClient!<{
+      leads: number; facts: number; appointments: number; options: number;
+      outbound: number; ai_messages: number; settled: number; reserved: number; native_usage: number;
+    }[]>`
+      SELECT
+        (SELECT count(*)::int FROM tenancy.leads lead WHERE lead.tenant_id = ${tenantId}::uuid AND lead.source = 'ai_chat_line') AS leads,
+        (SELECT count(*)::int FROM tenancy.sales_facts fact WHERE fact.tenant_id = ${tenantId}::uuid) AS facts,
+        (SELECT count(*)::int FROM tenancy.appointment_requests request WHERE request.tenant_id = ${tenantId}::uuid) AS appointments,
+        (SELECT count(*)::int FROM tenancy.appointment_time_options option WHERE option.tenant_id = ${tenantId}::uuid) AS options,
+        (SELECT count(*)::int FROM tenancy.ai_social_outbound_deliveries delivery WHERE delivery.tenant_id = ${tenantId}::uuid AND delivery.status = 'pending') AS outbound,
+        (SELECT count(*)::int FROM tenancy.messages message WHERE message.tenant_id = ${tenantId}::uuid AND message.actor_type = 'ai') AS ai_messages,
+        (SELECT count(*)::int FROM tenancy.usage_reservations reservation WHERE reservation.tenant_id = ${tenantId}::uuid AND reservation.status = 'settled' AND reservation.idempotency_key LIKE 'ai:social:turn:%') AS settled,
+        (SELECT count(*)::int FROM tenancy.usage_reservations reservation WHERE reservation.tenant_id = ${tenantId}::uuid AND reservation.status = 'reserved' AND reservation.idempotency_key LIKE 'ai:social:turn:%') AS reserved,
+        (SELECT count(*)::int FROM operations.ai_native_usage usage WHERE usage.tenant_id = ${tenantId}::uuid) AS native_usage
+    `;
+    expect(committedEvidence[0]).toEqual({
+      leads: 1, facts: 1, appointments: 1, options: 2,
+      outbound: 1, ai_messages: 1, settled: 1, reserved: 0, native_usage: 1,
+    });
+    const deliveryClaim = await worker.claimDelivery();
+    expect(deliveryClaim).toMatchObject({
+      channel: "line", recipient: "line-user-123", replyToken: "opaque-reply",
+      deliveryAllowed: true, attemptCount: 1,
+      response: { text: customerResponse, quickReplies: ["Ask another question"] },
+      credentials: { channelAccessToken: "rotated-line-access-token" },
+    });
+    if (!deliveryClaim) throw new Error("Expected LINE delivery claim.");
+    await worker.finishDelivery({
+      deliveryId: deliveryClaim.deliveryId, delivered: false, externalMessageIds: [],
+      feeClassification: "reply", attemptedQuantity: 1,
+      safeErrorCode: "channel_rate_limited",
+    });
+    const retriedDelivery = await worker.claimDelivery(new Date(Date.now() + 60_000));
+    expect(retriedDelivery).toMatchObject({ deliveryId: deliveryClaim.deliveryId, attemptCount: 2 });
+    if (!retriedDelivery) throw new Error("Expected LINE delivery retry.");
+    await worker.finishDelivery({
+      deliveryId: retriedDelivery.deliveryId, delivered: true,
+      externalMessageIds: ["line-outbound-1"], feeClassification: "reply",
+      attemptedQuantity: 1, safeErrorCode: null,
+    });
+    const deliveryEvidence = await adminClient!<{
+      status: string; attempts: number; quantity_events: number;
+      failed_events: number; succeeded_events: number; external_message_id: string | null;
+    }[]>`
+      SELECT delivery.status, delivery.attempt_count AS attempts,
+        (SELECT count(*)::int FROM tenancy.ai_social_channel_quantity_events event
+          WHERE event.tenant_id = delivery.tenant_id AND event.delivery_id = delivery.id) AS quantity_events,
+        (SELECT count(*)::int FROM tenancy.ai_social_channel_quantity_events event
+          WHERE event.tenant_id = delivery.tenant_id AND event.delivery_id = delivery.id AND event.outcome = 'failed') AS failed_events,
+        (SELECT count(*)::int FROM tenancy.ai_social_channel_quantity_events event
+          WHERE event.tenant_id = delivery.tenant_id AND event.delivery_id = delivery.id AND event.outcome = 'succeeded') AS succeeded_events,
+        delivery.external_message_ids[1] AS external_message_id
+      FROM tenancy.ai_social_outbound_deliveries delivery
+      WHERE delivery.id = ${deliveryClaim.deliveryId}::uuid
+    `;
+    expect(deliveryEvidence[0]).toEqual({
+      status: "succeeded", attempts: 2, quantity_events: 2,
+      failed_events: 1, succeeded_events: 1, external_message_id: "line-outbound-1",
+    });
+    await runtime.receive({
+      webhookKey: created.webhookKey, channel: "line", externalEventId: "line-delivery-failed",
+      externalMessageId: "line-outbound-1", subjectHash, eventType: "delivery.status",
+      occurredAt: new Date(occurredAt.getTime() + 500),
+      normalized: {
+        text: null, subjectCiphertext, replyTokenCiphertext: null, deliveryStatus: "failed",
+      },
+    });
+    const deliveryStatusClaim = await worker.claim();
+    expect(deliveryStatusClaim).toMatchObject({
+      eventType: "delivery.status", externalMessageId: "line-outbound-1", deliveryStatus: "failed",
+    });
+    if (!deliveryStatusClaim) throw new Error("Expected channel delivery status claim.");
+    await expect(worker.applyControlEvent(deliveryStatusClaim.outboxId)).resolves.toBe(true);
+    await expect(adminClient!<{ status: string; error: string }[]>`
+      SELECT status, safe_error_code AS error
+      FROM tenancy.ai_social_outbound_deliveries
+      WHERE id = ${deliveryClaim.deliveryId}::uuid
+    `).resolves.toEqual([{ status: "dead_letter", error: "channel_reported_failed" }]);
     await runtime.receive({
       webhookKey: created.webhookKey, channel: "line", externalEventId: "line-event-dead-letter",
       externalMessageId: "line-message-dead-letter", subjectHash, eventType: "inbound.message",
@@ -201,10 +306,25 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
     });
     const deadLetterClaim = await worker.claim();
     if (!deadLetterClaim) throw new Error("Expected social inbound dead-letter claim.");
+    await expect(worker.beginTurn(deadLetterClaim)).resolves.toMatchObject({ turnSequence: 2 });
+    await expect(worker.failTurn(deadLetterClaim.outboxId, "structured_output_invalid")).resolves.toBe(true);
     await worker.finish(deadLetterClaim.outboxId, false, "structured_output_invalid", true);
-    await expect(adminClient!<{ status: string; error: string }[]>`
-      SELECT status, last_error_code AS error FROM tenancy.outbox WHERE id = ${deadLetterClaim.outboxId}::uuid
-    `).resolves.toEqual([{ status: "dead_letter", error: "structured_output_invalid" }]);
+    await expect(adminClient!<{
+      status: string; error: string; turn_status: string; turn_error: string; reservation_status: string;
+    }[]>`
+      SELECT outbox.status, outbox.last_error_code AS error,
+        turn.status AS turn_status, turn.safe_error_code AS turn_error,
+        reservation.status AS reservation_status
+      FROM tenancy.outbox outbox
+      JOIN tenancy.ai_turns turn
+        ON turn.tenant_id = outbox.tenant_id AND turn.input_id = ${deadLetterClaim.receiptId}::uuid
+      JOIN tenancy.usage_reservations reservation
+        ON reservation.tenant_id = turn.tenant_id AND reservation.id = turn.usage_reservation_id
+      WHERE outbox.id = ${deadLetterClaim.outboxId}::uuid
+    `).resolves.toEqual([{
+      status: "dead_letter", error: "structured_output_invalid",
+      turn_status: "failed", turn_error: "structured_output_invalid", reservation_status: "released",
+    }]);
 
     const evidence = await adminClient!<{
       receipts: number; accepted: number; out_of_order: number; jobs: number; credential_plaintext: boolean;
@@ -222,7 +342,39 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
       WHERE receipt.tenant_id = ${tenantId}::uuid
       GROUP BY receipt.tenant_id
     `;
-    expect(evidence[0]).toEqual({ receipts: 3, accepted: 2, out_of_order: 1, jobs: 2, credential_plaintext: false });
+    expect(evidence[0]).toEqual({ receipts: 4, accepted: 3, out_of_order: 1, jobs: 3, credential_plaintext: false });
+
+    await runtime.receive({
+      webhookKey: created.webhookKey, channel: "line", externalEventId: "line-event-opt-out",
+      externalMessageId: null, subjectHash, eventType: "subject.opt_out",
+      occurredAt: new Date(occurredAt.getTime() + 2_000),
+      normalized: { text: null, subjectCiphertext, replyTokenCiphertext: null, deliveryStatus: null },
+    });
+    const optOutClaim = await worker.claim();
+    expect(optOutClaim).toMatchObject({ eventType: "subject.opt_out", externalSubject: "line-user-123" });
+    if (!optOutClaim) throw new Error("Expected LINE opt-out claim.");
+    await expect(worker.applyControlEvent(optOutClaim.outboxId)).resolves.toBe(true);
+    await expect(adminClient!<{
+      subject_status: string; conversation_status: string; automation_mode: string;
+      session_status: string; outbox_status: string;
+    }[]>`
+      SELECT subject.status AS subject_status, conversation.status AS conversation_status,
+        conversation.automation_mode, session.status AS session_status,
+        outbox.status AS outbox_status
+      FROM tenancy.ai_social_subjects subject
+      JOIN tenancy.conversations conversation
+        ON conversation.tenant_id = subject.tenant_id AND conversation.id = subject.conversation_id
+      JOIN tenancy.ai_sessions session
+        ON session.tenant_id = subject.tenant_id AND session.id = subject.session_id
+      JOIN tenancy.outbox outbox ON outbox.tenant_id = subject.tenant_id
+        AND outbox.id = ${optOutClaim.outboxId}::uuid
+      WHERE subject.tenant_id = ${tenantId}::uuid
+        AND subject.connection_id = ${created.connectionId}::uuid
+        AND subject.subject_hash = ${subjectHash}
+    `).resolves.toEqual([{
+      subject_status: "opted_out", conversation_status: "closed",
+      automation_mode: "closed", session_status: "completed", outbox_status: "sent",
+    }]);
 
     await expect(connections.revoke(context, created.connectionId)).resolves.toEqual({ status: "revoked" });
     await expect(runtime.connection(created.webhookKey, "line")).resolves.toBeNull();

@@ -14,12 +14,15 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@djay/ai-chat-runtime": "workspace:*",
     "@djay/auth": "workspace:*",
+    "@djay/channel-adapters": "workspace:*",
     "@djay/db": "workspace:*",
     "@djay/flowbot-domain": "workspace:*",
     "@djay/flowbot-migration": "workspace:*",
     "@djay/notifications": "workspace:*",
     "@djay/platform-auth": "workspace:*",
+    "@djay/provider-gateway": "workspace:*",
     "@node-rs/argon2": "2.0.2",
     "postgres": "3.4.9",
     "zod": "4.4.3"

@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { normalizeSocialWebhook, renderSocialReply, verifySocialChallenge, verifySocialSignature } from "./index";
+import { createSocialDeliveryClient, normalizeSocialWebhook, renderSocialReply, verifySocialChallenge, verifySocialSignature } from "./index";
 
 const lineCredentials = { channel: "line" as const, channelAccessToken: "token-token-token-token", channelSecret: "secret-secret-secret-secret" };
 const whatsappCredentials = { channel: "whatsapp" as const, accessToken: "token-token-token-token", appSecret: "secret-secret-secret-secret", verifyToken: "verify-verify-verify", phoneNumberId: "phone-1", businessAccountId: "business-1" };
@@ -32,5 +32,32 @@ describe("social channel adapters", () => {
     expect("bodies" in whatsapp && whatsapp.bodies[0]).toMatchObject({ type: "interactive" });
     const messenger = renderSocialReply("messenger", { recipient: "PSID1", text: "x".repeat(2500), quickReplies: [] });
     expect("bodies" in messenger && messenger.bodies).toHaveLength(2);
+  });
+
+  it("delivers LINE replies only through the configured HTTPS gateway", async () => {
+    const requests: { url: string; authorization: string | null; body: unknown }[] = [];
+    const client = createSocialDeliveryClient({
+      lineApiBaseUrl: "https://api.line.test/", metaGraphBaseUrl: "https://graph.meta.test/v23.0/",
+      fetchImpl: async (input, init) => {
+        requests.push({
+          url: String(input), authorization: new Headers(init?.headers).get("authorization"),
+          body: init?.body ? JSON.parse(String(init.body)) : null,
+        });
+        return new Response(JSON.stringify({ sentMessages: [{ id: "line-message-1" }] }), {
+          status: 200, headers: { "Content-Type": "application/json" },
+        });
+      },
+    });
+    const rendered = renderSocialReply("line", {
+      recipient: "U1", replyToken: "reply-token", text: "Hello", quickReplies: ["Book"],
+    });
+    await expect(client.deliver("line", lineCredentials, rendered)).resolves.toEqual({
+      externalMessageIds: ["line-message-1"],
+    });
+    expect(requests).toEqual([expect.objectContaining({
+      url: "https://api.line.test/v2/bot/message/reply",
+      authorization: `Bearer ${lineCredentials.channelAccessToken}`,
+      body: expect.objectContaining({ replyToken: "reply-token" }),
+    })]);
   });
 });

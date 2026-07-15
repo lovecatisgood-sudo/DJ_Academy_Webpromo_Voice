@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { AiTurnContext } from "@djay/ai-chat-runtime";
+import type { AiPublicResponse, AiTurnContext } from "@djay/ai-chat-runtime";
+import type { SalesCoreOutput } from "@djay/sales-core";
 import { createOpaqueToken, hashOpaqueToken, openJson, sealJson } from "@djay/auth";
 import type { TenantContext } from "@djay/tenancy";
 import { z } from "zod";
@@ -24,14 +25,37 @@ export class AiSocialConnectionStore {
       createdAt: Date;
       lastHealthAt: Date | null;
       revokedAt: Date | null;
+      pendingDeliveries: number;
+      failedDeliveries: number;
+      deadLetterDeliveries: number;
+      succeededDeliveries: number;
+      attemptedQuantity: number;
     }[]>`
       SELECT id, agent_id AS "agentId", channel, name,
              external_account_ref AS "externalAccountRef", status,
              health_status AS "healthStatus", safe_error_code AS "safeErrorCode",
-             created_at AS "createdAt", last_health_at AS "lastHealthAt", revoked_at AS "revokedAt"
-      FROM tenancy.ai_social_connections
-      WHERE tenant_id = ${context.tenantId}::uuid
-      ORDER BY created_at DESC, id DESC
+             connection.created_at AS "createdAt", last_health_at AS "lastHealthAt", revoked_at AS "revokedAt",
+             COALESCE(delivery.pending, 0)::int AS "pendingDeliveries",
+             COALESCE(delivery.failed, 0)::int AS "failedDeliveries",
+             COALESCE(delivery.dead_letter, 0)::int AS "deadLetterDeliveries",
+             COALESCE(delivery.succeeded, 0)::int AS "succeededDeliveries",
+             COALESCE(quantity.attempted, 0)::int AS "attemptedQuantity"
+      FROM tenancy.ai_social_connections connection
+      LEFT JOIN LATERAL (
+        SELECT count(*) FILTER (WHERE status IN ('pending', 'processing')) AS pending,
+               count(*) FILTER (WHERE status = 'failed') AS failed,
+               count(*) FILTER (WHERE status = 'dead_letter') AS dead_letter,
+               count(*) FILTER (WHERE status = 'succeeded') AS succeeded
+        FROM tenancy.ai_social_outbound_deliveries item
+        WHERE item.tenant_id = connection.tenant_id AND item.connection_id = connection.id
+      ) delivery ON true
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(sum(event.attempted_quantity), 0) AS attempted
+        FROM tenancy.ai_social_channel_quantity_events event
+        WHERE event.tenant_id = connection.tenant_id AND event.connection_id = connection.id
+      ) quantity ON true
+      WHERE connection.tenant_id = ${context.tenantId}::uuid
+      ORDER BY connection.created_at DESC, connection.id DESC
     `);
   }
 
@@ -311,6 +335,14 @@ const socialInboundClaimSchema = z.object({
 }).strict();
 
 const encryptedValueSchema = z.object({ value: z.string().min(1).max(500) }).strict();
+const socialDeliveryClaimSchema = z.object({
+  delivery_id: z.uuid(), tenant_id: z.uuid(), connection_id: z.uuid(), message_id: z.uuid(),
+  channel: z.enum(["line", "whatsapp", "messenger"]),
+  recipient_ciphertext: z.string(), reply_token_ciphertext: z.string().nullable(),
+  response_json: z.object({ text: z.string().min(1).max(5000), quickReplies: z.array(z.string()).max(6) }).passthrough(),
+  credential_ciphertext: z.string().nullable(), credential_key_version: z.number().int().positive(),
+  attempt_count: z.number().int().positive(), delivery_allowed: z.boolean(),
+}).strict();
 
 export class AiSocialWorkerStore {
   constructor(private readonly client: DatabaseClient, private readonly envelopeKey: Buffer) {}
@@ -394,6 +426,103 @@ export class AiSocialWorkerStore {
       if (!rows[0]) throw new Error("ai_social_turn_not_available");
       return rows[0];
     }) as Promise<AiTurnContext>;
+  }
+
+  async commitTurn(input: Readonly<{
+    outboxId: string;
+    output: SalesCoreOutput;
+    publicResponse: AiPublicResponse;
+    nativeUsage: { inputUnits: number; outputUnits: number; cachedUnits?: number };
+  }>) {
+    return this.client.begin(async (sql) => {
+      await sql`
+        SELECT set_config('app.service', 'ai_social_worker', true),
+               set_config('app.request_id', ${randomUUID()}, true)
+      `;
+      const rows = await sql<{ result: AiPublicResponse | { status: "handover" } }[]>`
+        SELECT tenancy.commit_ai_social_turn(
+          ${input.outboxId}::uuid, ${sql.json(input.output)}, ${sql.json(input.publicResponse)},
+          ${input.nativeUsage.inputUnits}, ${input.nativeUsage.outputUnits},
+          ${input.nativeUsage.cachedUnits ?? 0}
+        ) AS result
+      `;
+      if (!rows[0]) throw new Error("ai_social_turn_commit_failed");
+      return rows[0].result;
+    });
+  }
+
+  async failTurn(outboxId: string, safeErrorCode: string) {
+    return this.client.begin(async (sql) => {
+      await sql`
+        SELECT set_config('app.service', 'ai_social_worker', true),
+               set_config('app.request_id', ${randomUUID()}, true)
+      `;
+      const rows = await sql<{ failed: boolean }[]>`
+        SELECT tenancy.fail_ai_social_turn(${outboxId}::uuid, ${safeErrorCode}) AS failed
+      `;
+      return rows[0]?.failed ?? false;
+    });
+  }
+
+  async applyControlEvent(outboxId: string) {
+    return this.client.begin(async (sql) => {
+      await sql`
+        SELECT set_config('app.service', 'ai_social_worker', true),
+               set_config('app.request_id', ${randomUUID()}, true)
+      `;
+      const rows = await sql<{ applied: boolean }[]>`
+        SELECT tenancy.apply_ai_social_control_event(${outboxId}::uuid) AS applied
+      `;
+      return rows[0]?.applied ?? false;
+    });
+  }
+
+  async claimDelivery(now = new Date(), staleBefore = new Date(Date.now() - 5 * 60 * 1000)) {
+    return this.client.begin(async (sql) => {
+      await sql`
+        SELECT set_config('app.service', 'ai_social_delivery_worker', true),
+               set_config('app.request_id', ${randomUUID()}, true)
+      `;
+      const rows = await sql<Record<string, unknown>[]>`
+        SELECT * FROM tenancy.claim_ai_social_delivery(${now}, ${staleBefore})
+      `;
+      const row = rows[0] ? socialDeliveryClaimSchema.parse(rows[0]) : null;
+      if (!row) return null;
+      return {
+        deliveryId: row.delivery_id, tenantId: row.tenant_id,
+        connectionId: row.connection_id, messageId: row.message_id,
+        channel: row.channel, response: row.response_json,
+        recipient: row.delivery_allowed
+          ? encryptedValueSchema.parse(openJson(row.recipient_ciphertext, this.envelopeKey)).value : null,
+        replyToken: row.delivery_allowed && row.reply_token_ciphertext
+          ? encryptedValueSchema.parse(openJson(row.reply_token_ciphertext, this.envelopeKey)).value : null,
+        credentials: row.delivery_allowed && row.credential_ciphertext
+          ? openJson<unknown>(row.credential_ciphertext, this.envelopeKey) : null,
+        credentialKeyVersion: row.credential_key_version,
+        attemptCount: row.attempt_count, deliveryAllowed: row.delivery_allowed,
+      } as const;
+    });
+  }
+
+  async finishDelivery(input: Readonly<{
+    deliveryId: string; delivered: boolean; externalMessageIds: readonly string[];
+    feeClassification: "reply" | "push" | "service_window_reply";
+    attemptedQuantity: number; safeErrorCode: string | null; deadLetter?: boolean;
+  }>) {
+    return this.client.begin(async (sql) => {
+      await sql`
+        SELECT set_config('app.service', 'ai_social_delivery_worker', true),
+               set_config('app.request_id', ${randomUUID()}, true)
+      `;
+      const rows = await sql<{ finished: boolean }[]>`
+        SELECT tenancy.finish_ai_social_delivery(
+          ${input.deliveryId}::uuid, ${input.delivered}, ${input.externalMessageIds as string[]},
+          ${input.feeClassification}, ${input.attemptedQuantity}, ${input.safeErrorCode},
+          ${input.deadLetter ?? false}
+        ) AS finished
+      `;
+      if (!rows[0]?.finished) throw new Error("ai_social_delivery_finish_conflict");
+    });
   }
 
   async finish(outboxId: string, processed: boolean, safeErrorCode: string | null, deadLetter = false) {

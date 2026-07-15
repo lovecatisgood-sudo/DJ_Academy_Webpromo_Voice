@@ -22,6 +22,8 @@ const aiNotificationMigration = readFileSync(resolve(import.meta.dirname, "../mi
 const aiSocialMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0020_ai_chat_social_line.sql"), "utf8");
 const aiSocialWorkerMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0021_ai_chat_social_workers.sql"), "utf8");
 const aiSocialSessionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0022_ai_chat_social_sessions.sql"), "utf8");
+const aiSocialCommitMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0023_ai_chat_social_commit.sql"), "utf8");
+const aiSocialDeliveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0024_ai_chat_social_delivery.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -197,6 +199,31 @@ describe("P6 AI Chat Premium social migration invariants", () => {
     expect(aiSocialSessionMigration).toContain("session.status = 'active'");
     expect(aiSocialSessionMigration).toContain("conversation.automation_mode = 'ai_text'");
     expect(aiSocialSessionMigration).toContain("REVOKE ALL ON FUNCTION tenancy.begin_ai_social_turn");
+  });
+
+  it("commits social actions, usage, and one durable outbound reply atomically", () => {
+    expect(aiSocialCommitMigration).toContain("CREATE TABLE tenancy.ai_social_outbound_deliveries");
+    expect(aiSocialCommitMigration).toContain("FORCE ROW LEVEL SECURITY");
+    expect(aiSocialCommitMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.commit_ai_social_turn");
+    for (const action of ["lead.capture", "sales_fact.record", "appointment.request", "follow_up.create", "handover.request", "merchant_email.send"]) {
+      expect(aiSocialCommitMigration).toContain(`'${action}'`);
+    }
+    expect(aiSocialCommitMigration).toContain("plan.plan_key = 'ai_chat_premium'");
+    expect(aiSocialCommitMigration).toContain("INSERT INTO operations.ai_native_usage");
+    expect(aiSocialCommitMigration).toContain("'ai:social:turn:' || runtime.receipt_id::text || ':settled'");
+    expect(aiSocialCommitMigration).toContain("REVOKE ALL ON FUNCTION tenancy.commit_ai_social_turn");
+  });
+
+  it("delivers replies through a restricted retry ledger without inventing rates", () => {
+    expect(aiSocialDeliveryMigration).toContain("CREATE TABLE tenancy.ai_social_channel_quantity_events");
+    expect(aiSocialDeliveryMigration).toContain("FORCE ROW LEVEL SECURITY");
+    expect(aiSocialDeliveryMigration).toContain("FOR UPDATE SKIP LOCKED");
+    expect(aiSocialDeliveryMigration).toContain("'ai_social_delivery_worker'");
+    expect(aiSocialDeliveryMigration).toContain("'dead_letter'");
+    expect(aiSocialDeliveryMigration).toContain("fee_classification");
+    expect(aiSocialDeliveryMigration).toContain("IF attempted_quantity > 0 THEN");
+    expect(aiSocialDeliveryMigration).not.toMatch(/rate_minor|billable_amount|THB/i);
+    expect(aiSocialDeliveryMigration).toContain("REVOKE ALL ON FUNCTION tenancy.claim_ai_social_delivery");
   });
 });
 
