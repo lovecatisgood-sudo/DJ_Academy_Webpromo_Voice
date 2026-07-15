@@ -16,12 +16,15 @@ Last updated: 2026-07-15
 
 ## Active phase
 
-P7 Voice Agent Basic is in progress. Its first foundation establishes a strict
+P7 Voice Agent Basic is in progress. Its current foundation establishes a strict
 provider-neutral opaque grant/message contract, deterministic disclosure,
 interruption, reconnect, and terminal minute intent lifecycle, plus a separately
 deployable gateway health/capacity and fail-closed authorization boundary.
-Database authority, metering, media, actions, tenant operations, and release
-acceptance remain pending.
+Migration `0029_voice_basic_authority` adds forced-RLS deployment/session state,
+Gen1-only exact-origin grant issuance, atomic maximum-minute and concurrency
+reservation, bounded reconnect, and exactly-once rounded terminal settlement.
+The public and gateway-only APIs exist but remain disabled by default. Media,
+actions, tenant operations, and release acceptance remain pending.
 
 P6 AI Chatbot Premium social local engineering is complete on the P1-P5 authority.
 The controlled delivery order is LINE, WhatsApp, then Messenger. All three
@@ -140,10 +143,10 @@ scripts/use-node24.sh pnpm run qa:p6-line
 ```
 
 All passed on 2026-07-15. The database gate now applies migrations `0000` through
-`0028` and includes the complete local LINE, WhatsApp, and Messenger inbound, Sales Core
+`0029` and includes the complete local LINE, WhatsApp, and Messenger inbound, Sales Core
 commit, outbound retry, partial-progress, service-window, quantity-ledger,
 delivery-status, opt-out, and quota-release journeys. Full verification passes
-across 27 packages/apps, and the API production build contains 65 dynamic routes,
+across 29 packages/apps, and the API production build contains 69 dynamic routes,
 including the opaque WhatsApp and Messenger callbacks. Tenant channel analytics
 and restricted aggregate Platform Operations health reconcile the social
 journey. Production Chromium passes AI Chat Basic

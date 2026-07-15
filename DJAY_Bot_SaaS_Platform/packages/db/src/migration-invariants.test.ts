@@ -28,6 +28,7 @@ const identityReviewMigration = readFileSync(resolve(import.meta.dirname, "../mi
 const socialServiceWindowMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0026_ai_chat_social_service_window.sql"), "utf8");
 const socialDeliveryProgressMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0027_ai_chat_social_delivery_progress.sql"), "utf8");
 const socialOperationsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0028_ai_chat_social_operations.sql"), "utf8");
+const voiceBasicAuthorityMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0029_voice_basic_authority.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -410,5 +411,42 @@ describe("P4 FlowBot database migration invariants", () => {
     expect(flowbotNotificationMigration).toContain("'flowbot_notification_worker'");
     expect(flowbotNotificationMigration).toContain("REVOKE ALL ON FUNCTION tenancy.claim_flowbot_notification");
     expect(flowbotNotificationMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+notification_profiles[^;]+djay_worker/i);
+  });
+});
+
+describe("P7 Voice Basic database migration invariants", () => {
+  it("forces tenant isolation and stores only opaque deployment and grant digests", () => {
+    for (const table of [
+      "voice_deployments", "voice_sessions", "voice_session_connections", "voice_concurrency_leases",
+    ]) expect(voiceBasicAuthorityMigration).toContain(`'${table}'`);
+    expect(voiceBasicAuthorityMigration).toContain("ENABLE ROW LEVEL SECURITY");
+    expect(voiceBasicAuthorityMigration).toContain("FORCE ROW LEVEL SECURITY");
+    expect(voiceBasicAuthorityMigration).toContain("deployment_key_hash bytea NOT NULL UNIQUE");
+    expect(voiceBasicAuthorityMigration).toContain("grant_hash bytea NOT NULL UNIQUE");
+    expect(voiceBasicAuthorityMigration).not.toMatch(/deployment_key text|session_grant text/i);
+  });
+
+  it("gives the voice runtime function-only authority and requires its service identity", () => {
+    expect(voiceBasicAuthorityMigration).toMatch(/CREATE ROLE djay_voice_runtime[^;]+NOBYPASSRLS/);
+    expect(voiceBasicAuthorityMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+djay_voice_runtime/i);
+    expect(voiceBasicAuthorityMigration).toContain("session_user <> 'djay_voice_runtime'");
+    expect(voiceBasicAuthorityMigration).toContain("SECURITY DEFINER");
+    expect(voiceBasicAuthorityMigration).toContain("SET search_path = pg_catalog, tenancy, catalog");
+  });
+
+  it("issues only Gen1 and reserves concurrency and maximum minutes before authorization", () => {
+    expect(voiceBasicAuthorityMigration).toContain("plan.plan_key = 'voice_basic_gen1'");
+    expect(voiceBasicAuthorityMigration).toContain("'voice_gen1'");
+    expect(voiceBasicAuthorityMigration).toContain("voice_concurrency_unconfigured");
+    expect(voiceBasicAuthorityMigration).toContain("pg_advisory_xact_lock");
+    expect(voiceBasicAuthorityMigration).toContain("reserve_minutes := ceil(runtime.max_call_seconds::numeric / 60)");
+    expect(voiceBasicAuthorityMigration).toContain("voice_safety_cap");
+  });
+
+  it("settles minutes once and releases concurrency on every terminal commit", () => {
+    expect(voiceBasicAuthorityMigration).toContain("voice:session:' || runtime.id::text || ':terminal");
+    expect(voiceBasicAuthorityMigration).toContain("released_at = COALESCE(released_at, now())");
+    expect(voiceBasicAuthorityMigration).toContain("IF runtime.status IN ('ended', 'failed', 'expired')");
+    expect(voiceBasicAuthorityMigration).not.toMatch(/openai|anthropic|gemini|gpt-|claude-/i);
   });
 });

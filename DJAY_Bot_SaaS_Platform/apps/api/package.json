@@ -25,6 +25,7 @@
     "@djay/shared": "workspace:*",
     "@djay/tenancy": "workspace:*",
     "@djay/usage-billing": "workspace:*",
+    "@djay/voice-runtime": "workspace:*",
     "@node-rs/argon2": "2.0.2",
     "next": "16.2.10",
     "postgres": "3.4.9",

@@ -15,8 +15,11 @@ The separate multi-tenant implementation is under:
   deterministic disclosure, interruption, reconnect, and terminal minute-intent
   lifecycle, plus a separately deployable gateway health/capacity and
   fail-closed authorization boundary.
-- P7 database authority, public grant issuance, metering, realtime media,
-  actions, tenant UI, evaluation, and production acceptance remain pending.
+- Migration `0029_voice_basic_authority` now adds forced-RLS Gen1 grant issuance,
+  maximum-minute/concurrency reservation, reconnect, and exactly-once settlement;
+  the runtime and public routes remain disabled by default.
+- P7 realtime media, actions, tenant UI, evaluation, legacy migration, and
+  production acceptance remain pending.
 - The PostgreSQL 16 integration gate applies migrations `0000`-`0028` and passes
   forced RLS, tenant isolation, identity, commerce, shared domain, FlowBot, and
   AI Chat runtime/worker journeys, including local LINE, WhatsApp, and Messenger

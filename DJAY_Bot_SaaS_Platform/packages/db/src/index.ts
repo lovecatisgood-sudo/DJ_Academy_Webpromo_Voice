@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0028_ai_chat_social_operations";
+export const currentSchemaVersion = "0029_voice_basic_authority";
 
 export { PostgresAuthStore } from "./auth-store";
 export { BillingWebhookStore } from "./billing-webhook-store";
@@ -28,4 +28,5 @@ export { PostgresEmailOutboxStore } from "./email-outbox-store";
 export { PostgresPlatformAuthStore } from "./platform-auth-store";
 export { PlatformSupportStore } from "./platform-support-store";
 export { TenantWorkspaceStore, type OnboardingStage } from "./tenant-workspace-store";
+export { VoiceRuntimeStore } from "./voice-runtime-store";
 export * from "./schema";

@@ -2,10 +2,10 @@
 
 ## Status
 
-In progress. The provider-neutral browser/gateway protocol and deterministic
-session lifecycle foundation are implemented locally. Database authority,
-minute reservation/settlement, media transport, Sales Core actions, tenant
-operations, migration, and production acceptance remain pending.
+In progress. The provider-neutral browser/gateway protocol, deterministic
+session lifecycle, and restricted database authority are implemented locally.
+Media transport, Sales Core actions, tenant operations, legacy migration, and
+production acceptance remain pending.
 
 ## Requirements
 
@@ -38,24 +38,37 @@ operations, migration, and production acceptance remain pending.
    aggregate capacity, emergency pause behavior, and a fail-closed authorization
    boundary for opaque grants.
 5. Static import/provider boundaries covering the voice runtime package.
+6. Migration `0029_voice_basic_authority` with forced-RLS deployments, sessions,
+   transport connections, and concurrency leases. The voice service role has
+   function-only authority and no table grants.
+7. Gen1-only public grant issuance bound to an opaque deployment digest, exact
+   origin, active Basic snapshot, short expiration, and an opaque grant digest.
+8. Gateway authorization that atomically checks current entitlement, serializes
+   tenant concurrency, reserves the configured maximum rounded minutes, and
+   creates one expiring lease before media allocation.
+9. Idempotent same-connection authorization, bounded new-connection reconnect,
+   and exactly-once terminal minute settlement or release with lease cleanup.
+10. A disabled-by-default public grant API and service-token-only gateway
+    authorization, disconnect, and finish endpoints.
 
 ## Non-goals for this foundation
 
 - Provider adapter or restricted routing selection.
 - WebSocket audio transport, codecs, speech generation, or transcript storage.
-- Tenant deployment UI or public session issuance.
+- Tenant deployment UI or self-service deployment creation.
 - Recording, telephony, outbound calling, or Gen2 behavior.
 - Commercial minute values or pilot latency thresholds not yet approved.
 
 ## Next slice
 
-Add forced-RLS voice deployments and sessions, restricted public grant issuance,
-gateway-only grant consumption/reconnect authorization, atomic concurrency and
-minute reservation, exactly-once terminal settlement, and integration tests for
-Basic/Advanced and cross-tenant rejection.
+Add tenant-authorized Voice Basic deployment operations and browser widget,
+connect the gateway transport to disconnect/finish commits, add crash/expiry
+reaping, then integrate realtime media, Sales Core actions, transcript policy,
+callback, and handover.
 
 ## Rollback
 
-The foundation adds no database schema or production route. Remove the gateway
-deployment and roll back the voice runtime/gateway packages. Existing products
-and schema through `0028` are unaffected.
+Keep `VOICE_RUNTIME_ENABLED=false`, remove the gateway deployment, and roll back
+the voice API/runtime code. Application rollback must remain compatible with
+migration `0029`; session, usage, and lease evidence is retained for audit and
+reconciliation.

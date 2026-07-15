@@ -68,6 +68,9 @@ importers:
       '@djay/usage-billing':
         specifier: workspace:*
         version: link:../../packages/usage-billing
+      '@djay/voice-runtime':
+        specifier: workspace:*
+        version: link:../../packages/voice-runtime
       '@node-rs/argon2':
         specifier: 2.0.2
         version: 2.0.2
@@ -446,6 +449,9 @@ importers:
       '@djay/usage-billing':
         specifier: workspace:*
         version: link:../usage-billing
+      '@djay/voice-runtime':
+        specifier: workspace:*
+        version: link:../voice-runtime
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(postgres@3.4.9)

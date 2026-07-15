@@ -33,6 +33,7 @@ import {
   TenantFlowbotIntegrationStore,
   SharedDomainStore,
   TenantWorkspaceStore,
+  VoiceRuntimeStore,
 } from "@djay/db";
 import { createPlatformAuthService } from "@djay/platform-auth";
 import { createHttpTextProviderGateway } from "@djay/provider-gateway";
@@ -68,6 +69,13 @@ const envSchema = z.object({
   AI_SOCIAL_SUBJECT_HASH_KEY: z.string().min(40).optional(),
   AI_SOCIAL_LINE_API_BASE_URL: z.string().url().default("https://api.line.me/"),
   AI_SOCIAL_META_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com/v23.0/"),
+  VOICE_DATABASE_URL: z.string().url().optional(),
+  VOICE_RUNTIME_ENABLED: z.enum(["true", "false"]).default("false"),
+  VOICE_GATEWAY_URL: z.string().url().refine((value) => ["ws:", "wss:"].includes(new URL(value).protocol)).optional(),
+  VOICE_AUTHORIZATION_SERVICE_TOKEN: z.string().min(32).optional(),
+  VOICE_SESSION_GRANT_TTL_SECONDS: z.coerce.number().int().min(15).max(300).default(60),
+  VOICE_RECONNECT_MAX_ATTEMPTS: z.coerce.number().int().min(0).max(10).default(3),
+  VOICE_RECONNECT_BACKOFF_MS: z.coerce.number().int().min(100).max(30_000).default(500),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 }).passthrough();
 
@@ -90,6 +98,9 @@ async function buildServices() {
   if (env.NODE_ENV === "production" && !env.AI_NOTIFICATION_ENVELOPE_KEY) throw new Error("AI_NOTIFICATION_ENVELOPE_KEY is required in production.");
   if (env.NODE_ENV === "production" && !env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY) throw new Error("AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY is required in production.");
   if (env.NODE_ENV === "production" && !env.AI_SOCIAL_SUBJECT_HASH_KEY) throw new Error("AI_SOCIAL_SUBJECT_HASH_KEY is required in production.");
+  if (env.VOICE_RUNTIME_ENABLED === "true" && (!env.VOICE_DATABASE_URL || !env.VOICE_GATEWAY_URL || !env.VOICE_AUTHORIZATION_SERVICE_TOKEN)) {
+    throw new Error("Voice database, gateway, and authorization configuration is required in production.");
+  }
   const store = new PostgresAuthStore(client);
   const platformStore = new PostgresPlatformAuthStore(platformClient);
   const emailEnvelopeKey = parse32ByteSecret(env.AUTH_EMAIL_ENVELOPE_KEY, "AUTH_EMAIL_ENVELOPE_KEY");
@@ -135,6 +146,8 @@ async function buildServices() {
       metaGraphBaseUrl: env.AI_SOCIAL_META_GRAPH_BASE_URL,
     }),
     aiChatRuntime: aiRuntimeStore && aiGateway ? new AiTextRuntime(aiRuntimeStore, aiGateway) : null,
+    voiceRuntime: env.VOICE_RUNTIME_ENABLED === "true" && env.VOICE_DATABASE_URL
+      ? new VoiceRuntimeStore(createDatabaseClient(env.VOICE_DATABASE_URL)) : null,
     aiTextGateway: aiGateway,
     privacy: new PrivacyStore(tenantClient),
     privacyExportKey: env.PRIVACY_EXPORT_KEY
