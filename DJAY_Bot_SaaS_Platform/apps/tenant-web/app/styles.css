@@ -182,6 +182,18 @@ a { color: #126149; text-underline-offset: 3px; }
 .deployment-secret { display: grid; gap: 10px; margin-top: 20px; padding: 16px; border: 1px solid #d0b66c; background: #fff9e8; }
 .deployment-secret code { overflow-wrap: anywhere; color: #5f4810; }
 .deployment-secret pre { margin: 0; overflow-x: auto; padding: 12px; background: #242a28; color: #eff5f2; font-size: 11px; line-height: 1.5; }
+.social-connection-setup { margin-top: 18px; }
+.social-connection-list { margin-top: 18px; }
+.social-connection-row { display: grid; gap: 10px; padding: 18px; border: 1px solid #d8dfdc; background: #fff; }
+.social-connection-summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.social-connection-summary > div { display: grid; gap: 4px; }
+.social-connection-summary > div:last-child { justify-items: end; }
+.health-pill { width: fit-content; padding: 3px 8px; border-radius: 999px; background: #edf0ef; color: #515b57; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.health-healthy { background: #dff3e9; color: #165d45; }
+.health-degraded { background: #fff1cc; color: #725410; }
+.health-failed { background: #fbe4df; color: #8a3024; }
+.credential-rotation { padding-top: 8px; border-top: 1px solid #e1e5e3; }
+.credential-rotation summary { cursor: pointer; color: #315d50; font-weight: 700; }
 @media (max-width: 760px) {
   .workspace-shell { grid-template-columns: 1fr; }
   .workspace-shell aside { border-right: 0; border-bottom: 1px solid #dce1df; }

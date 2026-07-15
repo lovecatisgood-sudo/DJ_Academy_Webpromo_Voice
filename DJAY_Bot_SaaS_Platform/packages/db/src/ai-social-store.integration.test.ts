@@ -95,6 +95,30 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
     const resolved = await runtime.connection(created.webhookKey, "line");
     expect(resolved).toMatchObject({ connectionId: created.connectionId, channel: "line" });
     expect(resolved?.credentials).toMatchObject({ channel: "line", channelSecret: "line-secret-value-123" });
+    await expect(connections.runtimeCredentials(otherContext, created.connectionId, envelopeKey)).resolves.toBeNull();
+    await expect(connections.recordHealth(context, {
+      connectionId: created.connectionId, healthy: false,
+      reauthorizationRequired: true, safeErrorCode: "credential_reauthorization_required",
+    })).resolves.toMatchObject({ status: "checked", connectionStatus: "reauthorization_required", healthStatus: "failed" });
+    await expect(runtime.connection(created.webhookKey, "line")).resolves.toBeNull();
+    await expect(connections.rotateLine(context, {
+      connectionId: created.connectionId, envelopeKey,
+      credentials: {
+        channel: "line", channelAccessToken: "rotated-line-access-token",
+        channelSecret: "rotated-line-secret-value",
+      },
+    })).resolves.toEqual({ status: "rotated", credentialKeyVersion: 2 });
+    await expect(connections.runtimeCredentials(context, created.connectionId, envelopeKey)).resolves.toMatchObject({
+      channel: "line", credentialKeyVersion: 2,
+      credentials: { channelAccessToken: "rotated-line-access-token" },
+    });
+    await expect(connections.recordHealth(context, {
+      connectionId: created.connectionId, healthy: true,
+      reauthorizationRequired: false, safeErrorCode: null,
+    })).resolves.toMatchObject({ status: "checked", connectionStatus: "active", healthStatus: "healthy" });
+    await expect(connections.list(context)).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: created.connectionId, status: "active", healthStatus: "healthy" }),
+    ]));
 
     const occurredAt = new Date();
     const subjectHash = Buffer.alloc(32, 23);

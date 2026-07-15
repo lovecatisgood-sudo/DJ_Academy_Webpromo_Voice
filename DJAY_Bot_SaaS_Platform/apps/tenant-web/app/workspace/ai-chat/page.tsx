@@ -13,6 +13,7 @@ type Deployment = { id: string; name: string; channel: string; keyPrefix: string
 type Notification = { id: string; name: string; allowedTemplateKeys: string[]; status: string };
 type Preview = { stage: string; text: string; proposedActionTypes: string[]; citationCount: number; handover: boolean };
 type Analytics = { periodDays: number; level: string; sessions: number; completedTurns: number; failedTurns: number; handovers: number; leads: number; appointmentRequests: number; settledResponses: number };
+type SocialConnection = { id: string; agentId: string; channel: "line"; name: string; externalAccountRef: string; status: string; healthStatus: string; safeErrorCode: string | null; lastHealthAt: string | null };
 
 function notificationProfileFrom(value: string) {
   try { const parsed = JSON.parse(value) as { notificationProfileId?: unknown }; return typeof parsed.notificationProfileId === "string" ? parsed.notificationProfileId : ""; }
@@ -27,6 +28,7 @@ export default function AiChatPage() {
   const [selectedKnowledge, setSelectedKnowledge] = useState<string[]>([]); const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]); const [newDeploymentKey, setNewDeploymentKey] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null); const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [socialConnections, setSocialConnections] = useState<SocialConnection[]>([]); const [newSocialWebhookKey, setNewSocialWebhookKey] = useState("");
   const [message, setMessage] = useState(""); const [working, setWorking] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canAuthor = workspace?.role === "tenant_master_admin" || workspace?.role === "tenant_admin";
@@ -38,13 +40,15 @@ export default function AiChatPage() {
     setSelectedAgentId((current) => current && next.some((agent: Agent) => agent.id === current) ? current : next[0]?.id || "");
   }
   async function loadShared() {
-    const [knowledgeResponse, notificationResponse, analyticsResponse] = await Promise.all([
+    const [knowledgeResponse, notificationResponse, analyticsResponse, socialResponse] = await Promise.all([
       fetch("/tenant/knowledge", { cache: "no-store" }), fetch("/tenant/ai-chat/notifications", { cache: "no-store" }),
       fetch("/tenant/ai-chat/analytics", { cache: "no-store" }),
+      fetch("/tenant/ai-chat/social-connections", { cache: "no-store" }),
     ]);
     if (knowledgeResponse.ok) setKnowledge((await knowledgeResponse.json()).sources || []);
     if (notificationResponse.ok) setNotifications((await notificationResponse.json()).notifications || []);
     if (analyticsResponse.ok) setAnalytics((await analyticsResponse.json()).analytics || null);
+    if (socialResponse.ok) setSocialConnections((await socialResponse.json()).connections || []);
   }
   async function loadAgent(agentId: string) {
     if (!agentId) { setDraft(null); setDeployments([]); return; }
@@ -93,6 +97,39 @@ export default function AiChatPage() {
     const response = await fetch(`/tenant/ai-chat/agents/${selectedAgentId}/test`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ inputId: crypto.randomUUID(), language: data.get("language"), message: data.get("testMessage") }) }); const result = await response.json(); setWorking(false);
     if (!response.ok) { setMessage("Test mode is temporarily unavailable."); return; } setPreview(result.preview); setMessage("Preview generated. No action was executed and no customer usage was charged.");
   }
+  async function createLineConnection(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!selectedAgentId) return; const form = event.currentTarget; const data = new FormData(form);
+    setWorking(true); setMessage(""); setNewSocialWebhookKey("");
+    const response = await fetch("/tenant/ai-chat/social-connections", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        channel: "line", agentId: selectedAgentId, name: data.get("name"),
+        externalAccountRef: data.get("externalAccountRef"), channelAccessToken: data.get("channelAccessToken"),
+        channelSecret: data.get("channelSecret"),
+      }),
+    });
+    const result = await response.json(); setWorking(false);
+    if (!response.ok) { setMessage(response.status === 403 ? "LINE requires AI Chat Premium." : "LINE connection could not be created."); return; }
+    setNewSocialWebhookKey(result.webhookKey); form.reset(); setMessage("LINE connected. Copy the webhook URL now; its key is shown once."); await loadShared(); await loadAgent(selectedAgentId);
+  }
+  async function checkSocialHealth(connectionId: string) {
+    setWorking(true); setMessage(""); const response = await fetch(`/tenant/ai-chat/social-connections/${connectionId}/health`, { method: "POST" });
+    setWorking(false); setMessage(response.ok ? "Connection health check completed." : "Connection health check could not run."); await loadShared();
+  }
+  async function rotateLineCredentials(event: FormEvent<HTMLFormElement>, connectionId: string) {
+    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); setWorking(true); setMessage("");
+    const response = await fetch(`/tenant/ai-chat/social-connections/${connectionId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        channel: "line", channelAccessToken: data.get("channelAccessToken"), channelSecret: data.get("channelSecret"),
+      }),
+    });
+    setWorking(false); setMessage(response.ok ? "LINE credentials rotated. Run a health check next." : "Credentials could not be rotated.");
+    if (response.ok) { form.reset(); await loadShared(); }
+  }
+  async function revokeSocial(connectionId: string) {
+    if (!window.confirm("Revoke this channel connection? Its webhook and credentials will stop working immediately.")) return;
+    setWorking(true); const response = await fetch(`/tenant/ai-chat/social-connections/${connectionId}`, { method: "DELETE" }); setWorking(false);
+    setMessage(response.ok ? "Channel connection revoked." : "Connection could not be revoked."); await loadShared(); await loadAgent(selectedAgentId);
+  }
   function setNotificationProfile(profileId: string) {
     try { const value = JSON.parse(definitionText); if (profileId) value.notificationProfileId = profileId; else delete value.notificationProfileId; setDefinitionText(JSON.stringify(value, null, 2)); }
     catch { setMessage("Fix the playbook JSON before selecting a recipient."); }
@@ -127,6 +164,20 @@ export default function AiChatPage() {
           {canAuthor && selectedAgent.currentPublishedPlaybookVersionId ? <form className="flowbot-deploy" onSubmit={createDeployment}><label>Name<input name="name" minLength={2} maxLength={160} required /></label><label>Exact allowed origin<input name="origin" type="url" placeholder="https://www.example.com" required /></label><button disabled={working}>Create web deployment</button></form> : null}
           {newDeploymentKey ? <div className="deployment-secret"><strong>One-time deployment key</strong><code>{newDeploymentKey}</code><pre>{`<script type="module">\n  import { mountAiChatWidget } from "https://cdn.djaybot.com/ai-chat/v1/index.js";\n  mountAiChatWidget({ deploymentKey: "${newDeploymentKey}", apiBaseUrl: "${process.env.NEXT_PUBLIC_API_APP_URL || "https://api.djaybot.com"}" });\n</script>`}</pre></div> : null}
           <div className="data-table">{deployments.map((item) => <div className="data-row" key={item.id}><div><strong>{item.name}</strong><span>{item.allowedOrigins.join(", ")}</span></div><span>{item.channel}</span><span>{item.status}</span></div>)}{!deployments.length ? <div className="pending-line"><strong>No deployments</strong><span>Publish before creating a web deployment.</span></div> : null}</div>
+        </section>
+        <section className="tool-band"><div className="band-heading"><div><p>Premium social channels</p><h2>LINE connections</h2></div><span>{socialConnections.filter((item) => item.agentId === selectedAgentId && item.status !== "revoked").length} active</span></div>
+          {!capabilities?.social.line ? <div className="pending-line"><strong>Premium feature</strong><span>Upgrade to AI Chat Premium to connect LINE.</span></div> : null}
+          {canAuthor && capabilities?.social.line && selectedAgent.currentPublishedPlaybookVersionId ? <details className="advanced-definition social-connection-setup"><summary>Connect a LINE Official Account</summary>
+            <form className="flowbot-deploy" onSubmit={createLineConnection}><label>Connection name<input name="name" minLength={2} maxLength={160} required /></label><label>LINE account reference<input name="externalAccountRef" minLength={3} maxLength={200} required /></label><label>Channel access token<input name="channelAccessToken" type="password" minLength={16} maxLength={4096} autoComplete="off" required /></label><label>Channel secret<input name="channelSecret" type="password" minLength={16} maxLength={4096} autoComplete="off" required /></label><button disabled={working}>Connect LINE</button></form>
+            <p className="field-help">Credentials are encrypted and never shown again. Use a stable internal account reference, not a secret.</p>
+          </details> : null}
+          {newSocialWebhookKey ? <div className="deployment-secret"><strong>One-time LINE webhook URL</strong><code>{`${process.env.NEXT_PUBLIC_API_APP_URL || "https://api.djaybot.com"}/public/ai-chat/social/line/${newSocialWebhookKey}`}</code><p className="field-help">Paste this into LINE Developers, enable webhooks, then run a health check below.</p></div> : null}
+          <div className="data-table social-connection-list">{socialConnections.filter((item) => item.agentId === selectedAgentId).map((item) => <div className="social-connection-row" key={item.id}><div className="social-connection-summary"><div><strong>{item.name}</strong><span>{item.externalAccountRef}</span></div><div><span className={`health-pill health-${item.healthStatus}`}>{item.healthStatus}</span><span>{item.status}</span></div></div>
+            {item.safeErrorCode ? <p className="field-help">Action needed: {item.safeErrorCode.replaceAll("_", " ")}</p> : null}
+            {item.lastHealthAt ? <p className="field-help">Last checked {new Date(item.lastHealthAt).toLocaleString()}</p> : null}
+            {canAuthor && item.status !== "revoked" ? <div className="flowbot-actions"><button type="button" className="secondary-command" disabled={working} onClick={() => void checkSocialHealth(item.id)}>Check health</button><button type="button" className="secondary-command" disabled={working} onClick={() => void revokeSocial(item.id)}>Revoke</button></div> : null}
+            {canAuthor && item.status !== "revoked" ? <details className="credential-rotation"><summary>Rotate credentials</summary><form className="flowbot-deploy" onSubmit={(event) => void rotateLineCredentials(event, item.id)}><label>New access token<input name="channelAccessToken" type="password" minLength={16} maxLength={4096} autoComplete="off" required /></label><label>New channel secret<input name="channelSecret" type="password" minLength={16} maxLength={4096} autoComplete="off" required /></label><button disabled={working}>Rotate</button></form></details> : null}
+          </div>)}{!socialConnections.some((item) => item.agentId === selectedAgentId) ? <div className="pending-line"><strong>No LINE connection</strong><span>Publish the agent, then connect its LINE Official Account.</span></div> : null}</div>
         </section>
         {analytics ? <section className="tool-band"><div className="band-heading"><div><p>{analytics.periodDays}-day {analytics.level}</p><h2>AI Chat analytics</h2></div><span>{analytics.settledResponses} metered responses</span></div><div className="metric-grid"><div><strong>{analytics.sessions}</strong><span>Sessions</span></div><div><strong>{analytics.completedTurns}</strong><span>Completed turns</span></div><div><strong>{analytics.leads}</strong><span>Leads</span></div><div><strong>{analytics.appointmentRequests}</strong><span>Appointment requests</span></div><div><strong>{analytics.handovers}</strong><span>Handovers</span></div></div></section> : null}
       </> : null}

@@ -39,11 +39,12 @@ This slice delivers:
    grants.
 8. Negative tests for AI Basic, wrong-tenant substitution, invalid signature,
    replay, and out-of-order events.
+9. Tenant-admin connection operations for health, encrypted credential rotation,
+   reauthorization, audit history, and revocation.
 
 ## Non-goals for this slice
 
 - AI response generation or outbound LINE delivery.
-- Credential health calls or rotation.
 - WhatsApp or Messenger routes.
 - Media ingestion, arbitrary recipient entry, marketing, or bulk sending.
 - Template management, identity merge, omnichannel analytics, or channel rate

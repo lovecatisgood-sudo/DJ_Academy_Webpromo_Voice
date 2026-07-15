@@ -17,9 +17,9 @@ Last updated: 2026-07-15
 ## Active phase
 
 P6 builds AI Chatbot Premium social channels on the completed P1-P5 authority.
-The controlled delivery order is LINE, WhatsApp, then Messenger. The first active
-slice covers Premium-only LINE connection/revocation plus signed, deduplicated,
-ordered webhook receipt. P5 AI Chatbot Basic remains Web-only and provider-neutral.
+The controlled delivery order is LINE, WhatsApp, then Messenger. Active LINE
+work covers secure connection operations plus signed, deduplicated, ordered
+webhook receipt. P5 AI Chatbot Basic remains Web-only and provider-neutral.
 
 ## P4 release checkpoint
 
@@ -52,6 +52,9 @@ The first P6 slice is implemented locally:
 - Premium-only LINE connection creation and revocation.
 - One-time opaque webhook keys and separately encrypted channel credentials.
 - Safe tenant connection listing without credentials or webhook keys.
+- Tenant-admin connection UI with one-time webhook display, provider health
+  checks, encrypted credential rotation, reauthorization state, and revocation.
+- Audit records for credential rotation and every requested health check.
 - Untouched-body LINE signature verification before parsing or mutation.
 - LINE text, postback, and opt-out normalization.
 - Connection/event deduplication and per-subject timestamp ordering.
@@ -61,8 +64,8 @@ The first P6 slice is implemented locally:
   runtime functions without table grants to the public AI runtime role.
 
 This does not yet include outbound LINE delivery, AI response processing,
-credential health/rotation, tenant UI, WhatsApp, Messenger, identity review, or
-omnichannel analytics. P6 remains active.
+WhatsApp, Messenger, identity review, channel fee usage, or omnichannel
+analytics. P6 remains active.
 
 ## Latest verification
 

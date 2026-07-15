@@ -10,6 +10,7 @@ import {
   parse32ByteSecret,
 } from "@djay/auth";
 import { AiTextRuntime } from "@djay/ai-chat-runtime";
+import { createSocialDeliveryClient } from "@djay/channel-adapters";
 import {
   AiChatRuntimeStore,
   AiChatStore,
@@ -65,6 +66,8 @@ const envSchema = z.object({
   AI_NOTIFICATION_ENVELOPE_KEY: z.string().min(40).optional(),
   AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY: z.string().min(40).optional(),
   AI_SOCIAL_SUBJECT_HASH_KEY: z.string().min(40).optional(),
+  AI_SOCIAL_LINE_API_BASE_URL: z.string().url().default("https://api.line.me/"),
+  AI_SOCIAL_META_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com/v23.0/"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 }).passthrough();
 
@@ -85,6 +88,8 @@ async function buildServices() {
   if (env.NODE_ENV === "production" && !env.AI_TEXT_GATEWAY_ENDPOINT) throw new Error("AI_TEXT_GATEWAY_ENDPOINT is required in production.");
   if (env.NODE_ENV === "production" && !env.AI_TEXT_GATEWAY_SERVICE_TOKEN) throw new Error("AI_TEXT_GATEWAY_SERVICE_TOKEN is required in production.");
   if (env.NODE_ENV === "production" && !env.AI_NOTIFICATION_ENVELOPE_KEY) throw new Error("AI_NOTIFICATION_ENVELOPE_KEY is required in production.");
+  if (env.NODE_ENV === "production" && !env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY) throw new Error("AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY is required in production.");
+  if (env.NODE_ENV === "production" && !env.AI_SOCIAL_SUBJECT_HASH_KEY) throw new Error("AI_SOCIAL_SUBJECT_HASH_KEY is required in production.");
   const store = new PostgresAuthStore(client);
   const platformStore = new PostgresPlatformAuthStore(platformClient);
   const emailEnvelopeKey = parse32ByteSecret(env.AUTH_EMAIL_ENVELOPE_KEY, "AUTH_EMAIL_ENVELOPE_KEY");
@@ -125,6 +130,10 @@ async function buildServices() {
       : null,
     aiSocialCredentialKey,
     aiSocialSubjectHashKey,
+    aiSocialDelivery: createSocialDeliveryClient({
+      lineApiBaseUrl: env.AI_SOCIAL_LINE_API_BASE_URL,
+      metaGraphBaseUrl: env.AI_SOCIAL_META_GRAPH_BASE_URL,
+    }),
     aiChatRuntime: aiRuntimeStore && aiGateway ? new AiTextRuntime(aiRuntimeStore, aiGateway) : null,
     aiTextGateway: aiGateway,
     privacy: new PrivacyStore(tenantClient),

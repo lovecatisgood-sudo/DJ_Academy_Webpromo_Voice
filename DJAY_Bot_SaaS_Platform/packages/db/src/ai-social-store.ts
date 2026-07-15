@@ -147,6 +147,95 @@ export class AiSocialConnectionStore {
       return { status: "revoked" as const };
     });
   }
+
+  async runtimeCredentials(context: TenantContext, connectionId: string, envelopeKey: Buffer) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{
+        channel: SocialChannel;
+        credentialCiphertext: string;
+        credentialKeyVersion: number;
+      }[]>`
+        SELECT channel, credential_ciphertext AS "credentialCiphertext",
+               credential_key_version AS "credentialKeyVersion"
+        FROM tenancy.ai_social_connections
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${connectionId}::uuid
+          AND status IN ('active', 'reauthorization_required')
+      `;
+      const row = rows[0];
+      return row ? {
+        channel: row.channel,
+        credentialKeyVersion: row.credentialKeyVersion,
+        credentials: openJson<unknown>(row.credentialCiphertext, envelopeKey),
+      } : null;
+    });
+  }
+
+  async rotateLine(context: TenantContext, input: Readonly<{
+    connectionId: string;
+    credentials: unknown;
+    envelopeKey: Buffer;
+  }>) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ credentialKeyVersion: number }[]>`
+        UPDATE tenancy.ai_social_connections connection
+        SET credential_ciphertext = ${sealJson(input.credentials, input.envelopeKey)},
+            credential_key_version = connection.credential_key_version + 1,
+            status = 'active', health_status = 'unchecked', safe_error_code = NULL,
+            last_health_at = NULL, updated_at = now()
+        WHERE connection.tenant_id = ${context.tenantId}::uuid
+          AND connection.id = ${input.connectionId}::uuid
+          AND connection.channel = 'line' AND connection.status <> 'revoked'
+        RETURNING credential_key_version AS "credentialKeyVersion"
+      `;
+      if (!rows[0]) return { status: "not_found" as const };
+      await sql`
+        INSERT INTO tenancy.audit_logs (
+          tenant_id, actor_user_id, actor_membership_id, action, target_type,
+          target_id, request_id, result, metadata
+        ) VALUES (
+          ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+          'ai_chat.social_credentials_rotated', 'ai_social_connection', ${input.connectionId},
+          ${context.requestId}, 'succeeded',
+          ${sql.json({ channel: "line", credentialKeyVersion: rows[0].credentialKeyVersion })}
+        )
+      `;
+      return { status: "rotated" as const, credentialKeyVersion: rows[0].credentialKeyVersion };
+    });
+  }
+
+  async recordHealth(context: TenantContext, input: Readonly<{
+    connectionId: string;
+    healthy: boolean;
+    reauthorizationRequired: boolean;
+    safeErrorCode: string | null;
+  }>) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ status: string; healthStatus: string; lastHealthAt: Date }[]>`
+        UPDATE tenancy.ai_social_connections
+        SET status = CASE WHEN ${input.reauthorizationRequired} THEN 'reauthorization_required' ELSE status END,
+            health_status = CASE WHEN ${input.healthy} THEN 'healthy'
+                                 WHEN ${input.reauthorizationRequired} THEN 'failed' ELSE 'degraded' END,
+            safe_error_code = ${input.safeErrorCode}, last_health_at = now(), updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${input.connectionId}::uuid
+          AND status <> 'revoked'
+        RETURNING status, health_status AS "healthStatus", last_health_at AS "lastHealthAt"
+      `;
+      if (!rows[0]) return { status: "not_found" as const };
+      await sql`
+        INSERT INTO tenancy.audit_logs (
+          tenant_id, actor_user_id, actor_membership_id, action, target_type,
+          target_id, request_id, result, metadata
+        ) VALUES (
+          ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+          'ai_chat.social_health_checked', 'ai_social_connection', ${input.connectionId},
+          ${context.requestId}, ${input.healthy ? "succeeded" : "failed"},
+          ${sql.json({ healthStatus: rows[0].healthStatus, safeErrorCode: input.safeErrorCode })}
+        )
+      `;
+      return { status: "checked" as const, connectionStatus: rows[0].status,
+        healthStatus: rows[0].healthStatus, lastHealthAt: rows[0].lastHealthAt };
+    });
+  }
 }
 
 export class AiSocialRuntimeStore {

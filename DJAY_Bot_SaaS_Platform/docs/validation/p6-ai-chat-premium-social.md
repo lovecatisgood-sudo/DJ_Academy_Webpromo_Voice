@@ -1,6 +1,6 @@
 # P6 Validation: AI Chatbot Premium Social
 
-- Result: First LINE security slice passed
+- Result: LINE security and connection-operations slices passed
 - Date: 2026-07-15
 - Database migration: `0020_ai_chat_social_line`
 - P6 phase status: Active; not complete
@@ -17,6 +17,11 @@
 - Connection/event replay and per-subject timestamp ordering.
 - One durable inbound outbox item only for a newly accepted event.
 - Forced RLS and fixed-path public runtime functions with no table grants.
+- Role-gated tenant UI for connection creation, health, credential rotation, and
+  revocation, with one-time webhook URL display.
+- Live provider health checks with safe error codes and explicit
+  `reauthorization_required` state.
+- Credential version increments and audit logs for rotation and health checks.
 
 ## Executed gates
 
@@ -33,6 +38,11 @@ integration journey proved:
 - credential plaintext and webhook keys are absent from tenant list output;
 - credential ciphertext does not contain the submitted secret;
 - a wrong tenant cannot revoke the connection;
+- a wrong tenant cannot read runtime credentials;
+- a failed authorization health result suspends runtime resolution;
+- credential rotation increments its version, restores active state, and never
+  exposes either the old or new secret in the tenant DTO;
+- a successful health result is visible to the tenant without secret material;
 - the restricted runtime resolves the connection only through its opaque key;
 - the first event is accepted and creates one durable outbox item;
 - exact replay returns the original receipt without another outbox item;
@@ -45,17 +55,16 @@ The full production API build contains:
 
 - `/tenant/ai-chat/social-connections`
 - `/tenant/ai-chat/social-connections/[connectionId]`
+- `/tenant/ai-chat/social-connections/[connectionId]/health`
 - `/public/ai-chat/social/line/[webhookKey]`
 
 ## Remaining before LINE engineering completion
 
-- Credential health check and rotation.
 - Durable inbound worker claim/retry/dead-letter operations.
 - Social session/contact/conversation creation and Sales Core processing.
 - Channel-native LINE outbound rendering, delivery, and status visibility.
 - Subject identity review candidates without automatic merge.
 - Channel quantity/fee events with approved rate treatment.
-- Tenant connection and operational visibility UI.
 - Browser/API QA for the connection workflow and webhook route.
 - Restricted staging credentials and LINE platform acceptance.
 
