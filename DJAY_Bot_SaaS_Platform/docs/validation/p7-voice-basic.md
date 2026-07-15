@@ -106,6 +106,19 @@ All passed across 30 packages/apps. Coverage proves that:
   and fails with provider-neutral public errors.
 - gateway-owned activity timers reset on customer/assistant activity, emit a
   bounded silence warning, and commit exactly one `idle_timeout` settlement.
+- the approved ten-tab Voice Agent Studio renders with the shared tenant brand,
+  exposes only the First-Generation label, and presents customer minutes,
+  concurrency, deployment health, immutable version, action availability, and
+  30-day call evidence without routing internals;
+- an admin can save a Voice draft, receives a conflict on a stale revision, and
+  publishes a new immutable version while current sessions retain their pin;
+- another tenant cannot load or mutate the Studio, and a tenant analyst can
+  inspect every section without receiving save, publish, status, or secret
+  controls;
+- production Chromium covers all ten tabs, playbook editing, quality evidence,
+  one-time install, exact-origin rejection, irreversible revocation, desktop
+  wrapping, mobile horizontal tab navigation, overflow, and provider
+  confidentiality.
 
 The API production build includes the disabled-by-default
 `/public/voice/session` route and the service-authorized voice `authorize`,

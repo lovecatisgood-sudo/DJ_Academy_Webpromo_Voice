@@ -85,6 +85,42 @@ describe.runIf(enabled)("P7 Voice Basic tenant deployment operations", () => {
     const otherList = await store.list(other);
     expect(otherList.capability).toBeNull();
     expect(otherList.deployments.some((deployment) => deployment.id === created.deploymentId)).toBe(false);
+    const studio = await store.getStudio(owner, created.deploymentId);
+    expect(studio).toMatchObject({
+      publicLabel: "First-Generation Voice Engine", editable: true, health: "ready",
+      deployment: { id: created.deploymentId, agentName: "Mali", draftRevision: 1, currentPublishedVersion: 1 },
+      usage: { activeCalls: 0, concurrencyLimit: 1 },
+      quality: { totalCalls: 0, completedCalls: 0, failedCalls: 0 },
+    });
+    expect(await store.getStudio(other, created.deploymentId)).toBeNull();
+    if (!studio) throw new Error("Expected Voice Studio state.");
+    const saved = await store.updateStudio(owner, created.deploymentId, {
+      revision: studio.deployment.draftRevision, name: "Primary website voice", agentName: "Mali Voice",
+      businessName: "Merchant Store", defaultLocale: "th", allowedOrigins: ["https://merchant.example"],
+      greetingTh: "สวัสดีค่ะ ยินดีให้บริการ", greetingEn: "Hello, welcome to Merchant Store.",
+      automatedDisclosureTh: "นี่คือผู้ช่วยเสียงอัตโนมัติของ Merchant Store",
+      automatedDisclosureEn: "This is Merchant Store's automated voice assistant.",
+      maxCallSeconds: 120, reconnectWindowSeconds: 20,
+      definition: { ...(studio.deployment.definition as object), tone: "Warm and direct" },
+      knowledgeRevisionIds: [],
+    });
+    expect(saved).toEqual({ status: "updated", revision: 2 });
+    await expect(store.updateStudio(owner, created.deploymentId, {
+      revision: 1, name: "Stale edit", agentName: "Mali Voice", businessName: "Merchant Store",
+      defaultLocale: "th", allowedOrigins: ["https://merchant.example"],
+      greetingTh: "สวัสดีค่ะ", greetingEn: "Hello",
+      automatedDisclosureTh: "นี่คือผู้ช่วยเสียงอัตโนมัติของเรา",
+      automatedDisclosureEn: "This is our automated voice assistant.",
+      maxCallSeconds: 120, reconnectWindowSeconds: 20,
+      definition: studio.deployment.definition, knowledgeRevisionIds: [],
+    })).resolves.toEqual({ status: "conflict" });
+    await expect(store.publishStudio(owner, created.deploymentId)).resolves.toMatchObject({ status: "published", version: 2 });
+    await expect(store.getStudio(owner, created.deploymentId)).resolves.toMatchObject({
+      deployment: {
+        name: "Primary website voice", agentName: "Mali Voice", defaultLocale: "th",
+        draftRevision: 3, currentPublishedVersion: 2, maxCallSeconds: 120, reconnectWindowSeconds: 20,
+      },
+    });
     await expect(store.changeStatus(other, created.deploymentId, "revoke")).resolves.toEqual({ status: "not_found" });
 
     const runtime = new VoiceRuntimeStore(voiceClient!);
@@ -109,7 +145,8 @@ describe.runIf(enabled)("P7 Voice Basic tenant deployment operations", () => {
       WHERE tenant_id = ${tenantId}::uuid AND target_id = ${created.deploymentId}
     `;
     expect(audit[0]?.actions).toEqual([
-      "voice.deployment.created", "voice.deployment.disable", "voice.deployment.enable", "voice.deployment.revoke",
+      "voice.deployment.created", "voice.studio.saved", "voice.playbook.published",
+      "voice.deployment.disable", "voice.deployment.enable", "voice.deployment.revoke",
     ]);
   });
 });

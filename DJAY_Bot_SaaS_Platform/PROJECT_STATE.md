@@ -40,6 +40,13 @@ activation remains off until restricted staging quality/latency evaluation and
 the remaining external P7 release gates pass.
 Platform Owner and AI Operations users now have a responsive, recently
 reauthenticated runtime-control panel; admission remains paused by default.
+The tenant Voice Agent Studio now matches the approved ten-section information
+architecture and shared DJAY brand. Admins can manage identity/languages, Sales
+Core playbooks, knowledge pins, exact-origin entry, disclosures, transfer and
+callback copy, entitled actions, quality evidence, immutable publish, install,
+and deployment state. Analysts receive a complete read-only view. Customer
+minutes, concurrency, public health, and 30-day call evidence are sourced from
+tenant-scoped durable records rather than placeholder values.
 
 P6 AI Chatbot Premium social local engineering is complete on the P1-P5 authority.
 The controlled delivery order is LINE, WhatsApp, then Messenger. All three
@@ -167,7 +174,8 @@ and restricted aggregate Platform Operations health reconcile the social
 journey. Production Chromium passes AI Chat Basic
 plus the P6 LINE, WhatsApp, and Messenger tenant operations and suggest-only identity-review
 surfaces. P7 production Chromium additionally passes the Voice widget and tenant
-deployment workspace on desktop and mobile, while the database gate covers
+ten-tab Voice Agent Studio for admin and analyst roles on desktop and mobile,
+while the database gate covers Studio conflict/publish/isolation plus
 immutable Voice playbook pins, idempotent Sales Core turns/actions, transcripts,
 usage, reconnect, settlement, and recovery. These results do not authorize Voice
 or social production activation, AI Chat self-service, or paid launch without

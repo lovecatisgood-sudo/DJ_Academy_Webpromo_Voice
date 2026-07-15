@@ -160,24 +160,64 @@ async function inspectThai() {
 async function inspectTenantWorkspace() {
   if (!tenantUrl) return;
   const context = await browser.newContext({ viewport: { width: 1365, height: 900 } }); const page = await context.newPage();
-  let createCalls = 0; let revokeCalls = 0;
+  let createCalls = 0; let revokeCalls = 0; let studioSaveCalls = 0; let readOnly = false;
   const workspace = { tenantId: "20000000-0000-4000-8000-000000000001", slug: "voice-studio", businessName: "Voice Studio", role: "tenant_master_admin" };
   const deployment = { id: "30000000-0000-4000-8000-000000000001", name: "Main website", agentName: "Mali", businessName: "Merchant Store", keyPrefix: "djay_voice_deploy_ab", allowedOrigins: ["https://merchant.example"], defaultLocale: "en", maxCallSeconds: 900, reconnectWindowSeconds: 30, status: "active" };
+  const definition = {
+    schemaVersion: 1, playbookVersionId: "40000000-0000-4000-8000-000000000001",
+    businessName: "Merchant Store", agentName: "Mali", languages: ["th", "en"],
+    tone: "Warm, concise, and professional", salesGoal: "Understand the customer need",
+    approvedClaims: [], prohibitedClaims: ["Unsupported guarantees"],
+    discoveryQuestions: ["What are you trying to improve?"], ctaPolicy: ["Offer a consultation"],
+    requiredContactFields: ["name", "email"], greeting: { th: "สวัสดีค่ะ", en: "Hello" },
+    offlineMessage: { th: "ทีมงานจะติดต่อกลับ", en: "Our team will follow up." }, timezone: "Asia/Bangkok",
+    weeklyWindows: [{ dayOfWeek: 1, startMinute: 540, endMinute: 1020 }],
+  };
+  const studio = {
+    publicLabel: "First-Generation Voice Engine", health: "ready", editable: true,
+    deployment: {
+      ...deployment, greetingTh: "สวัสดีค่ะ", greetingEn: "Hello",
+      automatedDisclosureTh: "นี่คือผู้ช่วยเสียงอัตโนมัติของเรา",
+      automatedDisclosureEn: "This is our automated voice assistant.",
+      agentId: "50000000-0000-4000-8000-000000000001",
+      currentPublishedPlaybookVersionId: definition.playbookVersionId, currentPublishedVersion: 1,
+      draftRevision: 1, definition, knowledgeRevisionIds: [], draftUpdatedAt: new Date().toISOString(),
+    },
+    usage: { includedMinutes: 100, usedMinutes: 12, reservedMinutes: 0, activeCalls: 0, concurrencyLimit: 1, periodStart: new Date().toISOString(), periodEnd: new Date(Date.now() + 86400000).toISOString() },
+    actions: { leadCapture: true, appointmentRequest: true, merchantEmail: true, humanHandover: true },
+    quality: { totalCalls: 8, completedCalls: 7, failedCalls: 1, transcriptTurns: 22, averageConnectedSeconds: 84, lastCallAt: new Date().toISOString() },
+  };
   await page.route("**/tenant/**", async (route) => {
     const path = new URL(route.request().url()).pathname; const method = route.request().method();
     const respond = (value, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(value) });
-    if (path === "/tenant/session") return respond({ user: { id: "owner", displayName: "Voice Owner" }, workspaces: [workspace], selectedTenantId: workspace.tenantId, mfaVerifiedAt: new Date().toISOString() });
+    if (path === "/tenant/session") return respond({ user: { id: "owner", displayName: "Voice Owner" }, workspaces: [{ ...workspace, role: readOnly ? "tenant_analyst" : workspace.role }], selectedTenantId: workspace.tenantId, mfaVerifiedAt: new Date().toISOString() });
     if (path === "/tenant/support-access") return respond({ grants: [] });
+    if (path === "/tenant/knowledge") return respond({ sources: [{ id: "60000000-0000-4000-8000-000000000001", revisionId: "70000000-0000-4000-8000-000000000001", name: "Approved services", sourceKind: "text", status: "ready", version: 1 }] });
+    if (path === "/tenant/ai-chat/notifications") return respond({ notifications: [{ id: "80000000-0000-4000-8000-000000000001", name: "Sales inbox", allowedTemplateKeys: ["ai_chat.lead_qualified"], status: "active" }] });
     if (path === "/tenant/voice/deployments" && method === "GET") return respond({ capability: { enabled: true, publicLabel: "First-Generation Voice Engine" }, deployments: [deployment] });
     if (path === "/tenant/voice/deployments" && method === "POST") {
       createCalls += 1;
       return respond({ status: "created", deploymentId: crypto.randomUUID(), deploymentKey: `djay_voice_deploy_${"a".repeat(48)}` }, 201);
     }
+    if (path.endsWith(`/${deployment.id}/studio`) && method === "GET") return respond({ studio: { ...studio, editable: !readOnly } });
+    if (path.endsWith(`/${deployment.id}/studio`) && method === "PATCH") { studioSaveCalls += 1; return respond({ status: "updated", revision: 2 }); }
+    if (path.endsWith(`/${deployment.id}/studio`) && method === "POST") return respond({ status: "published", version: 2, playbookVersionId: crypto.randomUUID() });
     if (path.endsWith(`/${deployment.id}`) && method === "PATCH") { if (route.request().postDataJSON().action === "revoke") revokeCalls += 1; return respond({ status: "updated", deploymentStatus: "revoked" }); }
     return respond({ status: "not_found" }, 404);
   });
   await page.goto(`${tenantUrl}/workspace/voice`, { waitUntil: "networkidle" });
-  await page.getByRole("heading", { name: "Voice Agent Basic" }).waitFor();
+  await page.getByRole("heading", { name: "Mali" }).waitFor();
+  if ((await page.getByRole("tab").count()) !== 10) failures.push("tenant: Voice Studio does not expose all ten approved sections");
+  await page.getByRole("tab", { name: /Sales Playbook/ }).click();
+  await page.getByLabel("Tone").fill("Warm and direct");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.getByText("Draft saved.", { exact: false }).waitFor();
+  if (studioSaveCalls !== 1) failures.push(`tenant: expected one Studio save, received ${studioSaveCalls}`);
+  await page.getByRole("tab", { name: /Quality Evaluation/ }).click();
+  await page.getByRole("heading", { name: "Quality Evaluation" }).waitFor();
+  await page.getByText("22", { exact: true }).waitFor();
+  await page.getByRole("tab", { name: /^Deploy / }).click();
+  await page.getByText("Create another Voice Agent deployment").click();
   await page.getByLabel("Deployment name").fill("Storefront voice");
   await page.getByLabel("Business name").fill("Merchant Store");
   await page.getByLabel("Voice agent name").fill("Mali");
@@ -187,15 +227,15 @@ async function inspectTenantWorkspace() {
   if (createCalls !== 0) failures.push("tenant: invalid path origin reached the API");
   await page.getByLabel("Allowed website origin").fill("https://merchant.example");
   await page.getByRole("button", { name: "Create deployment" }).click();
-  await page.getByText("One-time Voice deployment key", { exact: true }).waitFor();
+  await page.getByText("One-time Voice deployment key and install snippet", { exact: true }).waitFor();
   if (createCalls !== 1) failures.push(`tenant: expected one create call, received ${createCalls}`);
   const snippet = await page.locator(".deployment-secret pre").innerText();
   if (!snippet.includes("mountVoiceWidget") || !snippet.includes("cdn.djaybot.com/voice/v1/index.js")) failures.push("tenant: install snippet is incomplete");
   page.once("dialog", (dialog) => void dialog.dismiss());
-  await page.getByRole("button", { name: "Revoke" }).click();
+  await page.getByRole("button", { name: "Revoke permanently" }).click();
   await page.waitForTimeout(50); if (revokeCalls !== 0) failures.push("tenant: dismissed revocation still reached the API");
   page.once("dialog", (dialog) => void dialog.accept());
-  await page.getByRole("button", { name: "Revoke" }).click();
+  await page.getByRole("button", { name: "Revoke permanently" }).click();
   await page.getByText("Deployment revoke request completed.", { exact: true }).waitFor();
   if (revokeCalls !== 1) failures.push(`tenant: expected one confirmed revocation, received ${revokeCalls}`);
   const dimensions = await page.evaluate(() => ({ text: document.body.innerText, width: document.documentElement.scrollWidth, viewport: innerWidth }));
@@ -203,10 +243,14 @@ async function inspectTenantWorkspace() {
   if (restricted.test(dimensions.text)) failures.push("tenant: restricted routing identity visible");
   await page.screenshot({ path: "/tmp/djay-p7-voice-tenant.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 }); await page.reload({ waitUntil: "networkidle" });
-  await page.getByRole("heading", { name: "Voice Agent Basic" }).waitFor();
+  await page.getByRole("heading", { name: "Mali" }).waitFor();
   const mobile = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth }));
   if (mobile.width > mobile.viewport + 1) failures.push(`tenant-mobile: horizontal overflow ${mobile.width}/${mobile.viewport}`);
   await page.screenshot({ path: "/tmp/djay-p7-voice-tenant-mobile.png", fullPage: true });
+  readOnly = true; await page.setViewportSize({ width: 1365, height: 900 }); await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "Mali" }).waitFor();
+  if (await page.getByRole("button", { name: "Save draft" }).count()) failures.push("tenant-viewer: read-only role can see a save command");
+  if (!(await page.getByLabel("Public agent name").isDisabled())) failures.push("tenant-viewer: identity field remains editable");
   await context.close();
 }
 
@@ -217,4 +261,4 @@ await inspectThai();
 await inspectTenantWorkspace();
 await browser.close();
 if (failures.length) { console.error(failures.join("\n")); process.exit(1); }
-console.info(`P7 Voice widget passed desktop/mobile lifecycle, consent, active-call confirmation, microphone cleanup, Thai rendering, overflow, accessibility-label, and confidentiality checks${tenantUrl ? "; tenant deployment UX also passed exact-origin, install, revocation-confirmation, and responsive checks" : ""}.`);
+console.info(`P7 Voice widget passed desktop/mobile lifecycle, consent, active-call confirmation, microphone cleanup, Thai rendering, overflow, accessibility-label, and confidentiality checks${tenantUrl ? "; the ten-tab tenant Voice Studio also passed author/viewer permissions, draft, quality, exact-origin, install, revocation-confirmation, and responsive checks" : ""}.`);

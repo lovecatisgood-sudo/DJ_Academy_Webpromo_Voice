@@ -87,6 +87,16 @@ activation, and named-merchant acceptance remain pending.
 21. Gateway-owned silence policy warns after 45 seconds of customer inactivity
     and settles once at the 60-second idle timeout, with reviewed environment
     overrides that fail configuration when warning is not lower than timeout.
+22. A tenant-safe ten-tab Voice Agent Studio matching the approved navigation:
+    Voice & Languages, Sales Playbook, Knowledge, Call/Session Entry, Disclosure
+    & Recording, Transfer & Callback, Actions, Test Call, Quality Evaluation,
+    and Deploy. It shows only the public generation label plus customer minutes,
+    concurrency, health, immutable version, and 30-day operational evidence.
+23. Studio draft saves use optimistic revision conflicts, exact-origin validation,
+    ready knowledge revision pins, entitlement-derived action visibility, and
+    immutable publishing. Active calls retain their original playbook pins.
+    Tenant analysts receive the same operational visibility with every mutation
+    control disabled or absent.
 
 ## Non-goals for this foundation
 
