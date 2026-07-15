@@ -25,6 +25,8 @@ const aiSocialSessionMigration = readFileSync(resolve(import.meta.dirname, "../m
 const aiSocialCommitMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0023_ai_chat_social_commit.sql"), "utf8");
 const aiSocialDeliveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0024_ai_chat_social_delivery.sql"), "utf8");
 const identityReviewMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0025_contact_identity_review_candidates.sql"), "utf8");
+const socialServiceWindowMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0026_ai_chat_social_service_window.sql"), "utf8");
+const socialDeliveryProgressMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0027_ai_chat_social_delivery_progress.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -225,6 +227,11 @@ describe("P6 AI Chat Premium social migration invariants", () => {
     expect(aiSocialDeliveryMigration).toContain("IF attempted_quantity > 0 THEN");
     expect(aiSocialDeliveryMigration).not.toMatch(/rate_minor|billable_amount|THB/i);
     expect(aiSocialDeliveryMigration).toContain("REVOKE ALL ON FUNCTION tenancy.claim_ai_social_delivery");
+    expect(socialDeliveryProgressMigration).toContain("delivered_part_count");
+    expect(socialDeliveryProgressMigration).toContain("finish_ai_social_delivery_parts");
+    expect(socialDeliveryProgressMigration).toContain("delivery.external_message_ids ||");
+    expect(socialDeliveryProgressMigration).toContain("REVOKE ALL ON FUNCTION tenancy.finish_ai_social_delivery_parts");
+    expect(socialDeliveryProgressMigration).not.toMatch(/rate_minor|billable_amount|THB/i);
   });
 
   it("records cross-contact identity matches for review without merging", () => {
@@ -234,6 +241,14 @@ describe("P6 AI Chat Premium social migration invariants", () => {
     expect(identityReviewMigration).toContain("AFTER INSERT OR UPDATE OF normalized_value, revoked_at");
     expect(identityReviewMigration).toContain("GRANT SELECT ON tenancy.contact_identity_review_candidates TO djay_runtime");
     expect(identityReviewMigration).not.toMatch(/UPDATE tenancy\.contacts[\s\S]*merged_into_contact_id/);
+  });
+
+  it("fails non-LINE delivery closed when the customer-service window expires", () => {
+    expect(socialServiceWindowMigration).toContain("DROP FUNCTION tenancy.claim_ai_social_delivery");
+    expect(socialServiceWindowMigration).toContain("receipt.occurred_at + interval '24 hours'");
+    expect(socialServiceWindowMigration).toContain("claimed.channel = 'line' OR claim_time <=");
+    expect(socialServiceWindowMigration).toContain("service_window_open boolean");
+    expect(socialServiceWindowMigration).toContain("REVOKE ALL ON FUNCTION tenancy.claim_ai_social_delivery");
   });
 });
 

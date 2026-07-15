@@ -11,9 +11,10 @@ The separate multi-tenant implementation is under:
 ```
 
 - P0-P5 engineering gates are complete; P6 AI Chatbot Premium Social is active.
-- The PostgreSQL 16 integration gate applies migrations `0000`-`0019` and passes
+- The PostgreSQL 16 integration gate applies migrations `0000`-`0027` and passes
   forced RLS, tenant isolation, identity, commerce, shared domain, FlowBot, and
-  AI Chat runtime/worker journeys.
+  AI Chat runtime/worker journeys, including local LINE and WhatsApp social
+  delivery.
 - P5 includes provider-neutral Sales Conversation Core, Web-only AI Basic,
   immutable playbooks/knowledge pins, exact-origin widgets, durable idempotent
   effects, pending appointment requests, encrypted merchant notification,

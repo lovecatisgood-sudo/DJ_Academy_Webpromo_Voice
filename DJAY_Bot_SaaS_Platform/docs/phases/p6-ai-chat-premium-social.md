@@ -25,7 +25,7 @@ Production social activation remains disabled.
 - Keep provider/model identity absent from tenant, public, widget, export, log,
   and user-visible error contracts.
 
-## Delivered LINE slices
+## Delivered LINE and WhatsApp slices
 
 This slice delivers:
 
@@ -54,10 +54,23 @@ This slice delivers:
 15. Tenant delivery metrics and production-browser owner/viewer operations QA.
 16. Tenant-visible email/phone identity review suggestions with no automatic
     contact merge or merge action.
+17. Premium-only WhatsApp connection, health, credential rotation, and
+    revocation through the shared tenant authority and audit boundary.
+18. Meta verification challenge and raw-body `X-Hub-Signature-256` verification
+    on an opaque WhatsApp callback route.
+19. WhatsApp text, button, interactive reply, and delivery-status normalization
+    through the shared ordered, deduplicated inbound runtime.
+20. Customer-service-window enforcement at delivery claim time. Requests after
+    24 hours fail closed with no decrypted authority and zero attempted units.
+21. Channel-native WhatsApp text/button delivery with durable successful-part
+    progress. A later-part failure preserves receipt IDs and resumes only the
+    unsent suffix.
+22. Tenant WhatsApp setup, one-time callback display, delivery metrics, health,
+    credential rotation, revocation, and owner/viewer browser QA.
 
 ## Non-goals for this slice
 
-- WhatsApp or Messenger routes.
+- Messenger routes.
 - Media ingestion, arbitrary recipient entry, marketing, or bulk sending.
 - Template management, identity merge, omnichannel analytics, or channel rate
   pricing. Identity candidates may only support explicit review, never automatic
@@ -65,29 +78,34 @@ This slice delivers:
 
 ## Schema and API impact
 
-- Migrations `0020` through `0025` add social connections, immutable inbound
+- Migrations `0020` through `0027` add social connections, immutable inbound
   receipts, subject/session initialization, atomic response commit, outbound
-  delivery, immutable channel quantity events, and suggest-only identity review.
-- Tenant routes manage LINE connections under `ai_chat.channels.manage`.
-- The public LINE webhook route is opaque-key addressed and uses only the
-  restricted AI runtime database role.
+  delivery, immutable channel quantity events, suggest-only identity review,
+  service-window enforcement, and resumable multipart progress.
+- Tenant routes manage LINE and WhatsApp connections under
+  `ai_chat.channels.manage`.
+- The public LINE and WhatsApp webhook routes are opaque-key addressed and use
+  only the restricted AI runtime database role.
 
 ## Rollback
 
 - Disable or revoke every social connection.
-- Remove the public LINE webhook route from the deployed application.
-- Application rollback must remain compatible with migrations `0020`-`0025`; tables and
-  receipts are retained for audit and replay safety.
+- Remove the public LINE and WhatsApp webhook routes from the deployed
+  application.
+- Application rollback must remain compatible with migrations `0020`-`0027`;
+  tables and receipts are retained for audit and replay safety.
 
 ## Gate for the next slice
 
 - Full workspace verification passes.
-- PostgreSQL 16 applies migrations `0000` through `0025`.
-- AI Basic cannot create or resolve a LINE connection.
+- PostgreSQL 16 applies migrations `0000` through `0027`.
+- AI Basic cannot create or resolve a LINE or WhatsApp connection.
 - Wrong-tenant IDs disclose nothing and mutate nothing.
 - Invalid signatures create no receipt.
 - Exact event replay returns the original receipt and creates no new work.
 - Older subject events are retained as out of order and are not processable.
 - Retried turns and deliveries do not duplicate contacts, actions, usage, or
   provider receipt state.
+- WhatsApp delivery closes after 24 hours without decrypting recipient or
+  credentials, and a partial multipart failure resumes at the first unsent part.
 - Opt-out closes automation and delayed delivery failure is visible to tenants.

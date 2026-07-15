@@ -6,7 +6,7 @@ import {
 } from "@djay/db";
 import { createHttpEmailDelivery, runAiChatMerchantEmail, runEmailBatch, runFlowbotMerchantEmail } from "@djay/notifications";
 import { createHttpTextProviderGateway, ProviderGatewayError } from "@djay/provider-gateway";
-import { createSocialDeliveryClient, renderSocialReply, socialCredentialSchema } from "@djay/channel-adapters";
+import { createSocialDeliveryClient, renderSocialReply, resumeSocialReply, SocialDeliveryError, socialCredentialSchema } from "@djay/channel-adapters";
 import { z } from "zod";
 import { deliverFlowbotIntegration } from "./flowbot-integration";
 
@@ -196,10 +196,12 @@ do {
       let attemptedQuantity = 0;
       try {
         if (!deliveryClaim.deliveryAllowed || !deliveryClaim.recipient || !deliveryClaim.credentials) {
+          const safeErrorCode = deliveryClaim.serviceWindowOpen
+            ? "social_authority_unavailable" : "social_service_window_closed";
           await aiSocialWorker.finishDelivery({
             deliveryId: deliveryClaim.deliveryId, delivered: false, externalMessageIds: [],
             feeClassification, attemptedQuantity: 0,
-            safeErrorCode: "social_authority_unavailable", deadLetter: true,
+            safeErrorCode, deadLetter: true,
           });
         } else {
           const credentials = socialCredentialSchema.parse(deliveryClaim.credentials);
@@ -207,29 +209,35 @@ do {
             recipient: deliveryClaim.recipient, replyToken: deliveryClaim.replyToken,
             text: deliveryClaim.response.text, quickReplies: deliveryClaim.response.quickReplies,
           });
-          attemptedQuantity = "body" in rendered
-            ? rendered.body.messages.length : rendered.bodies.length;
+          const pendingRendered = resumeSocialReply(rendered, deliveryClaim.deliveredPartCount);
+          attemptedQuantity = "body" in pendingRendered
+            ? pendingRendered.body.messages.length : pendingRendered.bodies.length;
           const result = await aiSocialDelivery.deliver(
-            deliveryClaim.channel, credentials, rendered,
+            deliveryClaim.channel, credentials, pendingRendered,
           );
           await aiSocialWorker.finishDelivery({
             deliveryId: deliveryClaim.deliveryId, delivered: true,
             externalMessageIds: result.externalMessageIds,
-            feeClassification, attemptedQuantity, safeErrorCode: null,
+            feeClassification, attemptedQuantity,
+            completedPartCount: result.deliveredCount, safeErrorCode: null,
           });
           console.info("ai_social_delivery_succeeded", {
             deliveryId: deliveryClaim.deliveryId, channel: deliveryClaim.channel,
           });
         }
       } catch (error) {
+        const partial = error instanceof SocialDeliveryError ? error : null;
         const code = error instanceof z.ZodError ? "credential_reauthorization_required"
           : error instanceof Error && [
           "credential_reauthorization_required", "channel_rate_limited", "channel_delivery_failed",
         ].includes(error.message) ? error.message : "channel_delivery_failed";
         const deadLetter = code === "credential_reauthorization_required" || deliveryClaim.attemptCount >= 10;
         await aiSocialWorker.finishDelivery({
-          deliveryId: deliveryClaim.deliveryId, delivered: false, externalMessageIds: [],
-          feeClassification, attemptedQuantity, safeErrorCode: code, deadLetter,
+          deliveryId: deliveryClaim.deliveryId, delivered: false,
+          externalMessageIds: partial?.externalMessageIds ?? [],
+          feeClassification, attemptedQuantity: partial?.attemptedCount ?? attemptedQuantity,
+          completedPartCount: partial?.deliveredCount ?? 0,
+          safeErrorCode: code, deadLetter,
         }).catch(() => undefined);
         console.warn("ai_social_delivery_failed", {
           deliveryId: deliveryClaim.deliveryId, channel: deliveryClaim.channel, code, deadLetter,

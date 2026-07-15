@@ -415,6 +415,114 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
       automation_mode: "closed", session_status: "completed", outbox_status: "sent",
     }]);
 
+    const whatsapp = await connections.createWhatsApp(context, {
+      agentId: agent.agentId, name: "Main WhatsApp", externalAccountRef: "wa-business-tenant-b",
+      credentials: { channel: "whatsapp", accessToken: "whatsapp-access-token-value",
+        appSecret: "whatsapp-app-secret-value", verifyToken: "whatsapp-verify-token-value",
+        phoneNumberId: "phone-number-123", businessAccountId: "business-account-123" },
+      envelopeKey,
+    });
+    expect(whatsapp.status).toBe("created");
+    if (whatsapp.status !== "created") throw new Error("Expected WhatsApp connection.");
+    await expect(connections.rotateWhatsApp(context, {
+      connectionId: whatsapp.connectionId, envelopeKey,
+      credentials: { channel: "whatsapp", accessToken: "rotated-whatsapp-access-token",
+        appSecret: "rotated-whatsapp-app-secret", verifyToken: "rotated-whatsapp-verify-token",
+        phoneNumberId: "phone-number-123", businessAccountId: "business-account-123" },
+    })).resolves.toEqual({ status: "rotated", credentialKeyVersion: 2 });
+    await expect(runtime.connection(whatsapp.webhookKey, "whatsapp")).resolves.toMatchObject({
+      connectionId: whatsapp.connectionId,
+      credentials: { channel: "whatsapp", phoneNumberId: "phone-number-123" },
+    });
+    const waOccurredAt = new Date(); const waSubjectHash = Buffer.alloc(32, 31);
+    const waSubjectCiphertext = sealJson({ value: "66810000000" }, envelopeKey);
+    await runtime.receive({
+      webhookKey: whatsapp.webhookKey, channel: "whatsapp", externalEventId: "wa-message-1",
+      externalMessageId: "wa-message-1", subjectHash: waSubjectHash, eventType: "inbound.message",
+      occurredAt: waOccurredAt,
+      normalized: { text: "WhatsApp hello", subjectCiphertext: waSubjectCiphertext,
+        replyTokenCiphertext: null, deliveryStatus: null },
+    });
+    const waClaim = await worker.claim();
+    if (!waClaim) throw new Error("Expected WhatsApp inbound claim.");
+    const waTurn = await worker.beginTurn(waClaim);
+    const waResponse = "WhatsApp reply inside the service window.";
+    await worker.commitTurn({ outboxId: waClaim.outboxId,
+      output: { schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover",
+        facts: [], knowledgeCitations: [], responseGoal: "Continue discovery", proposedActions: [],
+        handover: null, customerResponse: waResponse,
+        channelResponse: { format: "text", quickReplies: [] } },
+      publicResponse: { status: "completed", inputId: waClaim.receiptId, text: waResponse,
+        quickReplies: [], nextTurnSequence: waTurn.turnSequence + 1 },
+      nativeUsage: { inputUnits: 20, outputUnits: 10 },
+    });
+    const waDelivery = await worker.claimDelivery(new Date(waOccurredAt.getTime() + 60 * 60 * 1000));
+    expect(waDelivery).toMatchObject({ channel: "whatsapp", serviceWindowOpen: true,
+      deliveryAllowed: true, recipient: "66810000000" });
+    if (!waDelivery) throw new Error("Expected WhatsApp delivery claim.");
+    await worker.finishDelivery({ deliveryId: waDelivery.deliveryId, delivered: false,
+      externalMessageIds: ["wamid.outbound-part-1"], feeClassification: "service_window_reply",
+      attemptedQuantity: 2, completedPartCount: 1, safeErrorCode: "channel_rate_limited" });
+    const waRetry = await worker.claimDelivery(new Date(waOccurredAt.getTime() + 60 * 60 * 1000 + 120_000));
+    expect(waRetry).toMatchObject({ deliveryId: waDelivery.deliveryId,
+      deliveredPartCount: 1, attemptCount: 2, deliveryAllowed: true });
+    if (!waRetry) throw new Error("Expected partial WhatsApp delivery retry.");
+    await worker.finishDelivery({ deliveryId: waRetry.deliveryId, delivered: true,
+      externalMessageIds: ["wamid.outbound-part-2"], feeClassification: "service_window_reply",
+      attemptedQuantity: 1, completedPartCount: 1, safeErrorCode: null });
+    await expect(adminClient!<{
+      status: string; delivered_parts: number; external_message_ids: string[];
+      quantity_events: number; attempted_quantity: number;
+    }[]>`
+      SELECT delivery.status, delivery.delivered_part_count AS delivered_parts,
+        delivery.external_message_ids,
+        (SELECT count(*)::int FROM tenancy.ai_social_channel_quantity_events event
+         WHERE event.tenant_id = delivery.tenant_id AND event.delivery_id = delivery.id) AS quantity_events,
+        (SELECT sum(event.attempted_quantity)::int FROM tenancy.ai_social_channel_quantity_events event
+         WHERE event.tenant_id = delivery.tenant_id AND event.delivery_id = delivery.id) AS attempted_quantity
+      FROM tenancy.ai_social_outbound_deliveries delivery
+      WHERE delivery.id = ${waDelivery.deliveryId}::uuid
+    `).resolves.toEqual([{
+      status: "succeeded", delivered_parts: 2,
+      external_message_ids: ["wamid.outbound-part-1", "wamid.outbound-part-2"],
+      quantity_events: 2, attempted_quantity: 3,
+    }]);
+
+    await runtime.receive({
+      webhookKey: whatsapp.webhookKey, channel: "whatsapp", externalEventId: "wa-message-2",
+      externalMessageId: "wa-message-2", subjectHash: waSubjectHash, eventType: "inbound.message",
+      occurredAt: new Date(waOccurredAt.getTime() + 1_000),
+      normalized: { text: "Another question", subjectCiphertext: waSubjectCiphertext,
+        replyTokenCiphertext: null, deliveryStatus: null },
+    });
+    const waLateClaim = await worker.claim();
+    if (!waLateClaim) throw new Error("Expected second WhatsApp inbound claim.");
+    const waLateTurn = await worker.beginTurn(waLateClaim); const waLateResponse = "A later reply.";
+    await worker.commitTurn({ outboxId: waLateClaim.outboxId,
+      output: { schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover",
+        facts: [], knowledgeCitations: [], responseGoal: "Continue discovery", proposedActions: [],
+        handover: null, customerResponse: waLateResponse,
+        channelResponse: { format: "text", quickReplies: [] } },
+      publicResponse: { status: "completed", inputId: waLateClaim.receiptId, text: waLateResponse,
+        quickReplies: [], nextTurnSequence: waLateTurn.turnSequence + 1 },
+      nativeUsage: { inputUnits: 15, outputUnits: 8 },
+    });
+    const waClosedDelivery = await worker.claimDelivery(new Date(waOccurredAt.getTime() + 25 * 60 * 60 * 1000));
+    expect(waClosedDelivery).toMatchObject({ channel: "whatsapp", serviceWindowOpen: false,
+      deliveryAllowed: false, recipient: null, credentials: null });
+    if (!waClosedDelivery) throw new Error("Expected closed-window WhatsApp delivery claim.");
+    await worker.finishDelivery({ deliveryId: waClosedDelivery.deliveryId, delivered: false,
+      externalMessageIds: [], feeClassification: "service_window_reply", attemptedQuantity: 0,
+      safeErrorCode: "social_service_window_closed", deadLetter: true });
+    await expect(adminClient!<{ status: string; error: string; quantity_events: number }[]>`
+      SELECT delivery.status, delivery.safe_error_code AS error,
+        (SELECT count(*)::int FROM tenancy.ai_social_channel_quantity_events event
+         WHERE event.tenant_id = delivery.tenant_id AND event.delivery_id = delivery.id) AS quantity_events
+      FROM tenancy.ai_social_outbound_deliveries delivery
+      WHERE delivery.id = ${waClosedDelivery.deliveryId}::uuid
+    `).resolves.toEqual([{ status: "dead_letter", error: "social_service_window_closed", quantity_events: 0 }]);
+    await expect(connections.revoke(context, whatsapp.connectionId)).resolves.toEqual({ status: "revoked" });
+
     await expect(connections.revoke(context, created.connectionId)).resolves.toEqual({ status: "revoked" });
     await expect(runtime.connection(created.webhookKey, "line")).resolves.toBeNull();
 
@@ -442,7 +550,9 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
         ${adminClient!.json({
           tenantId, subscriptionId: basicSubscriptionId, productKey: "ai_chat",
           publicPlanKey: "ai_chat_basic", planVersionId: basicPlanVersionId,
-          accessMode: "active", entitlements: { ...premiumEntitlements, "channel.line": false },
+          accessMode: "active", entitlements: {
+            ...premiumEntitlements, "channel.line": false, "channel.whatsapp": false,
+          },
           allowances: {}, overageRatesMinor: {}, limits: { deployments: 5 }, resolvedAt: new Date().toISOString(),
         })}, digest(${basicSnapshotId}, 'sha256')
       )
@@ -450,6 +560,10 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
     await expect(connections.createLine(context, {
       agentId: agent.agentId, name: "Denied LINE", externalAccountRef: "line-account-basic",
       credentials: { channel: "line" }, envelopeKey,
+    })).resolves.toEqual({ status: "not_entitled" });
+    await expect(connections.createWhatsApp(context, {
+      agentId: agent.agentId, name: "Denied WhatsApp", externalAccountRef: "wa-account-basic",
+      credentials: { channel: "whatsapp" }, envelopeKey,
     })).resolves.toEqual({ status: "not_entitled" });
   });
 });

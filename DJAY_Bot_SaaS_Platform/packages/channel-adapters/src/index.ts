@@ -208,7 +208,39 @@ export function renderSocialReply(channel: SocialChannel, input: SocialRenderInp
   })) };
 }
 
-export type SocialDeliveryResult = Readonly<{ externalMessageIds: readonly string[] }>;
+export function resumeSocialReply(
+  rendered: ReturnType<typeof renderSocialReply>,
+  deliveredPartCount: number,
+): ReturnType<typeof renderSocialReply> {
+  if (!Number.isInteger(deliveredPartCount) || deliveredPartCount < 0) {
+    throw new Error("invalid_social_delivery_progress");
+  }
+  if ("body" in rendered && rendered.body) {
+    if (deliveredPartCount !== 0) throw new Error("invalid_social_delivery_progress");
+    return rendered;
+  }
+  if (!("bodies" in rendered) || !rendered.bodies || deliveredPartCount >= rendered.bodies.length) {
+    throw new Error("invalid_social_delivery_progress");
+  }
+  return { endpoint: rendered.endpoint, bodies: rendered.bodies.slice(deliveredPartCount) } as ReturnType<typeof renderSocialReply>;
+}
+
+export type SocialDeliveryResult = Readonly<{
+  externalMessageIds: readonly string[];
+  deliveredCount: number;
+}>;
+
+export class SocialDeliveryError extends Error {
+  constructor(
+    message: string,
+    readonly attemptedCount: number,
+    readonly deliveredCount: number,
+    readonly externalMessageIds: readonly string[],
+  ) {
+    super(message);
+    this.name = "SocialDeliveryError";
+  }
+}
 
 export function createSocialDeliveryClient(config: Readonly<{
   lineApiBaseUrl: string; metaGraphBaseUrl: string; timeoutMs?: number; fetchImpl?: typeof fetch;
@@ -225,20 +257,35 @@ export function createSocialDeliveryClient(config: Readonly<{
     async deliver(channel: SocialChannel, credentialsValue: unknown, rendered: ReturnType<typeof renderSocialReply>): Promise<SocialDeliveryResult> {
       const credentials = socialCredentialSchema.parse(credentialsValue); if (credentials.channel !== channel) throw new Error("credential_channel_mismatch");
       if (channel === "line" && credentials.channel === "line") {
+        if (!("body" in rendered) || !rendered.body) throw new Error("invalid_social_render");
         const path = rendered.endpoint === "reply" ? "v2/bot/message/reply" : "v2/bot/message/push";
         const result = await request(new URL(path, lineBase), { method: "POST", headers: { Authorization: `Bearer ${credentials.channelAccessToken}`, "Content-Type": "application/json" }, body: JSON.stringify(rendered.body) });
-        return { externalMessageIds: array(result.sentMessages).map((item) => identifier(record(item)?.id)).filter((item): item is string => Boolean(item)) };
+        return {
+          externalMessageIds: array(result.sentMessages).map((item) => identifier(record(item)?.id)).filter((item): item is string => Boolean(item)),
+          deliveredCount: rendered.body.messages.length,
+        };
       }
       if (!("bodies" in rendered)) throw new Error("invalid_social_render");
       if (credentials.channel === "line") throw new Error("credential_channel_mismatch");
       const token = credentials.channel === "whatsapp" ? credentials.accessToken : credentials.pageAccessToken;
       const target = credentials.channel === "whatsapp" ? credentials.phoneNumberId : "me"; const ids: string[] = [];
+      let deliveredCount = 0;
       for (const body of rendered.bodies) {
-        const result = await request(new URL(`${target}/messages`, metaBase), { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
-        for (const item of array(result.messages)) { const id = identifier(record(item)?.id); if (id) ids.push(id); }
-        const messageId = identifier(result.message_id); if (messageId) ids.push(messageId);
+        try {
+          const result = await request(new URL(`${target}/messages`, metaBase), { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          for (const item of array(result.messages)) { const id = identifier(record(item)?.id); if (id) ids.push(id); }
+          const messageId = identifier(result.message_id); if (messageId) ids.push(messageId);
+          deliveredCount += 1;
+        } catch (error) {
+          throw new SocialDeliveryError(
+            error instanceof Error ? error.message : "channel_delivery_failed",
+            deliveredCount + 1,
+            deliveredCount,
+            ids,
+          );
+        }
       }
-      return { externalMessageIds: ids };
+      return { externalMessageIds: ids, deliveredCount };
     },
     async health(channel: SocialChannel, credentialsValue: unknown) {
       const credentials = socialCredentialSchema.parse(credentialsValue); if (credentials.channel !== channel) throw new Error("credential_channel_mismatch");

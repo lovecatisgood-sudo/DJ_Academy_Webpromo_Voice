@@ -1,8 +1,8 @@
 # P6 Validation: AI Chatbot Premium Social
 
-- Result: LINE local runtime and delivery engineering passed
+- Result: LINE and WhatsApp local runtime and delivery engineering passed
 - Date: 2026-07-15
-- Database migrations: `0020_ai_chat_social_line` through `0025_contact_identity_review_candidates`
+- Database migrations: `0020_ai_chat_social_line` through `0027_ai_chat_social_delivery_progress`
 - P6 phase status: Active; not complete
 - Production activation: Disabled
 
@@ -41,6 +41,14 @@
 - Tenant delivery totals plus production-browser owner and viewer operation QA.
 - Forced-RLS identity review suggestions for active cross-contact email or phone
   matches, with no automatic merge or tenant merge action.
+- Premium-only WhatsApp connection creation, health, credential rotation, and
+  revocation with encrypted credentials and a one-time opaque callback key.
+- Meta challenge verification and untouched-body `X-Hub-Signature-256` checks.
+- WhatsApp text, button, interactive reply, and delivery-status normalization.
+- A claim-time 24-hour customer-service window that withholds decrypted delivery
+  authority and records zero attempted units after closure.
+- Durable multipart delivery progress that appends provider receipt IDs and
+  resumes at the first unsent part after a later part fails.
 
 ## Executed gates
 
@@ -51,7 +59,7 @@ scripts/use-node24.sh pnpm run verify
 scripts/use-node24.sh pnpm run qa:p6-line
 ```
 
-All passed. PostgreSQL 16 applied migrations `0000` through `0025`. The P6
+All passed. PostgreSQL 16 applied migrations `0000` through `0027`. The P6
 integration journey proved:
 
 - an active Premium snapshot can create a LINE connection;
@@ -86,26 +94,37 @@ integration journey proved:
   session, and acknowledges the control job.
 - a captured LINE email matching a verified CRM identity creates one review
   suggestion while both contacts remain active and zero contacts become merged.
+- an active Premium snapshot can create, rotate, resolve, and revoke a WhatsApp
+  connection while Basic cannot create one;
+- an in-window WhatsApp response receives delivery authority, while a response
+  claimed after 24 hours receives neither recipient nor credentials and becomes
+  a zero-quantity dead letter;
+- a two-part WhatsApp delivery can persist part one as failed-attempt progress,
+  reclaim with `deliveredPartCount = 1`, send only the remaining part, and append
+  both provider IDs to one succeeded delivery ledger.
 
-Unit coverage also proves changed raw bodies fail LINE signature verification.
+Unit coverage also proves changed raw bodies fail LINE and Meta signature
+verification and that a later WhatsApp part failure reports exact attempted,
+completed, and provider-receipt progress.
 The full production API build contains:
 
 - `/tenant/ai-chat/social-connections`
 - `/tenant/ai-chat/social-connections/[connectionId]`
 - `/tenant/ai-chat/social-connections/[connectionId]/health`
 - `/public/ai-chat/social/line/[webhookKey]`
+- `/public/ai-chat/social/whatsapp/[webhookKey]`
 
-Production Chromium also passed the built LINE tenant surface at desktop and
-mobile sizes. It exercised health, rotation, connection, one-time webhook, and
-revocation operations; verified viewer read-only behavior; and found no secret,
-provider-identity, console, or horizontal-overflow leak.
+Production Chromium also passed the built LINE and WhatsApp tenant surfaces at
+desktop and mobile sizes. It exercised health, rotation, connection, one-time
+callback, and revocation operations; verified viewer read-only behavior; and
+found no secret, provider-identity, console, or horizontal-overflow leak.
 
-## Remaining before LINE production acceptance
+## Remaining before LINE and WhatsApp production acceptance
 
 - Approved monetary rate treatment if channel fees become billable.
-- Restricted staging credentials and LINE platform acceptance.
+- Restricted staging credentials and LINE/Meta platform acceptance.
 - Queue-age, delivery-failure, and usage alert verification.
 - Kill/revoke and rollback rehearsal with a named merchant.
 
-WhatsApp and Messenger remain later controlled channel slices. No social channel
-may be activated in production from this checkpoint.
+Messenger remains the next controlled channel slice. No social channel may be
+activated in production from this checkpoint.

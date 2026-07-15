@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { createSocialDeliveryClient, normalizeSocialWebhook, renderSocialReply, verifySocialChallenge, verifySocialSignature } from "./index";
+import { createSocialDeliveryClient, normalizeSocialWebhook, renderSocialReply, SocialDeliveryError, verifySocialChallenge, verifySocialSignature } from "./index";
 
 const lineCredentials = { channel: "line" as const, channelAccessToken: "token-token-token-token", channelSecret: "secret-secret-secret-secret" };
 const whatsappCredentials = { channel: "whatsapp" as const, accessToken: "token-token-token-token", appSecret: "secret-secret-secret-secret", verifyToken: "verify-verify-verify", phoneNumberId: "phone-1", businessAccountId: "business-1" };
@@ -53,11 +53,63 @@ describe("social channel adapters", () => {
     });
     await expect(client.deliver("line", lineCredentials, rendered)).resolves.toEqual({
       externalMessageIds: ["line-message-1"],
+      deliveredCount: 1,
     });
     expect(requests).toEqual([expect.objectContaining({
       url: "https://api.line.test/v2/bot/message/reply",
       authorization: `Bearer ${lineCredentials.channelAccessToken}`,
       body: expect.objectContaining({ replyToken: "reply-token" }),
     })]);
+  });
+
+  it("delivers WhatsApp service-window replies to the configured phone number only", async () => {
+    const requests: { url: string; authorization: string | null; body: unknown }[] = [];
+    const client = createSocialDeliveryClient({
+      lineApiBaseUrl: "https://api.line.test/", metaGraphBaseUrl: "https://graph.meta.test/v23.0/",
+      fetchImpl: async (input, init) => {
+        requests.push({ url: String(input), authorization: new Headers(init?.headers).get("authorization"),
+          body: init?.body ? JSON.parse(String(init.body)) : null });
+        return new Response(JSON.stringify({ messages: [{ id: "wamid.outbound-1" }] }), {
+          status: 200, headers: { "Content-Type": "application/json" },
+        });
+      },
+    });
+    const rendered = renderSocialReply("whatsapp", {
+      recipient: "66810000000", text: "Hello", quickReplies: ["Book"],
+    });
+    await expect(client.deliver("whatsapp", whatsappCredentials, rendered)).resolves.toEqual({
+      externalMessageIds: ["wamid.outbound-1"],
+      deliveredCount: 1,
+    });
+    expect(requests).toEqual([expect.objectContaining({
+      url: "https://graph.meta.test/v23.0/phone-1/messages",
+      authorization: `Bearer ${whatsappCredentials.accessToken}`,
+      body: expect.objectContaining({ messaging_product: "whatsapp", to: "66810000000" }),
+    })]);
+  });
+
+  it("reports durable WhatsApp progress when a later message part fails", async () => {
+    let requestCount = 0;
+    const client = createSocialDeliveryClient({
+      lineApiBaseUrl: "https://api.line.test/", metaGraphBaseUrl: "https://graph.meta.test/v23.0/",
+      fetchImpl: async () => {
+        requestCount += 1;
+        if (requestCount === 1) {
+          return new Response(JSON.stringify({ messages: [{ id: "wamid.part-1" }] }), {
+            status: 200, headers: { "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ error: { message: "limited" } }), {
+          status: 429, headers: { "Content-Type": "application/json" },
+        });
+      },
+    });
+    const rendered = renderSocialReply("whatsapp", {
+      recipient: "66810000000", text: "x".repeat(5000), quickReplies: [],
+    });
+    await expect(client.deliver("whatsapp", whatsappCredentials, rendered)).rejects.toMatchObject({
+      name: "SocialDeliveryError", message: "channel_rate_limited",
+      attemptedCount: 2, deliveredCount: 1, externalMessageIds: ["wamid.part-1"],
+    } satisfies Partial<SocialDeliveryError>);
   });
 });

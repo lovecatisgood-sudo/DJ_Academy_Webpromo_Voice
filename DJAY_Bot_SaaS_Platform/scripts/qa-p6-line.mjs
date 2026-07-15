@@ -7,6 +7,7 @@ const restricted = /\b(openai|anthropic|claude|gemini|gpt-[0-9]|provider[_ -]?(?
 const tenantId = "20000000-0000-4000-8000-000000000006";
 const agentId = "51000000-0000-4000-8000-000000000006";
 const connectionId = "55000000-0000-4000-8000-000000000006";
+const whatsappConnectionId = "55000000-0000-4000-8000-000000000016";
 const existingContactId = "50000000-0000-4000-8000-000000000061";
 const socialContactId = "50000000-0000-4000-8000-000000000062";
 
@@ -29,7 +30,8 @@ function playbook() {
 async function mockTenant(page, role) {
   const state = {
     connectionStatus: "active", healthCalls: 0, rotationBody: null,
-    createBody: null, revokeCalls: 0,
+    createBody: null, revokeCalls: 0, whatsappCreated: false,
+    whatsappCreateBody: null, whatsappRotationBody: null,
   };
   await page.route("**/tenant/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -78,11 +80,23 @@ async function mockTenant(page, role) {
         healthStatus: state.healthCalls ? "healthy" : "unknown", safeErrorCode: null,
         lastHealthAt: state.healthCalls ? new Date().toISOString() : null,
         pendingDeliveries: 2, failedDeliveries: 1, deadLetterDeliveries: 1,
-        succeededDeliveries: 17, attemptedQuantity: 22 }],
+        succeededDeliveries: 17, attemptedQuantity: 22 }, ...(state.whatsappCreated ? [{
+        id: whatsappConnectionId, agentId, channel: "whatsapp", name: "Main WhatsApp",
+        externalAccountRef: "wa-business-account", status: "active", healthStatus: "unchecked",
+        safeErrorCode: null, lastHealthAt: null, pendingDeliveries: 0, failedDeliveries: 0,
+        deadLetterDeliveries: 0, succeededDeliveries: 3, attemptedQuantity: 3,
+      }] : [])],
     });
     if (path === "/tenant/ai-chat/social-connections" && method === "POST") {
-      state.createBody = route.request().postDataJSON();
-      return json(route, { status: "created", connectionId: crypto.randomUUID(), webhookKey: "one-time-line-webhook-key" }, 201);
+      const body = route.request().postDataJSON();
+      if (body.channel === "whatsapp") {
+        state.whatsappCreateBody = body; state.whatsappCreated = true;
+        return json(route, { status: "created", connectionId: whatsappConnectionId,
+          webhookKey: "one-time-whatsapp-webhook-key" }, 201);
+      }
+      state.createBody = body;
+      return json(route, { status: "created", connectionId: crypto.randomUUID(),
+        webhookKey: "one-time-line-webhook-key" }, 201);
     }
     if (path === `/tenant/ai-chat/social-connections/${connectionId}/health` && method === "POST") {
       state.healthCalls += 1; return json(route, { status: "checked", connectionStatus: "active", healthStatus: "healthy" });
@@ -92,6 +106,10 @@ async function mockTenant(page, role) {
     }
     if (path === `/tenant/ai-chat/social-connections/${connectionId}` && method === "DELETE") {
       state.revokeCalls += 1; state.connectionStatus = "revoked"; return json(route, { status: "revoked" });
+    }
+    if (path === `/tenant/ai-chat/social-connections/${whatsappConnectionId}` && method === "PATCH") {
+      state.whatsappRotationBody = route.request().postDataJSON();
+      return json(route, { status: "rotated", credentialKeyVersion: 2 });
     }
     return json(route, { status: "not_found" }, 404);
   });
@@ -134,13 +152,37 @@ async function inspectOwner(viewport, suffix) {
     if (state.healthCalls !== 1 || state.revokeCalls !== 1) failures.push("owner-desktop: operation call count mismatch");
     if (state.rotationBody?.channelAccessToken !== "rotated-access-token-value") failures.push("owner-desktop: rotation payload mismatch");
     if (state.createBody?.channelSecret !== "new-channel-secret-value") failures.push("owner-desktop: create payload mismatch");
+    const whatsappSetup = page.locator(".whatsapp-connection-setup");
+    await whatsappSetup.locator("summary").click();
+    await whatsappSetup.getByLabel("Connection name").fill("Main WhatsApp");
+    await whatsappSetup.getByLabel("Business account reference").fill("wa-business-account");
+    await whatsappSetup.getByLabel("Access token").fill("whatsapp-access-token-value");
+    await whatsappSetup.getByLabel("App secret").fill("whatsapp-app-secret-value");
+    await whatsappSetup.getByLabel("Verify token").fill("whatsapp-verify-token-value");
+    await whatsappSetup.getByLabel("Phone number ID").fill("phone-number-123");
+    await whatsappSetup.getByLabel("Business account ID").fill("business-account-123");
+    await whatsappSetup.getByRole("button", { name: "Connect WhatsApp" }).click();
+    await page.getByText("One-time WhatsApp callback URL", { exact: true }).waitFor();
+    if (!(await page.getByText("one-time-whatsapp-webhook-key", { exact: false }).count())) failures.push("owner-desktop: WhatsApp callback missing");
+    const whatsappRow = page.locator(".social-connection-row", { hasText: "Main WhatsApp" });
+    const whatsappRotation = whatsappRow.locator(".whatsapp-credential-rotation");
+    await whatsappRotation.locator("summary").click();
+    await whatsappRotation.getByLabel("New access token").fill("rotated-whatsapp-access-token");
+    await whatsappRotation.getByLabel("New app secret").fill("rotated-whatsapp-app-secret");
+    await whatsappRotation.getByLabel("New verify token").fill("rotated-whatsapp-verify-token");
+    await whatsappRotation.getByLabel("Phone number ID").fill("phone-number-123");
+    await whatsappRotation.getByLabel("Business account ID").fill("business-account-123");
+    await whatsappRotation.getByRole("button", { name: "Rotate" }).click();
+    await page.getByText("WhatsApp credentials rotated.", { exact: false }).waitFor();
+    if (state.whatsappCreateBody?.verifyToken !== "whatsapp-verify-token-value") failures.push("owner-desktop: WhatsApp create payload mismatch");
+    if (state.whatsappRotationBody?.accessToken !== "rotated-whatsapp-access-token") failures.push("owner-desktop: WhatsApp rotation payload mismatch");
   }
   const dimensions = await page.evaluate(() => ({
     body: document.body.innerText, width: document.documentElement.scrollWidth, viewport: innerWidth,
   }));
   if (dimensions.width > dimensions.viewport + 1) failures.push(`owner-${suffix}: horizontal overflow ${dimensions.width}/${dimensions.viewport}`);
   if (restricted.test(dimensions.body)) failures.push(`owner-${suffix}: restricted routing term visible`);
-  if (/rotated-channel-secret-value|new-channel-secret-value/.test(dimensions.body)) failures.push(`owner-${suffix}: credential leaked`);
+  if (/rotated-channel-secret-value|new-channel-secret-value|whatsapp-app-secret-value|whatsapp-verify-token-value/.test(dimensions.body)) failures.push(`owner-${suffix}: credential leaked`);
   await page.screenshot({ path: `/tmp/djay-p6-line-owner-${suffix}.png`, fullPage: true });
   await context.close();
 }
@@ -150,7 +192,7 @@ async function inspectViewer() {
   const page = await context.newPage(); await mockTenant(page, "tenant_viewer");
   await page.goto(`${tenantUrl}/workspace/ai-chat`, { waitUntil: "networkidle" });
   await page.getByText("22 channel units attempted", { exact: true }).waitFor();
-  for (const name of ["Check health", "Revoke", "Connect LINE", "Rotate"]) {
+  for (const name of ["Check health", "Revoke", "Connect LINE", "Connect WhatsApp", "Rotate"]) {
     if (await page.getByRole("button", { name }).count()) failures.push(`viewer: ${name} should be hidden`);
   }
   await page.screenshot({ path: "/tmp/djay-p6-line-viewer-mobile.png", fullPage: true });
@@ -177,4 +219,4 @@ await inspectViewer();
 await inspectIdentityReview();
 await browser.close();
 if (failures.length) { console.error(failures.join("\n")); process.exit(1); }
-console.info("P6 LINE tenant operations passed desktop/mobile metrics, secrets, actions, viewer permissions, console, overflow, and provider-leak checks.");
+console.info("P6 LINE and WhatsApp tenant operations passed desktop/mobile metrics, secrets, actions, viewer permissions, console, overflow, and provider-leak checks.");

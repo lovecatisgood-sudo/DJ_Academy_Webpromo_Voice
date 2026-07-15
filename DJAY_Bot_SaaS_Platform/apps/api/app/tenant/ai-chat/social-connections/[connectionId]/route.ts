@@ -21,6 +21,15 @@ const lineCredentialRotationSchema = z.object({
   channelAccessToken: z.string().min(16).max(4096),
   channelSecret: z.string().min(16).max(4096),
 }).strict();
+const whatsappCredentialRotationSchema = z.object({
+  channel: z.literal("whatsapp"), accessToken: z.string().min(16).max(4096),
+  appSecret: z.string().min(16).max(4096), verifyToken: z.string().min(16).max(4096),
+  phoneNumberId: z.string().trim().min(3).max(200),
+  businessAccountId: z.string().trim().min(3).max(200),
+}).strict();
+const credentialRotationSchema = z.discriminatedUnion("channel", [
+  lineCredentialRotationSchema, whatsappCredentialRotationSchema,
+]);
 
 export async function PATCH(request: NextRequest, route: { params: Promise<{ connectionId: string }> }) {
   const resolved = await resolveTenantRequest(request);
@@ -31,9 +40,12 @@ export async function PATCH(request: NextRequest, route: { params: Promise<{ con
   const envelopeKey = resolved.services.aiSocialCredentialKey;
   if (!envelopeKey) return safeJson({ status: "not_available" }, 503);
   try {
-    const input = lineCredentialRotationSchema.parse(await readJson(request));
+    const input = credentialRotationSchema.parse(await readJson(request));
     const credentials = socialCredentialSchema.parse(input);
-    const result = await resolved.services.tenantAiSocial.rotateLine(resolved.context, {
+    const rotate = input.channel === "line"
+      ? resolved.services.tenantAiSocial.rotateLine.bind(resolved.services.tenantAiSocial)
+      : resolved.services.tenantAiSocial.rotateWhatsApp.bind(resolved.services.tenantAiSocial);
+    const result = await rotate(resolved.context, {
       connectionId: connectionId.data, credentials, envelopeKey,
     });
     return safeJson(result, result.status === "rotated" ? 200 : 404);

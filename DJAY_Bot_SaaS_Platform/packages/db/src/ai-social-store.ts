@@ -8,6 +8,13 @@ import type { DatabaseClient } from "./client";
 import { withTenantTransaction } from "./scoped-transaction";
 
 export type SocialChannel = "line" | "whatsapp" | "messenger";
+type SocialConnectionInput = Readonly<{
+  agentId: string; name: string; externalAccountRef: string;
+  credentials: unknown; envelopeKey: Buffer;
+}>;
+type SocialRotationInput = Readonly<{
+  connectionId: string; credentials: unknown; envelopeKey: Buffer;
+}>;
 
 export class AiSocialConnectionStore {
   constructor(private readonly client: DatabaseClient) {}
@@ -59,13 +66,15 @@ export class AiSocialConnectionStore {
     `);
   }
 
-  async createLine(context: TenantContext, input: Readonly<{
-    agentId: string;
-    name: string;
-    externalAccountRef: string;
-    credentials: unknown;
-    envelopeKey: Buffer;
-  }>) {
+  async createLine(context: TenantContext, input: SocialConnectionInput) {
+    return this.createChannel(context, "line", input);
+  }
+
+  async createWhatsApp(context: TenantContext, input: SocialConnectionInput) {
+    return this.createChannel(context, "whatsapp", input);
+  }
+
+  private async createChannel(context: TenantContext, channel: SocialChannel, input: SocialConnectionInput) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await sql<{ entitled: boolean; deploymentLimit: number | null }[]>`
         SELECT true AS entitled,
@@ -80,7 +89,7 @@ export class AiSocialConnectionStore {
           AND plan.product_key = 'ai_chat' AND plan.plan_key = 'ai_chat_premium'
         WHERE snapshot.tenant_id = ${context.tenantId}::uuid
           AND snapshot.product_key = 'ai_chat' AND snapshot.access_mode = 'active'
-          AND snapshot.resolved_json->'entitlements'->>'channel.line' = 'true'
+          AND snapshot.resolved_json->'entitlements'->>(${`channel.${channel}`}::text) = 'true'
         ORDER BY snapshot.created_at DESC, snapshot.id DESC LIMIT 1
       `;
       if (!authority[0]?.entitled) return { status: "not_entitled" as const };
@@ -93,7 +102,7 @@ export class AiSocialConnectionStore {
       const existing = await sql<{ exists: boolean }[]>`
         SELECT EXISTS (
           SELECT 1 FROM tenancy.ai_social_connections
-          WHERE tenant_id = ${context.tenantId}::uuid AND channel = 'line'
+          WHERE tenant_id = ${context.tenantId}::uuid AND channel = ${channel}
             AND external_account_ref = ${input.externalAccountRef}
         ) AS exists
       `;
@@ -115,7 +124,7 @@ export class AiSocialConnectionStore {
           id, tenant_id, agent_id, name, channel, created_by_membership_id
         ) VALUES (
           ${deploymentId}::uuid, ${context.tenantId}::uuid, ${input.agentId}::uuid,
-          ${input.name}, 'line', ${context.membershipId}::uuid
+          ${input.name}, ${channel}, ${context.membershipId}::uuid
         )
       `;
       await sql`
@@ -124,7 +133,7 @@ export class AiSocialConnectionStore {
           credential_ciphertext, webhook_key_hash, created_by_membership_id
         ) VALUES (
           ${connectionId}::uuid, ${context.tenantId}::uuid, ${input.agentId}::uuid,
-          ${deploymentId}::uuid, 'line', ${input.name}, ${input.externalAccountRef},
+          ${deploymentId}::uuid, ${channel}, ${input.name}, ${input.externalAccountRef},
           ${sealJson(input.credentials, input.envelopeKey)}, ${hashOpaqueToken(webhookKey)},
           ${context.membershipId}::uuid
         )
@@ -136,7 +145,7 @@ export class AiSocialConnectionStore {
         ) VALUES (
           ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
           'ai_chat.social_connection_created', 'ai_social_connection', ${connectionId},
-          ${context.requestId}, 'succeeded', ${sql.json({ channel: "line" })}
+          ${context.requestId}, 'succeeded', ${sql.json({ channel })}
         )
       `;
       return { status: "created" as const, connectionId, webhookKey };
@@ -145,14 +154,14 @@ export class AiSocialConnectionStore {
 
   async revoke(context: TenantContext, connectionId: string) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
-      const rows = await sql<{ deploymentId: string }[]>`
+      const rows = await sql<{ deploymentId: string; channel: SocialChannel }[]>`
         UPDATE tenancy.ai_social_connections
         SET status = 'revoked', revoked_at = now(), updated_at = now(),
             credential_ciphertext = 'revoked.' || encode(gen_random_bytes(24), 'base64'),
             safe_error_code = NULL
         WHERE tenant_id = ${context.tenantId}::uuid AND id = ${connectionId}::uuid
           AND status <> 'revoked'
-        RETURNING deployment_id AS "deploymentId"
+        RETURNING deployment_id AS "deploymentId", channel
       `;
       if (!rows[0]) return { status: "not_found" as const };
       await sql`
@@ -167,7 +176,7 @@ export class AiSocialConnectionStore {
         ) VALUES (
           ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
           'ai_chat.social_connection_revoked', 'ai_social_connection', ${connectionId},
-          ${context.requestId}, 'succeeded', ${sql.json({ channel: "line" })}
+          ${context.requestId}, 'succeeded', ${sql.json({ channel: rows[0].channel })}
         )
       `;
       return { status: "revoked" as const };
@@ -196,11 +205,15 @@ export class AiSocialConnectionStore {
     });
   }
 
-  async rotateLine(context: TenantContext, input: Readonly<{
-    connectionId: string;
-    credentials: unknown;
-    envelopeKey: Buffer;
-  }>) {
+  async rotateLine(context: TenantContext, input: SocialRotationInput) {
+    return this.rotateChannel(context, "line", input);
+  }
+
+  async rotateWhatsApp(context: TenantContext, input: SocialRotationInput) {
+    return this.rotateChannel(context, "whatsapp", input);
+  }
+
+  private async rotateChannel(context: TenantContext, channel: SocialChannel, input: SocialRotationInput) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const rows = await sql<{ credentialKeyVersion: number }[]>`
         UPDATE tenancy.ai_social_connections connection
@@ -210,7 +223,7 @@ export class AiSocialConnectionStore {
             last_health_at = NULL, updated_at = now()
         WHERE connection.tenant_id = ${context.tenantId}::uuid
           AND connection.id = ${input.connectionId}::uuid
-          AND connection.channel = 'line' AND connection.status <> 'revoked'
+          AND connection.channel = ${channel} AND connection.status <> 'revoked'
         RETURNING credential_key_version AS "credentialKeyVersion"
       `;
       if (!rows[0]) return { status: "not_found" as const };
@@ -222,7 +235,7 @@ export class AiSocialConnectionStore {
           ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
           'ai_chat.social_credentials_rotated', 'ai_social_connection', ${input.connectionId},
           ${context.requestId}, 'succeeded',
-          ${sql.json({ channel: "line", credentialKeyVersion: rows[0].credentialKeyVersion })}
+          ${sql.json({ channel, credentialKeyVersion: rows[0].credentialKeyVersion })}
         )
       `;
       return { status: "rotated" as const, credentialKeyVersion: rows[0].credentialKeyVersion };
@@ -341,7 +354,8 @@ const socialDeliveryClaimSchema = z.object({
   recipient_ciphertext: z.string(), reply_token_ciphertext: z.string().nullable(),
   response_json: z.object({ text: z.string().min(1).max(5000), quickReplies: z.array(z.string()).max(6) }).passthrough(),
   credential_ciphertext: z.string().nullable(), credential_key_version: z.number().int().positive(),
-  attempt_count: z.number().int().positive(), delivery_allowed: z.boolean(),
+  attempt_count: z.number().int().positive(), delivered_part_count: z.number().int().nonnegative(),
+  service_window_open: z.boolean(), delivery_allowed: z.boolean(),
 }).strict();
 
 export class AiSocialWorkerStore {
@@ -499,7 +513,9 @@ export class AiSocialWorkerStore {
         credentials: row.delivery_allowed && row.credential_ciphertext
           ? openJson<unknown>(row.credential_ciphertext, this.envelopeKey) : null,
         credentialKeyVersion: row.credential_key_version,
-        attemptCount: row.attempt_count, deliveryAllowed: row.delivery_allowed,
+        attemptCount: row.attempt_count, deliveredPartCount: row.delivered_part_count,
+        serviceWindowOpen: row.service_window_open,
+        deliveryAllowed: row.delivery_allowed,
       } as const;
     });
   }
@@ -507,7 +523,8 @@ export class AiSocialWorkerStore {
   async finishDelivery(input: Readonly<{
     deliveryId: string; delivered: boolean; externalMessageIds: readonly string[];
     feeClassification: "reply" | "push" | "service_window_reply";
-    attemptedQuantity: number; safeErrorCode: string | null; deadLetter?: boolean;
+    attemptedQuantity: number; completedPartCount?: number;
+    safeErrorCode: string | null; deadLetter?: boolean;
   }>) {
     return this.client.begin(async (sql) => {
       await sql`
@@ -515,9 +532,11 @@ export class AiSocialWorkerStore {
                set_config('app.request_id', ${randomUUID()}, true)
       `;
       const rows = await sql<{ finished: boolean }[]>`
-        SELECT tenancy.finish_ai_social_delivery(
+        SELECT tenancy.finish_ai_social_delivery_parts(
           ${input.deliveryId}::uuid, ${input.delivered}, ${input.externalMessageIds as string[]},
-          ${input.feeClassification}, ${input.attemptedQuantity}, ${input.safeErrorCode},
+          ${input.feeClassification}, ${input.attemptedQuantity},
+          ${input.completedPartCount ?? (input.delivered ? input.attemptedQuantity : 0)},
+          ${input.safeErrorCode},
           ${input.deadLetter ?? false}
         ) AS finished
       `;

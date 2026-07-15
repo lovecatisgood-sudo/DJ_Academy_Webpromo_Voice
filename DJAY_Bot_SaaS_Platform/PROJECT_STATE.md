@@ -17,10 +17,12 @@ Last updated: 2026-07-15
 ## Active phase
 
 P6 builds AI Chatbot Premium social channels on the completed P1-P5 authority.
-The controlled delivery order is LINE, WhatsApp, then Messenger. Active LINE
-work now covers secure connection operations, signed and ordered inbound events,
-idempotent Sales Core turns, atomic actions and usage, and durable outbound
-delivery. P5 AI Chatbot Basic remains Web-only and provider-neutral.
+The controlled delivery order is LINE, WhatsApp, then Messenger. LINE and
+WhatsApp local engineering now cover secure connection operations, signed and
+ordered inbound events, idempotent Sales Core turns, atomic actions and usage,
+durable outbound delivery, and resumable multipart Meta delivery. Messenger is
+the next implementation slice. P5 AI Chatbot Basic remains Web-only and
+provider-neutral.
 
 ## P4 release checkpoint
 
@@ -46,9 +48,9 @@ merchant sign-off, but the external rollout gate does not block P5 engineering.
   Platform AI Operations controls.
 - Public charging remains disabled while ADR-008 commercial values are unresolved.
 
-## P6 LINE runtime checkpoint
+## P6 LINE and WhatsApp runtime checkpoint
 
-The LINE runtime and delivery slices are implemented locally:
+The LINE and WhatsApp runtime and delivery slices are implemented locally:
 
 - Premium-only LINE connection creation and revocation.
 - One-time opaque webhook keys and separately encrypted channel credentials.
@@ -85,10 +87,24 @@ The LINE runtime and delivery slices are implemented locally:
 - Migration `0025_contact_identity_review_candidates` records active email or
   phone matches as tenant-visible suggestions. The source and candidate contacts
   remain separate; no merge action exists in the database, API, or UI.
+- Premium-only WhatsApp connection creation, credential rotation, health, and
+  revocation reuse the tenant-safe social connection authority and audit path.
+- The opaque WhatsApp callback supports Meta verification challenges and checks
+  `X-Hub-Signature-256` against the untouched request body before parsing.
+- WhatsApp text, button, interactive reply, and delivery-status payloads use the
+  shared deduplication, ordering, encrypted subject, Sales Core, and outbox path.
+- Migration `0026_ai_chat_social_service_window` reauthorizes every delivery and
+  fails closed outside the 24-hour customer-service window without exposing
+  recipient or credential material or recording an attempted channel unit.
+- Migration `0027_ai_chat_social_delivery_progress` persists successful message
+  part counts and provider IDs. A retry after a later-part failure resumes only
+  the unsent suffix while preserving immutable per-attempt quantity evidence.
+- The tenant UI provides WhatsApp setup, one-time callback display, delivery
+  metrics, health, rotation, and revocation with desktop/mobile and viewer QA.
 
-This does not yet include WhatsApp, Messenger, approved monetary rate treatment,
-or omnichannel analytics. LINE still requires restricted staging credentials,
-alerts, rollback rehearsal, and real platform acceptance.
+This does not yet include Messenger, approved monetary rate treatment, or
+omnichannel analytics. LINE and WhatsApp still require restricted staging
+credentials, alerts, rollback rehearsal, and real platform acceptance.
 P6 remains active and production social activation remains disabled.
 
 ## Latest verification
@@ -103,10 +119,12 @@ scripts/use-node24.sh pnpm run qa:p6-line
 ```
 
 All passed on 2026-07-15. The database gate now applies migrations `0000` through
-`0025` and includes the complete local LINE inbound, Sales Core commit, outbound
-retry, quantity-ledger, delivery-status, opt-out, and quota-release journey. Full
-verification passes across 27 packages/apps, and the API production build
-contains 65 dynamic routes. Production Chromium passes AI Chat Basic plus the
-P6 LINE tenant operations and suggest-only identity-review surfaces. These results do not authorize social
-production activation, AI Chat self-service, or paid launch without the
-remaining engineering and external acceptance gates.
+`0027` and includes the complete local LINE and WhatsApp inbound, Sales Core
+commit, outbound retry, partial-progress, service-window, quantity-ledger,
+delivery-status, opt-out, and quota-release journeys. Full verification passes
+across 27 packages/apps, and the API production build contains 65 dynamic routes,
+including the opaque WhatsApp callback. Production Chromium passes AI Chat Basic
+plus the P6 LINE and WhatsApp tenant operations and suggest-only identity-review
+surfaces. These results do not authorize social production activation, AI Chat
+self-service, or paid launch without the remaining engineering and external
+acceptance gates.
