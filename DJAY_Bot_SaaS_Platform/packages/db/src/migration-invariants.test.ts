@@ -20,6 +20,7 @@ const aiChatMigration = readFileSync(resolve(import.meta.dirname, "../migrations
 const aiRuntimeMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0018_ai_chat_public_runtime.sql"), "utf8");
 const aiNotificationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0019_ai_chat_notifications.sql"), "utf8");
 const aiSocialMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0020_ai_chat_social_line.sql"), "utf8");
+const aiSocialWorkerMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0021_ai_chat_social_workers.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -174,6 +175,17 @@ describe("P6 AI Chat Premium social migration invariants", () => {
     expect(aiSocialMigration).toContain("'out_of_order'");
     expect(aiSocialMigration).toContain("IF selected_disposition = 'accepted'");
     expect(aiSocialMigration).toContain("'ai_chat.social.inbound.received'");
+  });
+
+  it("keeps social subjects tenant-isolated and inbound work restricted and retryable", () => {
+    expect(aiSocialWorkerMigration).toContain("ALTER TABLE tenancy.ai_social_subjects ENABLE ROW LEVEL SECURITY");
+    expect(aiSocialWorkerMigration).toContain("ALTER TABLE tenancy.ai_social_subjects FORCE ROW LEVEL SECURITY");
+    expect(aiSocialWorkerMigration).toContain("session_user <> 'djay_worker'");
+    expect(aiSocialWorkerMigration).toContain("'ai_social_worker'");
+    expect(aiSocialWorkerMigration).toContain("FOR UPDATE SKIP LOCKED");
+    expect(aiSocialWorkerMigration).toContain("'dead_letter'");
+    expect(aiSocialWorkerMigration).toContain("plan.plan_key = 'ai_chat_premium'");
+    expect(aiSocialWorkerMigration).toContain("REVOKE ALL ON FUNCTION tenancy.claim_ai_social_inbound");
   });
 });
 

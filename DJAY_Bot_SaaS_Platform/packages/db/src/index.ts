@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0020_ai_chat_social_line";
+export const currentSchemaVersion = "0021_ai_chat_social_workers";
 
 export { PostgresAuthStore } from "./auth-store";
 export { BillingWebhookStore } from "./billing-webhook-store";
@@ -7,7 +7,7 @@ export { SharedDomainStore } from "./shared-domain-store";
 export { FlowBotStore } from "./flowbot-store";
 export { AiChatStore } from "./ai-chat-store";
 export { AiChatRuntimeStore } from "./ai-chat-runtime-store";
-export { AiSocialConnectionStore, AiSocialRuntimeStore, type SocialChannel } from "./ai-social-store";
+export { AiSocialConnectionStore, AiSocialRuntimeStore, AiSocialWorkerStore, type SocialChannel } from "./ai-social-store";
 export { FlowbotWorkerStore } from "./flowbot-worker-store";
 export {
   TenantFlowbotNotificationStore,

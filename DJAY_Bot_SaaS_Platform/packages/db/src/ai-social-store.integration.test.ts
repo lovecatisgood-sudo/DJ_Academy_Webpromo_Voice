@@ -1,20 +1,23 @@
 import { randomUUID } from "node:crypto";
+import { sealJson } from "@djay/auth";
 import { createTenantContext } from "@djay/tenancy";
 import { afterAll, describe, expect, it } from "vitest";
 import { AiChatStore } from "./ai-chat-store";
-import { AiSocialConnectionStore, AiSocialRuntimeStore } from "./ai-social-store";
+import { AiSocialConnectionStore, AiSocialRuntimeStore, AiSocialWorkerStore } from "./ai-social-store";
 import { createDatabaseClient } from "./client";
 
 const runtimeUrl = process.env.AI_DATABASE_URL;
 const tenantUrl = process.env.TENANT_DATABASE_URL;
 const adminUrl = process.env.ADMIN_DATABASE_URL;
-const enabled = Boolean(runtimeUrl && tenantUrl && adminUrl);
+const workerUrl = process.env.WORKER_DATABASE_URL;
+const enabled = Boolean(runtimeUrl && tenantUrl && adminUrl && workerUrl);
 const runtimeClient = enabled ? createDatabaseClient(runtimeUrl!) : null;
 const tenantClient = enabled ? createDatabaseClient(tenantUrl!) : null;
 const adminClient = enabled ? createDatabaseClient(adminUrl!) : null;
+const workerClient = enabled ? createDatabaseClient(workerUrl!) : null;
 
 afterAll(async () => {
-  await runtimeClient?.end(); await tenantClient?.end(); await adminClient?.end();
+  await runtimeClient?.end(); await tenantClient?.end(); await adminClient?.end(); await workerClient?.end();
 });
 
 describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", () => {
@@ -122,23 +125,53 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
 
     const occurredAt = new Date();
     const subjectHash = Buffer.alloc(32, 23);
+    const subjectCiphertext = sealJson({ value: "line-user-123" }, envelopeKey);
+    const replyTokenCiphertext = sealJson({ value: "opaque-reply" }, envelopeKey);
     const accepted = await runtime.receive({
       webhookKey: created.webhookKey, channel: "line", externalEventId: "line-event-1",
       externalMessageId: "line-message-1", subjectHash, eventType: "inbound.message",
-      occurredAt, normalized: { text: "Hello", replyToken: "opaque-reply", deliveryStatus: null },
+      occurredAt, normalized: { text: "Hello", subjectCiphertext, replyTokenCiphertext, deliveryStatus: null },
     });
     expect(accepted).toMatchObject({ disposition: "accepted", replayed: false });
     await expect(runtime.receive({
       webhookKey: created.webhookKey, channel: "line", externalEventId: "line-event-1",
       externalMessageId: "line-message-1", subjectHash, eventType: "inbound.message",
-      occurredAt, normalized: { text: "Changed replay", replyToken: null, deliveryStatus: null },
+      occurredAt, normalized: { text: "Changed replay", subjectCiphertext, replyTokenCiphertext: null, deliveryStatus: null },
     })).resolves.toEqual(accepted && { ...accepted, replayed: true });
     await expect(runtime.receive({
       webhookKey: created.webhookKey, channel: "line", externalEventId: "line-event-old",
       externalMessageId: "line-message-old", subjectHash, eventType: "inbound.message",
       occurredAt: new Date(occurredAt.getTime() - 60_000),
-      normalized: { text: "Older", replyToken: null, deliveryStatus: null },
+      normalized: { text: "Older", subjectCiphertext, replyTokenCiphertext: null, deliveryStatus: null },
     })).resolves.toMatchObject({ disposition: "out_of_order", replayed: false });
+
+    const worker = new AiSocialWorkerStore(workerClient!, envelopeKey);
+    const claimed = await worker.claim();
+    expect(claimed).toMatchObject({
+      receiptId: accepted?.receiptId, channel: "line", eventType: "inbound.message",
+      externalSubject: "line-user-123", replyToken: "opaque-reply", text: "Hello",
+      processingAllowed: true, attemptCount: 1,
+      credentials: { channel: "line", channelAccessToken: "rotated-line-access-token" },
+    });
+    if (!claimed) throw new Error("Expected social inbound claim.");
+    await worker.finish(claimed.outboxId, false, "gateway_unavailable");
+    const retried = await worker.claim(new Date(Date.now() + 60_000));
+    expect(retried).toMatchObject({ outboxId: claimed.outboxId, attemptCount: 2, processingAllowed: true });
+    if (!retried) throw new Error("Expected social inbound retry.");
+    await worker.finish(retried.outboxId, true, null);
+    await expect(worker.claim(new Date(Date.now() + 120_000))).resolves.toBeNull();
+    await runtime.receive({
+      webhookKey: created.webhookKey, channel: "line", externalEventId: "line-event-dead-letter",
+      externalMessageId: "line-message-dead-letter", subjectHash, eventType: "inbound.message",
+      occurredAt: new Date(occurredAt.getTime() + 1_000),
+      normalized: { text: "Dead letter proof", subjectCiphertext, replyTokenCiphertext: null, deliveryStatus: null },
+    });
+    const deadLetterClaim = await worker.claim();
+    if (!deadLetterClaim) throw new Error("Expected social inbound dead-letter claim.");
+    await worker.finish(deadLetterClaim.outboxId, false, "structured_output_invalid", true);
+    await expect(adminClient!<{ status: string; error: string }[]>`
+      SELECT status, last_error_code AS error FROM tenancy.outbox WHERE id = ${deadLetterClaim.outboxId}::uuid
+    `).resolves.toEqual([{ status: "dead_letter", error: "structured_output_invalid" }]);
 
     const evidence = await adminClient!<{
       receipts: number; accepted: number; out_of_order: number; jobs: number; credential_plaintext: boolean;
@@ -156,7 +189,7 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
       WHERE receipt.tenant_id = ${tenantId}::uuid
       GROUP BY receipt.tenant_id
     `;
-    expect(evidence[0]).toEqual({ receipts: 2, accepted: 1, out_of_order: 1, jobs: 1, credential_plaintext: false });
+    expect(evidence[0]).toEqual({ receipts: 3, accepted: 2, out_of_order: 1, jobs: 2, credential_plaintext: false });
 
     await expect(connections.revoke(context, created.connectionId)).resolves.toEqual({ status: "revoked" });
     await expect(runtime.connection(created.webhookKey, "line")).resolves.toBeNull();

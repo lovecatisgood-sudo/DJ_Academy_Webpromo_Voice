@@ -1,4 +1,4 @@
-import { keyedRequestHash } from "@djay/auth";
+import { keyedRequestHash, sealJson } from "@djay/auth";
 import { normalizeSocialWebhook, verifySocialSignature } from "@djay/channel-adapters";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest, route: { params: Promise<{ webh
   const webhookKey = webhookKeySchema.safeParse((await route.params).webhookKey);
   if (!webhookKey.success) return safeJson({ status: "not_found" }, 404);
   const services = await getServices();
-  if (!services.aiSocialRuntime || !services.aiSocialSubjectHashKey) {
+  if (!services.aiSocialRuntime || !services.aiSocialSubjectHashKey || !services.aiSocialCredentialKey) {
     return safeJson({ status: "not_found" }, 404);
   }
   const allowed = await enforceRateLimit(
@@ -48,7 +48,9 @@ export async function POST(request: NextRequest, route: { params: Promise<{ webh
         occurredAt: event.occurredAt,
         normalized: {
           text: event.text,
-          replyToken: event.replyToken,
+          subjectCiphertext: sealJson({ value: event.externalSubject }, services.aiSocialCredentialKey),
+          replyTokenCiphertext: event.replyToken
+            ? sealJson({ value: event.replyToken }, services.aiSocialCredentialKey) : null,
           deliveryStatus: event.deliveryStatus,
         },
       });

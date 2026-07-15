@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createOpaqueToken, hashOpaqueToken, openJson, sealJson } from "@djay/auth";
 import type { TenantContext } from "@djay/tenancy";
+import { z } from "zod";
 import type { DatabaseClient } from "./client";
 import { withTenantTransaction } from "./scoped-transaction";
 
@@ -288,5 +289,84 @@ export class AiSocialRuntimeStore {
       )
     `;
     return rows[0] ?? null;
+  }
+}
+
+const socialInboundClaimSchema = z.object({
+  outbox_id: z.uuid(),
+  receipt_id: z.uuid(),
+  tenant_id: z.uuid(),
+  connection_id: z.uuid(),
+  channel: z.enum(["line", "whatsapp", "messenger"]),
+  event_type: z.enum(["inbound.message", "delivery.status", "subject.opt_out"]),
+  external_message_id: z.string().nullable(),
+  subject_hash: z.instanceof(Buffer),
+  occurred_at: z.coerce.date(),
+  normalized_json: z.record(z.string(), z.unknown()),
+  credential_ciphertext: z.string().nullable(),
+  credential_key_version: z.number().int().positive(),
+  attempt_count: z.number().int().positive(),
+  processing_allowed: z.boolean(),
+}).strict();
+
+const encryptedValueSchema = z.object({ value: z.string().min(1).max(500) }).strict();
+
+export class AiSocialWorkerStore {
+  constructor(private readonly client: DatabaseClient, private readonly envelopeKey: Buffer) {}
+
+  async claim(now = new Date(), staleBefore = new Date(Date.now() - 5 * 60 * 1000)) {
+    return this.client.begin(async (sql) => {
+      await sql`
+        SELECT set_config('app.service', 'ai_social_worker', true),
+               set_config('app.request_id', ${randomUUID()}, true)
+      `;
+      const rows = await sql<Record<string, unknown>[]>`
+        SELECT * FROM tenancy.claim_ai_social_inbound(${now}, ${staleBefore})
+      `;
+      const row = rows[0] ? socialInboundClaimSchema.parse(rows[0]) : null;
+      if (!row) return null;
+      const normalized = row.normalized_json;
+      const subjectCiphertext = typeof normalized.subjectCiphertext === "string"
+        ? normalized.subjectCiphertext : null;
+      const replyTokenCiphertext = typeof normalized.replyTokenCiphertext === "string"
+        ? normalized.replyTokenCiphertext : null;
+      return {
+        outboxId: row.outbox_id,
+        receiptId: row.receipt_id,
+        tenantId: row.tenant_id,
+        connectionId: row.connection_id,
+        channel: row.channel,
+        eventType: row.event_type,
+        externalMessageId: row.external_message_id,
+        subjectHash: row.subject_hash,
+        occurredAt: row.occurred_at,
+        text: typeof normalized.text === "string" ? normalized.text : null,
+        deliveryStatus: typeof normalized.deliveryStatus === "string" ? normalized.deliveryStatus : null,
+        attemptCount: row.attempt_count,
+        processingAllowed: row.processing_allowed,
+        externalSubject: row.processing_allowed && subjectCiphertext
+          ? encryptedValueSchema.parse(openJson(subjectCiphertext, this.envelopeKey)).value : null,
+        replyToken: row.processing_allowed && replyTokenCiphertext
+          ? encryptedValueSchema.parse(openJson(replyTokenCiphertext, this.envelopeKey)).value : null,
+        credentials: row.processing_allowed && row.credential_ciphertext
+          ? openJson<unknown>(row.credential_ciphertext, this.envelopeKey) : null,
+        credentialKeyVersion: row.credential_key_version,
+      } as const;
+    });
+  }
+
+  async finish(outboxId: string, processed: boolean, safeErrorCode: string | null, deadLetter = false) {
+    return this.client.begin(async (sql) => {
+      await sql`
+        SELECT set_config('app.service', 'ai_social_worker', true),
+               set_config('app.request_id', ${randomUUID()}, true)
+      `;
+      const rows = await sql<{ finished: boolean }[]>`
+        SELECT tenancy.finish_ai_social_inbound(
+          ${outboxId}::uuid, ${processed}, ${safeErrorCode}, ${deadLetter}
+        ) AS finished
+      `;
+      if (!rows[0]?.finished) throw new Error("ai_social_inbound_finish_conflict");
+    });
   }
 }

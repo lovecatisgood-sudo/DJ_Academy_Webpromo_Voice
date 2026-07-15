@@ -41,6 +41,8 @@ This slice delivers:
    replay, and out-of-order events.
 9. Tenant-admin connection operations for health, encrypted credential rotation,
    reauthorization, audit history, and revocation.
+10. Encrypted subject/reply material and worker-only inbound claim, retry, and
+    dead-letter operations with claim-time Premium reauthorization.
 
 ## Non-goals for this slice
 

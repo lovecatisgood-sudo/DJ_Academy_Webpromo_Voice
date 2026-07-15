@@ -2,7 +2,7 @@
 
 - Result: LINE security and connection-operations slices passed
 - Date: 2026-07-15
-- Database migration: `0020_ai_chat_social_line`
+- Database migrations: `0020_ai_chat_social_line`, `0021_ai_chat_social_workers`
 - P6 phase status: Active; not complete
 - Production activation: Disabled
 
@@ -22,6 +22,9 @@
 - Live provider health checks with safe error codes and explicit
   `reauthorization_required` state.
 - Credential version increments and audit logs for rotation and health checks.
+- Envelope-encrypted external subject IDs and reply tokens in immutable receipts.
+- Worker-only inbound claim leases with `SKIP LOCKED`, current Premium authority,
+  exponential retry, terminal dead letters, and safe audited error codes.
 
 ## Executed gates
 
@@ -31,7 +34,7 @@ scripts/test-db-integration.sh
 scripts/use-node24.sh pnpm run verify
 ```
 
-All passed. PostgreSQL 16 applied migrations `0000` through `0020`. The P6
+All passed. PostgreSQL 16 applied migrations `0000` through `0021`. The P6
 integration journey proved:
 
 - an active Premium snapshot can create a LINE connection;
@@ -49,6 +52,9 @@ integration journey proved:
 - an older event is recorded as `out_of_order` without downstream work;
 - revocation immediately disables opaque runtime resolution;
 - an active Basic snapshot cannot create a LINE connection.
+- the restricted worker decrypts subject/reply/credential material only for an
+  authorized claim, retries the same durable item, and can terminate it as a
+  safe dead letter.
 
 Unit coverage also proves changed raw bodies fail LINE signature verification.
 The full production API build contains:
@@ -60,7 +66,6 @@ The full production API build contains:
 
 ## Remaining before LINE engineering completion
 
-- Durable inbound worker claim/retry/dead-letter operations.
 - Social session/contact/conversation creation and Sales Core processing.
 - Channel-native LINE outbound rendering, delivery, and status visibility.
 - Subject identity review candidates without automatic merge.

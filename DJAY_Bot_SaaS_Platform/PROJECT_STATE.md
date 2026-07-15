@@ -60,8 +60,11 @@ The first P6 slice is implemented locally:
 - Connection/event deduplication and per-subject timestamp ordering.
 - Accepted events create one durable inbound outbox item; replayed and older
   events create no additional work.
-- Migration `0020_ai_chat_social_line` uses forced RLS and restricted fixed-path
-  runtime functions without table grants to the public AI runtime role.
+- External subject IDs and LINE reply tokens are envelope-encrypted before
+  durable receipt storage; their keyed subject digest remains the ordering key.
+- Migration `0021_ai_chat_social_workers` adds forced-RLS subject links and a
+  restricted worker claim/lease/retry/dead-letter contract with a fresh Premium
+  entitlement check at claim time.
 
 This does not yet include outbound LINE delivery, AI response processing,
 WhatsApp, Messenger, identity review, channel fee usage, or omnichannel
@@ -78,7 +81,7 @@ scripts/use-node24.sh pnpm run qa:p5-ai-chat
 ```
 
 All passed on 2026-07-15. The database gate now applies migrations `0000` through
-`0020` and includes the P6 LINE connection/receipt journey. Full verification
+`0021` and includes the P6 LINE connection/receipt/worker journey. Full verification
 passes across 27 packages/apps, and the API production build contains 65 dynamic
 routes. Production Chromium passes AI Chat Basic desktop/mobile authoring plus
 built-widget streaming, replay, and handover. These results validate the first
