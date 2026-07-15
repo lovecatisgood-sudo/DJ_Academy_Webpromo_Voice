@@ -48,7 +48,12 @@ export const voiceSessionGrantSchema = z.object({
 
 export type VoiceSessionGrant = z.infer<typeof voiceSessionGrantSchema>;
 
-export const voiceInputAudioEncodingSchema = z.enum(["webm_opus", "ogg_opus", "mp4_aac"]);
+export const voiceInputAudioEncodingSchema = z.enum([
+  "pcm_s16le_16000",
+  "webm_opus",
+  "ogg_opus",
+  "mp4_aac",
+]);
 export const voiceOutputAudioEncodingSchema = z.literal("pcm_s16le_24000");
 export type VoiceInputAudioEncoding = z.infer<typeof voiceInputAudioEncodingSchema>;
 export type VoiceOutputAudioEncoding = z.infer<typeof voiceOutputAudioEncodingSchema>;

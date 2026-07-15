@@ -19,12 +19,23 @@ async function installBrowserFakes(page, microphoneDenied = false) {
         return { getTracks: () => [track], getAudioTracks: () => [track] };
       } },
     });
-    class FakeMediaRecorder {
-      static isTypeSupported(type) { return type === "audio/webm;codecs=opus"; }
-      state = "inactive"; ondataavailable = null;
-      constructor(stream, options) { this.stream = stream; this.mimeType = options.mimeType; }
-      start() { this.state = "recording"; }
-      stop() { this.state = "inactive"; }
+    class FakeAudioContext {
+      constructor(options = {}) { this.sampleRate = options.sampleRate || 48000; this.currentTime = 0; this.destination = {}; }
+      createMediaStreamSource() { return { connect() {}, disconnect() {} }; }
+      createGain() { return { gain: { value: 1 }, connect() {}, disconnect() {} }; }
+      createScriptProcessor() {
+        const processor = { onaudioprocess: null, connect() {}, disconnect() {} };
+        Object.defineProperty(window, "__voiceProcessor", { configurable: true, value: processor });
+        return processor;
+      }
+      createBuffer(channels, length, sampleRate) {
+        const data = new Float32Array(length);
+        return { duration: length / sampleRate, getChannelData: () => data };
+      }
+      createBufferSource() {
+        return { buffer: null, onended: null, connect() {}, start() { setTimeout(() => this.onended?.(), 0); }, stop() {} };
+      }
+      async resume() {} async close() {}
     }
     class FakeWebSocket {
       static CONNECTING = 0; static OPEN = 1; static CLOSING = 2; static CLOSED = 3;
@@ -35,12 +46,16 @@ async function installBrowserFakes(page, microphoneDenied = false) {
       }
       send(raw) {
         const message = JSON.parse(raw);
+        (window.__voiceFrames ||= []).push(message);
         const emit = (value) => setTimeout(() => this.onmessage?.({ data: JSON.stringify(value) }), 0);
         if (message.type === "session.connect") emit({
           type: "session.connected", messageId: crypto.randomUUID(), sessionId: message.sessionId,
           resumed: message.reconnectAttempt > 0, outputAudioEncoding: "pcm_s16le_24000",
         });
         if (message.type === "session.ready") {
+          setTimeout(() => window.__voiceProcessor?.onaudioprocess?.({
+            inputBuffer: { getChannelData: () => new Float32Array(4096).fill(0.1) },
+          }), 0);
           emit({ type: "transcript.delta", messageId: crypto.randomUUID(), speaker: "agent", text: "Hello, how can I help?" });
           emit({ type: "assistant.speech.started", messageId: crypto.randomUUID() });
           setTimeout(() => emit({ type: "assistant.speech.ended", messageId: crypto.randomUUID() }), 20);
@@ -55,7 +70,7 @@ async function installBrowserFakes(page, microphoneDenied = false) {
         this.readyState = 3; setTimeout(() => this.onclose?.({ code, reason }), 0);
       }
     }
-    Object.defineProperty(window, "MediaRecorder", { configurable: true, value: FakeMediaRecorder });
+    Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeAudioContext });
     Object.defineProperty(window, "WebSocket", { configurable: true, value: FakeWebSocket });
     window.fetch = async (url) => {
       if (!String(url).endsWith("/public/voice/session")) return new Response("", { status: 404 });
@@ -110,11 +125,15 @@ async function inspectHappyPath(viewport, label) {
       text: root?.textContent ?? "", width: document.documentElement.scrollWidth, viewport: innerWidth,
       unnamedButtons: [...(root?.querySelectorAll("button") ?? [])].filter((button) => !button.getAttribute("aria-label")).length,
       trackStopped: Boolean(window.__voiceTrack?.stopped),
+      connectEncoding: window.__voiceFrames?.find((frame) => frame.type === "session.connect")?.inputAudioEncoding,
+      audioChunks: window.__voiceFrames?.filter((frame) => frame.type === "audio.chunk").length || 0,
     };
   });
   if (result.width > result.viewport + 1) failures.push(`${label}: horizontal overflow ${result.width}/${result.viewport}`);
   if (result.unnamedButtons) failures.push(`${label}: ${result.unnamedButtons} unnamed buttons`);
   if (!result.trackStopped) failures.push(`${label}: microphone track was not stopped`);
+  if (result.connectEncoding !== "pcm_s16le_16000") failures.push(`${label}: unexpected input encoding ${result.connectEncoding}`);
+  if (!result.audioChunks) failures.push(`${label}: no PCM microphone frame reached the gateway`);
   if (restricted.test(result.text)) failures.push(`${label}: restricted routing identity visible`);
   await page.screenshot({ path: `/tmp/djay-p7-voice-${label}.png`, fullPage: true });
   await context.close();

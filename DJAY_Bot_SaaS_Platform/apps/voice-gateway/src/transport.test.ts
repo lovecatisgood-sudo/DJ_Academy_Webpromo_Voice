@@ -66,7 +66,7 @@ function nextMessage(websocket: WebSocket) {
 function connect(websocket: WebSocket, reconnectAttempt = 0) {
   websocket.send(JSON.stringify({
     type: "session.connect", messageId: crypto.randomUUID(), sessionId, sessionGrant: grant,
-    connectionId, protocolVersion: "djay.voice.v1", inputAudioEncoding: "webm_opus", reconnectAttempt,
+    connectionId, protocolVersion: "djay.voice.v1", inputAudioEncoding: "pcm_s16le_16000", reconnectAttempt,
   }));
 }
 

@@ -22,13 +22,10 @@ export type VoiceWidgetCallState =
   | "reconnecting" | "ending" | "ended" | "error";
 
 type TranscriptLine = { speaker: "customer" | "agent"; text: string };
-type InputAudioSelection = Readonly<{ encoding: VoiceInputAudioEncoding; mimeType: string }>;
+type InputAudioSelection = Readonly<{ encoding: VoiceInputAudioEncoding; sampleRate: 16_000 }>;
+type InputCapture = Readonly<{ stop(): void }>;
 
-const inputAudioCandidates: readonly InputAudioSelection[] = [
-  { encoding: "webm_opus", mimeType: "audio/webm;codecs=opus" },
-  { encoding: "ogg_opus", mimeType: "audio/ogg;codecs=opus" },
-  { encoding: "mp4_aac", mimeType: "audio/mp4" },
-];
+const pcmInputAudio = { encoding: "pcm_s16le_16000", sampleRate: 16_000 } as const satisfies InputAudioSelection;
 
 const copy = {
   en: {
@@ -65,8 +62,23 @@ const copy = {
 
 export function normalizeVoiceApiBaseUrl(value: string) { return value.replace(/\/+$/, ""); }
 
-export function selectVoiceInputAudioEncoding(isSupported: (mimeType: string) => boolean): InputAudioSelection | null {
-  return inputAudioCandidates.find((candidate) => isSupported(candidate.mimeType)) ?? null;
+export function selectVoiceInputAudioEncoding(audioContextAvailable: boolean): InputAudioSelection | null {
+  return audioContextAvailable ? pcmInputAudio : null;
+}
+
+export function resampleVoiceInputToPcm16(samples: Float32Array, sourceSampleRate: number) {
+  if (!Number.isFinite(sourceSampleRate) || sourceSampleRate < 16_000) throw new Error("voice_input_sample_rate_unsupported");
+  const ratio = sourceSampleRate / 16_000;
+  const output = new Int16Array(Math.max(0, Math.floor(samples.length / ratio)));
+  for (let outputIndex = 0; outputIndex < output.length; outputIndex += 1) {
+    const position = outputIndex * ratio;
+    const leftIndex = Math.floor(position);
+    const rightIndex = Math.min(leftIndex + 1, samples.length - 1);
+    const fraction = position - leftIndex;
+    const sample = Math.max(-1, Math.min(1, (samples[leftIndex] ?? 0) * (1 - fraction) + (samples[rightIndex] ?? 0) * fraction));
+    output[outputIndex] = sample < 0 ? Math.round(sample * 32_768) : Math.round(sample * 32_767);
+  }
+  return output;
 }
 
 export function mountVoiceWidget(options: VoiceWidgetOptions) { return new VoiceWidget(options).mount(); }
@@ -81,8 +93,8 @@ class VoiceWidget {
   private grant: VoiceSessionGrant | null = null;
   private socket: WebSocket | null = null;
   private stream: MediaStream | null = null;
-  private recorder: MediaRecorder | null = null;
-  private audioContext: AudioContext | null = null;
+  private inputCapture: InputCapture | null = null;
+  private outputAudioContext: AudioContext | null = null;
   private playbackCursor = 0;
   private playbackSources = new Set<AudioBufferSourceNode>();
   private inputAudio: InputAudioSelection | null = null;
@@ -122,7 +134,8 @@ class VoiceWidget {
     this.terminal = false; this.errorCode = null; this.statusDetail = ""; this.confirmEnd = false;
     this.transcript = []; this.elapsedSeconds = 0; this.reconnectAttempt = 0; this.inputSequence = 0;
     this.callState = "requesting_permission"; this.render();
-    this.inputAudio = typeof MediaRecorder === "undefined" ? null : selectVoiceInputAudioEncoding(MediaRecorder.isTypeSupported.bind(MediaRecorder));
+    const Context = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    this.inputAudio = selectVoiceInputAudioEncoding(Boolean(Context));
     if (!this.inputAudio) { this.fail("unsupported"); return; }
     try {
       const getUserMedia = this.options.getUserMedia ?? navigator.mediaDevices?.getUserMedia.bind(navigator.mediaDevices);
@@ -171,7 +184,7 @@ class VoiceWidget {
     socket.onerror = () => { /* close owns the provider-neutral retry path */ };
     socket.onclose = () => {
       if (socket !== this.socket || this.terminal) return;
-      this.stopRecorder();
+      this.stopInputCapture();
       if (this.canReconnect()) this.scheduleReconnect(); else this.fail("unavailable");
     };
   }
@@ -183,7 +196,7 @@ class VoiceWidget {
         this.inputSequence = 0;
         this.callState = "listening"; this.statusDetail = "";
         if (!this.callStartedAt) this.callStartedAt = Date.now();
-        this.startRecorder(); this.startCallTimer();
+        void this.startInputCapture(); this.startCallTimer();
         this.send({ type: "session.ready", messageId: crypto.randomUUID() });
         this.render(); break;
       case "audio.chunk": this.playPcm(message.audioBase64); break;
@@ -201,43 +214,36 @@ class VoiceWidget {
     }
   }
 
-  private startRecorder() {
-    if (!this.stream || !this.inputAudio || this.recorder?.state === "recording") return;
+  private async startInputCapture() {
+    if (!this.stream || !this.inputAudio || this.inputCapture) return;
     try {
-      const recorder = new MediaRecorder(this.stream, { mimeType: this.inputAudio.mimeType, audioBitsPerSecond: 32_000 });
-      this.recorder = recorder;
-      recorder.ondataavailable = (event) => {
-        if (!event.data.size || this.socket?.readyState !== 1 || this.muted) return;
-        void event.data.arrayBuffer().then((buffer) => {
-          if (this.socket?.readyState !== 1) return;
-          this.send({
-            type: "audio.chunk", messageId: crypto.randomUUID(), sequence: this.inputSequence++,
-            audioBase64: bytesToBase64(new Uint8Array(buffer)),
-          });
+      this.inputCapture = await createPcmInputCapture(this.stream, (pcm) => {
+        if (!pcm.byteLength || this.socket?.readyState !== 1 || this.muted) return;
+        this.send({
+          type: "audio.chunk", messageId: crypto.randomUUID(), sequence: this.inputSequence++,
+          audioBase64: bytesToBase64(new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength)),
         });
-      };
-      recorder.start(250);
+      });
     } catch { this.fail("unsupported"); }
   }
 
-  private stopRecorder() {
-    if (this.recorder && this.recorder.state !== "inactive") this.recorder.stop();
-    this.recorder = null;
+  private stopInputCapture() {
+    this.inputCapture?.stop(); this.inputCapture = null;
   }
 
   private playPcm(audioBase64: string) {
     try {
       const Context = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Context) return;
-      this.audioContext ??= new Context({ sampleRate: 24_000 });
-      void this.audioContext.resume();
+      this.outputAudioContext ??= new Context({ sampleRate: 24_000 });
+      void this.outputAudioContext.resume();
       const bytes = base64ToBytes(audioBase64);
       const samples = new Int16Array(bytes.buffer, bytes.byteOffset, Math.floor(bytes.byteLength / 2));
-      const buffer = this.audioContext.createBuffer(1, samples.length, 24_000);
+      const buffer = this.outputAudioContext.createBuffer(1, samples.length, 24_000);
       const channel = buffer.getChannelData(0);
       for (let index = 0; index < samples.length; index += 1) channel[index] = samples[index]! / 32_768;
-      const source = this.audioContext.createBufferSource(); source.buffer = buffer; source.connect(this.audioContext.destination);
-      const startAt = Math.max(this.playbackCursor, this.audioContext.currentTime + 0.015);
+      const source = this.outputAudioContext.createBufferSource(); source.buffer = buffer; source.connect(this.outputAudioContext.destination);
+      const startAt = Math.max(this.playbackCursor, this.outputAudioContext.currentTime + 0.015);
       this.playbackCursor = startAt + buffer.duration; this.playbackSources.add(source);
       source.onended = () => this.playbackSources.delete(source); source.start(startAt);
     } catch { this.statusDetail = "media_unavailable"; this.render(); }
@@ -245,7 +251,7 @@ class VoiceWidget {
 
   private stopPlayback() {
     for (const source of this.playbackSources) { try { source.stop(); } catch { /* already stopped */ } }
-    this.playbackSources.clear(); this.playbackCursor = this.audioContext?.currentTime ?? 0;
+    this.playbackSources.clear(); this.playbackCursor = this.outputAudioContext?.currentTime ?? 0;
   }
 
   private appendTranscript(speaker: "customer" | "agent", delta: string) {
@@ -289,13 +295,13 @@ class VoiceWidget {
   private cleanup() {
     if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
     if (this.callTimer !== null) window.clearInterval(this.callTimer);
-    this.reconnectTimer = null; this.callTimer = null; this.stopRecorder(); this.stopPlayback();
+    this.reconnectTimer = null; this.callTimer = null; this.stopInputCapture(); this.stopPlayback();
     for (const track of this.stream?.getTracks() ?? []) track.stop();
     this.stream = null;
     if (this.socket && this.socket.readyState < 2) this.socket.close(1000, "widget_cleanup");
     this.socket = null;
-    if (this.audioContext) void this.audioContext.close().catch(() => undefined);
-    this.audioContext = null; this.callStartedAt = 0;
+    if (this.outputAudioContext) void this.outputAudioContext.close().catch(() => undefined);
+    this.outputAudioContext = null; this.callStartedAt = 0;
   }
 
   private pageClosed() {
@@ -378,6 +384,77 @@ class VoiceWidget {
     });
     shell.append(launcher); this.shadow.append(shell);
   }
+}
+
+async function createPcmInputCapture(stream: MediaStream, onChunk: (chunk: Int16Array) => void): Promise<InputCapture> {
+  const Context = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Context) throw new Error("voice_input_unsupported");
+  const context = new Context();
+  if (context.sampleRate < 16_000) { await context.close(); throw new Error("voice_input_sample_rate_unsupported"); }
+  const source = context.createMediaStreamSource(stream);
+  const silent = context.createGain(); silent.gain.value = 0; silent.connect(context.destination);
+  let processor: AudioWorkletNode | ScriptProcessorNode | null = null;
+  let workletProcessor: AudioWorkletNode | null = null;
+  let workletUrl: string | null = null;
+
+  if (context.audioWorklet && typeof AudioWorkletNode !== "undefined") {
+    const workletSource = `
+      class DJAYPcmInputProcessor extends AudioWorkletProcessor {
+        constructor() { super(); this.input = []; this.position = 0; this.output = []; }
+        process(inputs) {
+          const channel = inputs[0] && inputs[0][0];
+          if (!channel || channel.length === 0) return true;
+          for (let i = 0; i < channel.length; i += 1) this.input.push(channel[i]);
+          const ratio = sampleRate / 16000;
+          while (this.position + 1 < this.input.length) {
+            const left = Math.floor(this.position); const fraction = this.position - left;
+            const value = Math.max(-1, Math.min(1, this.input[left] * (1 - fraction) + this.input[left + 1] * fraction));
+            this.output.push(value < 0 ? Math.round(value * 32768) : Math.round(value * 32767));
+            this.position += ratio;
+          }
+          const consumed = Math.floor(this.position);
+          if (consumed > 0) { this.input = this.input.slice(consumed); this.position -= consumed; }
+          while (this.output.length >= 1600) {
+            const chunk = Int16Array.from(this.output.splice(0, 1600));
+            this.port.postMessage(chunk.buffer, [chunk.buffer]);
+          }
+          return true;
+        }
+      }
+      registerProcessor("djay-pcm-input", DJAYPcmInputProcessor);
+    `;
+    workletUrl = URL.createObjectURL(new Blob([workletSource], { type: "text/javascript" }));
+    try {
+      await context.audioWorklet.addModule(workletUrl);
+      const worklet = new AudioWorkletNode(context, "djay-pcm-input", {
+        numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
+      });
+      worklet.port.onmessage = (event: MessageEvent<ArrayBuffer>) => onChunk(new Int16Array(event.data));
+      processor = worklet; workletProcessor = worklet;
+    } catch {
+      processor = null;
+    } finally { URL.revokeObjectURL(workletUrl); workletUrl = null; }
+  }
+  if (!processor) {
+    const fallback = context.createScriptProcessor(4096, 1, 1);
+    fallback.onaudioprocess = (event) => onChunk(resampleVoiceInputToPcm16(event.inputBuffer.getChannelData(0), context.sampleRate));
+    processor = fallback;
+  }
+
+  source.connect(processor); processor.connect(silent); await context.resume();
+  let stopped = false;
+  return {
+    stop() {
+      if (stopped) return; stopped = true;
+      if (workletProcessor) workletProcessor.port.onmessage = null;
+      else (processor as ScriptProcessorNode).onaudioprocess = null;
+      try { source.disconnect(); } catch { /* already disconnected */ }
+      try { processor.disconnect(); } catch { /* already disconnected */ }
+      try { silent.disconnect(); } catch { /* already disconnected */ }
+      void context.close().catch(() => undefined);
+      if (workletUrl) URL.revokeObjectURL(workletUrl);
+    },
+  };
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = "", text?: string) {

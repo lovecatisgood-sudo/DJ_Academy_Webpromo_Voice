@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export * from "./live-voice";
+
 const gatewayResultSchema = z.object({
   output: z.unknown(),
   nativeUsage: z.object({

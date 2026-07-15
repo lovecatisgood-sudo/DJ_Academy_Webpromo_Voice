@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { voiceServerMessageSchema, voiceSessionGrantSchema } from "@djay/voice-runtime";
-import { normalizeVoiceApiBaseUrl, selectVoiceInputAudioEncoding } from "./index";
+import { normalizeVoiceApiBaseUrl, resampleVoiceInputToPcm16, selectVoiceInputAudioEncoding } from "./index";
 import { parseVoiceServerMessage, parseVoiceSessionGrant } from "./protocol";
 
 const id = "10000000-0000-4000-8000-000000000001";
@@ -15,15 +15,19 @@ const grant = {
 };
 
 describe("Voice web widget", () => {
-  it("normalizes API URLs and chooses a controlled cross-browser input encoding", () => {
+  it("normalizes API URLs and chooses the provider-neutral PCM input contract", () => {
     expect(normalizeVoiceApiBaseUrl("https://api.example///")).toBe("https://api.example");
-    expect(selectVoiceInputAudioEncoding((type) => type === "audio/webm;codecs=opus")).toEqual({
-      encoding: "webm_opus", mimeType: "audio/webm;codecs=opus",
-    });
-    expect(selectVoiceInputAudioEncoding((type) => type === "audio/mp4")).toEqual({
-      encoding: "mp4_aac", mimeType: "audio/mp4",
-    });
-    expect(selectVoiceInputAudioEncoding(() => false)).toBeNull();
+    expect(selectVoiceInputAudioEncoding(true)).toEqual({ encoding: "pcm_s16le_16000", sampleRate: 16_000 });
+    expect(selectVoiceInputAudioEncoding(false)).toBeNull();
+  });
+
+  it("resamples and clamps microphone frames to signed 16-bit 16 kHz PCM", () => {
+    const source = new Float32Array(480).map((_, index) => Math.sin(index / 8) * 1.2);
+    const output = resampleVoiceInputToPcm16(source, 48_000);
+    expect(output).toHaveLength(160);
+    expect(Math.max(...output)).toBeLessThanOrEqual(32_767);
+    expect(Math.min(...output)).toBeGreaterThanOrEqual(-32_768);
+    expect(() => resampleVoiceInputToPcm16(source, 8_000)).toThrow("voice_input_sample_rate_unsupported");
   });
 
   it("exports no routing controls or native service identifiers", async () => {
