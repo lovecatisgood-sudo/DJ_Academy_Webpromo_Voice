@@ -21,8 +21,10 @@ Implementation proceeds through gated phases P0-P9. Product code may only be por
 
 ## Current phase
 
-P0 through P6 local engineering are complete. P7 Voice Basic is the next
-implementation phase. FlowBot remains limited to named pilots until three
+P0 through P6 local engineering are complete. P7 Voice Basic is active; its
+provider-neutral protocol/lifecycle and separately deployable gateway foundation
+are implemented, while database authority, media, actions, UI, and acceptance
+remain pending. FlowBot remains limited to named pilots until three
 real isolated tenant acceptances pass. AI Chat Basic also requires an approved
 live routing-profile evaluation and named merchant acceptance before production
 self-service. Social channels remain disabled pending the external acceptance
@@ -51,6 +53,7 @@ Public site:      http://localhost:3100
 Tenant workspace: http://localhost:3101
 Platform Master:  http://localhost:3102
 API:              http://localhost:3103
+Voice gateway:    http://localhost:8080
 ```
 
 Copy `.env.example` into the deployment secret/configuration system and replace

@@ -205,6 +205,28 @@ importers:
         specifier: 3.2.6
         version: 3.2.6(@types/node@22.20.1)
 
+  apps/voice-gateway:
+    dependencies:
+      '@djay/voice-runtime':
+        specifier: workspace:*
+        version: link:../../packages/voice-runtime
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: 22.20.1
+        version: 22.20.1
+      esbuild:
+        specifier: 0.28.1
+        version: 0.28.1
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.6
+        version: 3.2.6(@types/node@22.20.1)
+
   apps/workers:
     dependencies:
       '@djay/ai-chat-runtime':
@@ -638,6 +660,22 @@ importers:
       '@types/node':
         specifier: 22.20.1
         version: 22.20.1
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.6
+        version: 3.2.6(@types/node@22.20.1)
+
+  packages/voice-runtime:
+    dependencies:
+      '@djay/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
       typescript:
         specifier: 5.9.3
         version: 5.9.3

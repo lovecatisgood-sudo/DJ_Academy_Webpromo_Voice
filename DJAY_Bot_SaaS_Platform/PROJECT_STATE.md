@@ -16,13 +16,20 @@ Last updated: 2026-07-15
 
 ## Active phase
 
+P7 Voice Agent Basic is in progress. Its first foundation establishes a strict
+provider-neutral opaque grant/message contract, deterministic disclosure,
+interruption, reconnect, and terminal minute intent lifecycle, plus a separately
+deployable gateway health/capacity and fail-closed authorization boundary.
+Database authority, metering, media, actions, tenant operations, and release
+acceptance remain pending.
+
 P6 AI Chatbot Premium social local engineering is complete on the P1-P5 authority.
 The controlled delivery order is LINE, WhatsApp, then Messenger. All three
 channel engineering slices cover secure connection operations, signed and
 ordered inbound events, idempotent Sales Core turns, atomic actions and usage,
 durable outbound delivery, resumable multipart Meta delivery, channel analytics,
-and aggregate Platform Operations health. P7 Voice Basic is the next engineering
-phase. P5 AI Chatbot Basic remains Web-only and provider-neutral.
+and aggregate Platform Operations health. P5 AI Chatbot Basic remains Web-only
+and provider-neutral.
 
 ## P4 release checkpoint
 

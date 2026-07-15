@@ -10,7 +10,13 @@ The separate multi-tenant implementation is under:
 /home/siamesedev/Documents/codex/DJAI_WebDev_Landing_Page/DJAY_Bot_SaaS_Platform
 ```
 
-- P0-P6 local engineering gates are complete; P7 Voice Basic is next.
+- P0-P6 local engineering gates are complete; P7 Voice Basic is active.
+- The first P7 slice adds a provider-neutral opaque grant/message contract,
+  deterministic disclosure, interruption, reconnect, and terminal minute-intent
+  lifecycle, plus a separately deployable gateway health/capacity and
+  fail-closed authorization boundary.
+- P7 database authority, public grant issuance, metering, realtime media,
+  actions, tenant UI, evaluation, and production acceptance remain pending.
 - The PostgreSQL 16 integration gate applies migrations `0000`-`0028` and passes
   forced RLS, tenant isolation, identity, commerce, shared domain, FlowBot, and
   AI Chat runtime/worker journeys, including local LINE, WhatsApp, and Messenger
