@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0032_voice_outcomes_retention";
+export const currentSchemaVersion = "0033_voice_text_legacy_migration";
 
 export { PostgresAuthStore } from "./auth-store";
 export { BillingWebhookStore } from "./billing-webhook-store";
@@ -23,7 +23,7 @@ export {
   type FlowbotSyncResponse,
 } from "./flowbot-runtime-store";
 export { PrivacyStore, type PrivacyExport } from "./privacy-store";
-export { createDatabaseClient, type DatabaseClient } from "./client";
+export { createDatabaseClient, type DatabaseClient, type DatabaseTransaction } from "./client";
 export { PostgresEmailOutboxStore } from "./email-outbox-store";
 export { PostgresPlatformAuthStore } from "./platform-auth-store";
 export { PlatformSupportStore } from "./platform-support-store";

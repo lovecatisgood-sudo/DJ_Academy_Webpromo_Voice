@@ -5,10 +5,11 @@
 In progress. The provider-neutral browser/gateway protocol, deterministic
 session lifecycle, restricted database authority, realtime media engine, and
 Sales Core turn/action path are implemented locally. Tenant deployment
-operations, a deployable browser widget, and the WebSocket-owned gateway/session
-lifecycle are also implemented and pass local production-build acceptance.
-Legacy migration, live English/Thai quality and latency evaluation, production
-activation, and named-merchant acceptance remain pending.
+operations, a deployable browser widget, the WebSocket-owned gateway/session
+lifecycle, retention/privacy controls, and the reviewed legacy Voice/Text
+migration are also implemented and pass local production-build acceptance.
+Live English/Thai quality and latency evaluation, production activation, and
+named-merchant acceptance remain pending.
 
 ## Requirements
 
@@ -106,6 +107,13 @@ activation, and named-merchant acceptance remain pending.
     expired message and Voice-turn content with audit tombstones, privacy exports
     include safe Voice records without grant digests, and contact erasure redacts
     Voice structured output. Human takeover can safely release back to Voice.
+26. Migration `0033_voice_text_legacy_migration` and the typed Voice/Text
+    converter add a default-no-write dry-run, tenant-bound deterministic IDs,
+    atomic restartable imports, redacted quarantine, count/checksum validation,
+    and guarded non-destructive traffic rollback. Historical Voice data enters
+    canonical conversations/messages/leads without fabricating live sessions,
+    usage, billing, or routing evidence, and an automated PostgreSQL 16 rehearsal
+    proves confidentiality and idempotency.
 
 ## Non-goals for this foundation
 
@@ -114,14 +122,15 @@ activation, and named-merchant acceptance remain pending.
 
 ## Next slice
 
-Add and rehearse the reviewed legacy Voice migration. Then complete live
-English/Thai quality, latency, silence/noise, interruption, and reconnect
-evaluation with restricted staging credentials and obtain named-merchant
-acceptance before enabling the paused runtime in production.
+Complete live English/Thai quality, latency, silence/noise, interruption, and
+reconnect evaluation with restricted staging credentials and obtain
+named-merchant acceptance before enabling the paused runtime in production.
 
 ## Rollback
 
 Keep `VOICE_RUNTIME_ENABLED=false`, remove the gateway deployment, and roll back
 the voice API/runtime code. Application rollback must remain compatible with
-migrations `0029` through `0032`; session, usage, lease, outcome, callback, and
-retention evidence is retained for audit and reconciliation.
+migrations `0029` through `0033`; session, usage, lease, outcome, callback,
+retention, and legacy reconciliation evidence is retained for audit. Legacy
+traffic rollback follows `docs/runbooks/voice-text-v2-migration.md` and never
+deletes immutable target history.

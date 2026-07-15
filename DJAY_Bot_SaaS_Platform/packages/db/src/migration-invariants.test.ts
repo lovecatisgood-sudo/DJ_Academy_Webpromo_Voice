@@ -32,6 +32,7 @@ const voiceBasicAuthorityMigration = readFileSync(resolve(import.meta.dirname, "
 const voiceRecoveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0030_voice_runtime_recovery.sql"), "utf8");
 const voiceSalesCoreMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0031_voice_sales_core.sql"), "utf8");
 const voiceOutcomesRetentionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0032_voice_outcomes_retention.sql"), "utf8");
+const voiceTextLegacyMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0033_voice_text_legacy_migration.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -505,5 +506,22 @@ describe("P7 Voice Basic database migration invariants", () => {
     expect(voiceOutcomesRetentionMigration).toContain("current_setting('app.service', true) IS DISTINCT FROM 'retention_worker'");
     expect(voiceOutcomesRetentionMigration).toContain("retained_tombstone");
     expect(voiceOutcomesRetentionMigration).toContain("GRANT EXECUTE ON FUNCTION tenancy.apply_retention_policies");
+  });
+
+  it("isolates imported history and gives the migration role only scoped tenant authority", () => {
+    expect(voiceTextLegacyMigration).toContain("CREATE TABLE tenancy.legacy_conversation_imports");
+    expect(voiceTextLegacyMigration).toContain("ALTER TABLE tenancy.legacy_conversation_imports ENABLE ROW LEVEL SECURITY");
+    expect(voiceTextLegacyMigration).toContain("ALTER TABLE tenancy.legacy_conversation_imports FORCE ROW LEVEL SECURITY");
+    expect(voiceTextLegacyMigration).toContain("tenant_id = tenancy.current_tenant_id()");
+    expect(voiceTextLegacyMigration).toContain("GRANT EXECUTE ON FUNCTION tenancy.current_tenant_id() TO djay_migrator");
+    expect(voiceTextLegacyMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE) ON ALL TABLES IN SCHEMA tenancy TO djay_migrator/i);
+  });
+
+  it("records safe legacy facts without fabricating Voice session or usage evidence", () => {
+    expect(voiceTextLegacyMigration).toContain("source_kind text NOT NULL CHECK");
+    expect(voiceTextLegacyMigration).toContain("source_checksum bytea NOT NULL");
+    expect(voiceTextLegacyMigration).toContain("migration_reject_idempotency");
+    expect(voiceTextLegacyMigration).not.toMatch(/voice_sessions|usage_events|native_usage/i);
+    expect(voiceTextLegacyMigration).not.toMatch(/openai|anthropic|gemini|gpt-|claude-/i);
   });
 });

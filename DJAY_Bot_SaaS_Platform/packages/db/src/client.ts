@@ -7,6 +7,7 @@ const databaseUrlSchema = z.string().url().refine(
 );
 
 export type DatabaseClient = postgres.Sql;
+export type DatabaseTransaction = postgres.TransactionSql;
 
 export function createDatabaseClient(databaseUrl: string): DatabaseClient {
   return postgres(databaseUrlSchema.parse(databaseUrl), {

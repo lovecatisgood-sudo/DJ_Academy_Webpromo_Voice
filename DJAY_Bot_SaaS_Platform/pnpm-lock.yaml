@@ -268,6 +268,9 @@ importers:
       '@djay/provider-gateway':
         specifier: workspace:*
         version: link:../../packages/provider-gateway
+      '@djay/voice-text-migration':
+        specifier: workspace:*
+        version: link:../../packages/voice-text-migration
       '@node-rs/argon2':
         specifier: 2.0.2
         version: 2.0.2
@@ -691,6 +694,22 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.6
+        version: 3.2.6(@types/node@22.20.1)
+
+  packages/voice-text-migration:
+    dependencies:
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: 22.20.1
+        version: 22.20.1
       typescript:
         specifier: 5.9.3
         version: 5.9.3

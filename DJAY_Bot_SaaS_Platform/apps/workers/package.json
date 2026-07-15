@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/index.ts src/bootstrap-platform-owner.ts src/migrate-flowbot-v1.ts --bundle --platform=node --format=esm --outdir=dist --external:@node-rs/argon2 --external:postgres",
+    "build": "esbuild src/index.ts src/bootstrap-platform-owner.ts src/migrate-flowbot-v1.ts src/migrate-voice-text-v2.ts --bundle --platform=node --format=esm --outdir=dist --external:@node-rs/argon2 --external:postgres",
     "dev": "node --watch src/index.ts",
     "start": "node dist/index.js",
     "bootstrap:platform-owner": "pnpm run build && node dist/bootstrap-platform-owner.js",
     "migrate:flowbot-v1": "pnpm run build && node dist/migrate-flowbot-v1.js",
+    "migrate:voice-text-v2": "pnpm run build && node dist/migrate-voice-text-v2.js",
     "lint": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -23,6 +24,7 @@
     "@djay/notifications": "workspace:*",
     "@djay/platform-auth": "workspace:*",
     "@djay/provider-gateway": "workspace:*",
+    "@djay/voice-text-migration": "workspace:*",
     "@node-rs/argon2": "2.0.2",
     "postgres": "3.4.9",
     "zod": "4.4.3"

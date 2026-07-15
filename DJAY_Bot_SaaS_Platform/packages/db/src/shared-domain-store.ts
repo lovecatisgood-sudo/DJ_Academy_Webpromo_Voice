@@ -215,7 +215,11 @@ export class SharedDomainStore {
         WHERE request.tenant_id = voice.tenant_id AND request.session_id = voice.id
         ORDER BY request.created_at DESC, request.id DESC LIMIT 1
       ) callback ON true
+      LEFT JOIN tenancy.legacy_conversation_imports legacy_import
+        ON legacy_import.tenant_id = conversation.tenant_id
+       AND legacy_import.conversation_id = conversation.id
       WHERE conversation.tenant_id = ${context.tenantId}::uuid
+        AND COALESCE(legacy_import.cutover_state, 'imported') = 'imported'
       ORDER BY COALESCE(last_message.created_at, conversation.started_at) DESC
       LIMIT 500
     `);

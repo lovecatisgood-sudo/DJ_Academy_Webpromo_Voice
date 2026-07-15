@@ -75,6 +75,7 @@ run_sql /workspace/packages/db/migrations/0029_voice_basic_authority.sql
 run_sql /workspace/packages/db/migrations/0030_voice_runtime_recovery.sql
 run_sql /workspace/packages/db/migrations/0031_voice_sales_core.sql
 run_sql /workspace/packages/db/migrations/0032_voice_outcomes_retention.sql
+run_sql /workspace/packages/db/migrations/0033_voice_text_legacy_migration.sql
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -c "ALTER ROLE djay_auth_runtime LOGIN PASSWORD 'djay_auth_test'" >/dev/null
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
@@ -89,6 +90,8 @@ docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -c "ALTER ROLE djay_ai_runtime LOGIN PASSWORD 'djay_ai_test'" >/dev/null
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -c "ALTER ROLE djay_voice_runtime LOGIN PASSWORD 'djay_voice_test'" >/dev/null
+docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  -c "ALTER ROLE djay_migrator LOGIN PASSWORD 'djay_migrator_test'" >/dev/null
 run_sql /workspace/packages/db/tests/seed.sql
 run_sql /workspace/packages/db/tests/rls-isolation.sql
 expect_failure /workspace/packages/db/tests/cross-tenant-insert-must-fail.sql
@@ -185,5 +188,39 @@ VOICE_DATABASE_URL="postgresql://djay_voice_runtime:djay_voice_test@127.0.0.1:55
 TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:55432/postgres" \
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/voice-deployment-store.integration.test.ts
+
+echo "Rehearsing restartable Voice/Text legacy migration and guarded rollback."
+docker exec "$CONTAINER" createdb -U postgres legacy_voice_text
+docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d legacy_voice_text \
+  -f /workspace/packages/db/tests/voice-text-legacy-source.sql
+"$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/workers run build >/dev/null
+LEGACY_VOICE_TEXT_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/legacy_voice_text" \
+DATABASE_MIGRATION_URL="postgresql://djay_migrator:djay_migrator_test@127.0.0.1:55432/postgres" \
+DJAY_TARGET_TENANT_ID="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10" \
+MIGRATION_OPERATOR_REFERENCE="integration-test" \
+MIGRATION_MODE="dry_run" \
+  "$ROOT_DIR/scripts/use-node24.sh" node "$ROOT_DIR/apps/workers/dist/migrate-voice-text-v2.js"
+if docker exec "$CONTAINER" psql -X -At -U postgres -d postgres \
+  -c "SELECT count(*) FROM migration.runs WHERE source_system = 'voice_text_v2'" | grep -qv '^0$'; then
+  echo "Voice/Text dry-run wrote migration state." >&2
+  exit 1
+fi
+for _ in 1 2; do
+  LEGACY_VOICE_TEXT_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/legacy_voice_text" \
+  DATABASE_MIGRATION_URL="postgresql://djay_migrator:djay_migrator_test@127.0.0.1:55432/postgres" \
+  DJAY_TARGET_TENANT_ID="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10" \
+  MIGRATION_OPERATOR_REFERENCE="integration-test" \
+  MIGRATION_APPROVAL_REFERENCE="approved-test-change" \
+  MIGRATION_MODE="import" \
+    "$ROOT_DIR/scripts/use-node24.sh" node "$ROOT_DIR/apps/workers/dist/migrate-voice-text-v2.js"
+done
+run_sql /workspace/packages/db/tests/voice-text-migration-assert.sql
+LEGACY_VOICE_TEXT_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/legacy_voice_text" \
+DATABASE_MIGRATION_URL="postgresql://djay_migrator:djay_migrator_test@127.0.0.1:55432/postgres" \
+DJAY_TARGET_TENANT_ID="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10" \
+MIGRATION_OPERATOR_REFERENCE="integration-test" \
+MIGRATION_MODE="rollback" \
+  "$ROOT_DIR/scripts/use-node24.sh" node "$ROOT_DIR/apps/workers/dist/migrate-voice-text-v2.js"
+run_sql /workspace/packages/db/tests/voice-text-rollback-assert.sql
 
 echo "PostgreSQL 16 migration, RLS, scoped repositories, same-tenant references, and owner invariants passed."

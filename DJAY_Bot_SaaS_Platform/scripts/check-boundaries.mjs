@@ -39,6 +39,10 @@ const rules = [
     forbidden: ["@djay/provider-gateway", "@djay/sales-core"],
   },
   {
+    area: "packages/voice-text-migration",
+    forbidden: ["@djay/provider-gateway", "@djay/sales-core", "@djay/db"],
+  },
+  {
     area: "packages/ai-chat-widget",
     forbidden: ["@djay/provider-gateway", "@djay/sales-core", "@djay/db"],
   },
@@ -56,6 +60,7 @@ const providerTerms = ["openai", "gemini", "anthropic", "gpt-", "claude-"];
 const providerNeutralAreas = [
   "apps/public-site", "apps/tenant-web", "packages/shared",
   "packages/flowbot-domain", "packages/flowbot-engine", "packages/flowbot-widget", "packages/flowbot-migration",
+  "packages/voice-text-migration",
   "packages/ai-chat-widget", "packages/sales-core",
   "packages/voice-runtime", "packages/voice-widget",
 ];

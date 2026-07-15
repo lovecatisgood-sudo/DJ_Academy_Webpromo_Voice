@@ -2,7 +2,7 @@
 
 - Result: Local media, Sales Core, database, and browser gates passed; P7 release gate remains open
 - Date: 2026-07-15
-- Database migrations: `0029_voice_basic_authority`, `0030_voice_runtime_recovery`, `0031_voice_sales_core`
+- Database migrations: `0029_voice_basic_authority` through `0033_voice_text_legacy_migration`
 - Production activation: Disabled
 
 ## Executed foundation gates
@@ -22,7 +22,7 @@ scripts/use-node24.sh pnpm run qa:p3-ui
 P7_TENANT_QA_URL=http://127.0.0.1:3111 scripts/use-node24.sh pnpm run qa:p7-voice
 ```
 
-All passed across 30 packages/apps. Coverage proves that:
+All passed across 31 packages/apps. Coverage proves that:
 
 - the Gen1 public grant uses the First-Generation label and contains no routing,
   credential, vendor, model, or cost fields;
@@ -119,6 +119,21 @@ All passed across 30 packages/apps. Coverage proves that:
   one-time install, exact-origin rejection, irreversible revocation, desktop
   wrapping, mobile horizontal tab navigation, overflow, and provider
   confidentiality.
+- the Voice/Text migration dry-run writes no target state and reports only a
+  stable run ID, source checksum, counts, and safe statuses;
+- the same legacy snapshot imports twice to the same deterministic tenant-bound
+  IDs without duplicate contacts, leads, conversations, or immutable messages;
+- two accepted historical conversations, four ordered messages, one orphan
+  lead, and one privacy-deleted conversation reconcile exactly;
+- unverified identity candidates remain separate and no email/phone auto-merge
+  occurs during import;
+- source routing/model canary values never enter tenant contacts,
+  conversations, import metadata, rejects, output, or validation evidence;
+- historical Voice records create no Voice session, grant, reservation, native
+  usage, or billing evidence;
+- guarded rollback succeeds only before target-only activity, removes imported
+  conversations from Inbox visibility, and retains all immutable history and
+  reconciliation evidence.
 
 The API production build includes the disabled-by-default
 `/public/voice/session` route and the service-authorized voice `authorize`,
@@ -134,7 +149,8 @@ independent Node application.
   transcript accuracy, callback, and handover behavior using restricted staging
   credentials.
 - English and Thai quality/latency evaluation with approved pilot thresholds.
-- Migration, retention/erasure, and named merchant acceptance.
+- Named merchant acceptance of migration samples, retention behavior, and the
+  live English/Thai experience.
 
 This evidence does not authorize a voice pilot or production activation.
 

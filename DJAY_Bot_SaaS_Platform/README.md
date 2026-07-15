@@ -26,8 +26,9 @@ provider-neutral protocol/lifecycle and separately deployable gateway foundation
 plus restricted Gen1 grant, concurrency, database-derived settlement, crash
 recovery, realtime media, Sales Core actions, durable call outcomes/callbacks,
 plan-capped transcript retention, tenant Studio/Inbox UI, and Platform operations
-controls are implemented. Legacy migration and external quality/acceptance remain
-pending. Voice runtime
+controls are implemented. The restartable legacy Voice/Text migration and its
+PostgreSQL rehearsal are also complete; external live quality and merchant
+acceptance remain pending. Voice runtime
 activation is disabled by default. FlowBot remains limited to named pilots until three
 real isolated tenant acceptances pass. AI Chat Basic also requires an approved
 live routing-profile evaluation and named merchant acceptance before production
