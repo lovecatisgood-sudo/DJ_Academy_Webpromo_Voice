@@ -74,6 +74,10 @@ export class AiSocialConnectionStore {
     return this.createChannel(context, "whatsapp", input);
   }
 
+  async createMessenger(context: TenantContext, input: SocialConnectionInput) {
+    return this.createChannel(context, "messenger", input);
+  }
+
   private async createChannel(context: TenantContext, channel: SocialChannel, input: SocialConnectionInput) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await sql<{ entitled: boolean; deploymentLimit: number | null }[]>`
@@ -211,6 +215,10 @@ export class AiSocialConnectionStore {
 
   async rotateWhatsApp(context: TenantContext, input: SocialRotationInput) {
     return this.rotateChannel(context, "whatsapp", input);
+  }
+
+  async rotateMessenger(context: TenantContext, input: SocialRotationInput) {
+    return this.rotateChannel(context, "messenger", input);
   }
 
   private async rotateChannel(context: TenantContext, channel: SocialChannel, input: SocialRotationInput) {

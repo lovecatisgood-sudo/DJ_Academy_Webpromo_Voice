@@ -25,7 +25,7 @@ Production social activation remains disabled.
 - Keep provider/model identity absent from tenant, public, widget, export, log,
   and user-visible error contracts.
 
-## Delivered LINE and WhatsApp slices
+## Delivered LINE, WhatsApp, and Messenger slices
 
 This slice delivers:
 
@@ -67,10 +67,19 @@ This slice delivers:
     unsent suffix.
 22. Tenant WhatsApp setup, one-time callback display, delivery metrics, health,
     credential rotation, revocation, and owner/viewer browser QA.
+23. Premium-only Messenger Page connection, health, credential rotation, and
+    revocation through the shared tenant authority and audit boundary.
+24. Meta verification challenge and raw-body `X-Hub-Signature-256` verification
+    on an opaque Messenger callback route.
+25. Messenger text, postback, delivery, and read normalization through the
+    shared ordered, deduplicated inbound runtime.
+26. Channel-native Messenger quick replies and Page-token delivery through the
+    24-hour service window and resumable multipart ledger.
+27. Tenant Messenger setup, one-time callback display, delivery metrics, health,
+    credential rotation, revocation, and owner/viewer browser QA.
 
 ## Non-goals for this slice
 
-- Messenger routes.
 - Media ingestion, arbitrary recipient entry, marketing, or bulk sending.
 - Template management, identity merge, omnichannel analytics, or channel rate
   pricing. Identity candidates may only support explicit review, never automatic
@@ -82,15 +91,15 @@ This slice delivers:
   receipts, subject/session initialization, atomic response commit, outbound
   delivery, immutable channel quantity events, suggest-only identity review,
   service-window enforcement, and resumable multipart progress.
-- Tenant routes manage LINE and WhatsApp connections under
+- Tenant routes manage LINE, WhatsApp, and Messenger connections under
   `ai_chat.channels.manage`.
-- The public LINE and WhatsApp webhook routes are opaque-key addressed and use
-  only the restricted AI runtime database role.
+- The public LINE, WhatsApp, and Messenger webhook routes are opaque-key
+  addressed and use only the restricted AI runtime database role.
 
 ## Rollback
 
 - Disable or revoke every social connection.
-- Remove the public LINE and WhatsApp webhook routes from the deployed
+- Remove the public LINE, WhatsApp, and Messenger webhook routes from the deployed
   application.
 - Application rollback must remain compatible with migrations `0020`-`0027`;
   tables and receipts are retained for audit and replay safety.
@@ -99,7 +108,7 @@ This slice delivers:
 
 - Full workspace verification passes.
 - PostgreSQL 16 applies migrations `0000` through `0027`.
-- AI Basic cannot create or resolve a LINE or WhatsApp connection.
+- AI Basic cannot create or resolve a LINE, WhatsApp, or Messenger connection.
 - Wrong-tenant IDs disclose nothing and mutate nothing.
 - Invalid signatures create no receipt.
 - Exact event replay returns the original receipt and creates no new work.
@@ -108,4 +117,5 @@ This slice delivers:
   provider receipt state.
 - WhatsApp delivery closes after 24 hours without decrypting recipient or
   credentials, and a partial multipart failure resumes at the first unsent part.
+- Messenger uses the same closed-window and resumable multipart authority.
 - Opt-out closes automation and delayed delivery failure is visible to tenants.

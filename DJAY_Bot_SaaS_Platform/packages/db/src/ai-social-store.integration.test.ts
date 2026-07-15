@@ -523,6 +523,59 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
     `).resolves.toEqual([{ status: "dead_letter", error: "social_service_window_closed", quantity_events: 0 }]);
     await expect(connections.revoke(context, whatsapp.connectionId)).resolves.toEqual({ status: "revoked" });
 
+    const messenger = await connections.createMessenger(context, {
+      agentId: agent.agentId, name: "Main Messenger", externalAccountRef: "messenger-page-tenant-b",
+      credentials: { channel: "messenger", pageAccessToken: "messenger-page-access-token",
+        appSecret: "messenger-app-secret-value", verifyToken: "messenger-verify-token-value",
+        pageId: "messenger-page-123" },
+      envelopeKey,
+    });
+    expect(messenger.status).toBe("created");
+    if (messenger.status !== "created") throw new Error("Expected Messenger connection.");
+    await expect(connections.rotateMessenger(context, {
+      connectionId: messenger.connectionId, envelopeKey,
+      credentials: { channel: "messenger", pageAccessToken: "rotated-messenger-page-token",
+        appSecret: "rotated-messenger-app-secret", verifyToken: "rotated-messenger-verify-token",
+        pageId: "messenger-page-123" },
+    })).resolves.toEqual({ status: "rotated", credentialKeyVersion: 2 });
+    await expect(runtime.connection(messenger.webhookKey, "messenger")).resolves.toMatchObject({
+      connectionId: messenger.connectionId,
+      credentials: { channel: "messenger", pageId: "messenger-page-123" },
+    });
+    const messengerOccurredAt = new Date(); const messengerSubjectHash = Buffer.alloc(32, 47);
+    await runtime.receive({
+      webhookKey: messenger.webhookKey, channel: "messenger", externalEventId: "messenger-message-1",
+      externalMessageId: "messenger-message-1", subjectHash: messengerSubjectHash,
+      eventType: "inbound.message", occurredAt: messengerOccurredAt,
+      normalized: { text: "Messenger hello",
+        subjectCiphertext: sealJson({ value: "PSID-123" }, envelopeKey),
+        replyTokenCiphertext: null, deliveryStatus: null },
+    });
+    const messengerClaim = await worker.claim();
+    if (!messengerClaim) throw new Error("Expected Messenger inbound claim.");
+    const messengerTurn = await worker.beginTurn(messengerClaim);
+    const messengerResponse = "Messenger reply inside the service window.";
+    await worker.commitTurn({ outboxId: messengerClaim.outboxId,
+      output: { schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover",
+        facts: [], knowledgeCitations: [], responseGoal: "Continue discovery", proposedActions: [],
+        handover: null, customerResponse: messengerResponse,
+        channelResponse: { format: "text", quickReplies: ["Book"] } },
+      publicResponse: { status: "completed", inputId: messengerClaim.receiptId,
+        text: messengerResponse, quickReplies: ["Book"],
+        nextTurnSequence: messengerTurn.turnSequence + 1 },
+      nativeUsage: { inputUnits: 12, outputUnits: 7 },
+    });
+    const messengerDelivery = await worker.claimDelivery(
+      new Date(messengerOccurredAt.getTime() + 60 * 60 * 1000),
+    );
+    expect(messengerDelivery).toMatchObject({ channel: "messenger", serviceWindowOpen: true,
+      deliveryAllowed: true, recipient: "PSID-123", deliveredPartCount: 0 });
+    if (!messengerDelivery) throw new Error("Expected Messenger delivery claim.");
+    await worker.finishDelivery({ deliveryId: messengerDelivery.deliveryId, delivered: true,
+      externalMessageIds: ["mid.outbound-1"], feeClassification: "service_window_reply",
+      attemptedQuantity: 1, completedPartCount: 1, safeErrorCode: null });
+    await expect(connections.revoke(context, messenger.connectionId)).resolves.toEqual({ status: "revoked" });
+
     await expect(connections.revoke(context, created.connectionId)).resolves.toEqual({ status: "revoked" });
     await expect(runtime.connection(created.webhookKey, "line")).resolves.toBeNull();
 
@@ -552,6 +605,7 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
           publicPlanKey: "ai_chat_basic", planVersionId: basicPlanVersionId,
           accessMode: "active", entitlements: {
             ...premiumEntitlements, "channel.line": false, "channel.whatsapp": false,
+            "channel.messenger": false,
           },
           allowances: {}, overageRatesMinor: {}, limits: { deployments: 5 }, resolvedAt: new Date().toISOString(),
         })}, digest(${basicSnapshotId}, 'sha256')
@@ -564,6 +618,10 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
     await expect(connections.createWhatsApp(context, {
       agentId: agent.agentId, name: "Denied WhatsApp", externalAccountRef: "wa-account-basic",
       credentials: { channel: "whatsapp" }, envelopeKey,
+    })).resolves.toEqual({ status: "not_entitled" });
+    await expect(connections.createMessenger(context, {
+      agentId: agent.agentId, name: "Denied Messenger", externalAccountRef: "messenger-account-basic",
+      credentials: { channel: "messenger" }, envelopeKey,
     })).resolves.toEqual({ status: "not_entitled" });
   });
 });

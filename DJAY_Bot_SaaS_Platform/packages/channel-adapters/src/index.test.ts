@@ -4,6 +4,7 @@ import { createSocialDeliveryClient, normalizeSocialWebhook, renderSocialReply, 
 
 const lineCredentials = { channel: "line" as const, channelAccessToken: "token-token-token-token", channelSecret: "secret-secret-secret-secret" };
 const whatsappCredentials = { channel: "whatsapp" as const, accessToken: "token-token-token-token", appSecret: "secret-secret-secret-secret", verifyToken: "verify-verify-verify", phoneNumberId: "phone-1", businessAccountId: "business-1" };
+const messengerCredentials = { channel: "messenger" as const, pageAccessToken: "page-token-token-token", appSecret: "secret-secret-secret-secret", verifyToken: "verify-verify-verify", pageId: "page-1" };
 
 describe("social channel adapters", () => {
   it("verifies LINE and Meta signatures over the untouched body", () => {
@@ -12,8 +13,10 @@ describe("social channel adapters", () => {
     const metaSignature = `sha256=${createHmac("sha256", whatsappCredentials.appSecret).update(body).digest("hex")}`;
     expect(verifySocialSignature("line", body, lineSignature, lineCredentials)).toBe(true);
     expect(verifySocialSignature("whatsapp", body, metaSignature, whatsappCredentials)).toBe(true);
+    expect(verifySocialSignature("messenger", body, metaSignature, messengerCredentials)).toBe(true);
     expect(verifySocialSignature("whatsapp", Buffer.from("changed"), metaSignature, whatsappCredentials)).toBe(false);
     expect(verifySocialChallenge("whatsapp", "subscribe", "verify-verify-verify", "123", whatsappCredentials)).toBe("123");
+    expect(verifySocialChallenge("messenger", "subscribe", "verify-verify-verify", "456", messengerCredentials)).toBe("456");
   });
 
   it("normalizes LINE, WhatsApp, and Messenger without executing unsupported media", () => {
@@ -111,5 +114,30 @@ describe("social channel adapters", () => {
       name: "SocialDeliveryError", message: "channel_rate_limited",
       attemptedCount: 2, deliveredCount: 1, externalMessageIds: ["wamid.part-1"],
     } satisfies Partial<SocialDeliveryError>);
+  });
+
+  it("delivers Messenger replies through the configured Page token", async () => {
+    const requests: { url: string; authorization: string | null; body: unknown }[] = [];
+    const client = createSocialDeliveryClient({
+      lineApiBaseUrl: "https://api.line.test/", metaGraphBaseUrl: "https://graph.meta.test/v23.0/",
+      fetchImpl: async (input, init) => {
+        requests.push({ url: String(input), authorization: new Headers(init?.headers).get("authorization"),
+          body: init?.body ? JSON.parse(String(init.body)) : null });
+        return new Response(JSON.stringify({ message_id: "mid.outbound-1" }), {
+          status: 200, headers: { "Content-Type": "application/json" },
+        });
+      },
+    });
+    const rendered = renderSocialReply("messenger", {
+      recipient: "PSID1", text: "Hello", quickReplies: ["Book"],
+    });
+    await expect(client.deliver("messenger", messengerCredentials, rendered)).resolves.toEqual({
+      externalMessageIds: ["mid.outbound-1"], deliveredCount: 1,
+    });
+    expect(requests).toEqual([expect.objectContaining({
+      url: "https://graph.meta.test/v23.0/me/messages",
+      authorization: `Bearer ${messengerCredentials.pageAccessToken}`,
+      body: expect.objectContaining({ recipient: { id: "PSID1" }, messaging_type: "RESPONSE" }),
+    })]);
   });
 });

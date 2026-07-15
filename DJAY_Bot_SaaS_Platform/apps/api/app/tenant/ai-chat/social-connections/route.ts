@@ -21,7 +21,16 @@ const whatsappConnectionSchema = z.object({
   verifyToken: z.string().min(16).max(4096), phoneNumberId: z.string().trim().min(3).max(200),
   businessAccountId: z.string().trim().min(3).max(200),
 }).strict();
-const socialConnectionSchema = z.discriminatedUnion("channel", [lineConnectionSchema, whatsappConnectionSchema]);
+const messengerConnectionSchema = z.object({
+  channel: z.literal("messenger"), agentId: z.uuid(),
+  name: z.string().trim().min(2).max(160),
+  externalAccountRef: z.string().trim().min(3).max(200),
+  pageAccessToken: z.string().min(16).max(4096), appSecret: z.string().min(16).max(4096),
+  verifyToken: z.string().min(16).max(4096), pageId: z.string().trim().min(3).max(200),
+}).strict();
+const socialConnectionSchema = z.discriminatedUnion("channel", [
+  lineConnectionSchema, whatsappConnectionSchema, messengerConnectionSchema,
+]);
 
 export async function GET(request: NextRequest) {
   const resolved = await resolveTenantRequest(request);
@@ -41,12 +50,16 @@ export async function POST(request: NextRequest) {
     const input = socialConnectionSchema.parse(await readJson(request));
     const credentials = socialCredentialSchema.parse(input.channel === "line"
       ? { channel: "line", channelAccessToken: input.channelAccessToken, channelSecret: input.channelSecret }
-      : { channel: "whatsapp", accessToken: input.accessToken, appSecret: input.appSecret,
+      : input.channel === "whatsapp" ? { channel: "whatsapp", accessToken: input.accessToken, appSecret: input.appSecret,
         verifyToken: input.verifyToken, phoneNumberId: input.phoneNumberId,
-        businessAccountId: input.businessAccountId });
+        businessAccountId: input.businessAccountId }
+      : { channel: "messenger", pageAccessToken: input.pageAccessToken,
+        appSecret: input.appSecret, verifyToken: input.verifyToken, pageId: input.pageId });
     const create = input.channel === "line"
       ? resolved.services.tenantAiSocial.createLine.bind(resolved.services.tenantAiSocial)
-      : resolved.services.tenantAiSocial.createWhatsApp.bind(resolved.services.tenantAiSocial);
+      : input.channel === "whatsapp"
+        ? resolved.services.tenantAiSocial.createWhatsApp.bind(resolved.services.tenantAiSocial)
+        : resolved.services.tenantAiSocial.createMessenger.bind(resolved.services.tenantAiSocial);
     const result = await create(resolved.context, {
       agentId: input.agentId,
       name: input.name,

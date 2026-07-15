@@ -1,6 +1,6 @@
 # P6 Validation: AI Chatbot Premium Social
 
-- Result: LINE and WhatsApp local runtime and delivery engineering passed
+- Result: LINE, WhatsApp, and Messenger local runtime and delivery engineering passed
 - Date: 2026-07-15
 - Database migrations: `0020_ai_chat_social_line` through `0027_ai_chat_social_delivery_progress`
 - P6 phase status: Active; not complete
@@ -49,6 +49,10 @@
   authority and records zero attempted units after closure.
 - Durable multipart delivery progress that appends provider receipt IDs and
   resumes at the first unsent part after a later part fails.
+- Premium-only Messenger Page connection, health, credential rotation, and
+  revocation with encrypted credentials and an opaque callback key.
+- Messenger Meta challenge/raw-signature verification; text, postback, delivery,
+  and read normalization; quick replies; and Page-token delivery.
 
 ## Executed gates
 
@@ -102,6 +106,11 @@ integration journey proved:
 - a two-part WhatsApp delivery can persist part one as failed-attempt progress,
   reclaim with `deliveredPartCount = 1`, send only the remaining part, and append
   both provider IDs to one succeeded delivery ledger.
+- an active Premium snapshot can create, rotate, resolve, receive through,
+  deliver through, and revoke a Messenger connection while Basic cannot create
+  one;
+- Messenger claims reuse the same 24-hour service-window authority and record
+  their exact service-window reply quantity without a monetary rate.
 
 Unit coverage also proves changed raw bodies fail LINE and Meta signature
 verification and that a later WhatsApp part failure reports exact attempted,
@@ -113,18 +122,21 @@ The full production API build contains:
 - `/tenant/ai-chat/social-connections/[connectionId]/health`
 - `/public/ai-chat/social/line/[webhookKey]`
 - `/public/ai-chat/social/whatsapp/[webhookKey]`
+- `/public/ai-chat/social/messenger/[webhookKey]`
 
-Production Chromium also passed the built LINE and WhatsApp tenant surfaces at
+Production Chromium also passed the built LINE, WhatsApp, and Messenger tenant surfaces at
 desktop and mobile sizes. It exercised health, rotation, connection, one-time
 callback, and revocation operations; verified viewer read-only behavior; and
 found no secret, provider-identity, console, or horizontal-overflow leak.
 
-## Remaining before LINE and WhatsApp production acceptance
+## Remaining before social-channel production acceptance
 
 - Approved monetary rate treatment if channel fees become billable.
-- Restricted staging credentials and LINE/Meta platform acceptance.
+- Restricted staging credentials and LINE/Meta platform acceptance for all
+  three channels.
 - Queue-age, delivery-failure, and usage alert verification.
 - Kill/revoke and rollback rehearsal with a named merchant.
 
-Messenger remains the next controlled channel slice. No social channel may be
-activated in production from this checkpoint.
+Cross-channel analytics and external operations evidence remain before the P6
+engineering gate can close. No social channel may be activated in production
+from this checkpoint.

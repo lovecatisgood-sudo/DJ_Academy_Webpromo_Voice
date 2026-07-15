@@ -8,6 +8,7 @@ const tenantId = "20000000-0000-4000-8000-000000000006";
 const agentId = "51000000-0000-4000-8000-000000000006";
 const connectionId = "55000000-0000-4000-8000-000000000006";
 const whatsappConnectionId = "55000000-0000-4000-8000-000000000016";
+const messengerConnectionId = "55000000-0000-4000-8000-000000000026";
 const existingContactId = "50000000-0000-4000-8000-000000000061";
 const socialContactId = "50000000-0000-4000-8000-000000000062";
 
@@ -32,6 +33,7 @@ async function mockTenant(page, role) {
     connectionStatus: "active", healthCalls: 0, rotationBody: null,
     createBody: null, revokeCalls: 0, whatsappCreated: false,
     whatsappCreateBody: null, whatsappRotationBody: null,
+    messengerCreated: false, messengerCreateBody: null, messengerRotationBody: null,
   };
   await page.route("**/tenant/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -85,10 +87,20 @@ async function mockTenant(page, role) {
         externalAccountRef: "wa-business-account", status: "active", healthStatus: "unchecked",
         safeErrorCode: null, lastHealthAt: null, pendingDeliveries: 0, failedDeliveries: 0,
         deadLetterDeliveries: 0, succeededDeliveries: 3, attemptedQuantity: 3,
+      }] : []), ...(state.messengerCreated ? [{
+        id: messengerConnectionId, agentId, channel: "messenger", name: "Main Messenger",
+        externalAccountRef: "messenger-page-account", status: "active", healthStatus: "unchecked",
+        safeErrorCode: null, lastHealthAt: null, pendingDeliveries: 0, failedDeliveries: 0,
+        deadLetterDeliveries: 0, succeededDeliveries: 4, attemptedQuantity: 4,
       }] : [])],
     });
     if (path === "/tenant/ai-chat/social-connections" && method === "POST") {
       const body = route.request().postDataJSON();
+      if (body.channel === "messenger") {
+        state.messengerCreateBody = body; state.messengerCreated = true;
+        return json(route, { status: "created", connectionId: messengerConnectionId,
+          webhookKey: "one-time-messenger-webhook-key" }, 201);
+      }
       if (body.channel === "whatsapp") {
         state.whatsappCreateBody = body; state.whatsappCreated = true;
         return json(route, { status: "created", connectionId: whatsappConnectionId,
@@ -109,6 +121,10 @@ async function mockTenant(page, role) {
     }
     if (path === `/tenant/ai-chat/social-connections/${whatsappConnectionId}` && method === "PATCH") {
       state.whatsappRotationBody = route.request().postDataJSON();
+      return json(route, { status: "rotated", credentialKeyVersion: 2 });
+    }
+    if (path === `/tenant/ai-chat/social-connections/${messengerConnectionId}` && method === "PATCH") {
+      state.messengerRotationBody = route.request().postDataJSON();
       return json(route, { status: "rotated", credentialKeyVersion: 2 });
     }
     return json(route, { status: "not_found" }, 404);
@@ -176,13 +192,35 @@ async function inspectOwner(viewport, suffix) {
     await page.getByText("WhatsApp credentials rotated.", { exact: false }).waitFor();
     if (state.whatsappCreateBody?.verifyToken !== "whatsapp-verify-token-value") failures.push("owner-desktop: WhatsApp create payload mismatch");
     if (state.whatsappRotationBody?.accessToken !== "rotated-whatsapp-access-token") failures.push("owner-desktop: WhatsApp rotation payload mismatch");
+    const messengerSetup = page.locator(".messenger-connection-setup");
+    await messengerSetup.locator("summary").click();
+    await messengerSetup.getByLabel("Connection name").fill("Main Messenger");
+    await messengerSetup.getByLabel("Page account reference").fill("messenger-page-account");
+    await messengerSetup.getByLabel("Page access token").fill("messenger-page-access-token");
+    await messengerSetup.getByLabel("App secret").fill("messenger-app-secret-value");
+    await messengerSetup.getByLabel("Verify token").fill("messenger-verify-token-value");
+    await messengerSetup.getByLabel("Page ID").fill("messenger-page-123");
+    await messengerSetup.getByRole("button", { name: "Connect Messenger" }).click();
+    await page.getByText("One-time Messenger callback URL", { exact: true }).waitFor();
+    if (!(await page.getByText("one-time-messenger-webhook-key", { exact: false }).count())) failures.push("owner-desktop: Messenger callback missing");
+    const messengerRow = page.locator(".social-connection-row", { hasText: "Main Messenger" });
+    const messengerRotation = messengerRow.locator(".messenger-credential-rotation");
+    await messengerRotation.locator("summary").click();
+    await messengerRotation.getByLabel("New page access token").fill("rotated-messenger-page-token");
+    await messengerRotation.getByLabel("New app secret").fill("rotated-messenger-app-secret");
+    await messengerRotation.getByLabel("New verify token").fill("rotated-messenger-verify-token");
+    await messengerRotation.getByLabel("Page ID").fill("messenger-page-123");
+    await messengerRotation.getByRole("button", { name: "Rotate" }).click();
+    await page.getByText("Messenger credentials rotated.", { exact: false }).waitFor();
+    if (state.messengerCreateBody?.verifyToken !== "messenger-verify-token-value") failures.push("owner-desktop: Messenger create payload mismatch");
+    if (state.messengerRotationBody?.pageAccessToken !== "rotated-messenger-page-token") failures.push("owner-desktop: Messenger rotation payload mismatch");
   }
   const dimensions = await page.evaluate(() => ({
     body: document.body.innerText, width: document.documentElement.scrollWidth, viewport: innerWidth,
   }));
   if (dimensions.width > dimensions.viewport + 1) failures.push(`owner-${suffix}: horizontal overflow ${dimensions.width}/${dimensions.viewport}`);
   if (restricted.test(dimensions.body)) failures.push(`owner-${suffix}: restricted routing term visible`);
-  if (/rotated-channel-secret-value|new-channel-secret-value|whatsapp-app-secret-value|whatsapp-verify-token-value/.test(dimensions.body)) failures.push(`owner-${suffix}: credential leaked`);
+  if (/rotated-channel-secret-value|new-channel-secret-value|whatsapp-app-secret-value|whatsapp-verify-token-value|messenger-app-secret-value|messenger-verify-token-value/.test(dimensions.body)) failures.push(`owner-${suffix}: credential leaked`);
   await page.screenshot({ path: `/tmp/djay-p6-line-owner-${suffix}.png`, fullPage: true });
   await context.close();
 }
@@ -192,7 +230,7 @@ async function inspectViewer() {
   const page = await context.newPage(); await mockTenant(page, "tenant_viewer");
   await page.goto(`${tenantUrl}/workspace/ai-chat`, { waitUntil: "networkidle" });
   await page.getByText("22 channel units attempted", { exact: true }).waitFor();
-  for (const name of ["Check health", "Revoke", "Connect LINE", "Connect WhatsApp", "Rotate"]) {
+  for (const name of ["Check health", "Revoke", "Connect LINE", "Connect WhatsApp", "Connect Messenger", "Rotate"]) {
     if (await page.getByRole("button", { name }).count()) failures.push(`viewer: ${name} should be hidden`);
   }
   await page.screenshot({ path: "/tmp/djay-p6-line-viewer-mobile.png", fullPage: true });
@@ -219,4 +257,4 @@ await inspectViewer();
 await inspectIdentityReview();
 await browser.close();
 if (failures.length) { console.error(failures.join("\n")); process.exit(1); }
-console.info("P6 LINE and WhatsApp tenant operations passed desktop/mobile metrics, secrets, actions, viewer permissions, console, overflow, and provider-leak checks.");
+console.info("P6 LINE, WhatsApp, and Messenger tenant operations passed desktop/mobile metrics, secrets, actions, viewer permissions, console, overflow, and provider-leak checks.");
