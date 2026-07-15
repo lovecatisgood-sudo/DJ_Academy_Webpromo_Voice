@@ -29,4 +29,5 @@ export { PostgresPlatformAuthStore } from "./platform-auth-store";
 export { PlatformSupportStore } from "./platform-support-store";
 export { TenantWorkspaceStore, type OnboardingStage } from "./tenant-workspace-store";
 export { VoiceRuntimeStore } from "./voice-runtime-store";
+export { VoiceDeploymentStore } from "./voice-deployment-store";
 export * from "./schema";

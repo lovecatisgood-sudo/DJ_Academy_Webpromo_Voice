@@ -49,15 +49,24 @@ All passed across 29 packages/apps. Coverage proves that:
   the conversation, and a duplicate terminal call returns the stored result;
 - after release, the waiting session can connect and a one-second call settles
   one minute under the same rounding rule.
+- tenant deployment creation requires active Basic Gen1 authority and an exact
+  origin; an invalid path origin fails before storage;
+- only a one-time deployment key is returned, while subsequent lists expose its
+  safe prefix and never its plaintext;
+- forced RLS prevents another tenant from reading or revoking the deployment;
+- disable immediately blocks public grant issuance, enable restores it only
+  with current authority, and revoke is audited and irreversible;
+- operator and analyst roles can read Voice state but cannot deploy; owner and
+  tenant admin hold the explicit deployment permission.
 
-The API production build contains 69 routes, including the disabled-by-default
+The API production build contains 93 route handlers, including the disabled-by-default
 `/public/voice/session` route and the service-authorized voice `authorize`,
 `disconnect`, and `finish` routes. The voice gateway also builds as an
 independent Node application.
 
 ## Remaining P7 gates
 
-- Tenant-authorized deployment creation/list/disable/revoke and browser widget.
+- Browser voice widget and production media transport.
 - Expired unused-grant/reconnect reaping, crash recovery, emergency stop, and
   concurrent race tests beyond the serialized integration journey.
 - Spend reservation once approved rates exist; no monetary value is invented by
@@ -65,7 +74,7 @@ independent Node application.
 - Realtime audio, interruption, silence, noise, reconnect, transcript, summary,
   Sales Core, Action Gateway, callback, and handover integration.
 - English and Thai quality/latency evaluation with approved pilot thresholds.
-- Tenant UI, browser bundle confidentiality scan, runtime monitoring/runbook,
+- Browser widget UI, browser bundle confidentiality scan, runtime monitoring/runbook,
   migration, retention/erasure, and named merchant acceptance.
 
 This evidence does not authorize a voice pilot or production activation.

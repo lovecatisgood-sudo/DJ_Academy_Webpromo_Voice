@@ -12,7 +12,7 @@ export function WorkspaceSidebar({
   onSelect,
   onLogout,
 }: Readonly<{
-  active: "overview" | "flowbot" | "ai_chat" | "inbox" | "contacts" | "leads" | "knowledge" | "data" | "team" | "usage" | "security";
+  active: "overview" | "flowbot" | "ai_chat" | "voice" | "inbox" | "contacts" | "leads" | "knowledge" | "data" | "team" | "usage" | "security";
   workspaces: readonly WorkspaceSummary[];
   selectedTenantId: string;
   onSelect: (tenantId: string) => void;
@@ -33,6 +33,7 @@ export function WorkspaceSidebar({
         <a className={active === "overview" ? "active" : ""} href="/workspace">Overview</a>
         <a className={active === "flowbot" ? "active" : ""} href="/workspace/flowbot">FlowBot</a>
         <a className={active === "ai_chat" ? "active" : ""} href="/workspace/ai-chat">AI Chat</a>
+        <a className={active === "voice" ? "active" : ""} href="/workspace/voice">Voice</a>
         <a className={active === "inbox" ? "active" : ""} href="/workspace/inbox">Inbox</a>
         <a className={active === "contacts" ? "active" : ""} href="/workspace/contacts">Contacts</a>
         <a className={active === "leads" ? "active" : ""} href="/workspace/leads">Leads</a>

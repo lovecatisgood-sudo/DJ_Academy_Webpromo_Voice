@@ -41,6 +41,8 @@ export const tenantPermissions = [
   "ai_chat.publish",
   "ai_chat.deploy",
   "ai_chat.channels.manage",
+  "voice.read",
+  "voice.deploy",
 ] as const;
 
 export type TenantPermission = (typeof tenantPermissions)[number];
@@ -78,6 +80,8 @@ const rolePermissions: Readonly<Record<TenantRole, ReadonlySet<TenantPermission>
     "ai_chat.publish",
     "ai_chat.deploy",
     "ai_chat.channels.manage",
+    "voice.read",
+    "voice.deploy",
   ]),
   tenant_operator: new Set([
     "tenant.read", "team.read", "onboarding.read", "subscriptions.read", "usage.read",
@@ -86,12 +90,14 @@ const rolePermissions: Readonly<Record<TenantRole, ReadonlySet<TenantPermission>
     "knowledge.read", "actions.execute",
     "flowbot.read",
     "ai_chat.read",
+    "voice.read",
   ]),
   tenant_analyst: new Set([
     "tenant.read", "onboarding.read", "subscriptions.read", "usage.read",
     "contacts.read", "leads.read", "conversations.read", "knowledge.read",
     "flowbot.read",
     "ai_chat.read",
+    "voice.read",
   ]),
 };
 

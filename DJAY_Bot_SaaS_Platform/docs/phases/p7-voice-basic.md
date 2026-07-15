@@ -4,7 +4,8 @@
 
 In progress. The provider-neutral browser/gateway protocol, deterministic
 session lifecycle, and restricted database authority are implemented locally.
-Media transport, Sales Core actions, tenant operations, legacy migration, and
+Tenant deployment operations are implemented locally. Media transport, Sales
+Core actions, legacy migration, and
 production acceptance remain pending.
 
 ## Requirements
@@ -50,19 +51,24 @@ production acceptance remain pending.
    and exactly-once terminal minute settlement or release with lease cleanup.
 10. A disabled-by-default public grant API and service-token-only gateway
     authorization, disconnect, and finish endpoints.
+11. Tenant `voice.read` and `voice.deploy` permissions, a forced-RLS repository,
+    and APIs for Basic-only creation, safe listing, disable/enable, and
+    irreversible revocation with audit history.
+12. A tenant Voice workspace that shows only the First-Generation label,
+    exact-origin deployment settings, one-time keys, safe prefixes, and status
+    controls without routing identity.
 
 ## Non-goals for this foundation
 
 - Provider adapter or restricted routing selection.
 - WebSocket audio transport, codecs, speech generation, or transcript storage.
-- Tenant deployment UI or self-service deployment creation.
 - Recording, telephony, outbound calling, or Gen2 behavior.
 - Commercial minute values or pilot latency thresholds not yet approved.
 
 ## Next slice
 
-Add tenant-authorized Voice Basic deployment operations and browser widget,
-connect the gateway transport to disconnect/finish commits, add crash/expiry
+Add the browser voice widget, connect the gateway transport to
+disconnect/finish commits, add crash/expiry
 reaping, then integrate realtime media, Sales Core actions, transcript policy,
 callback, and handover.
 

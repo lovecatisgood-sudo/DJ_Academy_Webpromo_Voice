@@ -22,6 +22,8 @@ describe("authorization policy", () => {
   it("keeps operational tenant roles deny-by-default", () => {
     expect(tenantRoleAllows("tenant_operator", "team.invite")).toBe(false);
     expect(tenantRoleAllows("tenant_analyst", "tenant.update")).toBe(false);
+    expect(tenantRoleAllows("tenant_operator", "voice.deploy")).toBe(false);
+    expect(tenantRoleAllows("tenant_analyst", "voice.read")).toBe(true);
   });
 
   it("reserves subscription changes for the Tenant Master Admin", () => {

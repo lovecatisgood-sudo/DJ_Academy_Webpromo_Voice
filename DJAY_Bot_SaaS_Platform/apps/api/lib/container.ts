@@ -34,6 +34,7 @@ import {
   SharedDomainStore,
   TenantWorkspaceStore,
   VoiceRuntimeStore,
+  VoiceDeploymentStore,
 } from "@djay/db";
 import { createPlatformAuthService } from "@djay/platform-auth";
 import { createHttpTextProviderGateway } from "@djay/provider-gateway";
@@ -148,6 +149,7 @@ async function buildServices() {
     aiChatRuntime: aiRuntimeStore && aiGateway ? new AiTextRuntime(aiRuntimeStore, aiGateway) : null,
     voiceRuntime: env.VOICE_RUNTIME_ENABLED === "true" && env.VOICE_DATABASE_URL
       ? new VoiceRuntimeStore(createDatabaseClient(env.VOICE_DATABASE_URL)) : null,
+    voiceDeployments: new VoiceDeploymentStore(tenantClient),
     aiTextGateway: aiGateway,
     privacy: new PrivacyStore(tenantClient),
     privacyExportKey: env.PRIVACY_EXPORT_KEY

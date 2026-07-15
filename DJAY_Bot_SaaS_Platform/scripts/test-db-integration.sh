@@ -170,4 +170,10 @@ VOICE_DATABASE_URL="postgresql://djay_voice_runtime:djay_voice_test@127.0.0.1:55
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/voice-runtime-store.integration.test.ts
 
+echo "Running tenant Voice Basic deployment operations integration test."
+VOICE_DATABASE_URL="postgresql://djay_voice_runtime:djay_voice_test@127.0.0.1:55432/postgres" \
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:55432/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/voice-deployment-store.integration.test.ts
+
 echo "PostgreSQL 16 migration, RLS, scoped repositories, same-tenant references, and owner invariants passed."
