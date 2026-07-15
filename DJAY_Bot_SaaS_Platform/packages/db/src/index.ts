@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0033_voice_text_legacy_migration";
+export const currentSchemaVersion = "0034_voice_advanced_routing";
 
 export { PostgresAuthStore } from "./auth-store";
 export { BillingWebhookStore } from "./billing-webhook-store";
@@ -30,5 +30,11 @@ export { PlatformSupportStore } from "./platform-support-store";
 export { TenantWorkspaceStore, type OnboardingStage } from "./tenant-workspace-store";
 export { VoiceRuntimeStore } from "./voice-runtime-store";
 export { VoiceDeploymentStore } from "./voice-deployment-store";
-export { PlatformVoiceOperationsStore, VoiceReaperStore, type VoiceRuntimeMode } from "./voice-operations-store";
+export {
+  PlatformVoiceOperationsStore,
+  VoiceReaperStore,
+  type VoiceIncident,
+  type VoiceRoutingOverview,
+  type VoiceRuntimeMode,
+} from "./voice-operations-store";
 export * from "./schema";

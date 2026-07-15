@@ -13,6 +13,10 @@ type Subscription = {
 type Tenant = { id: string; businessName: string; slug: string; status: string };
 type SupportGrant = { id: string; tenantId: string; businessName: string; requestedByPlatformUserId: string; approvedByPlatformUserId: string | null; reason: string; status: string; startsAt: string; expiresAt: string };
 type VoiceControl = { mode: "running" | "paused" | "emergency_stop"; reasonCode: string; version: number; changedAt: string; activeSessions: number; reconnectingSessions: number; expiredGrants: number; staleConnections: number };
+type VoiceIncident = { id: string; capabilityProfile: "voice_gen2"; severity: "minor" | "major" | "critical"; status: "open" | "monitoring" | "resolved"; reason: string; resolution: string | null; routingChangeId: string | null; creditReviewStatus: "not_required" | "required" | "approved" | "rejected"; openedByPlatformUserId: string; openedAt: string; resolvedAt: string | null };
+type VoiceCandidate = { id: string; capabilityProfile: "voice_gen2"; providerKey: string; modelKey: string; regionKey: string; status: "proposed" | "qualified" | "rejected" | "paused"; proposedByPlatformUserId: string; reviewedByPlatformUserId: string | null; proposedAt: string; reviewedAt: string | null };
+type VoiceChange = { id: string; capabilityProfile: "voice_gen2"; candidateId: string; previousCandidateId: string | null; canaryPercent: number; status: "requested" | "approved" | "rejected" | "canary" | "active" | "rolled_back"; reason: string; requestedByPlatformUserId: string; approvedByPlatformUserId: string | null; requestedAt: string; approvedAt: string | null; canaryStartedAt: string | null; activatedAt: string | null; rolledBackAt: string | null; rollbackReason: string | null };
+type VoiceRouting = { profiles: { capabilityProfile: "voice_gen2"; mode: "paused" | "canary" | "running" | "degraded"; reasonCode: string; version: number; changedAt: string; primaryCandidateId: string | null; canaryCandidateId: string | null; canaryPercent: number }[]; candidates: VoiceCandidate[]; changes: VoiceChange[]; incidents: VoiceIncident[] };
 
 export default function PlatformMasterPage() {
   const [stage, setStage] = useState<"loading" | "password" | "mfa" | "dashboard">("loading");
@@ -25,7 +29,10 @@ export default function PlatformMasterPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [supportGrants, setSupportGrants] = useState<SupportGrant[]>([]);
   const [voiceControl, setVoiceControl] = useState<VoiceControl | null>(null);
+  const [voiceRouting, setVoiceRouting] = useState<VoiceRouting | null>(null);
+  const [voiceIncidents, setVoiceIncidents] = useState<VoiceIncident[] | null>(null);
   const [voiceReason, setVoiceReason] = useState("scheduled_maintenance");
+  const [routingActionReason, setRoutingActionReason] = useState("Reviewed Advanced Voice operational change");
 
   async function loadCurrent() {
     const response = await fetch("/platform/me", { cache: "no-store" });
@@ -48,6 +55,14 @@ export default function PlatformMasterPage() {
     if (grantResponse.ok) setSupportGrants((await grantResponse.json()).grants || []);
     const voiceResponse = await fetch("/platform/voice/runtime-control", { cache: "no-store" });
     if (voiceResponse.ok) setVoiceControl((await voiceResponse.json()).control);
+    if (["platform_owner", "platform_ai_operations"].includes(result.user.role)) {
+      const routingResponse = await fetch("/platform/voice/routing", { cache: "no-store" });
+      if (routingResponse.ok) setVoiceRouting((await routingResponse.json()).routing);
+    } else setVoiceRouting(null);
+    if (["platform_owner", "platform_ai_operations", "platform_finance"].includes(result.user.role)) {
+      const incidentResponse = await fetch("/platform/voice/incidents", { cache: "no-store" });
+      if (incidentResponse.ok) setVoiceIncidents((await incidentResponse.json()).incidents || []);
+    } else setVoiceIncidents(null);
   }
 
   useEffect(() => { void loadCurrent(); }, []);
@@ -97,6 +112,8 @@ export default function PlatformMasterPage() {
     setTenants([]);
     setSupportGrants([]);
     setVoiceControl(null);
+    setVoiceRouting(null);
+    setVoiceIncidents(null);
     setStage("password");
   }
 
@@ -147,6 +164,80 @@ export default function PlatformMasterPage() {
     await loadCurrent();
   }
 
+  async function sendVoiceRoutingCommand(command: Record<string, unknown>, successMessage: string) {
+    setWorking(true); setMessage("");
+    const response = await fetch("/platform/voice/routing", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(command),
+    });
+    setWorking(false);
+    if (!response.ok) {
+      setMessage(response.status === 403
+        ? "Advanced Voice changes require recent authentication. Sign out and verify again."
+        : "Advanced Voice command was rejected. Check review separation, evidence, and current route state.");
+      return false;
+    }
+    setMessage(successMessage);
+    await loadCurrent();
+    return true;
+  }
+
+  async function proposeVoiceCandidate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
+    const succeeded = await sendVoiceRoutingCommand({
+      command: "candidate.propose", capabilityProfile: "voice_gen2",
+      providerKey: data.get("providerKey"), modelKey: data.get("modelKey"), regionKey: data.get("regionKey"),
+    }, "Route candidate submitted for independent qualification.");
+    if (succeeded) form.reset();
+  }
+
+  async function reviewVoiceCandidate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); const data = new FormData(event.currentTarget);
+    await sendVoiceRoutingCommand({
+      command: "candidate.review", candidateId: data.get("candidateId"), decision: data.get("decision"),
+      evidenceSha256: String(data.get("evidenceSha256") || "").toLowerCase(),
+    }, "Candidate qualification review recorded.");
+  }
+
+  async function requestVoiceChange(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); const data = new FormData(event.currentTarget);
+    await sendVoiceRoutingCommand({
+      command: "change.request", capabilityProfile: "voice_gen2", candidateId: data.get("candidateId"),
+      canaryPercent: Number(data.get("canaryPercent")), reason: data.get("reason"),
+      evidenceSha256: String(data.get("evidenceSha256") || "").toLowerCase(),
+    }, "Canary change submitted for independent approval.");
+  }
+
+  async function reviewVoiceChange(changeId: string, decision: "approve" | "reject") {
+    if (!window.confirm(`${decision === "approve" ? "Approve" : "Reject"} this Advanced Voice routing change?`)) return;
+    await sendVoiceRoutingCommand({ command: "change.review", changeId, decision }, `Routing change ${decision}d.`);
+  }
+
+  async function applyVoiceChange(changeId: string, action: "start_canary" | "promote" | "rollback") {
+    if (!window.confirm(`${action.replaceAll("_", " ")} this reviewed Advanced Voice change?`)) return;
+    await sendVoiceRoutingCommand({ command: "change.apply", changeId, action, reason: routingActionReason }, `Routing action ${action.replaceAll("_", " ")} completed.`);
+  }
+
+  async function openVoiceIncident(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
+    const succeeded = await sendVoiceRoutingCommand({
+      command: "incident.open", capabilityProfile: "voice_gen2", severity: data.get("severity"),
+      reason: data.get("reason"), routingChangeId: data.get("routingChangeId") || null,
+      creditReviewRequired: data.get("creditReviewRequired") === "on",
+    }, "Advanced Voice incident opened and the profile moved to a safe state.");
+    if (succeeded) form.reset();
+  }
+
+  async function reviewVoiceCredit(incidentId: string, decision: "approve" | "reject") {
+    if (!window.confirm(`${decision === "approve" ? "Approve" : "Reject"} the credit review recommendation?`)) return;
+    await sendVoiceRoutingCommand({ command: "incident.credit_review", incidentId, decision }, `Credit review ${decision}d.`);
+  }
+
+  async function resolveVoiceIncident(incidentId: string) {
+    const resolution = window.prompt("Record the incident resolution (at least 12 characters):");
+    if (!resolution) return;
+    await sendVoiceRoutingCommand({ command: "incident.resolve", incidentId, resolution }, "Incident resolved; routing remains explicit and fail-closed.");
+  }
+
   if (stage === "loading") return <main className="platform-loading">Checking platform session...</main>;
   if (stage === "dashboard" && user) {
     return (
@@ -183,6 +274,30 @@ export default function PlatformMasterPage() {
               <button className="danger-button" type="button" disabled={working || voiceControl.mode === "emergency_stop"} onClick={() => void changeVoiceMode("emergency_stop")}>Emergency stop</button>
             </div>
             <small>Version {voiceControl.version} · changed {new Date(voiceControl.changedAt).toLocaleString()}</small>
+          </div> : null}
+          {voiceRouting ? <div className={`subscription-band advanced-voice-band mode-${voiceRouting.profiles[0]?.mode || "paused"}`}>
+            <div><p>Advanced Voice · restricted</p><h2>Second-Generation route governance</h2></div>
+            <p className="operational-note">Provider and model identifiers are visible only to Platform Owner and AI Operations. A route stays unavailable until a different reviewer qualifies it and approves a canary; there is no fallback to First-Generation.</p>
+            <div className="voice-control-summary">
+              <div><span>Profile</span><strong>Second-Generation</strong><small>voice_gen2</small></div>
+              <div><span>Mode</span><strong>{voiceRouting.profiles[0]?.mode || "paused"}</strong><small>{voiceRouting.profiles[0]?.reasonCode.replaceAll("_", " ") || "qualification required"}</small></div>
+              <div><span>Canary</span><strong>{voiceRouting.profiles[0]?.canaryPercent || 0}%</strong><small>Version {voiceRouting.profiles[0]?.version || 1}</small></div>
+            </div>
+            <div className="voice-governance-grid">
+              <form onSubmit={proposeVoiceCandidate}><h3>1. Propose route</h3><label>Provider key<input name="providerKey" pattern="[a-z0-9][a-z0-9._-]{1,79}" required /></label><label>Model key<input name="modelKey" minLength={2} maxLength={160} required /></label><label>Region key<input name="regionKey" pattern="[a-z0-9][a-z0-9._-]{1,79}" required /></label><button disabled={working} type="submit">Submit candidate</button></form>
+              <form onSubmit={reviewVoiceCandidate}><h3>2. Independent qualification</h3><label>Proposed candidate<select name="candidateId" required defaultValue=""><option value="" disabled>Select candidate</option>{voiceRouting.candidates.filter((candidate) => candidate.status === "proposed").map((candidate) => <option key={candidate.id} value={candidate.id} disabled={candidate.proposedByPlatformUserId === user.id}>{candidate.providerKey} / {candidate.modelKey}{candidate.proposedByPlatformUserId === user.id ? " · another reviewer required" : ""}</option>)}</select></label><label>Decision<select name="decision" defaultValue="qualify"><option value="qualify">Qualify</option><option value="reject">Reject</option></select></label><label>Qualification evidence SHA-256<input name="evidenceSha256" pattern="[a-fA-F0-9]{64}" minLength={64} maxLength={64} required /></label><button disabled={working} type="submit">Record review</button></form>
+              <form onSubmit={requestVoiceChange}><h3>3. Request canary</h3><label>Qualified candidate<select name="candidateId" required defaultValue=""><option value="" disabled>Select candidate</option>{voiceRouting.candidates.filter((candidate) => candidate.status === "qualified").map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.providerKey} / {candidate.modelKey}</option>)}</select></label><label>Canary percent<input name="canaryPercent" type="number" min={1} max={100} defaultValue={10} required /></label><label>Operational reason<input name="reason" minLength={12} maxLength={500} required /></label><label>Evaluation evidence SHA-256<input name="evidenceSha256" pattern="[a-fA-F0-9]{64}" minLength={64} maxLength={64} required /></label><button disabled={working} type="submit">Request change</button></form>
+            </div>
+            <label className="voice-reason">Action reason<input value={routingActionReason} minLength={12} maxLength={500} onChange={(event) => setRoutingActionReason(event.target.value)} /></label>
+            <div className="platform-table" role="table" aria-label="Advanced Voice routing changes">
+              {voiceRouting.changes.map((change) => <div className="platform-row voice-route-row" role="row" key={change.id}><div><strong>{voiceRouting.candidates.find((candidate) => candidate.id === change.candidateId)?.modelKey || change.candidateId}</strong><span>{change.reason} · {change.canaryPercent}% canary</span></div><span>{change.status.replaceAll("_", " ")}</span><div className="row-actions">{change.status === "requested" ? <><button disabled={working || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceChange(change.id, "approve")}>Approve</button><button className="outline-button" disabled={working || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceChange(change.id, "reject")}>Reject</button></> : null}{change.status === "approved" ? <button disabled={working} onClick={() => void applyVoiceChange(change.id, "start_canary")}>Start canary</button> : null}{change.status === "canary" ? <><button disabled={working} onClick={() => void applyVoiceChange(change.id, "promote")}>Promote</button><button className="outline-button" disabled={working} onClick={() => void applyVoiceChange(change.id, "rollback")}>Rollback</button></> : null}{change.status === "active" ? <button className="danger-button" disabled={working} onClick={() => void applyVoiceChange(change.id, "rollback")}>Rollback</button> : null}</div></div>)}
+              {!voiceRouting.changes.length ? <p className="empty-row">No routing changes</p> : null}
+            </div>
+            <form className="incident-open-form" onSubmit={openVoiceIncident}><h3>Open incident</h3><label>Severity<select name="severity" defaultValue="major"><option value="minor">Minor · degraded</option><option value="major">Major · pause</option><option value="critical">Critical · pause</option></select></label><label>Related change<select name="routingChangeId" defaultValue=""><option value="">No related change</option>{voiceRouting.changes.map((change) => <option key={change.id} value={change.id}>{change.status} · {change.reason}</option>)}</select></label><label>Incident reason<input name="reason" minLength={12} maxLength={1000} required /></label><label className="checkbox-label"><input name="creditReviewRequired" type="checkbox" />Credit review required</label><button disabled={working} type="submit">Open and safeguard</button></form>
+          </div> : null}
+          {voiceIncidents ? <div className="subscription-band incident-band">
+            <div><p>Advanced Voice</p><h2>Incident and credit review</h2></div>
+            <div className="platform-table" role="table" aria-label="Advanced Voice incidents">{voiceIncidents.map((incident) => <div className="platform-row incident-row" role="row" key={incident.id}><div><strong>{incident.severity} · {incident.status}</strong><span>{incident.reason}</span></div><span>{incident.creditReviewStatus.replaceAll("_", " ")}</span><div className="row-actions">{incident.creditReviewStatus === "required" && ["platform_owner", "platform_finance"].includes(user.role) ? <><button disabled={working || incident.openedByPlatformUserId === user.id} onClick={() => void reviewVoiceCredit(incident.id, "approve")}>Approve credit review</button><button className="outline-button" disabled={working || incident.openedByPlatformUserId === user.id} onClick={() => void reviewVoiceCredit(incident.id, "reject")}>Reject</button></> : null}{incident.status !== "resolved" && ["platform_owner", "platform_ai_operations"].includes(user.role) ? <button disabled={working} onClick={() => void resolveVoiceIncident(incident.id)}>Resolve</button> : null}</div></div>)}{!voiceIncidents.length ? <p className="empty-row">No Advanced Voice incidents</p> : null}</div>
           </div> : null}
           {health?.socialChannels?.length ? <div className="subscription-band"><div><p>AI Chat operations</p><h2>Social channel health</h2></div><div className="platform-table" role="table" aria-label="Social channel health">{health.socialChannels.map((channel) => <div className="platform-row" role="row" key={channel.channel}><div><strong>{channel.channel === "line" ? "LINE" : channel.channel === "whatsapp" ? "WhatsApp" : "Messenger"}</strong><span>{channel.activeConnections} active / {channel.reauthorizationRequired} reauthorization</span></div><span>{channel.queuedInbound} inbound queued / {channel.oldestInboundQueueSeconds}s oldest</span><span>{channel.queuedDeliveries} delivery queued / {channel.oldestDeliveryQueueSeconds}s oldest</span><span>{channel.deadLetterInbound + channel.deadLetterDeliveries} dead letters / {channel.failedAttempts24h} failed attempts</span></div>)}</div></div> : null}
           <div className="subscription-band">

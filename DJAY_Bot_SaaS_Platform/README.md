@@ -21,14 +21,18 @@ Implementation proceeds through gated phases P0-P9. Product code may only be por
 
 ## Current phase
 
-P0 through P6 local engineering are complete. P7 Voice Basic is active; its
+P0 through P6 local engineering are complete. P7 Voice Basic local engineering
+is complete; its
 provider-neutral protocol/lifecycle and separately deployable gateway foundation
 plus restricted Gen1 grant, concurrency, database-derived settlement, crash
 recovery, realtime media, Sales Core actions, durable call outcomes/callbacks,
 plan-capped transcript retention, tenant Studio/Inbox UI, and Platform operations
 controls are implemented. The restartable legacy Voice/Text migration and its
 PostgreSQL rehearsal are also complete; external live quality and merchant
-acceptance remain pending. Voice runtime
+acceptance remain pending. P8 Voice Advanced is active: its Platform-only Gen2
+qualification, reviewed canary/rollback, incident pause, independent credit
+review, and role-aware operations UI are implemented, while tenant entitlement,
+runtime, analytics, load, and live acceptance remain pending. Gen2 and the Voice runtime
 activation is disabled by default. FlowBot remains limited to named pilots until three
 real isolated tenant acceptances pass. AI Chat Basic also requires an approved
 live routing-profile evaluation and named merchant acceptance before production

@@ -33,6 +33,7 @@ const voiceRecoveryMigration = readFileSync(resolve(import.meta.dirname, "../mig
 const voiceSalesCoreMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0031_voice_sales_core.sql"), "utf8");
 const voiceOutcomesRetentionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0032_voice_outcomes_retention.sql"), "utf8");
 const voiceTextLegacyMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0033_voice_text_legacy_migration.sql"), "utf8");
+const voiceAdvancedRoutingMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0034_voice_advanced_routing.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -460,6 +461,30 @@ describe("P7 Voice Basic database migration invariants", () => {
     expect(voiceRecoveryMigration).toContain("platform_owner', 'platform_ai_operations");
     expect(voiceRecoveryMigration).toContain("REVOKE ALL ON platform.voice_runtime_controls FROM PUBLIC");
     expect(voiceRecoveryMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+voice_runtime_controls/i);
+  });
+
+  it("keeps Advanced Voice routing Gen2-only, platform-private, and paused by default", () => {
+    expect(voiceAdvancedRoutingMigration).toContain("CHECK (capability_profile = 'voice_gen2')");
+    expect(voiceAdvancedRoutingMigration).toContain("VALUES ('voice_gen2', 'paused', 'qualification_required')");
+    expect(voiceAdvancedRoutingMigration).toContain("platform_owner', 'platform_ai_operations");
+    expect(voiceAdvancedRoutingMigration).toContain("REVOKE ALL ON platform.voice_route_candidates");
+    expect(voiceAdvancedRoutingMigration).toContain("REVOKE ALL ON FUNCTION platform.get_voice_routing_overview() FROM PUBLIC");
+    expect(voiceAdvancedRoutingMigration).toContain("platform_owner', 'platform_ai_operations', 'platform_finance");
+    expect(voiceAdvancedRoutingMigration).toContain("REVOKE ALL ON FUNCTION platform.get_voice_incidents() FROM PUBLIC");
+    expect(voiceAdvancedRoutingMigration).not.toMatch(
+      /GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+voice_(route_candidates|routing_changes|active_routes|profile_controls|incidents|session_routes)/i,
+    );
+  });
+
+  it("requires independent qualification and change approval with reviewed canary rollback", () => {
+    expect(voiceAdvancedRoutingMigration).toContain("reviewed_by_platform_user_id <> proposed_by_platform_user_id");
+    expect(voiceAdvancedRoutingMigration).toContain("approved_by_platform_user_id <> requested_by_platform_user_id");
+    expect(voiceAdvancedRoutingMigration).toContain("octet_length(qualification_evidence_sha256) = 32");
+    expect(voiceAdvancedRoutingMigration).toContain("octet_length(evaluation_evidence_sha256) = 32");
+    expect(voiceAdvancedRoutingMigration).toContain("pg_advisory_xact_lock");
+    expect(voiceAdvancedRoutingMigration).toContain("target_action NOT IN ('start_canary', 'promote', 'rollback')");
+    expect(voiceAdvancedRoutingMigration).toContain("change_record.status <> 'canary'");
+    expect(voiceAdvancedRoutingMigration).toContain("voice_routing_change_stale");
   });
 
   it("settles from connection history and reaps grants, stale transports, and emergency stops", () => {

@@ -1,0 +1,107 @@
+# P8: Voice Agent Advanced
+
+## Status
+
+In progress. The Platform-only Gen2 qualification, two-person routing change,
+reviewed canary, explicit promotion/rollback, incident pause, and independent
+credit-review foundation is implemented locally. The Second-Generation tenant
+entitlement/deployment/runtime path, equivalent-profile media qualification,
+advanced analytics, load/margin validation, and live acceptance remain pending.
+Gen2 therefore remains unavailable and paused by default.
+
+## Requirements
+
+- Present only the public `Second-Generation Voice Engine` label to tenants and
+  resolve it internally to `voice_gen2`.
+- Permit provider/model route identity only in restricted Platform Owner and AI
+  Operations workflows.
+- Require an independent reviewer for candidate qualification and routing-change
+  approval, each bound to SHA-256 evaluation evidence.
+- Require an approved canary before promotion and reject stale promotion or
+  rollback attempts.
+- Never silently fall back from Gen2 to Gen1. Unavailable Gen2 must reject,
+  use a separately approved equivalent Gen2 route, or return a neutral
+  availability response.
+- Pause major/critical incidents immediately and preserve an independently
+  reviewed credit recommendation without creating P9 monetary policy.
+
+## Foundation delivered
+
+1. Migration `0034_voice_advanced_routing` adds Platform-private route
+   candidates, routing changes, active-route state, profile controls, incidents,
+   and restricted session-route assignment storage.
+2. Gen2 is seeded `paused` with `qualification_required`; no route is active.
+3. Candidate proposer/reviewer and change requester/approver must be different
+   active Platform users.
+4. Qualification and routing requests require 32-byte evidence digests; raw
+   evaluation artifacts and credentials do not enter the database or UI.
+5. Canary application is serialized, promotion requires the current reviewed
+   canary, and rollback must still own the current route version.
+6. Major and critical incidents move the profile to paused. Resolution does not
+   silently resume routing.
+7. Platform Finance can review an incident credit recommendation without access
+   to route provider/model identity.
+8. Restricted APIs require platform permissions, trusted origin, and recent
+   reauthentication for mutations.
+9. Platform Master exposes role-aware qualification, canary, rollback, incident,
+   and credit-review controls with explicit no-fallback guidance.
+10. Every successful mutation appends an immutable Platform audit event without
+    copying restricted provider/model identity or freeform operational text into
+    the shared audit stream.
+
+## Schema, API, and event contract
+
+- Platform tables: `voice_route_candidates`, `voice_routing_changes`,
+  `voice_active_routes`, `voice_profile_controls`, and `voice_incidents`.
+- Operations table: `voice_session_routes`; it has tenant/session composite
+  ownership but no tenant, platform, public, or runtime table grant.
+- APIs: `GET/POST /platform/voice/routing` and
+  `GET /platform/voice/incidents`.
+- Audit actions: `voice.route_candidate.*`, `voice.routing_change.*`, and
+  `voice.incident.*`.
+- Provider/model/region identifiers are never returned by public or tenant APIs.
+
+## Security, observability, and confidentiality
+
+- All tables are function-only; direct DML grants are absent.
+- The database verifies the active role assignment instead of trusting only the
+  application permission check.
+- Platform Support cannot read routing or incidents. Platform Finance receives
+  incident fields only and cannot read routing identity.
+- Control version, timestamps, actor IDs, evidence digests, state transitions,
+  incident severity, and audit events provide operational evidence without
+  storing credentials, prompts, raw audio, transcript content, prices, or cost.
+
+## Tests and migration
+
+- Static migration invariants prove Gen2-only checks, paused default, private
+  tables/functions, independent review, evidence digests, and canary/rollback
+  guards.
+- PostgreSQL 16 integration proves denied direct access, denied self-review,
+  qualification, approval, blocked direct promotion, canary, promotion, incident
+  pause, separate finance review, resolution, rollback, and immutable auditing.
+- Node 24 typechecking covers the database store, API routes, and Platform Master.
+- Platform desktop/mobile browser acceptance covers role-safe rendering,
+  responsive layout, and tenant/provider confidentiality.
+
+## Non-goals for this foundation
+
+- Activating Gen2 tenant entitlements, deployment issuance, media transport, or
+  production traffic.
+- Choosing a provider/model, alternative Gen2 route, commercial rate, credit
+  amount, quality threshold, or margin policy without approved evidence.
+- Gen1 routing changes or any Gen2-to-Gen1 fallback.
+
+## Next slice
+
+Implement the Gen2 tenant entitlement/deployment and restricted runtime route
+assignment against this authority, then add the equivalent-profile evaluation
+suite and Advanced analytics. The runtime must return provider-neutral
+unavailability until an active reviewed route exists.
+
+## Rollback
+
+Keep Gen2 paused, stop all Advanced admission, and use the reviewed rollback
+action for any canary/active change. Application rollback must remain compatible
+with migration `0034`; candidate, approval, incident, credit-review, and audit
+evidence is retained. Do not delete or rewrite route history.

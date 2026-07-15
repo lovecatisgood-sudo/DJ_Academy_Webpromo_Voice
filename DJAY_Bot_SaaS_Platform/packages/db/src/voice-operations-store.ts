@@ -5,6 +5,37 @@ import { withPlatformTransaction } from "./scoped-transaction";
 
 export type VoiceRuntimeMode = "running" | "paused" | "emergency_stop";
 
+export type VoiceIncident = Readonly<{
+  id: string; capabilityProfile: "voice_gen2"; severity: "minor" | "major" | "critical";
+  status: "open" | "monitoring" | "resolved"; reason: string; resolution: string | null;
+  routingChangeId: string | null; creditReviewStatus: "not_required" | "required" | "approved" | "rejected";
+  openedByPlatformUserId: string; openedAt: string; resolvedAt: string | null;
+}>;
+
+export type VoiceRoutingOverview = Readonly<{
+  profiles: readonly Readonly<{
+    capabilityProfile: "voice_gen2"; mode: "paused" | "canary" | "running" | "degraded";
+    reasonCode: string; version: number; changedAt: string;
+    primaryCandidateId: string | null; canaryCandidateId: string | null; canaryPercent: number;
+  }>[];
+  candidates: readonly Readonly<{
+    id: string; capabilityProfile: "voice_gen2";
+    providerKey: string; modelKey: string; regionKey: string;
+    status: "proposed" | "qualified" | "rejected" | "paused";
+    proposedByPlatformUserId: string; reviewedByPlatformUserId: string | null;
+    proposedAt: string; reviewedAt: string | null;
+  }>[];
+  changes: readonly Readonly<{
+    id: string; capabilityProfile: "voice_gen2"; candidateId: string;
+    previousCandidateId: string | null; canaryPercent: number;
+    status: "requested" | "approved" | "rejected" | "canary" | "active" | "rolled_back";
+    reason: string; requestedByPlatformUserId: string; approvedByPlatformUserId: string | null;
+    requestedAt: string; approvedAt: string | null; canaryStartedAt: string | null;
+    activatedAt: string | null; rolledBackAt: string | null; rollbackReason: string | null;
+  }>[];
+  incidents: readonly VoiceIncident[];
+}>;
+
 export class VoiceReaperStore {
   constructor(private readonly client: DatabaseClient) {}
 
@@ -53,5 +84,107 @@ export class PlatformVoiceOperationsStore {
     `);
     if (!rows[0]) throw new Error("voice_runtime_control_unavailable");
     return rows[0];
+  }
+
+  async getRoutingOverview(context: PlatformContext) {
+    const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{ result: VoiceRoutingOverview }[]>`
+      SELECT platform.get_voice_routing_overview() AS result
+    `);
+    if (!rows[0]) throw new Error("voice_routing_overview_unavailable");
+    return rows[0].result;
+  }
+
+  async getIncidents(context: PlatformContext) {
+    const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{ result: VoiceIncident[] }[]>`
+      SELECT platform.get_voice_incidents() AS result
+    `);
+    if (!rows[0]) throw new Error("voice_incidents_unavailable");
+    return rows[0].result;
+  }
+
+  async proposeRouteCandidate(context: PlatformContext, input: Readonly<{
+    capabilityProfile: "voice_gen2"; providerKey: string; modelKey: string; regionKey: string;
+  }>) {
+    const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{ id: string }[]>`
+      SELECT platform.propose_voice_route_candidate(
+        ${input.capabilityProfile}, ${input.providerKey}, ${input.modelKey}, ${input.regionKey}
+      ) AS id
+    `);
+    return { status: "proposed" as const, candidateId: rows[0]!.id };
+  }
+
+  async reviewRouteCandidate(context: PlatformContext, input: Readonly<{
+    candidateId: string; decision: "qualify" | "reject"; evidenceSha256: string;
+  }>) {
+    const evidence = Buffer.from(input.evidenceSha256, "hex");
+    const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{ status: "qualified" | "rejected" }[]>`
+      SELECT platform.review_voice_route_candidate(
+        ${input.candidateId}::uuid, ${input.decision}, ${evidence}
+      ) AS status
+    `);
+    return { status: rows[0]!.status };
+  }
+
+  async requestRoutingChange(context: PlatformContext, input: Readonly<{
+    capabilityProfile: "voice_gen2"; candidateId: string; canaryPercent: number;
+    reason: string; evidenceSha256: string;
+  }>) {
+    const evidence = Buffer.from(input.evidenceSha256, "hex");
+    const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{ id: string }[]>`
+      SELECT platform.request_voice_routing_change(
+        ${input.capabilityProfile}, ${input.candidateId}::uuid, ${input.canaryPercent},
+        ${input.reason}, ${evidence}
+      ) AS id
+    `);
+    return { status: "requested" as const, changeId: rows[0]!.id };
+  }
+
+  async reviewRoutingChange(context: PlatformContext, input: Readonly<{
+    changeId: string; decision: "approve" | "reject";
+  }>) {
+    const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{ status: "approved" | "rejected" }[]>`
+      SELECT platform.review_voice_routing_change(${input.changeId}::uuid, ${input.decision}) AS status
+    `);
+    return { status: rows[0]!.status };
+  }
+
+  async applyRoutingChange(context: PlatformContext, input: Readonly<{
+    changeId: string; action: "start_canary" | "promote" | "rollback"; reason: string;
+  }>) {
+    const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{ status: "canary" | "active" | "rolled_back" }[]>`
+      SELECT platform.apply_voice_routing_change(
+        ${input.changeId}::uuid, ${input.action}, ${input.reason}
+      ) AS status
+    `);
+    return { status: rows[0]!.status };
+  }
+
+  async openIncident(context: PlatformContext, input: Readonly<{
+    capabilityProfile: "voice_gen2"; severity: "minor" | "major" | "critical";
+    reason: string; routingChangeId: string | null; creditReviewRequired: boolean;
+  }>) {
+    const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{ id: string }[]>`
+      SELECT platform.open_voice_incident(
+        ${input.capabilityProfile}, ${input.severity}, ${input.reason},
+        ${input.routingChangeId}::uuid, ${input.creditReviewRequired}
+      ) AS id
+    `);
+    return { status: "open" as const, incidentId: rows[0]!.id };
+  }
+
+  async reviewIncidentCredit(context: PlatformContext, input: Readonly<{
+    incidentId: string; decision: "approve" | "reject";
+  }>) {
+    const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{ status: "approved" | "rejected" }[]>`
+      SELECT platform.review_voice_incident_credit(${input.incidentId}::uuid, ${input.decision}) AS status
+    `);
+    return { status: rows[0]!.status };
+  }
+
+  async resolveIncident(context: PlatformContext, input: Readonly<{ incidentId: string; resolution: string }>) {
+    await withPlatformTransaction(this.client, context, async ({ sql }) => sql`
+      SELECT platform.resolve_voice_incident(${input.incidentId}::uuid, ${input.resolution})
+    `);
+    return { status: "resolved" as const };
   }
 }

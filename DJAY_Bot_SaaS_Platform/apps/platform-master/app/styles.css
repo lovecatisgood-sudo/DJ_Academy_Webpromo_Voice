@@ -54,6 +54,21 @@ small { display: block; margin-top: 18px; color: #666d6a; }
 .support-band { border-top: 1px solid #dce1df; background: #f7f9f8; }
 .voice-control-band { border-bottom: 1px solid #dce1df; background: #f7f9f8; }
 .voice-control-band.mode-emergency_stop { box-shadow: inset 4px 0 #a22d28; background: #fff7f6; }
+.advanced-voice-band { border-top: 1px solid #dce1df; border-bottom: 1px solid #dce1df; background: #f7f9f8; }
+.advanced-voice-band.mode-paused, .advanced-voice-band.mode-degraded { box-shadow: inset 4px 0 #a22d28; }
+.operational-note { max-width: 880px; margin: 14px 0 0; color: #555e5a; font-size: 13px; line-height: 1.55; }
+.voice-governance-grid { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 16px; margin-top: 22px; }
+.voice-governance-grid form { align-content: start; padding: 18px; border: 1px solid #dce1df; border-radius: 7px; background: #fff; }
+.voice-governance-grid h3, .incident-open-form h3 { margin: 0; font-size: 15px; }
+.voice-governance-grid label, .incident-open-form label { font-size: 12px; }
+.voice-governance-grid button, .incident-open-form button { padding: 0 14px; }
+.voice-route-row, .incident-row { grid-template-columns: minmax(240px, 1fr) 110px minmax(260px, auto); }
+.voice-route-row .danger-button { background: #a22d28; }
+.incident-open-form { grid-template-columns: 110px minmax(220px, .8fr) minmax(260px, 1.2fr) minmax(170px, auto) auto; align-items: end; gap: 14px; margin-top: 24px; padding-top: 22px; border-top: 1px solid #dce1df; }
+.incident-open-form h3 { grid-column: 1 / -1; }
+.checkbox-label { display: flex; min-height: 46px; align-items: center; gap: 9px; }
+.checkbox-label input { width: 18px; height: 18px; margin: 0; }
+.incident-band { background: #fff; }
 .voice-control-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin-top: 20px; background: #dce1df; border: 1px solid #dce1df; }
 .voice-control-summary > div { display: grid; gap: 7px; padding: 18px; background: #fff; }
 .voice-control-summary span { color: #676f6c; font-size: 11px; text-transform: uppercase; }
@@ -81,5 +96,7 @@ small { display: block; margin-top: 18px; color: #666d6a; }
   .platform-row button { justify-self: start; }
   .support-request-form, .support-row { grid-template-columns: 1fr; }
   .voice-control-summary { grid-template-columns: 1fr; }
+  .voice-governance-grid, .incident-open-form, .voice-route-row, .incident-row { grid-template-columns: 1fr; }
+  .incident-open-form h3 { grid-column: auto; }
   .row-actions { justify-content: flex-start; }
 }
