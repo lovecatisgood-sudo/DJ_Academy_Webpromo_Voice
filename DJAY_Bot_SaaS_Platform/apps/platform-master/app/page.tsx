@@ -3,7 +3,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 type PlatformUser = { id: string; displayName: string; role: string; mfaVerifiedAt: string };
-type Health = { platformUsers: number; activeSessions: number };
+type SocialHealth = { channel: "line" | "whatsapp" | "messenger"; activeConnections: number; reauthorizationRequired: number; queuedInbound: number; oldestInboundQueueSeconds: number; deadLetterInbound: number; queuedDeliveries: number; oldestDeliveryQueueSeconds: number; deadLetterDeliveries: number; serviceWindowClosed24h: number; attemptedQuantity24h: number; failedAttempts24h: number };
+type Health = { platformUsers: number; activeSessions: number; socialChannels?: SocialHealth[] };
 type Commerce = { tenants: number; subscriptions: number; pending: number; active: number };
 type Subscription = {
   id: string; tenantId: string; businessName: string; productKey: string;
@@ -139,6 +140,7 @@ export default function PlatformMasterPage() {
             <div><span>Pending activation</span><strong>{commerce?.pending ?? "-"}</strong></div>
           </div>
           <div className="operations-band"><p>System</p><h2>Identity and commerce foundations operational</h2></div>
+          {health?.socialChannels?.length ? <div className="subscription-band"><div><p>AI Chat operations</p><h2>Social channel health</h2></div><div className="platform-table" role="table" aria-label="Social channel health">{health.socialChannels.map((channel) => <div className="platform-row" role="row" key={channel.channel}><div><strong>{channel.channel === "line" ? "LINE" : channel.channel === "whatsapp" ? "WhatsApp" : "Messenger"}</strong><span>{channel.activeConnections} active / {channel.reauthorizationRequired} reauthorization</span></div><span>{channel.queuedInbound} inbound queued / {channel.oldestInboundQueueSeconds}s oldest</span><span>{channel.queuedDeliveries} delivery queued / {channel.oldestDeliveryQueueSeconds}s oldest</span><span>{channel.deadLetterInbound + channel.deadLetterDeliveries} dead letters / {channel.failedAttempts24h} failed attempts</span></div>)}</div></div> : null}
           <div className="subscription-band">
             <div><p>Commerce</p><h2>Product subscriptions</h2></div>
             <div className="platform-table" role="table" aria-label="Product subscriptions">

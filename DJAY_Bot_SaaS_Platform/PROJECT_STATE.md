@@ -16,13 +16,13 @@ Last updated: 2026-07-15
 
 ## Active phase
 
-P6 builds AI Chatbot Premium social channels on the completed P1-P5 authority.
+P6 AI Chatbot Premium social local engineering is complete on the P1-P5 authority.
 The controlled delivery order is LINE, WhatsApp, then Messenger. All three
-channel engineering slices now cover secure connection operations, signed and
+channel engineering slices cover secure connection operations, signed and
 ordered inbound events, idempotent Sales Core turns, atomic actions and usage,
-durable outbound delivery, and resumable multipart Meta delivery. Cross-channel
-analytics and external acceptance operations are the remaining P6 work. P5 AI
-Chatbot Basic remains Web-only and provider-neutral.
+durable outbound delivery, resumable multipart Meta delivery, channel analytics,
+and aggregate Platform Operations health. P7 Voice Basic is the next engineering
+phase. P5 AI Chatbot Basic remains Web-only and provider-neutral.
 
 ## P4 release checkpoint
 
@@ -111,10 +111,15 @@ The LINE, WhatsApp, and Messenger runtime and delivery slices are implemented lo
 - Production Chromium covers Messenger setup, one-time callback, rotation,
   metrics, viewer restrictions, secret absence, console, and responsive layout.
 
-This does not yet include approved monetary rate treatment or omnichannel
-analytics. LINE, WhatsApp, and Messenger still require restricted staging
+Tenant analytics now reconcile Website, LINE, WhatsApp, and Messenger. Migration
+`0028_ai_chat_social_operations` adds restricted aggregate Platform Operations
+health for connection state, queue age, dead letters, service-window closures,
+and attempts. The social runbook defines safe monitoring, kill, rotation,
+rollback, recovery, and the external acceptance worksheet.
+
+This does not yet include approved monetary rate treatment. LINE, WhatsApp, and Messenger still require restricted staging
 credentials, alerts, rollback rehearsal, and real platform acceptance.
-P6 remains active and production social activation remains disabled.
+P6 local engineering is complete, but production social activation remains disabled.
 
 ## Latest verification
 
@@ -128,11 +133,13 @@ scripts/use-node24.sh pnpm run qa:p6-line
 ```
 
 All passed on 2026-07-15. The database gate now applies migrations `0000` through
-`0027` and includes the complete local LINE, WhatsApp, and Messenger inbound, Sales Core
+`0028` and includes the complete local LINE, WhatsApp, and Messenger inbound, Sales Core
 commit, outbound retry, partial-progress, service-window, quantity-ledger,
 delivery-status, opt-out, and quota-release journeys. Full verification passes
 across 27 packages/apps, and the API production build contains 65 dynamic routes,
-including the opaque WhatsApp and Messenger callbacks. Production Chromium passes AI Chat Basic
+including the opaque WhatsApp and Messenger callbacks. Tenant channel analytics
+and restricted aggregate Platform Operations health reconcile the social
+journey. Production Chromium passes AI Chat Basic
 plus the P6 LINE, WhatsApp, and Messenger tenant operations and suggest-only identity-review
 surfaces. These results do not authorize social production activation, AI Chat
 self-service, or paid launch without the remaining engineering and external

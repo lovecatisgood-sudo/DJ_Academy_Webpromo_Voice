@@ -27,6 +27,7 @@ const aiSocialDeliveryMigration = readFileSync(resolve(import.meta.dirname, "../
 const identityReviewMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0025_contact_identity_review_candidates.sql"), "utf8");
 const socialServiceWindowMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0026_ai_chat_social_service_window.sql"), "utf8");
 const socialDeliveryProgressMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0027_ai_chat_social_delivery_progress.sql"), "utf8");
+const socialOperationsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0028_ai_chat_social_operations.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -232,6 +233,16 @@ describe("P6 AI Chat Premium social migration invariants", () => {
     expect(socialDeliveryProgressMigration).toContain("delivery.external_message_ids ||");
     expect(socialDeliveryProgressMigration).toContain("REVOKE ALL ON FUNCTION tenancy.finish_ai_social_delivery_parts");
     expect(socialDeliveryProgressMigration).not.toMatch(/rate_minor|billable_amount|THB/i);
+  });
+
+  it("exposes only aggregate social operations health to the platform role", () => {
+    expect(socialOperationsMigration).toContain("CREATE FUNCTION platform.ai_social_health_summary");
+    expect(socialOperationsMigration).toContain("session_user <> 'djay_platform'");
+    expect(socialOperationsMigration).toContain("oldestInboundQueueSeconds");
+    expect(socialOperationsMigration).toContain("oldestDeliveryQueueSeconds");
+    expect(socialOperationsMigration).toContain("serviceWindowClosed24h");
+    expect(socialOperationsMigration).toContain("REVOKE ALL ON FUNCTION platform.ai_social_health_summary");
+    expect(socialOperationsMigration).not.toMatch(/credential|recipient|subject|provider|model/i);
   });
 
   it("records cross-contact identity matches for review without merging", () => {

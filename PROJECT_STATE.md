@@ -10,8 +10,8 @@ The separate multi-tenant implementation is under:
 /home/siamesedev/Documents/codex/DJAI_WebDev_Landing_Page/DJAY_Bot_SaaS_Platform
 ```
 
-- P0-P5 engineering gates are complete; P6 AI Chatbot Premium Social is active.
-- The PostgreSQL 16 integration gate applies migrations `0000`-`0027` and passes
+- P0-P6 local engineering gates are complete; P7 Voice Basic is next.
+- The PostgreSQL 16 integration gate applies migrations `0000`-`0028` and passes
   forced RLS, tenant isolation, identity, commerce, shared domain, FlowBot, and
   AI Chat runtime/worker journeys, including local LINE, WhatsApp, and Messenger
   social delivery.

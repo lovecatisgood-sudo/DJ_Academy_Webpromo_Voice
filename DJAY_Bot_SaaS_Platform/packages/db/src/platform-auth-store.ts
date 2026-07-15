@@ -256,15 +256,26 @@ export class PostgresPlatformAuthStore implements PlatformAuthStore {
   }
 
   async healthSummary() {
-    const rows = await this.client<{ platform_users: number; active_sessions: number }[]>`
+    const rows = await this.client<{
+      platform_users: number; active_sessions: number;
+      social_channels: {
+        channel: "line" | "whatsapp" | "messenger";
+        activeConnections: number; reauthorizationRequired: number;
+        queuedInbound: number; oldestInboundQueueSeconds: number; deadLetterInbound: number;
+        queuedDeliveries: number; oldestDeliveryQueueSeconds: number; deadLetterDeliveries: number;
+        serviceWindowClosed24h: number; attemptedQuantity24h: number; failedAttempts24h: number;
+      }[];
+    }[]>`
       SELECT
         (SELECT count(*)::int FROM platform.users WHERE status = 'active') AS platform_users,
         (SELECT count(*)::int FROM platform.sessions
-          WHERE revoked_at IS NULL AND idle_expires_at > now() AND absolute_expires_at > now()) AS active_sessions
+          WHERE revoked_at IS NULL AND idle_expires_at > now() AND absolute_expires_at > now()) AS active_sessions,
+        platform.ai_social_health_summary() AS social_channels
     `;
     return {
       platformUsers: rows[0]?.platform_users ?? 0,
       activeSessions: rows[0]?.active_sessions ?? 0,
+      socialChannels: rows[0]?.social_channels ?? [],
     };
   }
 }

@@ -1,9 +1,9 @@
 # P6 Validation: AI Chatbot Premium Social
 
-- Result: LINE, WhatsApp, and Messenger local runtime and delivery engineering passed
+- Result: Local engineering gate passed for LINE, WhatsApp, and Messenger
 - Date: 2026-07-15
-- Database migrations: `0020_ai_chat_social_line` through `0027_ai_chat_social_delivery_progress`
-- P6 phase status: Active; not complete
+- Database migrations: `0020_ai_chat_social_line` through `0028_ai_chat_social_operations`
+- P6 phase status: Engineering complete; external acceptance pending
 - Production activation: Disabled
 
 ## Delivered slice
@@ -53,6 +53,12 @@
   revocation with encrypted credentials and an opaque callback key.
 - Messenger Meta challenge/raw-signature verification; text, postback, delivery,
   and read normalization; quick replies; and Page-token delivery.
+- Website, LINE, WhatsApp, and Messenger tenant analytics for sessions, turns,
+  leads, appointments, deliveries, failures, and attempted quantity.
+- Platform-role-only aggregate social health for connection authority, inbound
+  and delivery queue age, dead letters, service-window closures, and attempts.
+- A production runbook with activation, monitoring, incident, kill, rotation,
+  rollback, recovery, and restricted external evidence requirements.
 
 ## Executed gates
 
@@ -63,7 +69,7 @@ scripts/use-node24.sh pnpm run verify
 scripts/use-node24.sh pnpm run qa:p6-line
 ```
 
-All passed. PostgreSQL 16 applied migrations `0000` through `0027`. The P6
+All passed. PostgreSQL 16 applied migrations `0000` through `0028`. The P6
 integration journey proved:
 
 - an active Premium snapshot can create a LINE connection;
@@ -111,6 +117,10 @@ integration journey proved:
   one;
 - Messenger claims reuse the same 24-hour service-window authority and record
   their exact service-window reply quantity without a monetary rate.
+- tenant analytics reconcile three social sessions, four completed turns, one
+  failed turn, one lead, one appointment, and channel-specific delivery totals;
+- the restricted Platform Operations summary reports nonzero LINE, WhatsApp,
+  and Messenger delivery evidence without tenant or credential material.
 
 Unit coverage also proves changed raw bodies fail LINE and Meta signature
 verification and that a later WhatsApp part failure reports exact attempted,
@@ -137,6 +147,7 @@ found no secret, provider-identity, console, or horizontal-overflow leak.
 - Queue-age, delivery-failure, and usage alert verification.
 - Kill/revoke and rollback rehearsal with a named merchant.
 
-Cross-channel analytics and external operations evidence remain before the P6
-engineering gate can close. No social channel may be activated in production
-from this checkpoint.
+The local P6 engineering gate is closed. The external worksheet in
+`../runbooks/ai-social-runtime.md`, channel platform approvals, commercial
+treatment, and paid-GA authorization remain pending. No social channel may be
+activated in production from this checkpoint.

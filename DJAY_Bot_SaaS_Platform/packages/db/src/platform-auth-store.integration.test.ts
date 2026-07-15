@@ -82,7 +82,14 @@ describe.runIf(enabled)("platform identity repository", () => {
       displayName: "Platform Owner",
     });
     await expect(service.current(createOpaqueToken())).resolves.toBeNull();
-    await expect(store.healthSummary()).resolves.toEqual({ platformUsers: 1, activeSessions: 1 });
+    await expect(store.healthSummary()).resolves.toMatchObject({
+      platformUsers: 1, activeSessions: 1,
+      socialChannels: [
+        expect.objectContaining({ channel: "line", activeConnections: 0, queuedInbound: 0 }),
+        expect.objectContaining({ channel: "whatsapp", activeConnections: 0, queuedInbound: 0 }),
+        expect.objectContaining({ channel: "messenger", activeConnections: 0, queuedInbound: 0 }),
+      ],
+    });
     await service.logout(authenticated.sessionToken);
     await expect(service.current(authenticated.sessionToken)).resolves.toBeNull();
 

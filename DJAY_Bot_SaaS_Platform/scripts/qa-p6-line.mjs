@@ -62,7 +62,17 @@ async function mockTenant(page, role) {
     if (path === "/tenant/ai-chat/notifications") return json(route, { notifications: [] });
     if (path === "/tenant/ai-chat/analytics") return json(route, {
       analytics: { periodDays: 30, level: "core", sessions: 8, completedTurns: 12,
-        failedTurns: 1, handovers: 1, leads: 4, appointmentRequests: 2, settledResponses: 12 },
+        failedTurns: 1, handovers: 1, leads: 4, appointmentRequests: 2, settledResponses: 12,
+        channels: [
+          { channel: "web", sessions: 3, completedTurns: 4, failedTurns: 0, leads: 1,
+            appointmentRequests: 1, delivered: 0, pendingDeliveries: 0, failedDeliveries: 0, attemptedQuantity: 0 },
+          { channel: "line", sessions: 2, completedTurns: 3, failedTurns: 1, leads: 1,
+            appointmentRequests: 0, delivered: 17, pendingDeliveries: 2, failedDeliveries: 2, attemptedQuantity: 22 },
+          { channel: "whatsapp", sessions: 2, completedTurns: 3, failedTurns: 0, leads: 1,
+            appointmentRequests: 1, delivered: 3, pendingDeliveries: 0, failedDeliveries: 0, attemptedQuantity: 3 },
+          { channel: "messenger", sessions: 1, completedTurns: 2, failedTurns: 0, leads: 1,
+            appointmentRequests: 0, delivered: 4, pendingDeliveries: 0, failedDeliveries: 0, attemptedQuantity: 4 },
+        ] },
     });
     if (path === "/tenant/ai-chat/agents" && method === "GET") return json(route, {
       agents: [{ id: agentId, name: "Mali", status: "active", defaultLanguage: "en",
@@ -143,6 +153,10 @@ async function inspectOwner(viewport, suffix) {
   await page.getByRole("heading", { name: "LINE connections" }).waitFor();
   for (const value of ["17 delivered", "2 pending", "2 failed", "22 channel units attempted"]) {
     if (!(await page.getByText(value, { exact: true }).count())) failures.push(`owner-${suffix}: missing ${value}`);
+  }
+  const channelAnalytics = page.locator(".channel-analytics");
+  for (const value of ["Website", "LINE", "WhatsApp", "Messenger", "17 delivered / 2 pending / 2 failed / 22 units"]) {
+    if (!(await channelAnalytics.getByText(value, { exact: true }).count())) failures.push(`owner-${suffix}: missing channel analytics ${value}`);
   }
   if (suffix === "desktop") {
     await page.getByRole("button", { name: "Check health" }).click();

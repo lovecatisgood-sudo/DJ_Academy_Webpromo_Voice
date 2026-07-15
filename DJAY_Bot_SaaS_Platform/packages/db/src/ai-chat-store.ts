@@ -288,7 +288,8 @@ export class AiChatStore {
            WHERE event.tenant_id = ${context.tenantId}::uuid AND conversation.product_key = 'ai_chat'
              AND event.event_type IN ('requested', 'accepted') AND event.created_at >= now() - make_interval(days => ${periodDays})) AS handovers,
           (SELECT count(*)::int FROM tenancy.leads lead
-           WHERE lead.tenant_id = ${context.tenantId}::uuid AND lead.source = 'ai_chat_web'
+           WHERE lead.tenant_id = ${context.tenantId}::uuid
+             AND lead.source IN ('ai_chat_web', 'ai_chat_line', 'ai_chat_whatsapp', 'ai_chat_messenger')
              AND lead.created_at >= now() - make_interval(days => ${periodDays})) AS leads,
           (SELECT count(*)::int FROM tenancy.appointment_requests request
            JOIN tenancy.conversations conversation ON conversation.tenant_id = request.tenant_id AND conversation.id = request.conversation_id
@@ -298,7 +299,66 @@ export class AiChatStore {
            WHERE event.tenant_id = ${context.tenantId}::uuid AND event.product_key = 'ai_chat'
              AND event.event_type = 'settled' AND event.occurred_at >= now() - make_interval(days => ${periodDays})) AS "settledResponses"
       `;
-      return { periodDays, level: authority.entitlements["analytics.level"] ?? "core", ...rows[0]! };
+      const channels = await sql<{
+        channel: "web" | "line" | "whatsapp" | "messenger";
+        sessions: number; completedTurns: number; failedTurns: number;
+        leads: number; appointmentRequests: number; delivered: number;
+        pendingDeliveries: number; failedDeliveries: number; attemptedQuantity: number;
+      }[]>`
+        SELECT scope.channel,
+          (SELECT count(*)::int FROM tenancy.ai_sessions session
+           JOIN tenancy.ai_deployments deployment
+             ON deployment.tenant_id = session.tenant_id AND deployment.id = session.deployment_id
+           WHERE session.tenant_id = ${context.tenantId}::uuid AND deployment.channel = scope.channel
+             AND session.started_at >= now() - make_interval(days => ${periodDays})) AS sessions,
+          (SELECT count(*)::int FROM tenancy.ai_turns turn
+           JOIN tenancy.ai_sessions session
+             ON session.tenant_id = turn.tenant_id AND session.id = turn.session_id
+           JOIN tenancy.ai_deployments deployment
+             ON deployment.tenant_id = session.tenant_id AND deployment.id = session.deployment_id
+           WHERE turn.tenant_id = ${context.tenantId}::uuid AND deployment.channel = scope.channel
+             AND turn.status = 'completed'
+             AND turn.started_at >= now() - make_interval(days => ${periodDays})) AS "completedTurns",
+          (SELECT count(*)::int FROM tenancy.ai_turns turn
+           JOIN tenancy.ai_sessions session
+             ON session.tenant_id = turn.tenant_id AND session.id = turn.session_id
+           JOIN tenancy.ai_deployments deployment
+             ON deployment.tenant_id = session.tenant_id AND deployment.id = session.deployment_id
+           WHERE turn.tenant_id = ${context.tenantId}::uuid AND deployment.channel = scope.channel
+             AND turn.status = 'failed'
+             AND turn.started_at >= now() - make_interval(days => ${periodDays})) AS "failedTurns",
+          (SELECT count(*)::int FROM tenancy.leads lead
+           WHERE lead.tenant_id = ${context.tenantId}::uuid
+             AND lead.source = 'ai_chat_' || scope.channel
+             AND lead.created_at >= now() - make_interval(days => ${periodDays})) AS leads,
+          (SELECT count(*)::int FROM tenancy.appointment_requests request
+           JOIN tenancy.conversations conversation
+             ON conversation.tenant_id = request.tenant_id AND conversation.id = request.conversation_id
+           WHERE request.tenant_id = ${context.tenantId}::uuid
+             AND conversation.product_key = 'ai_chat' AND conversation.channel_kind = scope.channel
+             AND request.created_at >= now() - make_interval(days => ${periodDays})) AS "appointmentRequests",
+          (SELECT count(*) FILTER (WHERE delivery.status = 'succeeded')::int
+           FROM tenancy.ai_social_outbound_deliveries delivery
+           WHERE delivery.tenant_id = ${context.tenantId}::uuid AND delivery.channel = scope.channel
+             AND delivery.created_at >= now() - make_interval(days => ${periodDays})) AS delivered,
+          (SELECT count(*) FILTER (WHERE delivery.status IN ('pending', 'processing'))::int
+           FROM tenancy.ai_social_outbound_deliveries delivery
+           WHERE delivery.tenant_id = ${context.tenantId}::uuid AND delivery.channel = scope.channel
+             AND delivery.created_at >= now() - make_interval(days => ${periodDays})) AS "pendingDeliveries",
+          (SELECT count(*) FILTER (WHERE delivery.status IN ('failed', 'dead_letter'))::int
+           FROM tenancy.ai_social_outbound_deliveries delivery
+           WHERE delivery.tenant_id = ${context.tenantId}::uuid AND delivery.channel = scope.channel
+             AND delivery.created_at >= now() - make_interval(days => ${periodDays})) AS "failedDeliveries",
+          (SELECT COALESCE(sum(event.attempted_quantity), 0)::int
+           FROM tenancy.ai_social_channel_quantity_events event
+           WHERE event.tenant_id = ${context.tenantId}::uuid AND event.channel = scope.channel
+             AND event.occurred_at >= now() - make_interval(days => ${periodDays})) AS "attemptedQuantity"
+        FROM (VALUES ('web'::text), ('line'::text), ('whatsapp'::text), ('messenger'::text)) scope(channel)
+      `;
+      return {
+        periodDays, level: authority.entitlements["analytics.level"] ?? "core",
+        ...rows[0]!, channels,
+      };
     });
   }
 }

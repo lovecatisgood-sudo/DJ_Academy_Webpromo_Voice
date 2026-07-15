@@ -2,8 +2,9 @@
 
 ## Status
 
-Active engineering phase. P5 AI Chatbot Basic Web is the accepted foundation.
-Production social activation remains disabled.
+Local engineering gate passed. P5 AI Chatbot Basic Web is the accepted
+foundation. Production social activation remains disabled pending the external
+acceptance worksheet in `../runbooks/ai-social-runtime.md`.
 
 ## Requirements
 
@@ -77,6 +78,13 @@ This slice delivers:
     24-hour service window and resumable multipart ledger.
 27. Tenant Messenger setup, one-time callback display, delivery metrics, health,
     credential rotation, revocation, and owner/viewer browser QA.
+28. Tenant analytics split sessions, turns, leads, appointments, delivery state,
+    and attempted quantities across Website, LINE, WhatsApp, and Messenger.
+29. A Platform Operations-only aggregate exposes connection state, queue count
+    and age, dead letters, service-window closures, and 24-hour attempt health
+    without tenant data, credentials, recipients, or routing identity.
+30. The social runtime runbook defines safe observation, alert inputs, kill,
+    rotation, rollback, recovery, and per-channel external acceptance evidence.
 
 ## Non-goals for this slice
 
@@ -87,10 +95,11 @@ This slice delivers:
 
 ## Schema and API impact
 
-- Migrations `0020` through `0027` add social connections, immutable inbound
+- Migrations `0020` through `0028` add social connections, immutable inbound
   receipts, subject/session initialization, atomic response commit, outbound
   delivery, immutable channel quantity events, suggest-only identity review,
-  service-window enforcement, and resumable multipart progress.
+  service-window enforcement, resumable multipart progress, and restricted
+  aggregate Platform Operations health.
 - Tenant routes manage LINE, WhatsApp, and Messenger connections under
   `ai_chat.channels.manage`.
 - The public LINE, WhatsApp, and Messenger webhook routes are opaque-key
@@ -101,13 +110,13 @@ This slice delivers:
 - Disable or revoke every social connection.
 - Remove the public LINE, WhatsApp, and Messenger webhook routes from the deployed
   application.
-- Application rollback must remain compatible with migrations `0020`-`0027`;
+- Application rollback must remain compatible with migrations `0020`-`0028`;
   tables and receipts are retained for audit and replay safety.
 
-## Gate for the next slice
+## Local engineering gate
 
 - Full workspace verification passes.
-- PostgreSQL 16 applies migrations `0000` through `0027`.
+- PostgreSQL 16 applies migrations `0000` through `0028`.
 - AI Basic cannot create or resolve a LINE, WhatsApp, or Messenger connection.
 - Wrong-tenant IDs disclose nothing and mutate nothing.
 - Invalid signatures create no receipt.
@@ -119,3 +128,8 @@ This slice delivers:
   credentials, and a partial multipart failure resumes at the first unsent part.
 - Messenger uses the same closed-window and resumable multipart authority.
 - Opt-out closes automation and delayed delivery failure is visible to tenants.
+- Tenant analytics reconcile channel-specific domain and delivery outcomes.
+- Platform health exposes only aggregate operational signals through the
+  restricted platform role.
+- Production activation remains blocked until every applicable external
+  acceptance worksheet cell passes.

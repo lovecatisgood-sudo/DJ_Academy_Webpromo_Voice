@@ -5,20 +5,24 @@ import { afterAll, describe, expect, it } from "vitest";
 import { AiChatStore } from "./ai-chat-store";
 import { AiSocialConnectionStore, AiSocialRuntimeStore, AiSocialWorkerStore } from "./ai-social-store";
 import { createDatabaseClient } from "./client";
+import { PostgresPlatformAuthStore } from "./platform-auth-store";
 import { SharedDomainStore } from "./shared-domain-store";
 
 const runtimeUrl = process.env.AI_DATABASE_URL;
 const tenantUrl = process.env.TENANT_DATABASE_URL;
 const adminUrl = process.env.ADMIN_DATABASE_URL;
 const workerUrl = process.env.WORKER_DATABASE_URL;
-const enabled = Boolean(runtimeUrl && tenantUrl && adminUrl && workerUrl);
+const platformUrl = process.env.PLATFORM_DATABASE_URL;
+const enabled = Boolean(runtimeUrl && tenantUrl && adminUrl && workerUrl && platformUrl);
 const runtimeClient = enabled ? createDatabaseClient(runtimeUrl!) : null;
 const tenantClient = enabled ? createDatabaseClient(tenantUrl!) : null;
 const adminClient = enabled ? createDatabaseClient(adminUrl!) : null;
 const workerClient = enabled ? createDatabaseClient(workerUrl!) : null;
+const platformClient = enabled ? createDatabaseClient(platformUrl!) : null;
 
 afterAll(async () => {
-  await runtimeClient?.end(); await tenantClient?.end(); await adminClient?.end(); await workerClient?.end();
+  await runtimeClient?.end(); await tenantClient?.end(); await adminClient?.end();
+  await workerClient?.end(); await platformClient?.end();
 });
 
 describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", () => {
@@ -574,6 +578,32 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
     await worker.finishDelivery({ deliveryId: messengerDelivery.deliveryId, delivered: true,
       externalMessageIds: ["mid.outbound-1"], feeClassification: "service_window_reply",
       attemptedQuantity: 1, completedPartCount: 1, safeErrorCode: null });
+    const crossChannelAnalytics = await authoring.analytics(context);
+    expect(crossChannelAnalytics).toMatchObject({
+      sessions: 3, completedTurns: 4, failedTurns: 1, leads: 1,
+      appointmentRequests: 1, settledResponses: 4,
+    });
+    expect(crossChannelAnalytics?.channels).toEqual(expect.arrayContaining([
+      expect.objectContaining({ channel: "web", sessions: 0, completedTurns: 0,
+        leads: 0, delivered: 0, attemptedQuantity: 0 }),
+      expect.objectContaining({ channel: "line", sessions: 1, completedTurns: 1,
+        failedTurns: 1, leads: 1, appointmentRequests: 1,
+        delivered: 0, failedDeliveries: 1, attemptedQuantity: 2 }),
+      expect.objectContaining({ channel: "whatsapp", sessions: 1, completedTurns: 2,
+        failedTurns: 0, delivered: 1, failedDeliveries: 1, attemptedQuantity: 3 }),
+      expect.objectContaining({ channel: "messenger", sessions: 1, completedTurns: 1,
+        failedTurns: 0, delivered: 1, failedDeliveries: 0, attemptedQuantity: 1 }),
+    ]));
+    const platformHealth = await new PostgresPlatformAuthStore(platformClient!).healthSummary();
+    expect(platformHealth.socialChannels).toEqual(expect.arrayContaining([
+      expect.objectContaining({ channel: "line", activeConnections: 1,
+        deadLetterDeliveries: 1, attemptedQuantity24h: 2 }),
+      expect.objectContaining({ channel: "whatsapp", activeConnections: 0,
+        deadLetterDeliveries: 1, serviceWindowClosed24h: 1,
+        attemptedQuantity24h: 3, failedAttempts24h: 1 }),
+      expect.objectContaining({ channel: "messenger", activeConnections: 1,
+        deadLetterDeliveries: 0, attemptedQuantity24h: 1 }),
+    ]));
     await expect(connections.revoke(context, messenger.connectionId)).resolves.toEqual({ status: "revoked" });
 
     await expect(connections.revoke(context, created.connectionId)).resolves.toEqual({ status: "revoked" });
