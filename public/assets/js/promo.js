@@ -128,7 +128,6 @@ const basePromoData = {
       comparison: [
         ["5 pages individually", "15,000 THB", ""],
         ["Bundle price", "10,000 THB", "comparison-save"],
-        ["You save", "5,000 THB", "comparison-highlight"],
       ],
       features: [
         "5 Pages &mdash; Custom Design",
@@ -318,7 +317,6 @@ const thaiPromoOverrides = {
       comparison: [
         ["ซื้อ 5 หน้าแยกกัน", "15,000 บาท", ""],
         ["ราคาแพ็กเกจ", "10,000 บาท", "comparison-save"],
-        ["คุณประหยัด", "5,000 บาท", "comparison-highlight"],
       ],
       features: [
         "5 หน้า &mdash; ออกแบบเฉพาะธุรกิจ",

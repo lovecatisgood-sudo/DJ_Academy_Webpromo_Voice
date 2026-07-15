@@ -1,0 +1,41 @@
+{
+  "name": "@djay/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "next build --webpack",
+    "dev": "next dev --port 3103",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@djay/auth": "workspace:*",
+    "@djay/action-gateway": "workspace:*",
+    "@djay/ai-chat-runtime": "workspace:*",
+    "@djay/authorization": "workspace:*",
+    "@djay/db": "workspace:*",
+    "@djay/domain": "workspace:*",
+    "@djay/flowbot-domain": "workspace:*",
+    "@djay/platform-auth": "workspace:*",
+    "@djay/provider-gateway": "workspace:*",
+    "@djay/sales-core": "workspace:*",
+    "@djay/shared": "workspace:*",
+    "@djay/tenancy": "workspace:*",
+    "@djay/usage-billing": "workspace:*",
+    "@node-rs/argon2": "2.0.2",
+    "next": "16.2.10",
+    "postgres": "3.4.9",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.9.3",
+    "vitest": "3.2.6"
+  }
+}

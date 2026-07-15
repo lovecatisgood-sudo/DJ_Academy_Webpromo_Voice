@@ -1,0 +1,68 @@
+# DJAY Bot SaaS Platform
+
+This directory is the implementation workspace for the multi-tenant DJAY Bot SaaS Platform. It is intentionally separate from the existing production/reference applications:
+
+- `../FlowBot_V1_App/` remains the protected single-tenant deterministic FlowBot V1 reference.
+- `../src/` and the root Next.js application remain the current single-tenant voice/text reference.
+- `../djay-bot-saas-platform-final-vision-v3/` is the target product and program specification.
+
+The platform contains three product families and exactly six public plan keys:
+
+```text
+flowbot_basic
+flowbot_premium
+ai_chat_basic
+ai_chat_premium
+voice_basic_gen1
+voice_advanced_gen2
+```
+
+Implementation proceeds through gated phases P0-P9. Product code may only be ported after the identity, tenant isolation, and entitlement foundations that protect it are in place.
+
+## Current phase
+
+P0 through P5 engineering are complete. P6 AI Chatbot Premium Social is the
+active implementation phase. FlowBot remains limited to named pilots until three
+real isolated tenant acceptances pass. AI Chat Basic also requires an approved
+live routing-profile evaluation and named merchant acceptance before production
+self-service. Paid plans remain disabled until the commercial and paid-GA gates
+are accepted and passed.
+
+## Local commands
+
+Use the pinned Node 24 wrapper from this directory:
+
+```bash
+scripts/use-node24.sh pnpm install
+scripts/use-node24.sh pnpm run verify
+scripts/test-db-integration.sh
+scripts/use-node24.sh pnpm run qa:p3-ui
+scripts/use-node24.sh pnpm run qa:p4-flowbot
+scripts/use-node24.sh pnpm run qa:p5-ai-chat
+scripts/use-node24.sh pnpm run dev
+```
+
+Development applications:
+
+```text
+Public site:      http://localhost:3100
+Tenant workspace: http://localhost:3101
+Platform Master:  http://localhost:3102
+API:              http://localhost:3103
+```
+
+Copy `.env.example` into the deployment secret/configuration system and replace
+every placeholder. Tenant and platform auth secrets must be independent. The
+privacy export key must also be independent and available only to API/worker
+deployments. See `docs/runbooks/` for bootstrap, worker, privacy, support-access,
+and restore procedures.
+
+## Authority
+
+1. `../djay-bot-saas-platform-final-vision-v3/15-detailed-multi-tenant-implementation-plan.md`
+2. `../djay-bot-saas-platform-final-vision-v3/13-codex-implementation-guide.md`
+3. Accepted ADRs in `docs/adr/`
+4. Phase-specific specifications in this workspace
+5. Existing implementation, only as evidence of current behavior
+
+When authorities conflict, stop the dependent implementation and record the conflict. Existing single-tenant behavior does not silently override a SaaS security invariant.

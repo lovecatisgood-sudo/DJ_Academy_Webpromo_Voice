@@ -11,9 +11,12 @@ export default async function InboxPage() {
   const [voiceStats] = (await sql`
     select
       count(*)::text as conversations,
+      count(*) filter (where channel = 'voice_widget')::text as voice_conversations,
+      count(*) filter (where channel = 'text_widget')::text as text_conversations,
       count(*) filter (where had_lead)::text as leads,
       max(started_at) as last_started_at,
-      (select agent_enabled from settings where id = 1 limit 1) as agent_enabled
+      (select agent_enabled from settings where id = 1 limit 1) as agent_enabled,
+      (select text_chat_enabled from settings where id = 1 limit 1) as text_chat_enabled
     from conversations
     where deleted_at is null
       and (
@@ -25,10 +28,17 @@ export default async function InboxPage() {
             and leads.assigned_admin_id = ${admin.id}
         )
       )
-  `) as { conversations: string; leads: string; last_started_at: string | null; agent_enabled: boolean | null }[];
+  `) as {
+    conversations: string;
+    voice_conversations: string;
+    text_conversations: string;
+    leads: string;
+    last_started_at: string | null;
+    agent_enabled: boolean | null;
+    text_chat_enabled: boolean | null;
+  }[];
 
   const futureChannels = [
-    ["Web Text Chat", "Future text chatbot channel"],
     ["FlowBot Widget", "Future deterministic flow-bot channel"],
     ["LINE", "Future LINE messaging channel"],
     ["WhatsApp", "Future WhatsApp messaging channel"],
@@ -41,7 +51,7 @@ export default async function InboxPage() {
       <div className="mb-5">
         <h2 className="text-2xl font-semibold text-slate-950">Inbox</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Consolidated channel workspace. Current production channel: Website Voice Widget.
+          Consolidated channel workspace for the website voicebot and text chatbot.
         </p>
       </div>
 
@@ -54,14 +64,22 @@ export default async function InboxPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="grid h-11 w-11 place-items-center rounded-xl bg-[#0e7c86] text-xs font-bold text-white">VW</div>
             <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-              voiceStats?.agent_enabled ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+              voiceStats?.agent_enabled || voiceStats?.text_chat_enabled ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
             }`}>
-              {voiceStats?.agent_enabled ? "Active" : "Disabled"}
+              {voiceStats?.agent_enabled || voiceStats?.text_chat_enabled ? "Active" : "Disabled"}
             </span>
           </div>
-          <h3 className="mt-4 text-lg font-semibold text-slate-950">Website Voice Widget</h3>
-          <p className="mt-1 text-sm text-slate-600">Live voice conversations from the embedded DJAI website agent.</p>
+          <h3 className="mt-4 text-lg font-semibold text-slate-950">Website Agent Widget</h3>
+          <p className="mt-1 text-sm text-slate-600">Live voice and text conversations from the embedded DJAI website agent.</p>
           <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-lg bg-slate-50 p-3">
+              <div className="text-xs text-slate-500">Voice calls</div>
+              <div className="mt-1 text-xl font-semibold text-slate-950">{voiceStats?.voice_conversations ?? "0"}</div>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-3">
+              <div className="text-xs text-slate-500">Text chats</div>
+              <div className="mt-1 text-xl font-semibold text-slate-950">{voiceStats?.text_conversations ?? "0"}</div>
+            </div>
             <div className="rounded-lg bg-slate-50 p-3">
               <div className="text-xs text-slate-500">Conversations</div>
               <div className="mt-1 text-xl font-semibold text-slate-950">{voiceStats?.conversations ?? "0"}</div>

@@ -5,6 +5,130 @@
   const realtimeUrl = "https://api.openai.com/v1/realtime/calls";
   const controllers = [];
 
+  function ensureDualModeStyles() {
+    if (document.getElementById("djai-dual-mode-styles")) return;
+    const style = document.createElement("style");
+    style.id = "djai-dual-mode-styles";
+    style.textContent = `
+      .djai-mode-toggle {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        margin: 0 14px 12px;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.38);
+        padding: 4px;
+      }
+      .djai-mode-toggle button {
+        min-height: 36px;
+        border-radius: 9px;
+        background: transparent;
+        color: #b9c6d8;
+      }
+      .djai-mode-toggle button[aria-pressed="true"] {
+        background: linear-gradient(135deg, #22d3ee, #2563eb);
+        color: #fff;
+      }
+      .voice-agent-card.mode-chat .voice-agent-body,
+      .voice-agent-card.mode-chat .voice-agent-actions,
+      .voice-agent-card.mode-chat .voice-agent-timer,
+      .voice-agent-card.mode-chat .ai-privacy-note {
+        display: none;
+      }
+      .voice-agent-card.mode-voice .djai-chat-panel {
+        display: none;
+      }
+      .djai-chat-panel {
+        display: flex;
+        min-height: 0;
+        flex-direction: column;
+        border-top: 1px solid rgba(148, 163, 184, 0.16);
+        padding: 12px 14px 14px;
+      }
+      .voice-agent-card.mode-chat .djai-chat-panel {
+        flex: 1;
+        padding: 14px 8px 8px;
+      }
+      .djai-chat-messages {
+        display: flex;
+        flex: 1;
+        max-height: 300px;
+        min-height: 220px;
+        flex-direction: column;
+        gap: 8px;
+        overflow: auto;
+        padding-right: 2px;
+      }
+      .voice-agent-card.mode-chat .djai-chat-messages {
+        max-height: none;
+        min-height: 0;
+        padding: 4px 0 12px;
+      }
+      .djai-chat-message {
+        max-width: 86%;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 12px;
+        padding: 9px 10px;
+        color: #eaf2ff;
+        font-size: 13px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+      }
+      .djai-chat-message.assistant {
+        margin-right: auto;
+        background: rgba(255, 255, 255, 0.07);
+      }
+      .djai-chat-message.user {
+        margin-left: auto;
+        border-color: rgba(34, 211, 238, 0.32);
+        background: rgba(34, 211, 238, 0.14);
+      }
+      .djai-chat-message.system {
+        margin-inline: auto;
+        max-width: 100%;
+        color: #aeb8ca;
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .djai-chat-form {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: end;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .voice-agent-card.mode-chat .djai-chat-form {
+        margin-top: auto;
+        padding-top: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .djai-chat-form textarea {
+        min-height: 42px;
+        max-height: 110px;
+        resize: vertical;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 12px;
+        background: rgba(3, 7, 18, 0.46);
+        color: #f8fbff;
+        font: inherit;
+        font-size: 13px;
+        padding: 10px 11px;
+      }
+      .djai-chat-form textarea:focus {
+        border-color: rgba(34, 211, 238, 0.48);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.08);
+      }
+      .djai-chat-form textarea::placeholder {
+        color: #8fa0b8;
+      }
+      .djai-chat-form button {
+        min-width: 72px;
+        background: linear-gradient(135deg, #22d3ee, #2563eb);
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   function createFloatingContainer() {
     const root = document.createElement("div");
     root.id = "djai-voice-agent";
@@ -110,6 +234,13 @@
         #djai-voice-agent .djai-booking-cta[hidden] {
           display: none;
         }
+        #djai-voice-agent.mode-chat .djai-floating-actions,
+        #djai-voice-agent.mode-chat .djai-floating-log {
+          display: none;
+        }
+        #djai-voice-agent.mode-voice .djai-chat-panel {
+          display: none;
+        }
       </style>
       <div class="djai-floating-card" role="region" aria-label="DJAI voice sales agent">
         <div class="djai-floating-top">
@@ -168,8 +299,10 @@
 
   class VoiceController {
     constructor(container) {
+      ensureDualModeStyles();
       this.container = container;
       this.card = container;
+      this.installDualModeUi();
       this.statusEl = container.querySelector("[data-djai-status]");
       this.stateEl = container.querySelector("[data-djai-state]") || this.statusEl;
       this.timerEl = container.querySelector("[data-djai-timer]");
@@ -198,6 +331,12 @@
       this.muted = false;
       this.timer = 0;
       this.maxCallTimer = 0;
+      this.mode = "voice";
+      this.chatSessionContext = null;
+      this.chatStarted = false;
+      this.chatStarting = null;
+      this.chatBusy = false;
+      this.chatHasUserMessages = false;
 
       this.startButton?.addEventListener("click", () => this.startCall());
       this.muteButton?.addEventListener("click", () => this.toggleMute());
@@ -206,8 +345,192 @@
         if (!this.closed && this.sessionContext) {
           this.saveConversation();
         }
+        if (this.chatSessionContext) {
+          this.endChat({ beacon: true });
+        }
       });
+      this.modeButtons.forEach((button) => {
+        button.addEventListener("click", () => this.switchMode(button.dataset.djaiMode));
+      });
+      this.chatForm?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        this.sendChatMessage();
+      });
+      this.chatInput?.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          this.sendChatMessage();
+        }
+      });
+      this.switchMode("voice", { silent: true });
       this.checkStatus();
+    }
+
+    installDualModeUi() {
+      if (!this.card.querySelector("[data-djai-mode-toggle]")) {
+        const toggle = document.createElement("div");
+        toggle.className = "djai-mode-toggle";
+        toggle.dataset.djaiModeToggle = "true";
+        toggle.innerHTML = `
+          <button type="button" data-djai-mode="chat" aria-pressed="false">Chatbot</button>
+          <button type="button" data-djai-mode="voice" aria-pressed="true">Voicebot</button>
+        `;
+        const header = this.card.querySelector(".voice-agent-header, .djai-floating-top, .ai-chat-header");
+        if (header?.after) header.after(toggle);
+        else this.card.prepend(toggle);
+      }
+
+      if (!this.card.querySelector("[data-djai-chat-panel]")) {
+        const panel = document.createElement("div");
+        panel.className = "djai-chat-panel";
+        panel.dataset.djaiChatPanel = "true";
+        panel.innerHTML = `
+          <div class="djai-chat-messages" data-djai-chat-messages></div>
+          <form class="djai-chat-form" data-djai-chat-form>
+            <textarea data-djai-chat-input rows="1" placeholder="Type your message..."></textarea>
+            <button type="submit" data-djai-chat-send>Send</button>
+          </form>
+        `;
+        const toggle = this.card.querySelector("[data-djai-mode-toggle]");
+        if (toggle?.after) toggle.after(panel);
+        else this.card.appendChild(panel);
+      }
+
+      this.modeButtons = Array.from(this.card.querySelectorAll("[data-djai-mode]"));
+      this.chatPanel = this.card.querySelector("[data-djai-chat-panel]");
+      this.chatMessages = this.card.querySelector("[data-djai-chat-messages]");
+      this.chatForm = this.card.querySelector("[data-djai-chat-form]");
+      this.chatInput = this.card.querySelector("[data-djai-chat-input]");
+      this.chatSend = this.card.querySelector("[data-djai-chat-send]");
+    }
+
+    switchMode(mode, options = {}) {
+      const nextMode = mode === "voice" ? "voice" : "chat";
+      if (nextMode === "chat" && !this.closed) {
+        if (!options.silent) {
+          window.alert("Please end the voice call before switching back to chatbot.");
+        }
+        return;
+      }
+
+      this.mode = nextMode;
+      this.card.classList.toggle("mode-chat", nextMode === "chat");
+      this.card.classList.toggle("mode-voice", nextMode === "voice");
+      this.modeButtons.forEach((button) => {
+        button.setAttribute("aria-pressed", button.dataset.djaiMode === nextMode ? "true" : "false");
+      });
+
+      if (nextMode === "chat") {
+        if (this.statusEl) this.statusEl.textContent = "Ready to chat";
+        this.startChatIfNeeded();
+      } else if (this.statusEl && this.closed) {
+        this.statusEl.textContent = "Ready to talk";
+      }
+    }
+
+    addChatMessage(role, text) {
+      const clean = String(text || "").trim();
+      if (!clean || !this.chatMessages) return;
+      const row = document.createElement("div");
+      row.className = `djai-chat-message ${role}`;
+      row.textContent = clean;
+      this.chatMessages.appendChild(row);
+      this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+    }
+
+    setChatBusy(busy) {
+      this.chatBusy = busy;
+      if (this.chatSend) {
+        this.chatSend.disabled = busy;
+        this.chatSend.textContent = busy ? "..." : "Send";
+      }
+    }
+
+    async startChatIfNeeded() {
+      if (this.chatSessionContext) return;
+      if (this.chatStarting) return this.chatStarting;
+      if (this.chatStarted) return;
+      this.chatStarted = true;
+      if (this.mode === "chat" && this.statusEl) this.statusEl.textContent = "Connecting chatbot...";
+      this.chatStarting = (async () => {
+        const response = await fetch(`${apiBase}/api/chat/session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pageUrl: window.location.href, preferredLanguage: getSelectedLanguage() }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Chatbot is unavailable.");
+        this.chatSessionContext = data.sessionContext;
+        if (!this.chatHasUserMessages) {
+          this.addChatMessage("assistant", data.greeting || "Hi, I am DJ from DJAI Academy. What kind of business are you running?");
+        }
+        if (this.mode === "chat" && this.statusEl) this.statusEl.textContent = "Ready to chat";
+      })();
+
+      try {
+        await this.chatStarting;
+      } catch (error) {
+        this.chatStarted = false;
+        this.chatSessionContext = null;
+        if (this.mode === "chat" && this.statusEl) this.statusEl.textContent = "Chatbot unavailable";
+        this.addChatMessage("system", error instanceof Error ? error.message : "Chatbot is unavailable.");
+      } finally {
+        this.chatStarting = null;
+      }
+    }
+
+    async sendChatMessage() {
+      if (this.chatBusy || !this.chatInput) return;
+      const message = this.chatInput.value.trim();
+      if (!message) return;
+      this.chatHasUserMessages = true;
+      this.chatInput.value = "";
+      this.addChatMessage("user", message);
+      this.setChatBusy(true);
+      await this.startChatIfNeeded();
+      if (!this.chatSessionContext) {
+        this.setChatBusy(false);
+        this.chatInput?.focus();
+        return;
+      }
+
+      try {
+        const response = await fetch(`${apiBase}/api/chat/message`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionContext: this.chatSessionContext,
+            message,
+            pageUrl: window.location.href,
+            preferredLanguage: getSelectedLanguage(),
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Chat message failed.");
+        this.addChatMessage("assistant", data.reply || "Could you tell me a little more?");
+        this.showBookingCta(data.booking);
+      } catch (error) {
+        this.addChatMessage("system", error instanceof Error ? error.message : "Chat message failed.");
+      } finally {
+        this.setChatBusy(false);
+        this.chatInput?.focus();
+      }
+    }
+
+    endChat(options = {}) {
+      if (!this.chatSessionContext) return;
+      const body = { sessionContext: this.chatSessionContext };
+      if (options.beacon) {
+        const blob = new Blob([JSON.stringify(body)], { type: "text/plain" });
+        navigator.sendBeacon?.(`${apiBase}/api/chat/end`, blob);
+        return;
+      }
+      return fetch(`${apiBase}/api/chat/end`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        keepalive: true,
+      }).catch(() => {});
     }
 
     setVisualState(state, label) {

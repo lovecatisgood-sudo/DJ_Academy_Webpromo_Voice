@@ -1,0 +1,28 @@
+{
+  "name": "djay-bot-saas-platform",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.12.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint && pnpm run lint:boundaries",
+    "lint:boundaries": "node scripts/check-boundaries.mjs",
+    "test:db": "scripts/test-db-integration.sh",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "qa:p3-ui": "node scripts/qa-p3-ui.mjs",
+    "qa:p4-flowbot": "node scripts/qa-p4-flowbot.mjs",
+    "qa:p5-ai-chat": "node scripts/qa-p5-ai-chat.mjs",
+    "verify": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
+  },
+  "devDependencies": {
+    "playwright": "1.61.1",
+    "turbo": "2.9.14",
+    "typescript": "5.9.3",
+    "vitest": "3.2.6"
+  }
+}

@@ -74,7 +74,6 @@ const promoData = {
       comparison: [
         ["5 pages individually", "15,000 THB", ""],
         ["Bundle price", "10,000 THB", "comparison-save"],
-        ["You save", "5,000 THB", "comparison-highlight"],
       ],
       features: [
         "5 Pages &mdash; Custom Design",

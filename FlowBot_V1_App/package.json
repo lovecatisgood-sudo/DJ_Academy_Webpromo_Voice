@@ -1,0 +1,38 @@
+{
+  "name": "flowbot-v1",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.12.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "migrate": "pnpm --filter @flowbot/db run migrate",
+    "node24": "scripts/use-node24.sh node -v",
+    "smoke:m2": "node --env-file-if-exists=.env.local scripts/smoke-m2.mjs",
+    "smoke:m3": "node --env-file-if-exists=.env.local scripts/smoke-m3.mjs",
+    "smoke:m5": "node --env-file-if-exists=.env.local scripts/smoke-m5.mjs",
+    "smoke:settings": "node --env-file-if-exists=.env.local scripts/smoke-settings.mjs",
+    "smoke:privacy": "node --env-file-if-exists=.env.local scripts/smoke-privacy.mjs",
+    "smoke:rate-limit": "node --env-file-if-exists=.env.local scripts/smoke-rate-limit.mjs",
+    "smoke:sse-soak": "node --env-file-if-exists=.env.local scripts/smoke-sse-soak.mjs",
+    "jobs:once": "node --env-file-if-exists=.env.local scripts/run-jobs.mjs",
+    "verify:node24": "scripts/use-node24.sh pnpm run verify",
+    "verify:audit": "pnpm audit --audit-level low",
+    "verify:release": "node scripts/release-verify.mjs",
+    "verify:secrets": "node scripts/secret-scan.mjs",
+    "test:e2e": "pnpm --filter @flowbot/widget run build && node --env-file-if-exists=.env.local node_modules/@playwright/test/cli.js test",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "verify": "pnpm run typecheck && pnpm run test && pnpm run build && pnpm run verify:secrets"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "turbo": "2.9.14",
+    "typescript": "5.9.3",
+    "vitest": "3.2.6"
+  }
+}

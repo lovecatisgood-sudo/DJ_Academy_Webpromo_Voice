@@ -1,0 +1,16 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+
+overrides:
+  postcss: 8.5.17
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+
+sideEffectsCache: false

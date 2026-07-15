@@ -1,0 +1,29 @@
+{
+  "bundle_name": "DJAY Bot SaaS Platform Final Vision",
+  "platform_name": "DJAY Bot SaaS Platform",
+  "version": "3.0",
+  "generated_date": "2026-07-13",
+  "scope": "FlowBot, AI Chatbot, Voice Agent only",
+  "tenant_owner_role": "tenant_master_admin",
+  "tenant_owner_creation": "verified registration on the public DJAY Bot SaaS site",
+  "tenant_owner_initial_invariant": "exactly one active Tenant Master Admin per tenant",
+  "public_plan_keys": [
+    "flowbot_basic",
+    "flowbot_premium",
+    "ai_chat_basic",
+    "ai_chat_premium",
+    "voice_basic_gen1",
+    "voice_advanced_gen2"
+  ],
+  "excluded_domains": [
+    "POS",
+    "Creative Club management",
+    "child/parent/class management",
+    "inventory/cashier/order management",
+    "staff payroll/attendance"
+  ],
+  "internal_voice_defaults": {
+    "voice_gen1": "gemini-3.1-flash-live-preview",
+    "voice_gen2": "gpt-realtime-2.1"
+  }
+}

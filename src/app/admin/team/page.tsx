@@ -5,7 +5,6 @@ import {
   deactivateAdminUserAction,
   deleteAdminUserAction,
   resetAdminPasswordAction,
-  setActiveBookingAdminAction,
   updateAdminUserAction,
 } from "../actions";
 import { ConfirmSubmitButton } from "../ConfirmSubmitButton";
@@ -29,11 +28,25 @@ export default async function TeamPage({
   const showDeleted = params.show === "deleted";
   const sql = getSql();
   const [settings] = (await sql`
-    select active_booking_admin_id, booking_enabled
+    select
+      settings.active_booking_admin_id,
+      settings.active_booking_link_id,
+      settings.booking_enabled,
+      bl.name as active_link_name,
+      bl.slug as active_link_slug,
+      bl.owner_admin_id as active_link_owner_id
     from settings
-    where id = 1
+    left join booking_links bl on bl.id = settings.active_booking_link_id
+    where settings.id = 1
     limit 1
-  `) as { active_booking_admin_id: string | null; booking_enabled: boolean }[];
+  `) as {
+    active_booking_admin_id: string | null;
+    active_booking_link_id: string | null;
+    active_link_name: string | null;
+    active_link_slug: string | null;
+    active_link_owner_id: string | null;
+    booking_enabled: boolean;
+  }[];
   const admins = (await sql`
     select
       au.id,
@@ -85,7 +98,7 @@ export default async function TeamPage({
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-slate-950">Team</h2>
-          <p className="mt-1 text-sm text-slate-600">Create admins, manage roles, and control which calendar the AI booking flow uses.</p>
+          <p className="mt-1 text-sm text-slate-600">Create admins, manage roles, and review calendar ownership.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
@@ -109,26 +122,18 @@ export default async function TeamPage({
       ) : null}
 
       <section className={`mb-5 ${sectionClass}`}>
-        <h3 className="text-lg font-semibold text-slate-950">Active AI booking admin</h3>
-        <p className="mt-1 text-sm text-slate-600">Only one admin calendar is used by the voice-agent booking CTA at a time.</p>
-        <form action={setActiveBookingAdminAction} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className="block flex-1 text-sm font-medium text-slate-700">
-            Booking calendar
-            <select name="admin_user_id" defaultValue={settings?.active_booking_admin_id || ""} className={inputClass}>
-              <option value="">Disable booking</option>
-              {activeAdmins.map((admin) => (
-                <option key={admin.id} value={admin.id}>
-                  {admin.name} ({admin.username})
-                </option>
-              ))}
-            </select>
-          </label>
-          <button className="rounded-md bg-gradient-to-r from-cyan-400 to-blue-600 px-4 py-2 font-semibold text-white">
-            Save active calendar
-          </button>
-        </form>
+        <h3 className="text-lg font-semibold text-slate-950">Active AI booking link</h3>
+        <p className="mt-1 text-sm text-slate-600">The voice agent sends appointment-ready leads to one selected booking link.</p>
+        <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          {settings?.booking_enabled && settings.active_booking_link_id
+            ? `${settings.active_link_name || "Selected link"} · /book/${settings.active_link_slug || ""}`
+            : "Booking is disabled or no AI booking link is selected."}
+        </div>
+        <Link href="/admin/calendar/links" className="mt-3 inline-flex rounded-md bg-gradient-to-r from-cyan-400 to-blue-600 px-4 py-2 font-semibold text-white">
+          Manage booking links
+        </Link>
         <div className="mt-3 text-sm text-slate-500">
-          Booking is currently {settings?.booking_enabled && settings.active_booking_admin_id ? "enabled" : "disabled"}.
+          Booking is currently {settings?.booking_enabled && settings.active_booking_link_id ? "enabled" : "disabled"}.
         </div>
       </section>
 
@@ -172,7 +177,7 @@ export default async function TeamPage({
         <div className="border-b border-slate-200 px-5 py-4 text-sm font-semibold text-slate-700">Admins</div>
         <div className="divide-y divide-slate-100">
           {admins.map((admin) => {
-            const isActiveBookingAdmin = settings?.active_booking_admin_id === admin.id;
+            const isActiveBookingAdmin = settings?.active_link_owner_id === admin.id || settings?.active_booking_admin_id === admin.id;
             const canDelete = currentAdmin.id !== admin.id && !admin.deleted_at;
 
             return (

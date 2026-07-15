@@ -1,1 +1,1 @@
-export const buildVersion = "admin-saas-inbox-2026-07-13";
+export const buildVersion = "voice-behavior-restore-2026-07-14";

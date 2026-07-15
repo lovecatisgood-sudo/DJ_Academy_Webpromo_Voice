@@ -1,0 +1,514 @@
+import {
+  boolean,
+  bigint,
+  customType,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgSchema,
+  text,
+  smallint,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
+
+const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
+const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
+const updatedAt = () => timestamp("updated_at", { withTimezone: true }).notNull().defaultNow();
+
+export const identitySchema = pgSchema("identity");
+export const tenancySchema = pgSchema("tenancy");
+export const platformSchema = pgSchema("platform");
+export const operationsSchema = pgSchema("operations");
+export const catalogSchema = pgSchema("catalog");
+export const billingSchema = pgSchema("billing");
+
+export const users = identitySchema.table("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  displayName: text("display_name").notNull(),
+  status: text("status").notNull().default("pending_verification"),
+  locale: text("locale").notNull().default("en"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+});
+
+export const userCredentials = identitySchema.table("user_credentials", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  passwordHash: text("password_hash").notNull(),
+  passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }).notNull().defaultNow(),
+  compromisedAt: timestamp("compromised_at", { withTimezone: true }),
+  updatedAt: updatedAt(),
+});
+
+export const emailAddresses = identitySchema.table("email_addresses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  emailNormalized: text("email_normalized").notNull(),
+  isPrimary: boolean("is_primary").notNull().default(false),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (table) => [
+  uniqueIndex("identity_email_normalized_unique").on(table.emailNormalized),
+]);
+
+export const tenants = tenancySchema.table("tenants", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").notNull().unique(),
+  businessName: text("business_name").notNull(),
+  status: text("status").notNull().default("active"),
+  locale: text("locale").notNull().default("en"),
+  timezone: text("timezone").notNull().default("Asia/Bangkok"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+});
+
+export const memberships = tenancySchema.table("memberships", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  role: text("role").notNull(),
+  status: text("status").notNull().default("active"),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+}, (table) => [
+  uniqueIndex("tenancy_membership_user_unique").on(table.tenantId, table.userId),
+  index("tenancy_memberships_user_active").on(table.userId, table.status, table.tenantId),
+]);
+
+export const tenantOnboarding = tenancySchema.table("tenant_onboarding", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => tenants.id, { onDelete: "cascade" }),
+  stage: text("stage").notNull().default("account_created"),
+  profileCompletedAt: timestamp("profile_completed_at", { withTimezone: true }),
+  productSelectedAt: timestamp("product_selected_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  updatedAt: updatedAt(),
+});
+
+export const signupIntents = identitySchema.table("signup_intents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  idempotencyKey: uuid("idempotency_key").notNull().unique(),
+  requestHash: bytea("request_hash").notNull(),
+  emailNormalized: text("email_normalized").notNull(),
+  displayName: text("display_name").notNull(),
+  businessName: text("business_name").notNull(),
+  passwordHash: text("password_hash"),
+  locale: text("locale").notNull().default("en"),
+  timezone: text("timezone").notNull().default("Asia/Bangkok"),
+  termsVersion: text("terms_version").notNull(),
+  privacyVersion: text("privacy_version").notNull(),
+  selectedPlanKey: text("selected_plan_key"),
+  status: text("status").notNull().default("verification_pending"),
+  provisionedUserId: uuid("provisioned_user_id").references(() => users.id, { onDelete: "restrict" }),
+  provisionedTenantId: uuid("provisioned_tenant_id").references(() => tenants.id, { onDelete: "restrict" }),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  provisionedAt: timestamp("provisioned_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export const products = catalogSchema.table("products", {
+  productKey: text("product_key").primaryKey(),
+  publicName: text("public_name").notNull(),
+  displayOrder: smallint("display_order").notNull(),
+  status: text("status").notNull(),
+  createdAt: createdAt(),
+});
+
+export const plans = catalogSchema.table("plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  productKey: text("product_key").notNull().references(() => products.productKey, { onDelete: "restrict" }),
+  planKey: text("plan_key").notNull().unique(),
+  publicName: text("public_name").notNull(),
+  tierName: text("tier_name").notNull(),
+  tierRank: smallint("tier_rank").notNull(),
+  status: text("status").notNull(),
+  createdAt: createdAt(),
+});
+
+export const planVersions = catalogSchema.table("plan_versions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  planId: uuid("plan_id").notNull().references(() => plans.id, { onDelete: "restrict" }),
+  version: integer("version").notNull(),
+  status: text("status").notNull(),
+  currency: text("currency").notNull(),
+  recurringAmountMinor: bigint("recurring_amount_minor", { mode: "number" }),
+  billingInterval: text("billing_interval"),
+  sellable: boolean("sellable").notNull().default(false),
+  trialPolicy: jsonb("trial_policy").notNull().default({}),
+  entitlements: jsonb("entitlements").notNull(),
+  allowances: jsonb("allowances").notNull(),
+  overageRatesMinor: jsonb("overage_rates_minor").notNull(),
+  limits: jsonb("limits").notNull(),
+  publicCopy: jsonb("public_copy").notNull(),
+  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+  effectiveTo: timestamp("effective_to", { withTimezone: true }),
+  createdByPlatformUserId: uuid("created_by_platform_user_id"),
+  createdAt: createdAt(),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+});
+
+export const productSubscriptions = tenancySchema.table("product_subscriptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  productKey: text("product_key").notNull().references(() => products.productKey, { onDelete: "restrict" }),
+  planVersionId: uuid("plan_version_id").notNull().references(() => planVersions.id, { onDelete: "restrict" }),
+  status: text("status").notNull(),
+  periodStart: timestamp("period_start", { withTimezone: true }),
+  periodEnd: timestamp("period_end", { withTimezone: true }),
+  cancelAt: timestamp("cancel_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const entitlementOverrides = tenancySchema.table("entitlement_overrides", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  productKey: text("product_key").notNull().references(() => products.productKey, { onDelete: "restrict" }),
+  entitlementKey: text("entitlement_key").notNull(),
+  valueJson: jsonb("value_json").notNull(),
+  reason: text("reason").notNull(),
+  approvedByPlatformUserId: uuid("approved_by_platform_user_id").notNull(),
+  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const entitlementSnapshots = tenancySchema.table("entitlement_snapshots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  subscriptionId: uuid("subscription_id").notNull().references(() => productSubscriptions.id, { onDelete: "restrict" }),
+  productKey: text("product_key").notNull().references(() => products.productKey, { onDelete: "restrict" }),
+  planVersionId: uuid("plan_version_id").notNull().references(() => planVersions.id, { onDelete: "restrict" }),
+  subscriptionStatus: text("subscription_status").notNull(),
+  accessMode: text("access_mode").notNull(),
+  resolvedJson: jsonb("resolved_json").notNull(),
+  resolutionHash: bytea("resolution_hash").notNull(),
+  createdAt: createdAt(),
+});
+
+export const quotaAccounts = tenancySchema.table("quota_accounts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  subscriptionId: uuid("subscription_id").notNull().references(() => productSubscriptions.id, { onDelete: "restrict" }),
+  productKey: text("product_key").notNull().references(() => products.productKey, { onDelete: "restrict" }),
+  customerUnit: text("customer_unit").notNull(),
+  periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+  periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+  includedQuantity: numeric("included_quantity", { mode: "number" }),
+  safetyCapQuantity: numeric("safety_cap_quantity", { mode: "number" }),
+  reservedQuantity: numeric("reserved_quantity", { mode: "number" }).notNull().default(0),
+  settledQuantity: numeric("settled_quantity", { mode: "number" }).notNull().default(0),
+  updatedAt: updatedAt(),
+});
+
+export const usageReservations = tenancySchema.table("usage_reservations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  quotaAccountId: uuid("quota_account_id").notNull().references(() => quotaAccounts.id, { onDelete: "restrict" }),
+  entitlementSnapshotId: uuid("entitlement_snapshot_id").notNull().references(() => entitlementSnapshots.id, { onDelete: "restrict" }),
+  operationId: text("operation_id").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  requestedQuantity: numeric("requested_quantity", { mode: "number" }).notNull(),
+  reservedQuantity: numeric("reserved_quantity", { mode: "number" }).notNull(),
+  settledQuantity: numeric("settled_quantity", { mode: "number" }),
+  status: text("status").notNull(),
+  reasonCode: text("reason_code"),
+  createdAt: createdAt(),
+  settledAt: timestamp("settled_at", { withTimezone: true }),
+});
+
+export const usageEvents = tenancySchema.table("usage_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  subscriptionId: uuid("subscription_id").notNull().references(() => productSubscriptions.id, { onDelete: "restrict" }),
+  entitlementSnapshotId: uuid("entitlement_snapshot_id").notNull().references(() => entitlementSnapshots.id, { onDelete: "restrict" }),
+  reservationId: uuid("reservation_id").references(() => usageReservations.id, { onDelete: "restrict" }),
+  productKey: text("product_key").notNull().references(() => products.productKey, { onDelete: "restrict" }),
+  operationId: text("operation_id").notNull(),
+  eventType: text("event_type").notNull(),
+  customerUnit: text("customer_unit").notNull(),
+  customerQuantity: numeric("customer_quantity", { mode: "number" }).notNull(),
+  rateMinor: numeric("rate_minor", { mode: "number" }),
+  billableAmountMinor: bigint("billable_amount_minor", { mode: "number" }),
+  idempotencyKey: text("idempotency_key").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  createdAt: createdAt(),
+});
+
+export const paymentCustomers = billingSchema.table("payment_customers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  providerKey: text("provider_key").notNull(),
+  externalCustomerRef: text("external_customer_ref").notNull(),
+  createdAt: createdAt(),
+});
+
+export const billingWebhookEvents = billingSchema.table("webhook_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  providerKey: text("provider_key").notNull(),
+  externalEventId: text("external_event_id").notNull(),
+  eventType: text("event_type").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  payloadHash: bytea("payload_hash").notNull(),
+  payloadCiphertext: text("payload_ciphertext").notNull(),
+  status: text("status").notNull(),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  lastErrorCode: text("last_error_code"),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
+});
+
+export const oneTimeTokens = identitySchema.table("one_time_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tokenHash: bytea("token_hash").notNull().unique(),
+  purpose: text("purpose").notNull(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+  signupIntentId: uuid("signup_intent_id").references(() => signupIntents.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const legalAcceptances = identitySchema.table("legal_acceptances", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "restrict" }),
+  documentType: text("document_type").notNull(),
+  documentVersion: text("document_version").notNull(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+  requestId: text("request_id").notNull(),
+});
+
+export const authSessions = identitySchema.table("auth_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: bytea("token_hash").notNull().unique(),
+  familyId: uuid("family_id").notNull(),
+  selectedTenantId: uuid("selected_tenant_id").references(() => tenants.id, { onDelete: "set null" }),
+  reauthenticatedAt: timestamp("reauthenticated_at", { withTimezone: true }).notNull().defaultNow(),
+  mfaVerifiedAt: timestamp("mfa_verified_at", { withTimezone: true }),
+  createdAt: createdAt(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  idleExpiresAt: timestamp("idle_expires_at", { withTimezone: true }).notNull(),
+  absoluteExpiresAt: timestamp("absolute_expires_at", { withTimezone: true }).notNull(),
+  rotatedAt: timestamp("rotated_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokeReason: text("revoke_reason"),
+});
+
+export const authLoginChallenges = identitySchema.table("auth_login_challenges", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: bytea("token_hash").notNull().unique(),
+  passwordVerifiedAt: timestamp("password_verified_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const mfaRecoveryCodes = identitySchema.table("mfa_recovery_codes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  codeHash: bytea("code_hash").notNull().unique(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const mfaFactors = identitySchema.table("mfa_factors", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  factorType: text("factor_type").notNull(),
+  label: text("label").notNull(),
+  secretCiphertext: bytea("secret_ciphertext"),
+  credentialData: jsonb("credential_data"),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  disabledAt: timestamp("disabled_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const membershipInvitations = tenancySchema.table("membership_invitations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  emailNormalized: text("email_normalized").notNull(),
+  role: text("role").notNull(),
+  status: text("status").notNull().default("pending"),
+  invitedByMembershipId: uuid("invited_by_membership_id").notNull(),
+  tokenId: uuid("token_id").notNull().unique().references(() => oneTimeTokens.id, { onDelete: "restrict" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  acceptedByUserId: uuid("accepted_by_user_id").references(() => users.id, { onDelete: "restrict" }),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const ownershipTransfers = tenancySchema.table("ownership_transfers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  fromMembershipId: uuid("from_membership_id").notNull(),
+  toMembershipId: uuid("to_membership_id").notNull(),
+  tokenId: uuid("token_id").unique().references(() => oneTimeTokens.id, { onDelete: "restrict" }),
+  status: text("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const tenantAuditLogs = tenancySchema.table("audit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "restrict" }),
+  actorMembershipId: uuid("actor_membership_id"),
+  action: text("action").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id"),
+  requestId: text("request_id").notNull(),
+  reason: text("reason"),
+  result: text("result").notNull(),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: createdAt(),
+}, (table) => [index("tenancy_audit_logs_recent").on(table.tenantId, table.createdAt)]);
+
+export const tenantOutbox = tenancySchema.table("outbox", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+  topic: text("topic").notNull(),
+  payload: jsonb("payload").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  status: text("status").notNull().default("pending"),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  availableAt: timestamp("available_at", { withTimezone: true }).notNull().defaultNow(),
+  lockedAt: timestamp("locked_at", { withTimezone: true }),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  lastErrorCode: text("last_error_code"),
+  createdAt: createdAt(),
+});
+
+export const operationsOutbox = operationsSchema.table("outbox", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  topic: text("topic").notNull(),
+  aggregateType: text("aggregate_type").notNull(),
+  aggregateId: uuid("aggregate_id").notNull(),
+  payloadCiphertext: text("payload_ciphertext").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  status: text("status").notNull().default("pending"),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  availableAt: timestamp("available_at", { withTimezone: true }).notNull().defaultNow(),
+  lockedAt: timestamp("locked_at", { withTimezone: true }),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  lastErrorCode: text("last_error_code"),
+  createdAt: createdAt(),
+});
+
+export const operationsAuditLogs = operationsSchema.table("audit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "restrict" }),
+  realm: text("realm").notNull(),
+  action: text("action").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id"),
+  requestId: text("request_id").notNull(),
+  result: text("result").notNull(),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: createdAt(),
+});
+
+export const operationsRateLimits = operationsSchema.table("rate_limits", {
+  scope: text("scope").notNull(),
+  keyHash: bytea("key_hash").notNull(),
+  windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
+  attemptCount: integer("attempt_count").notNull(),
+  blockedUntil: timestamp("blocked_until", { withTimezone: true }),
+  updatedAt: updatedAt(),
+});
+
+export const platformUsers = platformSchema.table("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  emailNormalized: text("email_normalized").notNull().unique(),
+  displayName: text("display_name").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  status: text("status").notNull().default("pending_mfa"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const platformRoleAssignments = platformSchema.table("role_assignments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  platformUserId: uuid("platform_user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  role: text("role").notNull(),
+  grantedByUserId: uuid("granted_by_user_id").references(() => platformUsers.id, { onDelete: "restrict" }),
+  grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+});
+
+export const platformMfaFactors = platformSchema.table("mfa_factors", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  platformUserId: uuid("platform_user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  factorType: text("factor_type").notNull(),
+  label: text("label").notNull(),
+  secretCiphertext: bytea("secret_ciphertext"),
+  credentialData: jsonb("credential_data"),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  disabledAt: timestamp("disabled_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const platformSessions = platformSchema.table("sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  platformUserId: uuid("platform_user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  tokenHash: bytea("token_hash").notNull().unique(),
+  familyId: uuid("family_id").notNull(),
+  mfaVerifiedAt: timestamp("mfa_verified_at", { withTimezone: true }).notNull(),
+  reauthenticatedAt: timestamp("reauthenticated_at", { withTimezone: true }),
+  createdAt: createdAt(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  idleExpiresAt: timestamp("idle_expires_at", { withTimezone: true }).notNull(),
+  absoluteExpiresAt: timestamp("absolute_expires_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokeReason: text("revoke_reason"),
+});
+
+export const platformBootstrapState = platformSchema.table("bootstrap_state", {
+  singleton: boolean("singleton").primaryKey().default(true),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  completedByUserId: uuid("completed_by_user_id").references(() => platformUsers.id, { onDelete: "restrict" }),
+});
+
+export const platformLoginChallenges = platformSchema.table("login_challenges", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  platformUserId: uuid("platform_user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  tokenHash: bytea("token_hash").notNull().unique(),
+  passwordVerifiedAt: timestamp("password_verified_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const platformMfaRecoveryCodes = platformSchema.table("mfa_recovery_codes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  platformUserId: uuid("platform_user_id").notNull().references(() => platformUsers.id, { onDelete: "cascade" }),
+  codeHash: bytea("code_hash").notNull().unique(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const platformAuditLogs = platformSchema.table("audit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  actorPlatformUserId: uuid("actor_platform_user_id").references(() => platformUsers.id, { onDelete: "restrict" }),
+  action: text("action").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id"),
+  requestId: text("request_id").notNull(),
+  reason: text("reason"),
+  result: text("result").notNull(),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: createdAt(),
+});

@@ -10,6 +10,7 @@ import type { LeadStatus } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 type StatusFilter = "all" | LeadStatus;
+type ChannelFilter = "all" | "voice_widget" | "text_widget";
 
 const statuses: { key: StatusFilter; label: string }[] = [
   { key: "all", label: "All" },
@@ -18,6 +19,12 @@ const statuses: { key: StatusFilter; label: string }[] = [
   { key: "follow_up_later", label: "Follow up later" },
   { key: "deal_closed", label: "Deal closed" },
   { key: "no_deal", label: "No deal" },
+];
+
+const channelFilters: { key: ChannelFilter; label: string }[] = [
+  { key: "all", label: "All channels" },
+  { key: "voice_widget", label: "Voice" },
+  { key: "text_widget", label: "Chat" },
 ];
 
 const inputClass = "mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900";
@@ -30,6 +37,18 @@ function statusValue(value: unknown): StatusFilter {
     value === "no_deal"
     ? value
     : "all";
+}
+
+function channelValue(value: unknown): ChannelFilter {
+  return value === "voice_widget" || value === "text_widget" ? value : "all";
+}
+
+function channelLabel(channel: string | null | undefined) {
+  return channel === "text_widget" ? "Chat" : "Voice";
+}
+
+function channelTone(channel: string | null | undefined) {
+  return channel === "text_widget" ? "emerald" : "cyan";
 }
 
 function contactLine(lead: {
@@ -49,22 +68,24 @@ function contactLine(lead: {
   ].filter(Boolean).join(" · ") || lead.contact || "No contact";
 }
 
-function leadHref(id: string, status: StatusFilter, q: string) {
-  return `/admin/leads?id=${id}&status=${status}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+function leadHref(id: string, status: StatusFilter, q: string, channel: ChannelFilter) {
+  return `/admin/leads?id=${id}&status=${status}&channel=${channel}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
 }
 
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string; status?: StatusFilter; q?: string }>;
+  searchParams: Promise<{ id?: string; status?: StatusFilter; channel?: ChannelFilter; q?: string }>;
 }) {
   const admin = await requireAdmin();
   const params = await searchParams;
   const status = statusValue(params.status);
+  const channel = channelValue(params.channel);
   const q = typeof params.q === "string" ? params.q.trim().slice(0, 120) : "";
   const search = `%${q}%`;
   const sql = getSql();
-  const leads = (await sql`
+  const pageSize = 200;
+  const leadRows = (await sql`
     select
       leads.*,
       conversations.summary,
@@ -89,6 +110,7 @@ export default async function LeadsPage({
       limit 1
     ) appointment on true
     where (${status} = 'all' or leads.status = ${status})
+      and (${channel} = 'all' or leads.source_channel = ${channel})
       and (conversations.deleted_at is null or conversations.id is null)
       and (
         ${admin.role === "master_admin"}::boolean
@@ -103,7 +125,7 @@ export default async function LeadsPage({
         or coalesce(conversations.recommended_service, '') ilike ${search}
       )
     order by leads.updated_at desc nulls last, leads.created_at desc
-    limit 200
+    limit ${pageSize + 1}
   `) as {
     id: string;
     conversation_id: string | null;
@@ -135,9 +157,13 @@ export default async function LeadsPage({
     assigned_admin_name: string | null;
     appointment_status: string | null;
     appointment_start_at: string | null;
+    source_channel: string | null;
+    source_mode: string | null;
   }[];
+  const hasMoreLeads = leadRows.length > pageSize;
+  const leads = leadRows.slice(0, pageSize);
   const selectedLead = leads.find((lead) => lead.id === params.id) || leads[0];
-  const exportHref = `/api/admin/export/leads.csv?status=${status}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+  const exportHref = `/api/admin/export/leads.csv?status=${status}&channel=${channel}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
 
   return (
     <AdminShell>
@@ -149,6 +175,7 @@ export default async function LeadsPage({
         <div className="flex flex-wrap gap-2">
           <form className="flex flex-wrap gap-2">
             <input type="hidden" name="status" value={status} />
+            <input type="hidden" name="channel" value={channel} />
             <input
               name="q"
               defaultValue={q}
@@ -167,7 +194,7 @@ export default async function LeadsPage({
         {statuses.map((item) => (
           <Link
             key={item.key}
-            href={`/admin/leads?status=${item.key}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+            href={`/admin/leads?status=${item.key}&channel=${channel}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
             className={`rounded-full border px-3 py-1.5 text-sm font-semibold ${
               item.key === status ? "border-[#0e7c86] bg-[#0e7c86] text-white" : "border-slate-200 bg-white text-slate-700"
             }`}
@@ -175,18 +202,35 @@ export default async function LeadsPage({
             {item.label}
           </Link>
         ))}
+        <form className="ml-auto flex gap-2">
+          <input type="hidden" name="status" value={status} />
+          <input type="hidden" name="q" value={q} />
+          <select
+            name="channel"
+            defaultValue={channel}
+            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700"
+          >
+            {channelFilters.map((item) => (
+              <option key={item.key} value={item.key}>{item.label}</option>
+            ))}
+          </select>
+          <button className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700">
+            Apply
+          </button>
+        </form>
       </div>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-5 py-4 text-sm font-semibold text-slate-700">
             Lead pipeline · {leads.length}
+            {hasMoreLeads ? "+" : ""}
           </div>
           <div className="divide-y divide-slate-100">
             {leads.map((lead) => (
               <Link
                 key={lead.id}
-                href={leadHref(lead.id, status, q)}
+                href={leadHref(lead.id, status, q, channel)}
                 className={`grid gap-4 px-5 py-4 text-sm hover:bg-cyan-50/40 lg:grid-cols-[1fr_220px_160px] ${
                   selectedLead?.id === lead.id ? "bg-cyan-50/70" : ""
                 }`}
@@ -197,6 +241,7 @@ export default async function LeadsPage({
                       {lead.client_name || lead.name || "Unnamed"}{lead.company_name ? ` · ${lead.company_name}` : ""}
                     </div>
                     <StatusPill status={lead.status} />
+                    <StatusPill tone={channelTone(lead.source_channel)}>{channelLabel(lead.source_channel)}</StatusPill>
                     <InterestPill value={lead.interest_level} />
                   </div>
                   <div className="mt-2 text-slate-600">{contactLine(lead)}</div>
@@ -222,6 +267,11 @@ export default async function LeadsPage({
                 </div>
               </Link>
             ))}
+            {hasMoreLeads ? (
+              <div className="px-5 py-4 text-xs text-slate-500">
+                Showing the latest {pageSize}. Narrow search or filters to find older leads.
+              </div>
+            ) : null}
             {leads.length === 0 ? <div className="px-5 py-8 text-sm text-slate-500">No leads in this view.</div> : null}
           </div>
         </div>
@@ -230,13 +280,16 @@ export default async function LeadsPage({
           {selectedLead ? (
             <form action={updateLeadAction}>
               <input type="hidden" name="id" value={selectedLead.id} />
-              <input type="hidden" name="redirect_to" value={leadHref(selectedLead.id, status, q)} />
+              <input type="hidden" name="redirect_to" value={leadHref(selectedLead.id, status, q, channel)} />
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="font-semibold text-slate-950">Lead detail</h3>
                   <p className="mt-1 text-sm text-slate-500">{selectedLead.conversation_started_at ? `From ${new Date(selectedLead.conversation_started_at).toLocaleString()}` : "Manual or imported lead"}</p>
                 </div>
-                <StatusPill status={selectedLead.status} />
+                <div className="flex flex-wrap gap-2">
+                  <StatusPill tone={channelTone(selectedLead.source_channel)}>{channelLabel(selectedLead.source_channel)}</StatusPill>
+                  <StatusPill status={selectedLead.status} />
+                </div>
               </div>
 
               <label className="block text-sm font-medium text-slate-700">
@@ -304,12 +357,12 @@ export default async function LeadsPage({
               </button>
               <div className="mt-4 flex flex-wrap gap-3 text-sm">
                 {selectedLead.conversation_id ? (
-                  <Link className="font-semibold text-cyan-700" href={`/admin/inbox/voice?id=${selectedLead.conversation_id}`}>
+                  <Link className="font-semibold text-cyan-700" href={`/admin/inbox/voice?id=${selectedLead.conversation_id}&channel=${selectedLead.source_channel || "all"}`}>
                     Open in Inbox
                   </Link>
                 ) : null}
                 {selectedLead.appointment_status ? (
-                  <Link className="font-semibold text-cyan-700" href="/admin/appointments">
+                  <Link className="font-semibold text-cyan-700" href="/admin/calendar">
                     Open appointment
                   </Link>
                 ) : null}

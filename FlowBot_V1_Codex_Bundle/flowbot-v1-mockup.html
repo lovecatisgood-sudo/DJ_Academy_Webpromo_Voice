@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowBot — Admin Dashboard (V1.1 Corrected Prototype)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#122A2E; --ink-2:#1C3A40; --teal:#0E7C6B; --teal-dark:#0A5F52; --teal-soft:#E3F2EE;
+  --surface:#F5F7F6; --card:#FFFFFF; --line:#E2E8E6; --muted:#5E7370; --faint:#94A6A3;
+  --alert:#E5484D; --alert-soft:#FDECEC; --amber:#F0A63A; --amber-soft:#FCF0DC;
+  --violet:#7C5CD6; --violet-soft:#EEE9FB; --green:#2E9E5B; --green-soft:#E4F4EA;
+  --slate:#64748B; --slate-soft:#EDF1F5;
+  --line-ch:#06C755; --wa-ch:#25D366; --ms-ch:#0084FF; --web-ch:#0E7C6B;
+  --r:10px; --sh:0 1px 3px rgba(18,42,46,.08);
+  --font:'IBM Plex Sans Thai',system-ui,sans-serif; --disp:'Space Grotesk',var(--font);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font);background:var(--surface);color:var(--ink);font-size:14px;line-height:1.5}
+button{font-family:var(--font);cursor:pointer;border:none;background:none;font-size:13.5px;color:inherit}
+input,select,textarea{font-family:var(--font);font-size:13.5px;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff;width:100%}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--teal);outline-offset:1px}
+::placeholder{color:var(--faint)}
+h1,h2,h3{font-weight:600}
+.num{font-family:var(--disp)}
+svg.ic{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---------- buttons & chips ---------- */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:8px;font-weight:600;font-size:13.5px;border:1px solid transparent;transition:filter .12s}
+.btn:hover{filter:brightness(.96)}
+.btn-p{background:var(--teal);color:#fff}
+.btn-o{background:#fff;border-color:var(--line);color:var(--ink)}
+.btn-danger{background:var(--alert);color:#fff}
+.btn-ghost{color:var(--teal);font-weight:600}
+.btn-sm{padding:5px 10px;font-size:12.5px;border-radius:7px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;font-size:12.5px;font-weight:500;border:1px solid var(--line);background:#fff;color:var(--muted)}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:var(--alert);color:#fff;font-size:11px;font-weight:700;font-family:var(--disp)}
+.pill-status{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600}
+.st-new{background:var(--slate-soft);color:var(--slate)} .st-pending_follow_up{background:var(--amber-soft);color:#B27718}
+.st-appointment_made{background:var(--teal-soft);color:var(--teal-dark)} .st-not_closed_follow{background:var(--violet-soft);color:var(--violet)}
+.st-closed_deal{background:var(--green-soft);color:var(--green)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.tag{display:inline-flex;align-items:center;gap:5px;background:var(--teal-soft);color:var(--teal-dark);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:500;font-family:ui-monospace,monospace}
+.tag button{color:var(--teal-dark);font-size:13px;line-height:1}
+
+/* ---------- login ---------- */
+.login{display:flex;min-height:100vh}
+.login-brand{flex:1;background:linear-gradient(160deg,var(--ink) 0%,#0D3B38 100%);color:#fff;padding:64px;display:flex;flex-direction:column;justify-content:space-between}
+.wordmark{font-family:var(--disp);font-weight:700;font-size:22px;letter-spacing:.5px;display:flex;align-items:center;gap:10px}
+.wordmark .mark{width:34px;height:34px;border-radius:10px;background:var(--teal);display:flex;align-items:center;justify-content:center}
+.login-brand h1{font-size:34px;line-height:1.25;font-weight:600;max-width:420px;margin-top:24px}
+.login-brand h1 em{font-style:normal;color:#7BD9C6}
+.ticks{display:flex;flex-direction:column;gap:14px;margin-top:36px;color:#B9CFC9;font-size:14.5px}
+.ticks div{display:flex;gap:10px;align-items:center}
+.ticks .dot{background:#7BD9C6}
+.login-form{width:460px;background:#fff;display:flex;align-items:center;justify-content:center;padding:40px}
+.login-card{width:100%;max-width:330px}
+.login-card h2{font-size:21px;margin-bottom:4px}
+.login-card p.sub{color:var(--muted);margin-bottom:24px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px}
+.demo-note{margin-top:18px;background:var(--amber-soft);border:1px solid #F3DCB4;color:#8A5E14;border-radius:8px;padding:9px 12px;font-size:12.5px;display:flex;gap:8px;align-items:flex-start}
+
+/* ---------- app shell ---------- */
+.shell{display:grid;grid-template-columns:218px 1fr;height:100vh;overflow:hidden}
+.side{background:var(--ink);color:#C4D6D1;display:flex;flex-direction:column;padding:18px 12px}
+.side .wordmark{color:#fff;font-size:17px;padding:4px 8px 20px}
+.side .wordmark .mark{width:28px;height:28px;border-radius:8px}
+.nav{display:flex;flex-direction:column;gap:3px}
+.nav a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:8px;color:#C4D6D1;text-decoration:none;font-weight:500;font-size:14px}
+.nav a:hover{background:rgba(255,255,255,.06)}
+.nav a.on{background:var(--teal);color:#fff}
+.nav .badge{margin-left:auto}
+.tenant{margin-top:auto;background:rgba(255,255,255,.05);border-radius:10px;padding:12px}
+.tenant b{color:#fff;font-size:13px;display:block}
+.tenant span{font-size:11.5px;color:#8FA8A2}
+.tenant button{margin-top:9px;color:#7BD9C6;font-size:12.5px;font-weight:600;display:flex;gap:6px;align-items:center}
+.main{display:flex;flex-direction:column;min-width:0}
+.topbar{height:58px;background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 22px;flex:none}
+.topbar h2{font-size:16.5px;margin-right:auto}
+.topbar .crumb{color:var(--faint);font-weight:400}
+.gsearch{position:relative;width:250px}
+.gsearch svg{position:absolute;left:9px;top:9px;color:var(--faint)}
+.gsearch input{padding-left:32px;background:var(--surface);border-radius:999px}
+.iconbtn{position:relative;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.iconbtn:hover{background:var(--surface)}
+.iconbtn .badge{position:absolute;top:1px;right:0;height:16px;min-width:16px;font-size:10px}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;font-family:var(--disp)}
+.healthpill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 10px;background:var(--green-soft);color:var(--green);font-size:11.5px;font-weight:700;white-space:nowrap}
+.canvas{flex:1;overflow:auto;padding:22px}
+
+/* ---------- overview ---------- */
+.grid{display:grid;gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);padding:16px}
+.attn{display:flex;gap:12px;align-items:center;cursor:pointer}
+.attn .n{font-family:var(--disp);font-size:26px;font-weight:700}
+.attn.red{border-left:4px solid var(--alert)} .attn.amber{border-left:4px solid var(--amber)}
+.attn p{color:var(--muted);font-size:13px}
+.stat h4{font-size:12.5px;color:var(--muted);font-weight:500}
+.stat .n{font-size:27px;font-weight:700;margin-top:2px}
+.stat .d{font-size:12px;margin-top:2px}
+.up{color:var(--green)} .down{color:var(--alert)}
+.card h3{font-size:14px;margin-bottom:12px}
+.bars{display:flex;align-items:flex-end;gap:7px;height:130px}
+.bars .b{flex:1;background:var(--teal);border-radius:4px 4px 0 0;min-height:4px;position:relative}
+.bars .b:hover{background:var(--teal-dark)}
+.bars-x{display:flex;gap:7px;margin-top:6px}
+.bars-x span{flex:1;text-align:center;font-size:10.5px;color:var(--faint)}
+.funnel .fr{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.funnel .fl{width:170px;font-size:12.5px;color:var(--muted)}
+.funnel .fb{height:22px;border-radius:5px;background:var(--teal)}
+.funnel .fn{font-family:var(--disp);font-weight:600;font-size:13px}
+table.tbl{width:100%;border-collapse:collapse}
+.tbl th{text-align:left;font-size:11.5px;color:var(--faint);font-weight:600;text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;border-bottom:1px solid var(--line)}
+.tbl td{padding:10px;border-bottom:1px solid var(--line);font-size:13.5px;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr.rowlink:hover td{background:var(--surface);cursor:pointer}
+
+/* ---------- chat tiles ---------- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;max-width:1100px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh);padding:18px;display:flex;flex-direction:column;gap:10px;cursor:pointer;position:relative;transition:transform .1s}
+.tile:hover{transform:translateY(-2px)}
+.tile .ch-ic{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:#fff}
+.tile h4{font-size:15px}
+.tile .sub{font-size:12.5px;color:var(--muted)}
+.tile .prev{font-size:12.5px;color:var(--faint);font-style:italic;border-top:1px dashed var(--line);padding-top:9px}
+.tile .badge{position:absolute;top:14px;right:14px}
+.tile.locked{cursor:pointer;background:repeating-linear-gradient(45deg,#fff,#fff 12px,#FAFBFB 12px,#FAFBFB 24px)}
+.tile.locked .ch-ic{background:var(--slate-soft)!important;color:var(--faint)}
+.tile.locked h4{color:var(--muted)}
+.lock-tag{display:inline-flex;gap:6px;align-items:center;font-size:11.5px;font-weight:600;color:var(--faint);background:var(--slate-soft);border-radius:999px;padding:3px 10px;width:fit-content}
+.sect-label{font-size:11.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--faint);margin:6px 0 10px}
+
+/* ---------- inbox ---------- */
+.inbox{display:grid;grid-template-columns:290px 1fr 300px;height:100%;background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
+.ib-list{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.ib-tools{padding:12px 12px 8px;border-bottom:1px solid var(--line)}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.convs{overflow:auto;flex:1}
+.conv{display:flex;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer;align-items:flex-start}
+.conv:hover{background:var(--surface)}
+.conv.on{background:var(--teal-soft)}
+.conv .av{width:38px;height:38px;border-radius:50%;background:var(--slate-soft);color:var(--slate);display:flex;align-items:center;justify-content:center;font-weight:700;font-family:var(--disp);flex:none}
+.conv .cb{min-width:0;flex:1}
+.conv .r1{display:flex;align-items:center;gap:6px}
+.conv .r1 b{font-size:13.5px}
+.conv .t{margin-left:auto;font-size:11px;color:var(--faint);flex:none}
+.conv .pv{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.conv .r3{display:flex;align-items:center;gap:6px;margin-top:5px}
+.star{color:#D6DEDC} .star.on{color:var(--amber)}
+.ib-thread{display:flex;flex-direction:column;min-width:0;min-height:0;background:#F2F5F4}
+.th-head{background:#fff;border-bottom:1px solid var(--line);padding:11px 16px;display:flex;align-items:center;gap:10px}
+.msgs{flex:1;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+.brow{display:flex;flex-direction:column;max-width:76%}
+.brow.left{align-self:flex-start;align-items:flex-start}
+.brow.right{align-self:flex-end;align-items:flex-end}
+.bub{padding:9px 13px;border-radius:14px;font-size:13.5px;box-shadow:var(--sh)}
+.left .bub{background:#fff;border-bottom-left-radius:4px}
+.right .bub{background:var(--teal-soft);border-bottom-right-radius:4px}
+.right.admin .bub{background:var(--teal);color:#fff}
+.who{font-size:10.5px;color:var(--faint);margin-top:3px;display:flex;gap:5px;align-items:center}
+.optchips{display:flex;flex-wrap:wrap;gap:6px;max-width:76%;align-self:flex-end;justify-content:flex-end}
+.optchips span{border:1.5px solid var(--teal);color:var(--teal-dark);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:500;background:#fff}
+.optchips span.picked{background:var(--teal);color:#fff}
+.sysnote{align-self:center;font-size:11.5px;color:var(--faint);display:flex;align-items:center;gap:8px;margin:4px 0}
+.sysnote:before,.sysnote:after{content:"";width:46px;height:1px;background:var(--line)}
+.ctacard{background:#fff;border:1px solid var(--line);border-left:3px solid var(--teal);border-radius:10px;padding:10px 13px;font-size:12.5px;box-shadow:var(--sh)}
+.ctacard b{display:flex;gap:7px;align-items:center;font-size:12.5px;margin-bottom:4px}
+.ctacard .kv{color:var(--muted)}
+.state-bar{padding:9px 16px;display:flex;align-items:center;gap:10px;font-size:12.5px;font-weight:600;border-top:1px solid var(--line)}
+.state-bar.bot{background:var(--teal-soft);color:var(--teal-dark)}
+.state-bar.await{background:var(--alert-soft);color:var(--alert)}
+.state-bar.admin{background:var(--amber-soft);color:#8A5E14}
+.state-bar .btn{margin-left:auto}
+.composer{background:#fff;padding:10px 14px;display:flex;gap:9px;border-top:1px solid var(--line)}
+.composer input{border-radius:999px;background:var(--surface)}
+.sendbtn{width:40px;height:40px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.ib-side{border-left:1px solid var(--line);overflow:auto;padding:14px;display:flex;flex-direction:column;gap:12px;background:#FBFCFC}
+.panel h5{font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--faint);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.panel h5 .btn-ghost{margin-left:auto;font-size:12px}
+.pfield{margin-bottom:9px}
+.pfield label{font-size:11px;font-weight:600;color:var(--faint);display:flex;gap:5px;align-items:center;margin-bottom:3px}
+.pfield input,.pfield textarea{padding:7px 9px;font-size:13px}
+.rowact{display:flex;gap:8px;flex-wrap:wrap}
+.note{background:var(--amber-soft);border-radius:8px;padding:8px 11px;font-size:12.5px;margin-bottom:7px}
+.note i{display:block;font-style:normal;color:#8A5E14;font-size:10.5px;margin-top:3px}
+.empty{padding:40px 20px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);margin-bottom:5px}
+
+/* ---------- settings ---------- */
+.settings{display:grid;grid-template-columns:190px 1fr;gap:16px;height:100%;min-height:0}
+.subnav{display:flex;flex-direction:column;gap:2px}
+.subnav button{display:flex;gap:10px;align-items:center;text-align:left;padding:9px 12px;border-radius:8px;color:var(--muted);font-weight:500}
+.subnav button.on{background:var(--teal-soft);color:var(--teal-dark);font-weight:600}
+.subnav button:hover{background:var(--surface)}
+.set-body{min-width:0;overflow:auto}
+.fb-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.fb-head .spacer{flex:1}
+.vchip{font-size:12px;font-weight:600;border-radius:999px;padding:4px 11px}
+.vchip.draft{background:var(--amber-soft);color:#8A5E14}
+.vchip.live{background:var(--green-soft);color:var(--green)}
+.builder{display:grid;grid-template-columns:minmax(330px,42%) 1fr;gap:14px;align-items:start}
+.tree{padding:8px}
+.tnode{border-radius:8px;margin:1px 0}
+.trow{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;cursor:pointer;font-size:13px}
+.trow:hover{background:var(--surface)}
+.trow.on{background:var(--teal-soft)}
+.trow .twist{width:16px;color:var(--faint);flex:none;font-size:10px}
+.tico{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;flex:none}
+.tico svg{width:13px;height:13px}
+.t-options{background:var(--teal)} .t-message{background:var(--slate)} .t-cta{background:var(--violet)}
+.trow .warn{margin-left:auto;color:var(--amber)}
+.tkids{margin-left:24px;border-left:1px dashed var(--line);padding-left:6px}
+.linkback{color:var(--faint);font-style:italic;font-size:12px}
+.editor .ecard{border-top:3px solid var(--teal)}
+.langtabs{display:flex;gap:4px;background:var(--surface);border-radius:8px;padding:3px;width:fit-content;margin-bottom:9px}
+.langtabs button{padding:4px 14px;border-radius:6px;font-weight:600;font-size:12.5px;color:var(--muted)}
+.langtabs button.on{background:#fff;box-shadow:var(--sh);color:var(--ink)}
+.optrow{display:flex;gap:7px;align-items:center;margin-bottom:7px}
+.optrow .drag{color:var(--faint);cursor:grab}
+.optrow input{flex:1}
+.optrow select{width:150px;flex:none}
+.kwrap{display:flex;gap:6px;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:8px;background:#fff}
+.kwrap input{border:none;width:130px;padding:3px}
+.mindmap{position:sticky;top:0}
+.mindmap svg{width:100%;height:auto;background:#FBFCFC;border-radius:8px;border:1px solid var(--line)}
+.mm-node{cursor:pointer}
+.legend{display:flex;gap:14px;margin-top:8px;font-size:11.5px;color:var(--muted)}
+.legend span{display:flex;gap:6px;align-items:center}
+/* simulator */
+.sim-wrap{position:fixed;inset:0;background:rgba(18,42,46,.45);display:flex;justify-content:flex-end;z-index:60}
+.sim{width:390px;background:var(--surface);height:100%;display:flex;flex-direction:column;box-shadow:-8px 0 30px rgba(0,0,0,.2)}
+.sim-head{background:var(--ink);color:#fff;padding:13px 16px;display:flex;align-items:center;gap:10px}
+.sim-head .btn-sm{margin-left:auto;background:rgba(255,255,255,.14);color:#fff}
+.sim .msgs{background:#EAF0EE}
+.simopts{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:7px;align-self:stretch;padding:0 4px}
+.simopts button{border:1.5px solid var(--teal);color:var(--teal-dark);background:#fff;border-radius:999px;padding:7px 6px;font-size:12px;font-weight:600;line-height:1.3}
+.simopts button:hover{background:var(--teal-soft)}
+.contactchips{display:flex;gap:7px;flex-wrap:wrap}
+.contactchips span{display:inline-flex;gap:6px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600}
+/* widget preview */
+.wprev{background:linear-gradient(150deg,#DCE7E3,#EFF3F1);border-radius:12px;border:1px solid var(--line);min-height:430px;position:relative;overflow:hidden}
+.wprev .fake{position:absolute;inset:18px 18px auto;color:#B7C6C1;font-size:12px}
+.wbubble{position:absolute;bottom:18px;width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.22)}
+.wpanel{position:absolute;bottom:84px;width:280px;background:#fff;border-radius:14px;box-shadow:0 10px 34px rgba(0,0,0,.18);overflow:hidden}
+.wpanel .wh{color:#fff;padding:12px 14px;font-weight:600;display:flex;gap:8px;align-items:center;font-size:13.5px}
+.wpanel .wb{padding:12px;font-size:12.5px}
+.wgreet{background:var(--surface);border-radius:10px;padding:9px 11px;margin-bottom:8px}
+.wopts{display:grid;grid-template-columns:repeat(auto-fit,minmax(70px,1fr));gap:5px}
+.wopts span{border:1.2px solid currentColor;border-radius:999px;text-align:center;padding:4px 2px;font-size:10.5px;font-weight:600}
+/* channels list */
+.chanrow{display:flex;gap:10px;align-items:center;padding:11px 4px;border-bottom:1px solid var(--line)}
+.chanrow:last-child{border-bottom:none}
+.chanrow .ch-ic{width:34px;height:34px;border-radius:9px;color:#fff;display:flex;align-items:center;justify-content:center}
+.chanrow b{font-size:13.5px;display:block}
+.chanrow span{font-size:12px;color:var(--muted)}
+.chanrow .rowact{margin-left:auto}
+/* drawer, modal, toast, dropdown */
+.overlay{position:fixed;inset:0;background:rgba(18,42,46,.45);z-index:50;display:flex;justify-content:flex-end}
+.drawer{width:420px;background:#fff;height:100%;overflow:auto;padding:20px;box-shadow:-8px 0 30px rgba(0,0,0,.2)}
+.modal-w{position:fixed;inset:0;background:rgba(18,42,46,.45);z-index:70;display:flex;align-items:center;justify-content:center}
+.modal{background:#fff;border-radius:14px;padding:22px;width:400px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal h3{margin-bottom:8px}
+.modal p{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.modal .rowact{justify-content:flex-end}
+#toast{position:fixed;left:22px;bottom:22px;z-index:90;display:flex;flex-direction:column;gap:8px}
+.toastmsg{background:var(--ink);color:#fff;border-radius:10px;padding:11px 16px;font-size:13px;display:flex;gap:9px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.25);animation:tin .18s ease}
+@keyframes tin{from{transform:translateY(8px);opacity:0}}
+.dd{position:absolute;top:50px;right:0;width:330px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 40px rgba(18,42,46,.16);z-index:40;overflow:hidden}
+.dd h6{padding:11px 14px;font-size:12.5px;border-bottom:1px solid var(--line)}
+.dd .ndd{display:flex;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px;align-items:flex-start}
+.dd .ndd:hover{background:var(--surface)}
+.dd .ndd small{color:var(--faint);display:block;font-size:11.5px}
+.timeline .tlrow{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px}
+.timeline .tlrow:last-child{border-bottom:none}
+@media(max-width:1150px){.inbox{grid-template-columns:260px 1fr}.ib-side{display:none}.builder{grid-template-columns:1fr}.mindmap{position:static}}
+@media(max-width:767px){.shell{grid-template-columns:1fr}.side{display:none}.topbar{padding:0 12px}.topbar>.gsearch{display:none}.canvas{padding:12px}.login-brand{display:none}.login-form{width:100%;min-height:100vh}.sim{width:100%}.drawer{width:100%}.healthpill{max-width:150px;overflow:hidden;text-overflow:ellipsis}.inbox{grid-template-columns:1fr;min-width:720px}.canvas{overflow:auto}}
+@media(max-width:420px){.simopts,.wopts{grid-template-columns:1fr}.topbar h2{font-size:14px}.healthpill{font-size:10.5px;padding:4px 7px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+<script>
+/* ================= ICONS ================= */
+const IC = {
+ chart:'<path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/>',
+ chat:'<path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z"/>',
+ users:'<circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c.7-3.4 3.4-5 6.5-5s5.8 1.6 6.5 5"/><path d="M16 4.6a3.4 3.4 0 0 1 0 6.8M17.5 15.2c2 .7 3.5 2.2 4 4.8"/>',
+ gear:'<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M4.5 12h-2M21.5 12h-2M5.3 5.3l1.7 1.7M17 17l1.7 1.7M18.7 5.3L17 7M7 17l-1.7 1.7"/>',
+ bell:'<path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2.2 2.2 0 0 0 4 0"/>',
+ search:'<circle cx="11" cy="11" r="6.5"/><path d="M21 21l-4.6-4.6"/>',
+ lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+ star:'<path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6-5.4-3-5.4 3 1.1-6L3.2 9.4l6.1-.8z" fill="currentColor" stroke="none"/>',
+ archive:'<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/>',
+ trash:'<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+ send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>',
+ x:'<path d="M6 6l12 12M18 6L6 18"/>',
+ check:'<path d="M4 12.5l5 5L20 6.5"/>',
+ phone:'<path d="M5 3h4l2 5-2.5 1.5a12 12 0 0 0 6 6L16 13l5 2v4a2 2 0 0 1-2 2A17 17 0 0 1 3 5a2 2 0 0 1 2-2z"/>',
+ mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+ link:'<path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/>',
+ bot:'<rect x="5" y="8" width="14" height="10" rx="3"/><circle cx="10" cy="13" r="1" fill="currentColor"/><circle cx="14" cy="13" r="1" fill="currentColor"/><path d="M12 8V4M8 4h8"/>',
+ warn:'<path d="M12 3L2 20h20z"/><path d="M12 10v4M12 17.5v.5"/>',
+ chev:'<path d="M9 6l6 6-6 6"/>',
+ form:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+ pin:'<path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+ play:'<path d="M7 4l13 8-13 8z"/>',
+ eye:'<path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/>',
+ msg:'<path d="M4 5h16v10H8l-4 4z"/>',
+ out:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+ grid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>'
+};
+const ic = (n,s)=>`<svg class="ic" viewBox="0 0 24 24" ${s?`style="width:${s}px;height:${s}px"`:''}>${IC[n]}</svg>`;
+
+/* ================= DATA ================= */
+const CRM = {
+ new:'New', pending_follow_up:'Pending Follow Up', appointment_made:'Appointment Made',
+ not_closed_follow:'Deal Not Closed – Follow Again', closed_deal:'Closed Deal'
+};
+const CH = {
+ web:{name:'Web Chat',color:'var(--web-ch)',icon:'msg'},
+ line:{name:'LINE',color:'var(--line-ch)',icon:'chat'},
+ whatsapp:{name:'WhatsApp',color:'var(--wa-ch)',icon:'phone'},
+ messenger:{name:'Facebook Messenger',color:'var(--ms-ch)',icon:'chat'}
+};
+
+const FLOW = {
+ root:{type:'options',title:'Welcome menu',en:'Hi! Welcome to Siam Smile Dental 🦷 How can we help you today?',th:'สวัสดีค่ะ ยินดีต้อนรับสู่ Siam Smile Dental 🦷 ให้เราช่วยเหลืออะไรดีคะ?',kw:['menu','hello','สวัสดี','เมนู'],
+  opts:[{en:'Services & pricing',th:'บริการและราคา',t:'services'},{en:'Book appointment',th:'จองคิว',t:'book'},{en:'Opening hours',th:'เวลาทำการ',t:'hours'},{en:'Location & contact',th:'ที่ตั้งคลินิก',t:'location'},{en:'Promotions',th:'โปรโมชั่น',t:'promo'},{en:'Talk to staff',th:'คุยกับเจ้าหน้าที่',t:'staff'}]},
+ services:{type:'options',title:'Services & pricing',en:'Which treatment are you interested in?',th:'สนใจบริการด้านไหนคะ?',kw:['price','pricing','cost','ราคา','เท่าไหร่','ค่าบริการ'],
+  opts:[{en:'Teeth cleaning',th:'ขูดหินปูน',t:'cleaning'},{en:'Whitening',th:'ฟอกสีฟัน',t:'whitening'},{en:'Braces & Invisalign',th:'จัดฟัน',t:'braces'},{en:'Implants',th:'รากฟันเทียม',t:'implants'},{en:'⬅ Main menu',th:'เมนูหลัก',t:'root',link:true}]},
+ cleaning:{type:'message',title:'Cleaning info',en:'Teeth cleaning & polishing starts at ฿900, around 30–45 minutes.',th:'ขูดหินปูนและขัดฟัน เริ่มต้น ฿900 ใช้เวลาประมาณ 30–45 นาทีค่ะ',kw:['cleaning','ขูดหินปูน'],next:'book'},
+ whitening:{type:'message',title:'Whitening info',en:'Cold-light whitening ฿4,900 per session (promo this month!).',th:'ฟอกสีฟันระบบ Cold Light ฿4,900 ต่อครั้ง (มีโปรเดือนนี้!)',kw:['whitening','ฟอกสีฟัน','ฟอกฟันขาว'],next:'book'},
+ braces:{type:'message',title:'Braces info',en:'Metal braces from ฿45,000 · Invisalign from ฿89,000. Free first consult.',th:'จัดฟันโลหะเริ่ม ฿45,000 · Invisalign เริ่ม ฿89,000 ปรึกษาครั้งแรกฟรีค่ะ',kw:['braces','invisalign','จัดฟัน'],next:'book'},
+ implants:{type:'message',title:'Implants info',en:'Implants from ฿55,000 per tooth including crown.',th:'รากฟันเทียมเริ่มต้น ฿55,000 ต่อซี่ รวมครอบฟันค่ะ',kw:['implant','รากฟันเทียม'],next:'book'},
+ book:{type:'cta-form',title:'Book appointment (lead form)',en:'Leave your name and number — our staff will confirm your slot within 1 hour 📅',th:'ฝากชื่อและเบอร์ติดต่อไว้ เจ้าหน้าที่จะยืนยันคิวภายใน 1 ชม. 📅',kw:['book','appointment','จอง','จองคิว','นัด'],fields:['Name','Phone','Email (optional)']},
+ hours:{type:'message',title:'Opening hours',en:'Open daily 10:00–20:00 (last appointment 19:00).',th:'เปิดทุกวัน 10:00–20:00 น. (คิวสุดท้าย 19:00 น.)',kw:['hours','open','เวลา','เปิด','กี่โมง'],next:'root'},
+ location:{type:'cta-contact',title:'Location & contact card',en:'Siam Smile Dental — 2nd Fl, Mega Bangna. Find us here 👇',th:'Siam Smile Dental ชั้น 2 เมกาบางนา ติดต่อเราได้ที่นี่เลยค่ะ 👇',kw:['location','map','ที่ตั้ง','แผนที่','เดินทาง']},
+ promo:{type:'cta-link',title:'Promotions (link)',en:'July promo: whitening ฿4,900 + free scaling ✨ See all offers:',th:'โปรเดือนก.ค.: ฟอกสีฟัน ฿4,900 แถมขูดหินปูนฟรี ✨ ดูโปรทั้งหมด:',kw:['promotion','promo','โปร','โปรโมชั่น','ส่วนลด'],url:'siamsmile.co/promotions'},
+ staff:{type:'cta-live',title:'Talk to staff (live chat)',en:'Sure! An admin will reply here shortly 🙏 or reach us instantly on:',th:'ได้เลยค่ะ! แอดมินจะรีบมาตอบโดยเร็วที่สุด 🙏 หรือติดต่อด่วนได้ที่:',kw:['staff','admin','human','เจ้าหน้าที่','แอดมิน']}
+};
+const CONTACTS = [
+ {type:'line',label:'LINE',value:'@siamsmile'},
+ {type:'whatsapp',label:'WhatsApp',value:'+66 81 234 5678'},
+ {type:'phone',label:'Call',value:'02-105-1234'},
+ {type:'mail',label:'Email',value:'hello@siamsmile.co'}
+];
+
+let CUSTOMERS = [
+ {id:'u1',name:'Malee Srisuk',phone:'081-234-5678',line:'malee.s',wa:'',email:'',note:'Interested in Invisalign, asked about installments. Prefers Thai.',convs:['c1']},
+ {id:'u2',name:'Somchai Prasert',phone:'089-555-0142',line:'',wa:'+66 89 555 0142',email:'somchai.p@gmail.com',note:'Whitening customer. Booked Jul 15, 6pm.',convs:['c2']},
+ {id:'u3',name:'Nok Wattana',phone:'062-778-9034',line:'nokkie',wa:'',email:'nok.w@hotmail.com',note:'Asked implant price for her father. Follow up after quote.',convs:['c4']},
+ {id:'u4',name:'David Chen',phone:'095-101-2200',line:'',wa:'+66 95 101 2200',email:'dchen@corp.io',note:'Expat, English only. Cleaning every 6 months.',convs:['c6']}
+];
+
+let CONVS = [
+ {id:'c1',name:'Malee Srisuk',ch:'web',mode:'await',crm:'new',star:false,arch:false,unread:2,time:'2m',cust:'u1',
+  msgs:[
+   {f:'bot',k:'text',t:'สวัสดีค่ะ ยินดีต้อนรับสู่ Siam Smile Dental 🦷 ให้เราช่วยเหลืออะไรดีคะ?'},
+   {f:'v',k:'opt',t:'บริการและราคา'},
+   {f:'bot',k:'text',t:'สนใจบริการด้านไหนคะ?'},
+   {f:'v',k:'opt',t:'จัดฟัน'},
+   {f:'bot',k:'text',t:'จัดฟันโลหะเริ่ม ฿45,000 · Invisalign เริ่ม ฿89,000 ปรึกษาครั้งแรกฟรีค่ะ'},
+   {f:'v',k:'text',t:'จัดฟันใส ผ่อนชำระได้ไหมคะ แล้วต้องวางเงินดาวน์เท่าไหร่'},
+   {f:'sys',k:'sys',t:'No keyword match — fallback sent · conversation flagged for admin'},
+   {f:'bot',k:'text',t:'ขออภัยค่ะ แอดมินจะรีบมาตอบโดยเร็วที่สุด 🙏 หรือติดต่อด่วนได้ที่ LINE @siamsmile'}
+  ]},
+ {id:'c2',name:'Somchai Prasert',ch:'web',mode:'bot',crm:'appointment_made',star:true,arch:false,unread:0,time:'1h',cust:'u2',
+  msgs:[
+   {f:'bot',k:'text',t:'Hi! Welcome to Siam Smile Dental 🦷 How can we help you today?'},
+   {f:'v',k:'opt',t:'Services & pricing'},
+   {f:'v',k:'opt',t:'Whitening'},
+   {f:'bot',k:'text',t:'Cold-light whitening ฿4,900 per session (promo this month!).'},
+   {f:'bot',k:'text',t:'Leave your name and number — our staff will confirm your slot within 1 hour 📅'},
+   {f:'v',k:'form',t:'Lead form submitted',d:{Name:'Somchai Prasert',Phone:'089-555-0142',Email:'somchai.p@gmail.com'}},
+   {f:'sys',k:'sys',t:'Lead created · linked to customer Somchai Prasert'},
+   {f:'admin',k:'text',t:'Confirmed for Jul 15, 6:00 pm with Dr. Ploy — see you then! 😊'}
+  ]},
+ {id:'c3',name:'Visitor #182',ch:'web',mode:'bot',crm:'new',star:false,arch:false,unread:1,time:'3h',cust:null,
+  msgs:[
+   {f:'bot',k:'text',t:'สวัสดีค่ะ ยินดีต้อนรับสู่ Siam Smile Dental 🦷'},
+   {f:'v',k:'opt',t:'เวลาทำการ'},
+   {f:'bot',k:'text',t:'เปิดทุกวัน 10:00–20:00 น. (คิวสุดท้าย 19:00 น.)'}
+  ]},
+ {id:'c4',name:'Nok Wattana',ch:'web',mode:'bot',crm:'not_closed_follow',star:true,arch:false,unread:0,time:'Yesterday',cust:'u3',
+  msgs:[
+   {f:'v',k:'opt',t:'Implants'},
+   {f:'bot',k:'text',t:'Implants from ฿55,000 per tooth including crown.'},
+   {f:'v',k:'form',t:'Lead form submitted',d:{Name:'Nok Wattana',Phone:'062-778-9034'}},
+   {f:'admin',k:'text',t:'ส่งใบเสนอราคาให้ทางอีเมลแล้วนะคะ 🙏'},
+   {f:'v',k:'text',t:'ขอปรึกษาคุณพ่อก่อนนะคะ'}
+  ]},
+ {id:'c5',name:'Visitor #179',ch:'web',mode:'bot',crm:'new',star:false,arch:true,unread:0,time:'Tue',cust:null,
+  msgs:[{f:'v',k:'opt',t:'Promotions'},{f:'bot',k:'text',t:'July promo: whitening ฿4,900 + free scaling ✨'}]},
+ {id:'c6',name:'David Chen',ch:'web',mode:'bot',crm:'closed_deal',star:false,arch:false,unread:0,time:'Mon',cust:'u4',
+  msgs:[
+   {f:'v',k:'opt',t:'Book appointment'},
+   {f:'v',k:'form',t:'Lead form submitted',d:{Name:'David Chen',Phone:'095-101-2200'}},
+   {f:'admin',k:'text',t:'Booked! Cleaning + check-up, Monday 11am.'},
+   {f:'v',k:'text',t:'Perfect, thanks!'}
+  ]}
+];
+
+const NOTIFS = [
+ {icon:'warn',color:'var(--alert)',t:'Malee Srisuk is waiting for an admin',s:'Web Chat · unmatched question about Invisalign · 2m ago',go:['inbox','c1']},
+ {icon:'form',color:'var(--teal)',t:'New lead: Somchai Prasert',s:'Whitening · phone + email captured · 1h ago',go:['inbox','c2']},
+ {icon:'warn',color:'var(--amber)',t:'12 unmatched queries this week',s:'Review and add keywords in the flow builder',go:['settings','knowledge']}
+];
+const UNMATCHED = [
+ {q:'จัดฟันใส ผ่อนชำระได้ไหม',n:5,last:'2m ago'},
+ {q:'มีที่จอดรถไหม',n:3,last:'4h ago'},
+ {q:'do you accept insurance?',n:2,last:'Yesterday'},
+ {q:'ถอนฟันคุดราคาเท่าไหร่',n:2,last:'Tue'}
+];
+
+/* ================= STATE ================= */
+const S = {
+ authed:false, route:'overview', convId:null, filter:'all', setTab:'knowledge',
+ selNode:'root', lang:'en', drawer:null, bell:false, sim:null, range:'7d',
+ collapsed:{}, unlinked:{}
+};
+const el = id=>document.getElementById(id);
+const esc = s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function toast(msg,icn){const t=document.createElement('div');t.className='toastmsg';t.innerHTML=ic(icn||'check')+esc(msg);el('toast').appendChild(t);setTimeout(()=>t.remove(),4000);}
+function confirmModal(title,body,okLabel,onOk,danger){
+ S.modal={title,body,okLabel,onOk,danger}; render();
+}
+
+/* ================= SHELL & ROUTING ================= */
+function go(route,arg){
+ S.bell=false;
+ if(route==='inbox'){S.route='inbox';if(arg)S.convId=arg; if(!S.convId)S.convId='c1';}
+ else if(route==='settings'){S.route='settings'; if(arg)S.setTab=arg;}
+ else {S.route=route; if(route==='customers'&&arg)S.drawer=arg;}
+ render();
+}
+function unreadTotal(){return CONVS.filter(c=>!c.arch).reduce((a,c)=>a+c.unread,0);}
+
+function render(){
+ if(!S.authed){el('app').innerHTML=loginView();return;}
+ const titles={overview:'Overview',chat:'Chat',inbox:`Chat <span class="crumb">/ Web Chat</span>`,customers:'Customers',settings:'Settings'};
+ const nav=[['overview','chart','Overview'],['chat','chat','Chat'],['customers','users','Customers'],['settings','gear','Settings']];
+ el('app').innerHTML=`
+ <div class="shell">
+  <aside class="side">
+   <div class="wordmark"><span class="mark">${ic('bot',16)}</span>FlowBot</div>
+   <nav class="nav">
+    ${nav.map(([r,i,l])=>`<a href="javascript:void 0" onclick="go('${r}')" class="${(S.route===r||(r==='chat'&&S.route==='inbox'))?'on':''}">${ic(i)}${l}
+      ${r==='chat'&&unreadTotal()?`<span class="badge">${unreadTotal()}</span>`:''}</a>`).join('')}
+   </nav>
+   <div class="tenant"><b>Siam Smile Dental</b><span>Single-tenant · FlowBot V1</span>
+    <button onclick="signOut()">${ic('out',14)} Sign out</button></div>
+  </aside>
+  <div class="main">
+   <header class="topbar">
+    <h2>${titles[S.route]}</h2>
+    <span class="healthpill">● Live · Published v4</span>
+    <div class="gsearch">${ic('search',15)}<input placeholder="Search customers, conversations…"></div>
+    <div style="position:relative">
+      <button class="iconbtn" onclick="S.bell=!S.bell;render()" aria-label="Notifications">${ic('bell')}${NOTIFS.length?`<span class="badge">${NOTIFS.length}</span>`:''}</button>
+      ${S.bell?bellDD():''}
+    </div>
+    <div class="avatar" title="Admin — Ploy">P</div>
+   </header>
+   <div class="canvas" style="${S.route==='inbox'?'padding:14px;display:flex;flex-direction:column':''}">
+    ${{overview:overviewView,chat:chatTilesView,inbox:inboxView,customers:customersView,settings:settingsView}[S.route]()}
+   </div>
+  </div>
+ </div>
+ ${S.drawer&&S.route==='customers'?custDrawer():''}
+ ${S.sim!==null?simView():''}
+ ${S.lockInfo?lockModal():''}
+ ${S.invite?inviteModal():''}
+ ${S.modal?modalView():''}`;
+ const m=el('msgscroll'); if(m)m.scrollTop=m.scrollHeight;
+ const sm=el('simscroll'); if(sm)sm.scrollTop=sm.scrollHeight;
+}
+function signOut(){S.authed=false;render();}
+function bellDD(){
+ return `<div class="dd"><h6>Notifications</h6>
+ ${NOTIFS.map((n,i)=>`<div class="ndd" onclick="go('${n.go[0]}','${n.go[1]}')">
+   <span style="color:${n.color};margin-top:1px">${ic(n.icon,16)}</span>
+   <div><div style="font-weight:600">${esc(n.t)}</div><small>${esc(n.s)}</small></div></div>`).join('')}
+ </div>`;
+}
+function modalView(){const m=S.modal;return `<div class="modal-w" onclick="S.modal=null;render()"><div class="modal" onclick="event.stopPropagation()">
+ <h3>${esc(m.title)}</h3><p>${m.body}</p>
+ <div class="rowact"><button class="btn btn-o" onclick="S.modal=null;render()">Cancel</button>
+ <button class="btn ${m.danger?'btn-danger':'btn-p'}" onclick="(${m.onOk})();S.modal=null;render()">${esc(m.okLabel)}</button></div></div></div>`;}
+
+/* ================= LOGIN ================= */
+function loginView(){
+ return `<div class="login">
+  <div class="login-brand">
+   <div><div class="wordmark"><span class="mark">${ic('bot',18)}</span>FlowBot</div>
+    <h1>Every customer conversation, <em>one calm inbox.</em></h1>
+    <div class="ticks">
+     <div><span class="dot"></span>Q&A flow builder — no code, Thai + English</div>
+     <div><span class="dot"></span>Web chat today · LINE, WhatsApp, Messenger ready</div>
+     <div><span class="dot"></span>Built-in CRM: statuses, stars, customer profiles</div>
+    </div></div>
+   <div style="font-size:12px;color:#6E8983">FlowBot V1 · Admin dashboard prototype</div>
+  </div>
+  <div class="login-form"><div class="login-card">
+   <h2>Sign in</h2><p class="sub">Admin access for Siam Smile Dental</p>
+   <div class="field"><label>Email</label><input id="lg-e" value="admin@siamsmile.co"></div>
+   <div class="field"><label>Password</label><input id="lg-p" type="password" value="demo1234"></div>
+   <div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 16px">
+    <label style="display:flex;gap:7px;font-size:12.5px;color:var(--muted)"><input type="checkbox" checked style="width:auto">Keep me signed in</label>
+    <button class="btn-ghost" style="font-size:12.5px" onclick="toast('Password reset email sent (demo)')">Forgot password?</button>
+   </div>
+   <button class="btn btn-p" style="width:100%;justify-content:center;padding:11px" onclick="S.authed=true;render();toast('Welcome back, Ploy 👋')">Sign in</button>
+   <div class="demo-note">${ic('eye',15)}<span>Demo credentials are prefilled for prototype review only. Production credentials must be securely seeded and never hardcoded.</span></div>
+  </div></div></div>`;
+}
+
+/* ================= OVERVIEW ================= */
+function overviewView(){
+ const stats=[['Sessions','412','+18% vs prev','up'],['Keyword match rate','78%','+6 pts','up'],['Fallback rate','22%','−6 pts','up'],['Leads captured','37','+9','up'],['CTA conversion','31%','−2 pts','down']];
+ const days=[38,52,44,61,58,73,86];
+ const funnel=[['New',124,'var(--slate)'],['Pending Follow Up',58,'var(--amber)'],['Appointment Made',31,'var(--teal)'],['Closed Deal',19,'var(--green)']];
+ const mx=Math.max(...days);
+ return `
+ <div class="grid" style="grid-template-columns:1fr 1fr">
+  <div class="card attn red" onclick="go('inbox','c1')"><span class="n" style="color:var(--alert)">3</span>
+   <div><b>Conversations awaiting admin</b><p>Visitors hit fallback and are waiting for a reply — open the inbox.</p></div>${ic('chev')}</div>
+  <div class="card attn amber" onclick="go('settings','knowledge')"><span class="n" style="color:var(--amber)">12</span>
+   <div><b>Unmatched queries this week</b><p>Add them as keywords to teach the flow. Review below.</p></div>${ic('chev')}</div>
+ </div>
+ <div style="display:flex;justify-content:flex-end;gap:6px;margin:14px 0 10px">
+  ${['7d','30d','90d'].map(r=>`<button class="chip ${S.range===r?'on':''}" onclick="S.range='${r}';render()">${r==='7d'?'Last 7 days':r==='30d'?'30 days':'90 days'}</button>`).join('')}
+ </div>
+ <div class="grid" style="grid-template-columns:repeat(5,1fr)">
+  ${stats.map(s=>`<div class="card stat"><h4>${s[0]}</h4><div class="n num">${s[1]}</div><div class="d ${s[3]}">${s[2]}</div></div>`).join('')}
+ </div>
+ <div class="grid" style="grid-template-columns:3fr 2fr;margin-top:14px">
+  <div class="card"><h3>Conversations per day <span style="color:var(--faint);font-weight:400">· Web Chat</span></h3>
+   <div class="bars">${days.map(v=>`<div class="b" style="height:${v/mx*100}%" title="${v} conversations"></div>`).join('')}</div>
+   <div class="bars-x">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<span>${d}</span>`).join('')}</div></div>
+  <div class="card funnel"><h3>CRM funnel <span style="color:var(--faint);font-weight:400">· ${S.range}</span></h3>
+   ${funnel.map(f=>`<div class="fr"><span class="fl">${f[0]}</span><div class="fb" style="width:${f[1]/124*100*0.62}%;background:${f[2]}"></div><span class="fn num">${f[1]}</span></div>`).join('')}
+   <div class="fr"><span class="fl" style="color:var(--violet)">↳ Deal Not Closed – Follow Again</span><div class="fb" style="width:14%;background:var(--violet)"></div><span class="fn num">9</span></div>
+  </div>
+ </div>
+ <div class="card" style="margin-top:14px"><h3>Unmatched queries <span style="color:var(--faint);font-weight:400">· what visitors typed that the flow couldn't answer</span></h3>
+  <table class="tbl"><tr><th>Query</th><th>Times asked</th><th>Last seen</th><th></th></tr>
+  ${UNMATCHED.map(u=>`<tr><td>“${esc(u.q)}”</td><td class="num">${u.n}</td><td style="color:var(--muted)">${u.last}</td>
+   <td style="text-align:right"><button class="btn-ghost" onclick="go('settings','knowledge');toast('Query staged as keyword suggestion')">Add as keyword →</button></td></tr>`).join('')}
+  </table></div>`;
+}
+
+/* ================= CHAT TILES ================= */
+function chatTilesView(){
+ const web=CONVS.filter(c=>!c.arch); const un=unreadTotal();
+ const locked=['line','whatsapp','messenger'];
+ return `
+ <div class="sect-label">Connected channels</div>
+ <div class="tiles">
+  <div class="tile" onclick="go('inbox')">
+   ${un?`<span class="badge">${un} new</span>`:''}
+   <div class="ch-ic" style="background:${CH.web.color}">${ic('msg',20)}</div>
+   <div><h4>Web Chat</h4><div class="sub">Connected · widget live on siamsmile.co</div></div>
+   <div class="prev">“จัดฟันใส ผ่อนชำระได้ไหมคะ…” · Malee · 2m</div>
+  </div>
+ </div>
+ <div class="sect-label" style="margin-top:22px">Not connected</div>
+ <div class="tiles">
+ ${locked.map(k=>`
+  <div class="tile locked" onclick="S.lockInfo='${k}';render()">
+   <div class="ch-ic">${ic('lock',18)}</div>
+   <div><h4>${CH[k].name}</h4><div class="sub">Not available — channel not integrated yet</div></div>
+   <span class="lock-tag">${ic('lock',12)} Unlocks with channel integration</span>
+  </div>`).join('')}
+ </div>`;
+}
+function lockModal(){
+ const k=S.lockInfo,c=CH[k];
+ return `<div class="modal-w" onclick="S.lockInfo=null;render()"><div class="modal" onclick="event.stopPropagation()">
+  <div class="ch-ic" style="background:${c.color};width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:12px">${ic(c.icon,20)}</div>
+  <h3>${c.name} — coming with channel integration</h3>
+  <p>In this version, FlowBot runs on your website widget. ${c.name} connects in the multi-channel release: your ${c.name} messages will land in this same inbox, with the same customer profiles and CRM statuses.</p>
+  <div class="rowact"><button class="btn btn-p" onclick="S.lockInfo=null;render()">Got it</button></div>
+ </div></div>`;
+}
+
+/* ================= INBOX ================= */
+function inboxView(){
+ const filters=[['all','All'],['unread','Unread'],['await','Awaiting'],['star','Starred'],['arch','Archived']];
+ let list=CONVS.filter(c=>{
+  if(S.filter==='arch')return c.arch; if(c.arch)return false;
+  if(S.filter==='unread')return c.unread>0; if(S.filter==='await')return c.mode==='await'||c.mode==='admin';
+  if(S.filter==='star')return c.star; return true;});
+ const c=CONVS.find(x=>x.id===S.convId&&list.some(l=>l.id===x.id))||list[0];
+ return `<div class="inbox">
+  <div class="ib-list">
+   <div class="ib-tools">
+    <div class="gsearch" style="width:100%">${ic('search',15)}<input placeholder="Search conversations…"></div>
+    <div class="filters">${filters.map(f=>`<button class="chip ${S.filter===f[0]?'on':''}" onclick="S.filter='${f[0]}';render()">${f[1]}</button>`).join('')}</div>
+   </div>
+   <div class="convs">
+   ${list.length?list.map(v=>`
+    <div class="conv ${c&&v.id===c.id?'on':''}" onclick="S.convId='${v.id}';const cc=CONVS.find(x=>x.id==='${v.id}');cc.unread=0;render()">
+     <div class="av">${esc(v.name[0])}</div>
+     <div class="cb"><div class="r1"><b>${esc(v.name)}</b>${v.star?`<span class="star on">${ic('star',13)}</span>`:''}<span class="t">${v.time}</span></div>
+      <div class="pv">${esc(lastText(v))}</div>
+      <div class="r3">${v.mode==='await'?`<span class="pill-status" style="background:var(--alert-soft);color:var(--alert)">Awaiting admin</span>`:v.mode==='admin'?`<span class="pill-status" style="background:var(--amber-soft);color:#8A5E14">You replying</span>`:''}
+      <span class="pill-status st-${v.crm}">${CRM[v.crm]}</span>
+      ${v.unread?`<span class="badge" style="margin-left:auto">${v.unread}</span>`:''}</div></div>
+    </div>`).join(''):`<div class="empty"><b>Nothing here yet</b>Conversations matching this filter will appear here.</div>`}
+   </div>
+  </div>
+  ${c?threadPane(c):`<div class="ib-thread"><div class="empty" style="margin:auto"><b>Select a conversation</b></div></div><div class="ib-side"></div>`}
+ </div>`;
+}
+function lastText(v){const m=[...v.msgs].reverse().find(m=>m.k!=='sys');return m?m.t:'';}
+function threadPane(c){
+ const bar = c.mode==='await'
+  ? `<div class="state-bar await">${ic('warn',15)} Visitor is waiting — bot paused after fallback
+     <button class="btn btn-p btn-sm" onclick="takeOver('${c.id}')">Take over</button></div>`
+  : c.mode==='admin'
+  ? `<div class="state-bar admin">${ic('users',15)} You are replying · bot is paused
+     <button class="btn btn-o btn-sm" onclick="releaseBot('${c.id}')">Release to bot</button></div>`
+  : `<div class="state-bar bot">${ic('bot',15)} Bot is handling this conversation
+     <button class="btn btn-o btn-sm" onclick="takeOver('${c.id}')">Take over</button></div>`;
+ const composer = c.mode==='admin'
+  ? `<div class="composer"><input id="reply" placeholder="Reply as Siam Smile Dental… (Enter to send)"
+       onkeydown="if(event.key==='Enter')sendReply('${c.id}')">
+     <button class="sendbtn" onclick="sendReply('${c.id}')" aria-label="Send">${ic('send',16)}</button></div>`:'';
+ return `
+ <div class="ib-thread">
+  <div class="th-head"><div class="av" style="width:32px;height:32px">${esc(c.name[0])}</div>
+   <div><b style="font-size:14px">${esc(c.name)}</b><div style="font-size:11.5px;color:var(--muted);display:flex;gap:5px;align-items:center"><span class="dot" style="background:${CH[c.ch].color}"></span>${CH[c.ch].name} · started today</div></div>
+   <div style="margin-left:auto" class="rowact">
+    <button class="iconbtn star ${c.star?'on':''}" onclick="c=CONVS.find(x=>x.id==='${c.id}');c.star=!c.star;render()" title="Star">${ic('star')}</button>
+   </div></div>
+  <div class="msgs" id="msgscroll">${c.msgs.map(msgHTML).join('')}</div>
+  ${bar}${composer}
+ </div>
+ ${sidePanel(c)}`;
+}
+function msgHTML(m){
+ if(m.k==='sys')return `<div class="sysnote">${esc(m.t)}</div>`;
+ if(m.k==='opt')return `<div class="optchips"><span class="picked">${esc(m.t)}</span></div><div class="brow right" style="margin-top:-4px"><div class="who">tapped an option</div></div>`;
+ if(m.k==='form')return `<div class="brow left"><div class="ctacard"><b>${ic('form',14)} ${esc(m.t)}</b>
+   ${Object.entries(m.d).map(([k,v])=>`<div class="kv">${esc(k)}: <b style="color:var(--ink)">${esc(v)}</b></div>`).join('')}</div><div class="who">visitor · lead form</div></div>`;
+ const side=m.f==='v'?'left':'right', who=m.f==='v'?'visitor':m.f==='bot'?'bot · auto':'Ploy (admin)';
+ return `<div class="brow ${side} ${m.f==='admin'?'admin':''}"><div class="bub">${esc(m.t)}</div>
+  <div class="who">${m.f==='bot'?ic('bot',11):''} ${who}</div></div>`;
+}
+function takeOver(id){const c=CONVS.find(x=>x.id===id);c.mode='admin';c.msgs.push({f:'sys',k:'sys',t:'Ploy took over — bot paused'});render();setTimeout(()=>{const r=el('reply');if(r)r.focus();},50);}
+function releaseBot(id){const c=CONVS.find(x=>x.id===id);c.mode='bot';c.msgs.push({f:'sys',k:'sys',t:'Released to bot — visitor sees the main menu'});render();toast('Released to bot');}
+function sendReply(id){const r=el('reply');if(!r||!r.value.trim())return;const c=CONVS.find(x=>x.id===id);c.msgs.push({f:'admin',k:'text',t:r.value.trim()});r.value='';render();setTimeout(()=>{const x=el('reply');if(x)x.focus();},30);}
+
+function sidePanel(c){
+ const u=CUSTOMERS.find(x=>x.id===c.cust);
+ const lead=[...c.msgs].reverse().find(m=>m.k==='form');
+ const custCard = u?`
+  <div class="pfield"><label>${ic('users',12)} Name</label><input id="pf-name" value="${esc(u.name)}"></div>
+  <div class="pfield"><label>${ic('phone',12)} Phone</label><input id="pf-phone" value="${esc(u.phone)}"></div>
+  <div class="pfield"><label>${ic('mail',12)} Email</label><input id="pf-email" value="${esc(u.email)}"></div>
+  <div class="pfield"><label>${ic('chat',12)} LINE ID</label><input id="pf-line" value="${esc(u.line)}"></div>
+  <div class="pfield"><label>${ic('phone',12)} WhatsApp</label><input id="pf-wa" value="${esc(u.wa)}"></div>
+  <div class="pfield"><label>${ic('form',12)} Customer note</label><textarea id="pf-note" rows="3">${esc(u.note)}</textarea></div>
+  <div class="rowact"><button class="btn btn-p btn-sm" onclick="saveProfile('${u.id}')">Save profile</button>
+   <button class="btn btn-o btn-sm" onclick="toast('Profile unlinked from this conversation')">Unlink</button></div>`
+ :`<div class="empty" style="padding:14px 6px"><b>No customer linked</b>Create a profile${lead?' — lead form data will prefill it':''} or link an existing one.</div>
+   <div class="rowact"><button class="btn btn-p btn-sm" onclick="createProfile('${c.id}')">${ic('plus',13)} Create profile</button>
+   <button class="btn btn-o btn-sm" onclick="toast('Search existing customers (demo)')">Link existing</button></div>`;
+ return `<div class="ib-side">
+  <div class="card panel"><h5>Customer profile ${u?`<button class="btn-ghost" onclick="go('customers','${u.id}')">Open</button>`:''}</h5>${custCard}</div>
+  <div class="card panel"><h5>This conversation</h5>
+   <div class="pfield"><label>CRM status</label>
+    <select onchange="CONVS.find(x=>x.id==='${c.id}').crm=this.value;render();toast('Status updated: '+this.selectedOptions[0].text)">
+     ${Object.entries(CRM).map(([k,v])=>`<option value="${k}" ${c.crm===k?'selected':''}>${v}</option>`).join('')}</select></div>
+   <div class="rowact" style="margin-top:6px">
+    <button class="btn btn-o btn-sm" onclick="c=CONVS.find(x=>x.id==='${c.id}');c.star=!c.star;render()">${ic('star',13)} ${c.star?'Unstar':'Star'}</button>
+    <button class="btn btn-o btn-sm" onclick="CONVS.find(x=>x.id==='${c.id}').arch=true;S.convId=null;render();toast('Conversation archived','archive')">${ic('archive',13)} Archive</button>
+    <button class="btn btn-o btn-sm" style="color:var(--alert)" onclick="confirmModal('Delete conversation?','The transcript and its analytics events will be removed. Linked customer profile is kept. This can\\'t be undone.','Delete',function(){CONVS=CONVS.filter(x=>x.id!=='${c.id}');S.convId=null;toast('Conversation deleted','trash')},true)">${ic('trash',13)} Delete</button>
+   </div></div>
+  <div class="card panel"><h5>Internal notes</h5>
+   ${(c.notes||[]).map(n=>`<div class="note">${esc(n)}<i>Ploy · just now</i></div>`).join('')}
+   ${c.id==='c1'?`<div class="note">ถามเรื่องผ่อน Invisalign — เช็คโปรผ่อน 0% 10 เดือนกับคุณหมอก่อนตอบ<i>Ploy · 5m ago</i></div>`:''}
+   <div style="display:flex;gap:7px;margin-top:4px"><input id="newnote" placeholder="Add a note for the team…" onkeydown="if(event.key==='Enter')addNote('${c.id}')">
+   <button class="btn btn-o btn-sm" onclick="addNote('${c.id}')">Add</button></div></div>
+ </div>`;
+}
+function addNote(id){const i=el('newnote');if(!i.value.trim())return;const c=CONVS.find(x=>x.id===id);(c.notes=c.notes||[]).push(i.value.trim());render();}
+function saveProfile(id){const u=CUSTOMERS.find(x=>x.id===id);u.name=el('pf-name').value;u.phone=el('pf-phone').value;u.email=el('pf-email').value;u.line=el('pf-line').value;u.wa=el('pf-wa').value;u.note=el('pf-note').value;render();toast('Profile saved');}
+function createProfile(cid){const c=CONVS.find(x=>x.id===cid);const lead=[...c.msgs].reverse().find(m=>m.k==='form');
+ const u={id:'u'+(CUSTOMERS.length+1),name:lead?.d?.Name||c.name,phone:lead?.d?.Phone||'',email:lead?.d?.Email||'',line:'',wa:'',note:'',convs:[cid]};
+ CUSTOMERS.push(u);c.cust=u.id;if(c.name.startsWith('Visitor'))c.name=u.name;render();toast('Customer profile created'+(lead?' — prefilled from lead form':''));}
+
+/* ================= CUSTOMERS ================= */
+function customersView(){
+ return `<div class="card" style="padding:0">
+  <div style="display:flex;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);align-items:center">
+   <div class="gsearch" style="width:280px">${ic('search',15)}<input id="csearch" placeholder="Search name, phone, LINE ID…" oninput="render()"></div>
+   <div style="flex:1"></div>
+   <button class="btn btn-o btn-sm" onclick="toast('customers.csv exported (demo)')">Export CSV</button>
+   <button class="btn btn-p btn-sm" onclick="CUSTOMERS.push({id:'u'+(CUSTOMERS.length+1),name:'New customer',phone:'',email:'',line:'',wa:'',note:'',convs:[]});S.drawer='u'+CUSTOMERS.length;render()">${ic('plus',13)} New customer</button>
+  </div>
+  <table class="tbl">
+   <tr><th>Name</th><th>Phone</th><th>LINE ID</th><th>WhatsApp</th><th>Email</th><th>Conversations</th><th>Last status</th></tr>
+   ${CUSTOMERS.map(u=>{const lc=CONVS.find(c=>c.cust===u.id);return `
+    <tr class="rowlink" onclick="S.drawer='${u.id}';render()">
+     <td><b>${esc(u.name)}</b></td><td>${esc(u.phone)||'—'}</td><td>${u.line?'@'+esc(u.line):'—'}</td>
+     <td>${esc(u.wa)||'—'}</td><td>${esc(u.email)||'—'}</td><td class="num">${u.convs.length}</td>
+     <td>${lc?`<span class="pill-status st-${lc.crm}">${CRM[lc.crm]}</span>`:'—'}</td></tr>`;}).join('')}
+  </table></div>`;
+}
+function custDrawer(){
+ const u=CUSTOMERS.find(x=>x.id===S.drawer); if(!u)return '';
+ return `<div class="overlay" onclick="S.drawer=null;render()"><div class="drawer" onclick="event.stopPropagation()">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+   <div class="av avatar" style="width:44px;height:44px;font-size:17px">${esc(u.name[0])}</div>
+   <div><h3>${esc(u.name)}</h3><span style="color:var(--muted);font-size:12.5px">Customer profile</span></div>
+   <button class="iconbtn" style="margin-left:auto" onclick="S.drawer=null;render()">${ic('x')}</button></div>
+  <div class="card panel" style="margin-bottom:12px">
+   <div class="pfield"><label>Phone</label><input value="${esc(u.phone)}"></div>
+   <div class="pfield"><label>Email</label><input value="${esc(u.email)}"></div>
+   <div class="pfield"><label>LINE ID</label><input value="${esc(u.line)}"></div>
+   <div class="pfield"><label>WhatsApp</label><input value="${esc(u.wa)}"></div>
+   <div class="pfield"><label>Customer note</label><textarea rows="3">${esc(u.note)}</textarea></div>
+   <div class="rowact"><button class="btn btn-p btn-sm" onclick="toast('Profile saved')">Save profile</button>
+    <button class="btn btn-o btn-sm" style="color:var(--alert)" onclick="confirmModal('Delete customer?','Removes the profile (PDPA delete-on-request). Conversations are kept but unlinked.','Delete',function(){CUSTOMERS=CUSTOMERS.filter(x=>x.id!=='${u.id}');S.drawer=null;toast('Customer deleted','trash')},true)">Delete</button></div>
+  </div>
+  <div class="card panel timeline"><h5>Conversation timeline</h5>
+   ${u.convs.length?u.convs.map(cid=>{const c=CONVS.find(x=>x.id===cid);if(!c)return '';return `
+    <div class="tlrow"><span class="dot" style="background:${CH[c.ch].color}"></span>
+     <div style="flex:1"><b>${CH[c.ch].name}</b> · ${c.time}<div style="color:var(--muted);font-size:12px">“${esc(lastText(c)).slice(0,46)}…”</div></div>
+     <span class="pill-status st-${c.crm}">${CRM[c.crm]}</span>
+     <button class="btn-ghost" onclick="S.drawer=null;go('inbox','${c.id}')">Open →</button></div>`;}).join('')
+   :`<div class="empty" style="padding:12px"><b>No conversations linked yet</b>Link one from the inbox side panel.</div>`}
+  </div></div></div>`;
+}
+
+/* ================= SETTINGS ================= */
+function settingsView(){
+ const tabs=[['knowledge','grid','Knowledge'],['widget','msg','Widget'],['channels','link','Contact channels'],['team','users','Team'],['privacy','lock','Data & privacy']];
+ const body={knowledge:builderView,widget:widgetView,channels:channelsView,team:teamView,privacy:privacyView}[S.setTab]();
+ return `<div class="settings">
+  <div class="subnav">${tabs.map(t=>`<button class="${S.setTab===t[0]?'on':''}" onclick="S.setTab='${t[0]}';render()">${ic(t[1])}${t[2]}</button>`).join('')}</div>
+  <div class="set-body">${body}</div></div>`;
+}
+
+/* ---- Flow builder ---- */
+function kids(id){const n=FLOW[id];let out=[];
+ if(n.type==='options')out=n.opts.map(o=>({id:o.t,link:!!o.link,label:o.en}));
+ else if(n.next)out=[{id:n.next,link:n.next==='root'||countParents(n.next)>1,label:''}];
+ return out;}
+function countParents(id){let c=0;for(const k in FLOW){const n=FLOW[k];if(n.opts&&n.opts.some(o=>o.t===id))c++;if(n.next===id)c++;}return c;}
+function typeCls(t){return t==='options'?'t-options':t==='message'?'t-message':'t-cta';}
+function typeIcon(t){return t==='options'?'grid':t==='message'?'msg':t==='cta-form'?'form':t==='cta-link'?'link':t==='cta-contact'?'pin':'users';}
+function typeName(t){return {options:'Options node',message:'Message node','cta-form':'CTA · Lead form','cta-link':'CTA · External link','cta-contact':'CTA · Contact card','cta-live':'CTA · Live chat'}[t];}
+
+function treeHTML(id,seen){
+ seen=seen||new Set(); const n=FLOW[id];
+ const ks=kids(id).filter(k=>!k.link&&FLOW[k.id]&&!seen.has(k.id));
+ seen.add(id);
+ const collapsed=S.collapsed[id];
+ const warn = n.type==='message' && !n.next;
+ return `<div class="tnode">
+  <div class="trow ${S.selNode===id?'on':''}" onclick="S.selNode='${id}';render()">
+   <span class="twist" onclick="event.stopPropagation();S.collapsed['${id}']=!S.collapsed['${id}'];render()">${ks.length?(collapsed?'▶':'▼'):''}</span>
+   <span class="tico ${typeCls(n.type)}">${ic(typeIcon(n.type))}</span>
+   <span style="flex:1;min-width:0"><b>${esc(n.title)}</b>
+    ${n.opts?`<span style="color:var(--faint);font-size:11.5px"> · ${n.opts.length}/6 options</span>`:''}</span>
+   ${warn?`<span class="warn" title="Leaf without CTA">${ic('warn',14)}</span>`:''}
+  </div>
+  ${!collapsed&&ks.length?`<div class="tkids">${ks.map(k=>treeHTML(k.id,seen)).join('')}
+   ${kids(id).filter(k=>k.link).map(k=>`<div class="trow"><span class="twist"></span><span class="linkback">↩ links to “${esc(FLOW[k.id]?.title||k.id)}”</span></div>`).join('')}</div>`
+  :!collapsed?kids(id).filter(k=>k.link).map(k=>`<div class="tkids"><div class="trow"><span class="twist"></span><span class="linkback">↩ links to “${esc(FLOW[k.id]?.title||k.id)}”</span></div></div>`).join(''):''}
+ </div>`;
+}
+function builderView(){
+ const n=FLOW[S.selNode];
+ return `
+ <div class="fb-head">
+  <h3 style="font-size:16px">Flow builder <span style="color:var(--faint);font-weight:400">· Siam Smile — Main flow</span></h3>
+  <span class="vchip live">Published v4</span><span class="vchip draft">Draft — 3 unsaved changes</span>
+  <div class="spacer"></div>
+  <button class="btn btn-o" onclick="startSim()">${ic('play',14)} Test flow</button>
+  <button class="btn btn-p" onclick="confirmModal('Publish draft?','Visitors on siamsmile.co will get this version immediately. Current version v4 is kept for rollback.','Publish',function(){toast('Published — flow is now v5')})">Publish</button>
+ </div>
+ <div class="builder">
+  <div>
+   <div class="card tree">${treeHTML('root')}
+    <button class="btn-ghost" style="padding:8px 10px" onclick="toast('New node added under root (demo)')">${ic('plus',13)} Add node</button></div>
+   <div class="card ecard editor" style="margin-top:12px">
+    <h3 style="display:flex;gap:8px;align-items:center"><span class="tico ${typeCls(n.type)}">${ic(typeIcon(n.type))}</span> ${esc(n.title)}</h3>
+    <div class="pfield" style="margin-top:12px"><label>Node type</label>
+     <select disabled><option>${typeName(n.type)}</option></select></div>
+    <div class="langtabs">
+     <button class="${S.lang==='th'?'on':''}" onclick="S.lang='th';render()">ไทย TH</button>
+     <button class="${S.lang==='en'?'on':''}" onclick="S.lang='en';render()">EN</button></div>
+    <div class="pfield"><label>Bot message (${S.lang.toUpperCase()})</label>
+     <textarea rows="2">${esc(n[S.lang])}</textarea></div>
+    <div class="pfield"><label>Keywords · typed messages containing these jump here</label>
+     <div class="kwrap">${(n.kw||[]).map((k,i)=>`<span class="tag">${esc(k)}<button onclick="FLOW['${S.selNode}'].kw.splice(${i},1);render()">×</button></span>`).join('')}
+      <input id="kwin" placeholder="Add keyword + Enter" onkeydown="if(event.key==='Enter'&&this.value.trim()){(FLOW['${S.selNode}'].kw=FLOW['${S.selNode}'].kw||[]).push(this.value.trim());render()}"></div></div>
+    ${n.opts?`<div class="pfield"><label>Options · ${n.opts.length}/6 (widget shows 2 rows × 3)</label>
+      ${n.opts.map((o)=>`<div class="optrow"><span class="drag">⋮⋮</span><input value="${esc(S.lang==='th'?o.th:o.en)}">
+       <select><option>→ ${esc(FLOW[o.t]?.title||o.t)}</option><option>→ New child node…</option><option>→ Link to existing…</option></select>
+       <button class="iconbtn" style="width:30px;height:30px" onclick="toast('Option removed (demo)')">${ic('x',13)}</button></div>`).join('')}
+      ${n.opts.length<6?`<button class="btn-ghost" onclick="toast('Option added (demo)')">${ic('plus',13)} Add option</button>`:`<span style="font-size:12px;color:var(--faint)">Maximum 6 options reached</span>`}</div>`:''}
+    ${n.type==='cta-form'?`<div class="pfield"><label>Form fields</label><div class="kwrap">${n.fields.map(f=>`<span class="tag">${f}</span>`).join('')}</div></div>`:''}
+    ${n.type==='cta-link'?`<div class="pfield"><label>Button URL</label><input value="https://${n.url}"></div>`:''}
+    <div class="rowact" style="margin-top:10px"><button class="btn btn-p btn-sm" onclick="toast('Node saved to draft')">Save node</button>
+     ${S.selNode!=='root'?`<button class="btn btn-o btn-sm" style="color:var(--alert)" onclick="confirmModal('Delete this node?','Choose what happens to its children: reattach to parent, or delete the whole branch. (Demo: nothing is deleted.)','Delete node',function(){toast('Node deleted (demo)','trash')},true)">Delete node</button>`:''}</div>
+   </div>
+  </div>
+  <div class="mindmap card">
+   <h3 style="display:flex">Flow preview <span style="margin-left:auto;font-weight:400;color:var(--faint);font-size:12px">read-only · click a node to edit</span></h3>
+   ${mindmapSVG()}
+   <div class="legend"><span><span class="dot" style="background:var(--teal)"></span>Options</span>
+    <span><span class="dot" style="background:var(--slate)"></span>Message</span>
+    <span><span class="dot" style="background:var(--violet)"></span>CTA</span>
+    <span style="color:var(--amber)">${ic('warn',12)} needs a CTA</span></div>
+  </div>
+ </div>`;
+}
+function mindmapSVG(){
+ const pos={},edges=[];let row=0;
+ (function walk(id,depth,seen){
+  seen.add(id); pos[id]={x:depth,y:row};
+  const ks=kids(id); let first=true;
+  ks.forEach(k=>{ edges.push([id,k.id,k.link||seen.has(k.id)]);
+   if(!k.link&&FLOW[k.id]&&!seen.has(k.id)){ if(!first)row++; walk(k.id,depth+1,seen); first=false; } });
+  if(!ks.filter(k=>!k.link&&FLOW[k.id]).length&&id!=='root')return;
+ })('root',0,new Set());
+ const CW=176,RH=52,NW=150,NH=34;
+ const W=(Math.max(...Object.values(pos).map(p=>p.x))+1)*CW+20, H=(row+1)*RH+24;
+ const P=id=>({x:pos[id].x*CW+12,y:pos[id].y*RH+12});
+ const col=t=>t==='options'?'var(--teal)':t==='message'?'var(--slate)':'var(--violet)';
+ return `<svg viewBox="0 0 ${W} ${H}">
+  ${edges.filter(e=>pos[e[1]]).map(([a,b,link])=>{const p1=P(a),p2=P(b);
+    return `<path d="M${p1.x+NW} ${p1.y+NH/2} C ${p1.x+NW+30} ${p1.y+NH/2}, ${p2.x-30} ${p2.y+NH/2}, ${p2.x} ${p2.y+NH/2}" fill="none" stroke="${link?'#C6D2CF':'#9DB5B0'}" stroke-width="1.6" ${link?'stroke-dasharray="4 4"':''}/>`;}).join('')}
+  ${Object.keys(pos).map(id=>{const n=FLOW[id],p=P(id),sel=S.selNode===id;
+    return `<g class="mm-node" onclick="S.selNode='${id}';render()">
+     <rect x="${p.x}" y="${p.y}" width="${NW}" height="${NH}" rx="9" fill="${sel?col(n.type):'#fff'}" stroke="${col(n.type)}" stroke-width="${sel?2:1.4}"/>
+     <circle cx="${p.x+15}" cy="${p.y+NH/2}" r="4.5" fill="${sel?'#fff':col(n.type)}"/>
+     <text x="${p.x+27}" y="${p.y+NH/2+4}" font-size="11" font-weight="600" font-family="IBM Plex Sans Thai" fill="${sel?'#fff':'#122A2E'}">${esc(n.title).slice(0,20)}</text></g>`;}).join('')}
+ </svg>`;
+}
+
+/* ---- Simulator (runs the real tree) ---- */
+function startSim(){S.sim={msgs:[],cur:null,await:false};simGoto('root');}
+function simPush(m){S.sim.msgs.push(m);}
+function simGoto(id){
+ let n=FLOW[id];
+ while(n){
+  simPush({f:'bot',t:n[S.simLang||'en']||n.en});
+  if(n.type==='options'){S.sim.cur=id;break;}
+  if(n.type==='cta-link'){simPush({f:'cta',t:'🔗 '+n.url});}
+  if(n.type==='cta-form'){simPush({f:'cta',t:'📋 Lead form: '+n.fields.join(' · ')});}
+  if(n.type==='cta-contact'||n.type==='cta-live'){simPush({f:'contacts'});if(n.type==='cta-live')S.sim.await=true;}
+  if(n.next){id=n.next;n=FLOW[id];} else {S.sim.cur=null;break;}
+ }
+ render();
+}
+function simTap(i){const n=FLOW[S.sim.cur];const o=n.opts[i];simPush({f:'v',t:o.en});simGoto(o.t);}
+function simType(){
+ const inp=el('simin');const q=(inp.value||'').trim();if(!q)return;inp.value='';
+ simPush({f:'v',t:q});
+ if(S.sim.await){simPush({f:'sys',t:'Bot paused — waiting for admin'});render();return;}
+ const ql=q.toLowerCase();let hit=null;
+ for(const id in FLOW){const n=FLOW[id];
+  if((n.kw||[]).some(k=>ql.includes(k.toLowerCase())||k.toLowerCase().includes(ql))){hit=id;break;}}
+ if(hit){simPush({f:'sys',t:`Keyword match → “${FLOW[hit].title}”`});simGoto(hit);}
+ else{simPush({f:'sys',t:'No keyword match → fallback'});
+  simPush({f:'bot',t:'ขออภัยค่ะ แอดมินจะรีบมาตอบโดยเร็วที่สุด 🙏 Sorry! An admin will reply shortly — or reach us instantly:'});
+  simPush({f:'contacts'});S.sim.await=true;render();}
+}
+function simView(){
+ const cur=S.sim.cur?FLOW[S.sim.cur]:null;
+ return `<div class="sim-wrap" onclick="S.sim=null;render()"><div class="sim" onclick="event.stopPropagation()">
+  <div class="sim-head">${ic('play',15)} <b>Flow simulator</b> <span style="font-size:11.5px;color:#9FB9B3">draft version</span>
+   <button class="btn btn-sm" onclick="startSim()">Restart</button>
+   <button class="iconbtn" style="color:#fff" onclick="S.sim=null;render()">${ic('x')}</button></div>
+  <div class="msgs" id="simscroll">
+   ${S.sim.msgs.map(m=>{
+    if(m.f==='sys')return `<div class="sysnote">${esc(m.t)}</div>`;
+    if(m.f==='cta')return `<div class="brow left"><div class="ctacard">${esc(m.t)}</div></div>`;
+    if(m.f==='contacts')return `<div class="contactchips">${CONTACTS.map(c=>`<span>${ic(c.type==='mail'?'mail':c.type==='phone'?'phone':'chat',13)} ${esc(c.label)} ${esc(c.value)}</span>`).join('')}</div>`;
+    return m.f==='v'?`<div class="brow right"><div class="bub" style="background:var(--teal);color:#fff">${esc(m.t)}</div></div>`
+     :`<div class="brow left"><div class="bub">${esc(m.t)}</div><div class="who">${ic('bot',11)} bot</div></div>`;}).join('')}
+   ${cur?`<div class="simopts">${cur.opts.map((o,i)=>`<button onclick="simTap(${i})">${esc(o.en)}</button>`).join('')}</div>`:''}
+  </div>
+  <div class="composer"><input id="simin" placeholder="Type like a visitor… try “ราคา” or “parking”" onkeydown="if(event.key==='Enter')simType()">
+   <button class="sendbtn" onclick="simType()">${ic('send',16)}</button></div>
+ </div></div>`;
+}
+
+/* ---- Widget / Channels / Team / Privacy ---- */
+function widgetView(){
+ const c=S.wcolor||'#0E7C6B';
+ return `<div class="grid" style="grid-template-columns:340px 1fr">
+  <div class="card">
+   <h3>Widget appearance</h3>
+   <div class="pfield" style="margin-top:10px"><label>Brand color</label><input type="color" value="${c}" style="height:38px;padding:3px" oninput="S.wcolor=this.value;render()"></div>
+   <div class="pfield"><label>Greeting (TH)</label><input value="สวัสดีค่ะ 👋 มีอะไรให้ช่วยไหมคะ?"></div>
+   <div class="pfield"><label>Greeting (EN)</label><input value="Hi there 👋 How can we help?"></div>
+   <div class="pfield"><label>Position</label><select><option>Bottom right</option><option>Bottom left</option></select></div>
+   <div class="pfield"><label>Default language</label><select><option>Thai (with EN toggle)</option><option>English (with TH toggle)</option></select></div>
+   <label style="display:flex;gap:8px;font-size:13px;margin:6px 0"><input type="checkbox" style="width:auto"> Open automatically on page load</label>
+   <button class="btn btn-p btn-sm" onclick="toast('Widget settings saved')">Save</button>
+   <div class="pfield" style="margin-top:16px"><label>Embed snippet</label>
+    <div style="background:var(--ink);color:#9FE8D8;border-radius:8px;padding:10px;font-family:ui-monospace,monospace;font-size:11.5px">&lt;script src="https://bot.flowbot.app/widget.js"<br>&nbsp;&nbsp;data-bot-id="ssd-01" defer&gt;&lt;/script&gt;</div>
+    <button class="btn-ghost" style="margin-top:6px" onclick="toast('Snippet copied')">Copy snippet</button></div>
+  </div>
+  <div class="wprev">
+   <div class="fake">siamsmile.co — live preview</div>
+   <div class="wpanel" style="right:22px">
+    <div class="wh" style="background:${c}">${ic('bot',15)} Siam Smile Dental <span style="margin-left:auto;font-size:11px;font-weight:500">TH | EN</span></div>
+    <div class="wb"><div class="wgreet">Hi there 👋 How can we help?</div>
+     <div class="wopts" style="color:${c}"><span>Services</span><span>Book</span><span>Hours</span><span>Location</span><span>Promos</span><span>Staff</span></div></div>
+   </div>
+   <div class="wbubble" style="right:22px;background:${c}">${ic('chat',22)}</div>
+  </div></div>`;
+}
+function channelsView(){
+ return `<div class="card" style="max-width:640px"><h3>Contact channels</h3>
+  <p style="color:var(--muted);font-size:13px;margin:4px 0 10px">Shown to visitors in the fallback message and the Contact card CTA, in this order.</p>
+  ${CONTACTS.map(c=>`<div class="chanrow"><span class="drag" style="color:var(--faint);cursor:grab">⋮⋮</span>
+   <div class="ch-ic" style="background:${c.type==='line'?'var(--line-ch)':c.type==='whatsapp'?'var(--wa-ch)':'var(--slate)'}">${ic(c.type==='mail'?'mail':c.type==='phone'?'phone':'chat',15)}</div>
+   <div><b>${esc(c.label)}</b><span>${esc(c.value)}</span></div>
+   <div class="rowact"><button class="btn btn-o btn-sm">Edit</button><button class="iconbtn" style="width:30px;height:30px">${ic('x',13)}</button></div></div>`).join('')}
+  <button class="btn btn-o btn-sm" style="margin-top:12px" onclick="toast('Channel added (demo)')">${ic('plus',13)} Add channel</button></div>`;
+}
+function teamView(){
+ return `<div class="card" style="max-width:720px">
+  <div style="display:flex;align-items:center"><h3>Team</h3><div style="flex:1"></div>
+  <button class="btn btn-p btn-sm" onclick="S.invite=true;render()">${ic('plus',13)} Invite admin</button></div>
+  <table class="tbl" style="margin-top:10px">
+   <tr><th>Name</th><th>Email</th><th>Role</th><th>Last active</th><th></th></tr>
+   <tr><td><b>Ploy Siriwan</b> (you)</td><td>admin@siamsmile.co</td><td><span class="pill-status st-appointment_made">Owner</span></td><td>Now</td><td style="color:var(--faint);text-align:right">${ic('lock',14)}</td></tr>
+   <tr><td><b>Bank Thanakit</b></td><td>bank@siamsmile.co</td><td><span class="pill-status st-new">Admin</span></td><td>2h ago</td>
+    <td style="text-align:right"><button class="btn-ghost" style="color:var(--alert)" onclick="confirmModal('Remove Bank from the team?','They lose dashboard access immediately. Conversations they handled are kept.','Remove',function(){toast('Admin removed (demo)')},true)">Remove</button></td></tr>
+  </table></div>`;
+}
+function inviteModal(){
+ return `<div class="modal-w" onclick="S.invite=false;render()"><div class="modal" onclick="event.stopPropagation()">
+  <h3>Invite an admin</h3><p>They'll receive an email with a secure link to create their account on this workspace.</p>
+  <div class="pfield"><label>Email</label><input id="inv-e" placeholder="name@siamsmile.co"></div>
+  <div class="pfield"><label>Role</label><select><option>Admin — full access</option><option>Owner</option></select></div>
+  <div class="rowact"><button class="btn btn-o" onclick="S.invite=false;render()">Cancel</button>
+  <button class="btn btn-p" onclick="S.invite=false;render();toast('Invite email sent','mail')">Send invite</button></div></div></div>`;
+}
+function privacyView(){
+ return `<div class="card" style="max-width:640px"><h3>Data & privacy</h3>
+  <div class="pfield" style="margin-top:10px;max-width:320px"><label>Transcript retention</label>
+   <select><option>12 months (recommended)</option><option>6 months</option><option>24 months</option></select></div>
+  <p style="color:var(--muted);font-size:13px;margin:8px 0 14px">Older transcripts are automatically purged. Lead-form consent text is shown to visitors before they submit contact details (PDPA).</p>
+  <div class="rowact"><button class="btn btn-o btn-sm" onclick="toast('Export started — you will get an email (demo)')">Export all data</button>
+  <button class="btn btn-p btn-sm" onclick="toast('Retention setting saved')">Save</button></div></div>`;
+}
+
+render();
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 **Project:** Multi-admin, post-call intelligence, and appointment booking upgrade  
 **Version:** 1.5 final plan  
 **Date:** 13 July 2026  
-**Status:** Architecture plan for implementation
+**Status:** Architecture updated with corrected calendar/booking-link model
 
 ---
 
@@ -13,7 +13,7 @@ V1.5 keeps the existing live voice architecture intact and adds three operationa
 
 1. Post-call text intelligence.
 2. Multi-admin account and permission system.
-3. Native appointment/availability/booking module.
+3. Native calendar, availability, booking-link, and appointment module.
 
 The live call path remains:
 
@@ -40,9 +40,9 @@ The appointment path starts after a qualified lead agrees to consultation:
 ```text
 Voice agent captures lead
   -> widget shows booking CTA
-  -> /book/[slug]?context=...
+  -> /book/[booking-link-slug]?context=...
   -> visitor selects available slot
-  -> POST /api/bookings
+  -> POST /api/booking/appointments
   -> appointment pending confirmation
   -> admin confirms/rejects
 ```
@@ -82,6 +82,8 @@ The analyzer must not receive:
 
 V1.5 appointment scheduling is native and simple:
 
+- Admin calendar profile.
+- Booking links / meeting types.
 - Weekly availability.
 - Blocked times.
 - Internal appointments.
@@ -120,7 +122,7 @@ admin
 | Edit any availability | Yes | No |
 | Create admin | Yes | No |
 | Edit/delete admin | Yes | No |
-| Set active booking admin | Yes | No |
+| Set active AI booking link | Yes | No |
 | Edit global voice settings | Yes | No |
 | Edit knowledge document | Yes | No |
 | Export all records | Yes | No |
@@ -187,10 +189,13 @@ analysis_enabled boolean default true,
 analysis_model_id text default 'gpt-4o-mini',
 booking_enabled boolean default true,
 active_booking_admin_id uuid references admin_users(id),
+active_booking_link_id uuid,
 default_timezone text default 'Asia/Bangkok',
 require_booking_confirmation boolean default true,
 default_booking_window_days int default 30
 ```
+
+`active_booking_admin_id` is legacy compatibility. The corrected V1.5 rebuild should use `active_booking_link_id` as the source of truth for the voice widget booking CTA. During migration, if `active_booking_link_id` is null and `active_booking_admin_id` exists, create/select that admin's default consultation booking link.
 
 Optional later:
 
@@ -283,27 +288,23 @@ closed -> deal_closed
 
 ### `admin_calendar_profiles`
 
+Calendar profile stores the admin's calendar identity and broad permission settings. It should not own meeting duration or public booking URL by itself. Those belong to booking links.
+
 ```sql
 create table admin_calendar_profiles (
   id uuid primary key default gen_random_uuid(),
   admin_user_id uuid not null references admin_users(id),
   display_name text not null,
-  booking_slug text unique not null,
   timezone text not null default 'Asia/Bangkok',
-  meeting_title text not null default 'DJAI Consultation',
-  meeting_location text,
-  default_duration_minutes int not null default 30,
-  buffer_before_minutes int not null default 0,
-  buffer_after_minutes int not null default 0,
-  minimum_notice_minutes int not null default 240,
-  max_bookings_per_day int,
-  booking_window_days int not null default 30,
+  default_meeting_location text,
   is_active boolean not null default true,
   allow_admin_self_edit boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 ```
+
+Backward compatibility: existing columns such as `booking_slug`, `meeting_title`, `default_duration_minutes`, buffers, notice, and booking window may remain temporarily but new code should read these from `booking_links`.
 
 ### `availability_rules`
 
@@ -357,9 +358,44 @@ blocked
 extra_available
 ```
 
+### `booking_links`
+
+Booking links are the central scheduling object. They define a public booking URL, meeting duration, owner admin, customer-facing copy, and booking rules. One booking link can be selected as the active AI booking link.
+
+```sql
+create table booking_links (
+  id uuid primary key default gen_random_uuid(),
+  owner_admin_id uuid not null references admin_users(id),
+  name text not null,
+  slug text unique not null,
+  title text not null,
+  description text,
+  meeting_location text,
+  duration_minutes int not null,
+  buffer_before_minutes int not null default 0,
+  buffer_after_minutes int not null default 0,
+  minimum_notice_minutes int not null default 240,
+  max_bookings_per_day int,
+  booking_window_days int not null default 30,
+  require_confirmation boolean not null default true,
+  is_active boolean not null default true,
+  is_ai_active boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+```
+
+Constraints:
+
+- `duration_minutes` should be between 10 and 240.
+- `slug` should be URL-safe and unique.
+- At most one link should be AI active. This can be enforced in application code in V1.5 if partial unique indexes are not used.
+- Master admin can create/edit links for any admin.
+- Normal admin can create/edit own links only if allowed by settings/profile.
+
 ### `meeting_types`
 
-Start with one default meeting type.
+Legacy compatibility table. Existing appointments can continue referencing it, but booking-link ID should become the preferred relationship for new appointments.
 
 ```sql
 create table meeting_types (
@@ -384,6 +420,7 @@ create table appointments (
   assigned_admin_id uuid references admin_users(id),
   assigned_admin_name_snapshot text,
   meeting_type_id uuid references meeting_types(id),
+  booking_link_id uuid references booking_links(id),
   status text not null default 'pending_confirmation',
   source text not null default 'voice_agent',
   start_at timestamptz not null,
@@ -456,6 +493,7 @@ Availability is computed server-side only.
 Input:
 
 - Calendar profile.
+- Booking link.
 - Weekly availability rules.
 - Availability overrides.
 - Existing appointments.
@@ -463,16 +501,18 @@ Input:
 
 Algorithm:
 
-1. Resolve timezone.
-2. Generate candidate time windows from weekly rules.
-3. Add `extra_available` overrides.
-4. Remove `blocked` overrides.
-5. Remove existing non-rejected/non-cancelled appointment windows.
-6. Apply buffer before/after.
-7. Apply minimum notice.
-8. Apply booking window.
-9. Apply max bookings per day.
-10. Return slots in timezone-aware ISO format.
+1. Resolve booking link by slug and confirm it is active.
+2. Resolve owner admin and calendar profile.
+3. Resolve timezone from calendar profile.
+4. Generate candidate time windows from weekly rules.
+5. Add `extra_available` overrides.
+6. Remove `blocked` overrides.
+7. Remove existing non-rejected/non-cancelled appointment windows.
+8. Apply booking-link buffer before/after.
+9. Apply booking-link minimum notice.
+10. Apply booking-link booking window.
+11. Apply booking-link max bookings per day.
+12. Return slots in timezone-aware ISO format.
 
 Appointment statuses that block time:
 
@@ -490,7 +530,21 @@ rejected
 cancelled
 ```
 
-Before creating an appointment, repeat conflict checks inside the booking transaction/action. Never trust slots generated earlier by the browser.
+Before creating, rescheduling, or reassigning an appointment, repeat conflict and availability checks server-side. Never trust slots generated earlier by the browser.
+
+Reschedule rules:
+
+- The new time must fit the assigned admin's weekly availability or extra availability.
+- The new time must not overlap blocked time.
+- The new time must not overlap blocking appointment statuses.
+- The new time must respect the booking link duration/rules unless the admin explicitly uses a manual override flow.
+
+Reassign rules:
+
+- The target admin must be active.
+- The target admin must have an active calendar profile.
+- The appointment time must fit the target admin's availability unless the master admin explicitly confirms a manual override.
+- The target admin must not have a conflict.
 
 ---
 
@@ -530,14 +584,14 @@ POST /api/booking/appointments
 
 - Public.
 - Rate-limited.
-- Returns available slots for the booking slug.
+- Returns available slots for the booking link slug.
 - Does not expose internal notes or private admin data.
 
 `POST /api/booking/appointments`:
 
 - Public.
 - Rate-limited.
-- Validates booking slug, slot, required fields.
+- Validates booking link slug, slot, required fields.
 - Validates signed lead/conversation context when present.
 - Rechecks conflicts server-side.
 - Creates appointment as `pending_confirmation`.
@@ -570,7 +624,7 @@ updateAdminUserAction
 resetAdminPasswordAction
 deactivateAdminUserAction
 deleteAdminUserAction
-setActiveBookingAdminAction
+setActiveAiBookingLinkAction
 ```
 
 `deleteAdminUserAction` must:
@@ -579,7 +633,25 @@ setActiveBookingAdminAction
 - Reject deleting/downgrading last master admin.
 - Soft-delete only.
 - Reassign/cancel/leave future appointments based on explicit master-admin choice.
-- Replace or disable active booking admin if needed.
+- Replace or disable active AI booking link if needed.
+
+### Booking Link Actions
+
+```text
+createBookingLinkAction
+updateBookingLinkAction
+deleteBookingLinkAction
+setActiveAiBookingLinkAction
+toggleBookingLinkActiveAction
+```
+
+Rules:
+
+- Master admin can manage all links.
+- Normal admin can manage own links only if allowed.
+- Deleting a booking link should be soft delete or inactive in V1.5; do not break historical appointments.
+- Setting active AI booking link must clear previous active link.
+- Voice widget booking CTA uses active AI booking link only.
 
 ### Appointment Actions
 
@@ -593,6 +665,14 @@ markAppointmentCompletedAction
 markAppointmentNoShowAction
 updateAppointmentNotesAction
 ```
+
+Add:
+
+```text
+validateAppointmentAvailabilityForAction
+```
+
+This helper must be called by public booking, reschedule, and reassign flows.
 
 Normal admin action scope:
 
@@ -609,12 +689,14 @@ updateCalendarProfileAction
 updateWeeklyAvailabilityAction
 createAvailabilityOverrideAction
 deleteAvailabilityOverrideAction
+previewAvailabilitySlotsAction or GET /api/admin/calendar/preview-slots
 ```
 
 Normal admin scope:
 
 - Own calendar only.
 - Only fields allowed by profile/settings.
+- Respect `allow_admin_self_edit` for profile, weekly availability, blocked time, and extra availability.
 
 Master admin scope:
 
@@ -723,10 +805,14 @@ Recommended route structure:
 
 ```text
 src/app/admin/page.tsx
-src/app/admin/conversations/page.tsx
-src/app/admin/conversations/[id]/page.tsx
+src/app/admin/inbox/page.tsx
+src/app/admin/inbox/voice/page.tsx
 src/app/admin/leads/page.tsx
-src/app/admin/appointments/page.tsx
+src/app/admin/calendar/page.tsx
+src/app/admin/calendar/setup/page.tsx
+src/app/admin/calendar/availability/page.tsx
+src/app/admin/calendar/links/page.tsx
+src/app/admin/appointments/page.tsx (compatibility redirect or secondary list)
 src/app/admin/team/page.tsx
 src/app/admin/settings/page.tsx
 src/app/book/[slug]/page.tsx
@@ -737,15 +823,33 @@ Recommended admin components:
 ```text
 AdminNav
 RoleGate
-AppointmentList
-AppointmentCalendar
+CalendarTimeGrid
+CalendarEventBlock
+CalendarToolbar
 AppointmentDetailDrawer
 AvailabilityEditor
+WeeklyHoursEditor
+BlockedTimeEditor
+BookingLinkForm
+BookingLinksTable
 TeamTable
 AdminUserForm
 DeleteAdminDialog
 BookingSlotPicker
 ```
+
+Calendar UI requirements:
+
+- Use a Google Calendar-like time grid.
+- Week view is required.
+- Day view is optional but recommended.
+- Month view is optional if implementation time allows; list view can remain secondary.
+- The grid must have fixed time rows and day columns.
+- Appointment blocks must be positioned by start/end time.
+- Blocked time must appear as muted blocks.
+- Clicking an event opens a side panel, not an inline row form.
+- Header must include Today, previous, next, date range, view switcher, admin filter for master, and create/block/link actions.
+- Empty setup state must route to setup flow instead of showing a blank calendar.
 
 Master UI reference:
 
@@ -796,14 +900,14 @@ Normal admin UI reference:
 
 1. Add `admin_users`.
 2. Seed first master admin from existing env credentials when table is empty.
-3. Add settings columns for booking and active booking admin.
+3. Add settings columns for booking and active AI booking link.
 4. Add/confirm post-call intelligence columns.
 5. Add structured lead columns and assignment.
 6. Migrate lead statuses.
-7. Add calendar profile, availability, meeting type, and appointment tables.
-8. Seed default meeting type.
+7. Add calendar profile, booking links, availability, meeting type compatibility, and appointment tables.
+8. Seed default consultation booking link for first master admin when appropriate.
 9. Create calendar profile for first master admin.
-10. Point `active_booking_admin_id` to first master admin if booking is enabled.
+10. Point `active_booking_link_id` to the default link if booking is enabled.
 11. Update auth to use DB admin users.
 12. Add admin role scoping.
 
@@ -829,7 +933,7 @@ Booking:
 - Recheck conflicts on submission.
 - Handle no-slot state.
 - Handle disabled booking.
-- Handle active admin missing/no availability.
+- Handle active booking link missing/no availability.
 
 No queues/workers in this version:
 
@@ -858,18 +962,21 @@ No queues/workers in this version:
 
 ### Appointment Checks
 
-- Master admin can set active booking admin.
+- Master admin can create booking link.
+- Master admin can set active AI booking link.
 - Admin can set weekly availability.
 - Admin can block time.
 - Booking page shows only available slots.
 - Booking submission creates pending appointment.
 - Double booking is blocked.
+- Reschedule into unavailable time is blocked unless explicit manual override is implemented.
+- Reassign into unavailable/conflicting admin is blocked unless explicit manual override is implemented.
 - Admin can confirm/reject.
 - Lead/conversation/appointment links display correctly.
 
 ### Role Checks
 
-- Master admin sees all calendars.
+- Master admin sees all calendars in real week calendar grid.
 - Normal admin sees only their own calendar.
 - Master admin can reassign appointment.
 - Normal admin cannot reassign appointment.

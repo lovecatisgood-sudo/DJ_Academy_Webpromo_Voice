@@ -23,6 +23,7 @@
     "verify:standalone": "node scripts/verify-standalone.mjs",
     "smoke:public": "node scripts/smoke-public.mjs",
     "smoke:no-secrets": "node scripts/smoke-no-secrets.mjs",
+    "acceptance:phase11": "node --env-file-if-exists=.env.local scripts/phase11-production-acceptance.mjs",
     "hostinger:build": "npm run verify:env && npm run migrate && npm run verify:source && npm run verify:schema && npm run verify:live-schema && npm run typecheck && npm run next:build && npm run prepare:standalone && npm run verify:standalone",
     "deploy": "npm run hostinger:build",
     "package:source": "node scripts/create-source-archive.mjs",

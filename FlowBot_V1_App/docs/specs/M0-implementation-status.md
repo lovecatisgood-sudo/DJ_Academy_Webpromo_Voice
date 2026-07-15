@@ -1,0 +1,388 @@
+# M0 Implementation Status
+
+Updated: 2026-07-14
+
+## Completed
+
+- Created isolated `FlowBot_V1_App` workspace separate from the DJAI Voice Agent app.
+- Imported FlowBot source-of-truth docs and static UI mockup into `/docs`.
+- Added pnpm/Turborepo monorepo layout:
+  - `apps/dashboard`
+  - `apps/widget`
+  - `packages/shared`
+  - `packages/core`
+  - `packages/db`
+  - `packages/notifications`
+- Added canonical shared enums and zod schemas from `INTEGRATION-CONTRACT.md`.
+- Added deterministic matcher normalization and ranking starter in `packages/core`.
+- Added initial SQL migration generated from `docs/06-DATABASE-SCHEMA.md`.
+- Added DB environment validation, Neon client factory, visitor token hashing, and `tenantDb()`.
+- Added project-local Node `v24.18.0` runtime support through `scripts/use-node24.sh`.
+- Added initial Drizzle ORM mapping for core tenant/auth/bot/customer/conversation tables.
+- Added Argon2id password hashing with `@node-rs/argon2`.
+- Added DB auth helpers for admin login, session lookup, and session revocation.
+- Added dashboard auth API routes:
+  - `POST /api/admin/auth/login`
+  - `POST /api/admin/auth/logout`
+  - `GET /api/admin/me`
+- Added dashboard health endpoints:
+  - `/api/health/live`
+  - `/api/health/ready`
+- Added placeholder widget mount function in a browser-only package.
+- Added notification test provider stub; no external provider call is made.
+- Added migration runner script:
+  - `pnpm run migrate`
+- Added seed runner script:
+  - `pnpm --filter @flowbot/db run seed`
+- Added M2 smoke runner script:
+  - `pnpm run smoke:m2`
+- Applied the migration to the shared Neon testing database using prefixed `flowbot_*` tables.
+- Seeded the shared Neon testing database with:
+  - one FlowBot test tenant;
+  - one owner/admin user from local `.env.local`;
+  - one website bot with public key `flowbot_test_web`;
+  - one draft flow and an active published M2 demo flow;
+  - one email contact channel.
+- Added M2 seeded runtime flow:
+  - root options menu;
+  - service information branch;
+  - lead form branch;
+  - live chat / handoff branch.
+- Added pure engine M2 behavior:
+  - option advance;
+  - form-to-lead effect;
+  - unmatched text fallback and handoff effect.
+- Added interactive transaction handling for visitor messages:
+  - locks the conversation row with `FOR UPDATE`;
+  - checks `processed_inputs` after the lock;
+  - commits visitor message, bot messages, lead/customer rows, events, outbox, conversation state, and processed response together;
+  - rolls back partial writes if the mutation fails.
+- Added fallback contact-channel CTA rendering from `flowbot_contact_channels`.
+- Added dev-only failure injection for M2 transaction testing:
+  - `x-flowbot-test-fault: after-visitor-message`
+  - ignored in production.
+- Added public widget API routes:
+  - `GET /api/w/[botKey]/config`
+  - `POST /api/w/[botKey]/session`
+  - `POST /api/w/[botKey]/message`
+  - `POST /api/w/[botKey]/sync`
+  - `POST /api/w/[botKey]/stream-token`
+  - `GET /api/w/[botKey]/stream`
+- Added minimal admin conversation API routes:
+  - `GET /api/admin/conversations`
+  - `GET /api/admin/conversations/[conversationId]`
+  - `POST /api/admin/conversations/[conversationId]/takeover`
+  - `POST /api/admin/conversations/[conversationId]/reply`
+  - `POST /api/admin/conversations/[conversationId]/release`
+- Added M3 flow authoring API routes:
+  - `GET /api/admin/bots`
+  - `GET /api/admin/bots/[botId]/versions`
+  - `GET /api/admin/bots/[botId]/draft`
+  - `POST /api/admin/bots/[botId]/draft`
+  - `PATCH /api/admin/nodes/[nodeId]`
+  - `DELETE /api/admin/nodes/[nodeId]?mode=detach|cascade`
+  - `POST /api/admin/nodes/[nodeId]/options`
+  - `PATCH /api/admin/options/[optionId]`
+  - `DELETE /api/admin/options/[optionId]`
+  - `PUT /api/admin/nodes/[nodeId]/keywords`
+  - `GET /api/admin/nodes/[nodeId]/references`
+  - `POST /api/admin/bots/[botId]/simulate`
+  - `POST /api/admin/bots/[botId]/publish`
+  - `POST /api/admin/bots/[botId]/rollback`
+- Added M3 authoring service behavior:
+  - ensures one mutable draft per bot;
+  - creates and updates draft nodes;
+  - creates, updates, and deletes options;
+  - replaces node keywords with normalized values;
+  - reports incoming option and `next_node_id` references;
+  - blocks deletion when incoming references exist outside the owned subtree;
+  - supports owned-subtree cascade deletion;
+  - validates draft structure before publish;
+  - deep-copies draft nodes/options/keywords into immutable published versions with remapped IDs;
+  - serializes and validates published `FlowSnapshot`;
+  - rolls back the bot pointer to a selected published version;
+  - simulates draft input using the same core engine without production writes.
+- Added M4 production visitor widget package:
+  - vanilla TypeScript Shadow DOM mount;
+  - launcher and responsive chat panel;
+  - full-screen mobile sheet below 480px;
+  - Thai/English language toggle;
+  - cached public config fallback;
+  - persisted session resume by bot key;
+  - public config/session/message/sync integration;
+  - 30-second sync and visible-tab sync;
+  - SSE stream opening for `awaiting_admin` and `admin_active`;
+  - DB replay through `/sync` after reconnect;
+  - visible loading/offline/retry state;
+  - bot, visitor, admin, system, options, CTA, and form rendering;
+  - disabled stale options/forms after newer visitor input;
+  - admin-active mode hides bot quick actions;
+  - no-published-flow fallback to contact channels;
+  - compatibility with both `theme.color` and seeded `themeColor` widget settings.
+- Added M5 admin dashboard API/data service:
+  - overview metrics endpoint;
+  - conversation filters and detail endpoint;
+  - CRM status, star, archive, and soft-delete conversation mutations;
+  - conversation notes endpoint;
+  - customer list/search/create/update/soft-delete endpoints;
+  - leads list endpoint;
+  - customer match suggestions from lead phone/email without auto-merge.
+- Added M5 admin dashboard UI:
+  - cookie-gated login screen;
+  - application shell with Overview, Chat, Customers, and Settings tabs;
+  - overview cards for awaiting conversations, unread count, recent leads, and match rate;
+  - CRM funnel and unmatched-query panels;
+  - three-pane desktop inbox with conversation list, thread, and detail panel;
+  - conversation filters for unread, awaiting, starred, archived, and CRM status;
+  - admin takeover, release, reply, CRM status, star, archive, and notes controls;
+  - customer profile summary and duplicate suggestion count;
+  - customers/leads workspace with quick customer creation;
+  - responsive collapse for smaller screens.
+- Added Settings → Knowledge flow-builder UI:
+  - loads the mutable draft through the M3 draft endpoint;
+  - shows the owned node list;
+  - edits node title, type, Thai content, English content, and searchable-content flag;
+  - creates child nodes;
+  - adds and edits option labels and target nodes;
+  - edits node keywords in TH/EN line format;
+  - publishes the draft;
+  - runs the draft simulator against selected nodes;
+  - keeps graph integrity, validation, publish, and reference rules enforced by the existing M3 APIs.
+- Added Settings API and UI modules:
+  - Widget settings endpoint and UI for enabled state, brand color, position, default language, language toggle, open-on-load, greetings, and allowed origins;
+  - public widget config/session/message paths respect the widget enabled state;
+  - Contact channels endpoint and UI for ordered fallback/contact channels;
+  - Team endpoint and UI for owner-only direct owner/admin account creation and deletion in this V1 testing build;
+  - final owner and self-delete protections;
+  - Data & privacy endpoint and UI for transcript retention, privacy policy URL, lead notices, and alert email;
+  - owner-only access checks for team and privacy settings.
+- Added owner-only customer privacy tools:
+  - customer JSON export endpoint and UI action;
+  - personal-data erasure endpoint and UI action;
+  - transactional erasure redacts/deletes customer identifiers, linked leads, linked conversation messages, conversation notes, event payloads, and notification outbox payloads;
+  - erasure unlinks conversations from the customer profile and writes a non-PII audit log.
+- Added M6 rate-limit hardening:
+  - in-process V1 rate limiter with `Retry-After` response;
+  - admin login rate limit;
+  - public session, message, sync, stream-token, and SSE stream rate limits.
+- Added CI and secret-scan hardening:
+  - dependency-free local secret scanner;
+  - `pnpm run verify` now includes `verify:secrets`;
+  - FlowBot app CI workflow using Node 24 and pnpm 11.12.0.
+- Added dependency audit release gate:
+  - vulnerable `vitest` and `preact` pins upgraded;
+  - `pnpm run verify:audit` checks all audit severities.
+- Added release hardening artifacts:
+  - release verification script;
+  - `pnpm run verify:release`;
+  - `docs/12-RELEASE-CHECKLIST.md`;
+  - README updated with current scope and release commands.
+- Added browser QA automation:
+  - Playwright test runner;
+  - desktop and mobile dashboard E2E coverage;
+  - desktop and mobile public widget E2E coverage;
+  - responsive overflow checks;
+  - Settings tab browser coverage;
+  - production widget bundle fixture coverage for option, lead form, and handoff flows;
+  - keyboard reachability and accessible-name smoke checks.
+- Added M5 smoke runner script:
+  - `pnpm run smoke:m5`
+- Added Settings smoke runner script:
+  - `pnpm run smoke:settings`
+- Added Privacy smoke runner script:
+  - `pnpm run smoke:privacy`
+- Added Rate-limit smoke runner script:
+  - `pnpm run smoke:rate-limit`
+- Added SSE mini-soak smoke runner script:
+  - `pnpm run smoke:sse-soak`
+  - supports staging concurrency through `FLOWBOT_SSE_SOAK_CONCURRENCY`, `FLOWBOT_SSE_SOAK_UNIQUE_IPS=1`, and `FLOWBOT_SSE_SOAK_TIMEOUT_MS` without disabling app rate limits.
+
+## Verified
+
+- `scripts/use-node24.sh pnpm install` passes.
+- `scripts/use-node24.sh pnpm run verify` passes.
+- `scripts/use-node24.sh pnpm --filter @flowbot/widget run typecheck` passes.
+- `scripts/use-node24.sh pnpm --filter @flowbot/widget run test` passes.
+- `scripts/use-node24.sh pnpm run migrate` applies cleanly and is idempotent after `flowbot_tenants` exists.
+- `scripts/use-node24.sh pnpm --filter @flowbot/db run seed` completes successfully.
+- `scripts/use-node24.sh node --env-file-if-exists=.env.local scripts/smoke-m2.mjs` passes against local Next dev server and shared Neon test DB.
+- `scripts/use-node24.sh node --env-file-if-exists=.env.local scripts/smoke-m3.mjs` passes against local Next dev server and shared Neon test DB.
+- `scripts/use-node24.sh node --env-file-if-exists=.env.local scripts/smoke-m5.mjs` passes against local Next dev server and shared Neon test DB.
+- `scripts/use-node24.sh node --env-file-if-exists=.env.local scripts/smoke-settings.mjs` passes against local Next dev server and shared Neon test DB.
+- `scripts/use-node24.sh node --env-file-if-exists=.env.local scripts/smoke-privacy.mjs` passes against local Next dev server and shared Neon test DB.
+- `scripts/use-node24.sh node --env-file-if-exists=.env.local scripts/smoke-rate-limit.mjs` passes against local Next dev server.
+- `scripts/use-node24.sh pnpm run verify` now confirms the secret scan passes.
+- `scripts/use-node24.sh pnpm run verify:release` passes.
+- `scripts/use-node24.sh pnpm run test:e2e` passes.
+- `scripts/use-node24.sh pnpm run verify:audit` passes for all audit severities.
+- `scripts/use-node24.sh pnpm audit --audit-level low` reports no known vulnerabilities.
+- `scripts/use-node24.sh pnpm run smoke:sse-soak` passes against local Next dev server and shared Neon test DB.
+- Authenticated page-level request to `/` returns the dashboard app shell.
+- Direct Neon sanity check confirms:
+  - 1 tenant;
+  - 1 owner user;
+  - 1 bot;
+  - seeded draft and published flow versions.
+- M2 smoke test confirms:
+  - public config loads;
+  - session creates a conversation pinned to the active published flow;
+  - option input advances;
+  - unmatched English and Thai visitor text moves to `awaiting_admin`;
+  - fallback includes contact-channel CTA content;
+  - concurrent duplicate `inputId` returns the original response;
+  - concurrent duplicate `inputId` creates exactly one processed input row and one visitor message row;
+  - one deduped handoff outbox row is created;
+  - stream token mints for handoff state;
+  - invalid stream token returns 401 without conversation data;
+  - option input during `admin_active` returns 409;
+  - admin reply arrives through the SSE stream;
+  - forced reconnect replays the admin reply from DB;
+  - admin login, takeover, reply, and release work;
+  - admin release keeps the conversation pinned to its original flow version;
+  - lead form creates a lead;
+  - duplicate lead form `inputId` returns the original lead response;
+  - raw session token is not stored in `flowbot_conversations`;
+  - injected mid-transaction failure leaves no partial visitor message or processed input rows;
+  - after publishing a copied version, existing sessions keep their original pinned version and new sessions pin to the latest version.
+- M3 smoke test confirms:
+  - admin login and bot list work;
+  - draft loads;
+  - draft node creation works;
+  - option creation, patch, and delete work;
+  - keyword replacement works;
+  - incoming references are reported;
+  - referenced-node deletion returns conflict;
+  - draft simulator advances through a draft option using the core engine;
+  - publish creates a new immutable published version;
+  - mutating the draft after publish does not change the published snapshot;
+  - rollback returns the bot pointer to the previously active published version;
+  - deleting the option then cascade-deleting the owned subtree removes the temporary draft nodes;
+  - M2 smoke still passes after M3 publish/rollback.
+- M4 widget verification confirms:
+  - widget package typecheck passes;
+  - widget helper tests pass;
+  - full monorepo typecheck/test/build passes;
+  - M2 public/admin runtime smoke still passes against the shared Neon test DB;
+  - M3 authoring/publish/rollback smoke still passes against the shared Neon test DB.
+- M5 smoke test confirms:
+  - admin login works;
+  - overview metrics load;
+  - conversation list and detail load;
+  - CRM status and star updates work;
+  - conversation notes are created and returned in detail;
+  - customers can be created, searched, updated, and soft-deleted;
+  - leads list endpoint returns a valid list;
+  - M2 and M3 smoke suites still pass after M5 route/UI changes.
+- Flow-builder UI verification confirms:
+  - dashboard typecheck passes with the Settings Knowledge editor;
+  - full monorepo typecheck/test/build passes after adding the editor;
+  - M3 authoring smoke remains the behavioral coverage for node, option, keyword, simulator, publish, rollback, reference, and cleanup APIs.
+- Settings smoke test confirms:
+  - widget settings load and save;
+  - public widget config reflects settings changes;
+  - disabled widget blocks new sessions and is restored;
+  - contact channels save and restore;
+  - owner can create and delete an admin test account;
+  - privacy settings save and restore;
+  - M2 and M5 smoke suites still pass after settings changes.
+- Privacy smoke test confirms:
+  - owner can export a linked customer profile;
+  - export includes linked conversation data;
+  - erasure redacts linked conversation messages;
+  - erasure redacts linked conversation notes;
+  - erased customer no longer appears in active customer search;
+  - M2 smoke still passes after privacy erasure.
+- Rate-limit smoke test confirms:
+  - stream-token endpoint returns `429` on the 11th request within the one-minute window from the same forwarded IP;
+  - `Retry-After` header is present;
+  - normal M2 runtime smoke still passes after rate-limit checks.
+- SSE mini-soak smoke test confirms:
+  - four conversations can move into handoff/admin-takeover flow;
+  - four stream tokens can be opened concurrently under the configured V1 rate limits;
+  - four admin replies are delivered through live SSE streams.
+- Parameterized SSE soak verification confirms:
+  - safe local default remains four streams;
+  - larger staging runs can opt into unique forwarded visitor IPs instead of weakening runtime rate limits;
+  - timeout is configurable for hosting/proxy validation.
+- Secret scan verification confirms:
+  - generated/local/build folders and env files are ignored;
+  - committed source/docs are scanned for common API keys, Postgres URLs, private keys, and JWT-like tokens;
+  - current tree passes.
+- Release verification confirms:
+  - package manager and Node 24 runtime metadata are pinned;
+  - required package scripts are present;
+  - `.env.example` contains required deployment keys;
+  - core docs, implementation status, and CI workflow are present.
+- Browser E2E verification confirms:
+  - `pnpm run test:e2e` builds the widget bundle before running browser tests, so the suite works on a clean checkout;
+  - authenticated dashboard loads on desktop and mobile;
+  - Overview, Inbox, thread, Settings, Widget, Contacts, Team, and Data/privacy surfaces render;
+  - public widget mounts the compiled production widget bundle on desktop and mobile;
+  - public widget service option flow renders the expected bot response;
+  - public widget lead form captures name, phone, and email and returns the success response;
+  - public widget free-text input moves the conversation into handoff state with visible recovery action;
+  - desktop and mobile layouts avoid horizontal document overflow in checked views;
+  - interactive controls are keyboard reachable and visible buttons have names.
+- Dependency audit verification confirms:
+  - previous critical `vitest` advisory is resolved by `vitest@3.2.6`;
+  - previous high `preact` advisory is resolved by `preact@10.28.2`;
+  - previous `turbo` advisories are resolved by `turbo@2.9.14`;
+  - previous transitive `postcss` advisory is resolved through the workspace override to `postcss@8.5.17`;
+  - full low-severity audit reports no known vulnerabilities.
+
+FlowBot verification now runs under project-local Node `v24.18.0`, isolated from the existing DJAI Voice Agent app.
+
+## Tests Added
+
+- Shared canonical enum contract test.
+- Core matcher tests:
+  - exact Thai keyword;
+  - Thai substring match;
+  - English case/punctuation normalization;
+  - no reverse `keyword contains input` matching.
+- DB migration invariant tests:
+  - required extensions;
+  - session token hash, not raw token;
+  - conversation `flow_version_id` pin;
+  - processed input idempotency storage;
+  - notification outbox.
+- DB token hashing test.
+- DB Argon2id password hashing test.
+- `tenantDb()` transaction context and rollback tests.
+- Dashboard live health route test.
+- Widget tests:
+  - mount function remains importable;
+  - storage key names are stable;
+  - API base URLs normalize trailing slashes;
+  - widget theme fallback supports both `color` and seeded `themeColor`.
+- Notification test provider test.
+- M2 HTTP smoke script covering public and admin conversation lifecycle.
+- M3 HTTP smoke script covering draft authoring, references, simulator, publish immutability, rollback, and cleanup.
+- M5 HTTP smoke script covering admin overview, inbox CRM mutations, notes, customers, and leads.
+- Settings HTTP smoke script covering widget settings, public disabled behavior, contact channels, team create/delete, and privacy settings.
+- Privacy HTTP smoke script covering owner export and erasure of linked customer/conversation data.
+- Rate-limit HTTP smoke script covering public endpoint `429` behavior and `Retry-After`.
+- SSE mini-soak HTTP smoke script covering concurrent stream delivery for live admin replies.
+- Parameterized staging SSE soak controls for concurrency, unique forwarded visitor IPs, and timeout.
+- Public widget Playwright coverage:
+  - production widget bundle mount;
+  - desktop and mobile service option flow;
+  - desktop and mobile lead form flow;
+  - desktop and mobile free-text handoff flow;
+  - widget viewport-fit and no-horizontal-overflow checks.
+
+## Not Complete Yet
+
+- Full Drizzle table mapping is not implemented yet. The authoritative SQL migration is present, and the most important core tables are mapped.
+- Email invite acceptance flow is not implemented yet; V1 testing build supports owner-created credentials from the Team settings screen.
+- M4 production visitor widget package is implemented, build-verified, and covered by browser E2E fixture tests against the compiled widget bundle.
+- SSE live delivery is implemented with in-memory fan-out and DB replay; smoke tests verify live admin reply delivery, DB replay after reconnect, and a small concurrent stream soak.
+- Visitor message mutations use the strict lock-before-check transaction model from the architecture and are covered by concurrent duplicate-input smoke testing.
+- CI config, secret scan, integration DB setup, dashboard browser QA, and public widget browser QA are implemented.
+- Remaining work before a public production launch: full axe accessibility scan, larger staging SSE load test, and Hostinger/VPS proxy timeout validation. These need additional accessibility tooling or staging infrastructure.
+
+## Dependency Note
+
+`drizzle-orm` is installed and verified. `drizzle-kit` is not installed yet; it previously introduced additional `esbuild` install behavior. Keep migration SQL authoritative until the Drizzle table mapping is complete and the CLI install path is proven stable.
+
+`@node-rs/argon2` is installed in both `packages/db` and `apps/dashboard` so Next.js can externalize the native package for server auth routes during standalone builds.

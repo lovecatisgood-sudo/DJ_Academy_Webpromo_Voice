@@ -1,0 +1,177 @@
+import {
+  createLoginService,
+  createInvitationService,
+  createOwnershipService,
+  createRecoveryService,
+  createRegistrationService,
+  createSessionService,
+  createTenantMfaService,
+  hashPassword,
+  parse32ByteSecret,
+} from "@djay/auth";
+import { AiTextRuntime } from "@djay/ai-chat-runtime";
+import {
+  AiChatRuntimeStore,
+  AiChatStore,
+  createDatabaseClient,
+  BillingWebhookStore,
+  FlowBotStore,
+  TenantFlowbotNotificationStore,
+  TenantAiNotificationStore,
+  FlowbotRuntimeStore,
+  PlatformFlowbotIntegrationStore,
+  PlatformCommerceStore,
+  PlatformSupportStore,
+  PostgresAuthStore,
+  PostgresCatalogStore,
+  PostgresPlatformAuthStore,
+  PrivacyStore,
+  TenantCommerceStore,
+  TenantFlowbotIntegrationStore,
+  SharedDomainStore,
+  TenantWorkspaceStore,
+} from "@djay/db";
+import { createPlatformAuthService } from "@djay/platform-auth";
+import { createHttpTextProviderGateway } from "@djay/provider-gateway";
+import { z } from "zod";
+
+const envSchema = z.object({
+  AUTH_DATABASE_URL: z.string().url(),
+  TENANT_DATABASE_URL: z.string().url(),
+  PLATFORM_DATABASE_URL: z.string().url(),
+  PUBLIC_APP_URL: z.string().url(),
+  TENANT_APP_URL: z.string().url(),
+  PLATFORM_APP_URL: z.string().url(),
+  API_APP_URL: z.string().url().optional(),
+  AUTH_REQUEST_HASH_KEY: z.string().min(40),
+  AUTH_EMAIL_ENVELOPE_KEY: z.string().min(40),
+  AUTH_RATE_LIMIT_KEY: z.string().min(40),
+  AUTH_MFA_ENCRYPTION_KEY: z.string().min(40),
+  AUTH_MFA_RECOVERY_HASH_KEY: z.string().min(40),
+  PLATFORM_MFA_ENCRYPTION_KEY: z.string().min(40),
+  PLATFORM_RECOVERY_HASH_KEY: z.string().min(40),
+  BILLING_DATABASE_URL: z.string().url().optional(),
+  BILLING_WEBHOOK_SECRET: z.string().min(40).optional(),
+  BILLING_WEBHOOK_ENVELOPE_KEY: z.string().min(40).optional(),
+  PRIVACY_EXPORT_KEY: z.string().min(40).optional(),
+  FLOWBOT_DATABASE_URL: z.string().url().optional(),
+  FLOWBOT_INTEGRATION_ENVELOPE_KEY: z.string().min(40).optional(),
+  FLOWBOT_NOTIFICATION_ENVELOPE_KEY: z.string().min(40).optional(),
+  AI_DATABASE_URL: z.string().url().optional(),
+  AI_TEXT_GATEWAY_ENDPOINT: z.string().url().optional(),
+  AI_TEXT_GATEWAY_SERVICE_TOKEN: z.string().min(32).optional(),
+  AI_NOTIFICATION_ENVELOPE_KEY: z.string().min(40).optional(),
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+}).passthrough();
+
+export type Services = Awaited<ReturnType<typeof buildServices>>;
+let servicesPromise: Promise<Services> | undefined;
+
+async function buildServices() {
+  const env = envSchema.parse(process.env);
+  const client = createDatabaseClient(env.AUTH_DATABASE_URL);
+  const tenantClient = createDatabaseClient(env.TENANT_DATABASE_URL);
+  const platformClient = createDatabaseClient(env.PLATFORM_DATABASE_URL);
+  const billingClient = env.BILLING_DATABASE_URL ? createDatabaseClient(env.BILLING_DATABASE_URL) : null;
+  if (env.NODE_ENV === "production" && !env.PRIVACY_EXPORT_KEY) throw new Error("PRIVACY_EXPORT_KEY is required in production.");
+  if (env.NODE_ENV === "production" && !env.FLOWBOT_DATABASE_URL) throw new Error("FLOWBOT_DATABASE_URL is required in production.");
+  if (env.NODE_ENV === "production" && !env.FLOWBOT_INTEGRATION_ENVELOPE_KEY) throw new Error("FLOWBOT_INTEGRATION_ENVELOPE_KEY is required in production.");
+  if (env.NODE_ENV === "production" && !env.FLOWBOT_NOTIFICATION_ENVELOPE_KEY) throw new Error("FLOWBOT_NOTIFICATION_ENVELOPE_KEY is required in production.");
+  if (env.NODE_ENV === "production" && !env.AI_DATABASE_URL) throw new Error("AI_DATABASE_URL is required in production.");
+  if (env.NODE_ENV === "production" && !env.AI_TEXT_GATEWAY_ENDPOINT) throw new Error("AI_TEXT_GATEWAY_ENDPOINT is required in production.");
+  if (env.NODE_ENV === "production" && !env.AI_TEXT_GATEWAY_SERVICE_TOKEN) throw new Error("AI_TEXT_GATEWAY_SERVICE_TOKEN is required in production.");
+  if (env.NODE_ENV === "production" && !env.AI_NOTIFICATION_ENVELOPE_KEY) throw new Error("AI_NOTIFICATION_ENVELOPE_KEY is required in production.");
+  const store = new PostgresAuthStore(client);
+  const platformStore = new PostgresPlatformAuthStore(platformClient);
+  const emailEnvelopeKey = parse32ByteSecret(env.AUTH_EMAIL_ENVELOPE_KEY, "AUTH_EMAIL_ENVELOPE_KEY");
+  const aiRuntimeStore = env.AI_DATABASE_URL
+    ? new AiChatRuntimeStore(createDatabaseClient(env.AI_DATABASE_URL))
+    : null;
+  const aiGateway = env.AI_TEXT_GATEWAY_ENDPOINT && env.AI_TEXT_GATEWAY_SERVICE_TOKEN
+    ? createHttpTextProviderGateway({
+      endpoint: env.AI_TEXT_GATEWAY_ENDPOINT,
+      serviceToken: env.AI_TEXT_GATEWAY_SERVICE_TOKEN,
+    })
+    : null;
+  return {
+    env,
+    store,
+    tenantWorkspace: new TenantWorkspaceStore(tenantClient),
+    tenantCommerce: new TenantCommerceStore(tenantClient),
+    sharedDomain: new SharedDomainStore(tenantClient),
+    flowbot: new FlowBotStore(tenantClient),
+    aiChat: new AiChatStore(tenantClient),
+    tenantFlowbotNotifications: new TenantFlowbotNotificationStore(tenantClient),
+    tenantAiNotifications: new TenantAiNotificationStore(tenantClient),
+    tenantFlowbotIntegrations: new TenantFlowbotIntegrationStore(tenantClient),
+    flowbotRuntime: env.FLOWBOT_DATABASE_URL ? new FlowbotRuntimeStore(
+      createDatabaseClient(env.FLOWBOT_DATABASE_URL),
+      env.FLOWBOT_INTEGRATION_ENVELOPE_KEY
+        ? parse32ByteSecret(env.FLOWBOT_INTEGRATION_ENVELOPE_KEY, "FLOWBOT_INTEGRATION_ENVELOPE_KEY")
+        : null,
+    ) : null,
+    aiChatRuntimeStore: aiRuntimeStore,
+    aiChatRuntime: aiRuntimeStore && aiGateway ? new AiTextRuntime(aiRuntimeStore, aiGateway) : null,
+    aiTextGateway: aiGateway,
+    privacy: new PrivacyStore(tenantClient),
+    privacyExportKey: env.PRIVACY_EXPORT_KEY
+      ? parse32ByteSecret(env.PRIVACY_EXPORT_KEY, "PRIVACY_EXPORT_KEY") : null,
+    catalog: new PostgresCatalogStore(client),
+    platformCommerce: new PlatformCommerceStore(platformClient),
+    platformSupport: new PlatformSupportStore(platformClient),
+    platformFlowbotIntegrations: new PlatformFlowbotIntegrationStore(platformClient),
+    flowbotIntegrationEnvelopeKey: env.FLOWBOT_INTEGRATION_ENVELOPE_KEY
+      ? parse32ByteSecret(env.FLOWBOT_INTEGRATION_ENVELOPE_KEY, "FLOWBOT_INTEGRATION_ENVELOPE_KEY")
+      : null,
+    flowbotNotificationEnvelopeKey: env.FLOWBOT_NOTIFICATION_ENVELOPE_KEY
+      ? parse32ByteSecret(env.FLOWBOT_NOTIFICATION_ENVELOPE_KEY, "FLOWBOT_NOTIFICATION_ENVELOPE_KEY")
+      : null,
+    aiNotificationEnvelopeKey: env.AI_NOTIFICATION_ENVELOPE_KEY
+      ? parse32ByteSecret(env.AI_NOTIFICATION_ENVELOPE_KEY, "AI_NOTIFICATION_ENVELOPE_KEY")
+      : null,
+    billingWebhook: billingClient ? new BillingWebhookStore(billingClient) : null,
+    billingWebhookSecret: env.BILLING_WEBHOOK_SECRET
+      ? parse32ByteSecret(env.BILLING_WEBHOOK_SECRET, "BILLING_WEBHOOK_SECRET") : null,
+    billingWebhookEnvelopeKey: env.BILLING_WEBHOOK_ENVELOPE_KEY
+      ? parse32ByteSecret(env.BILLING_WEBHOOK_ENVELOPE_KEY, "BILLING_WEBHOOK_ENVELOPE_KEY") : null,
+    platformStore,
+    rateLimitKey: parse32ByteSecret(env.AUTH_RATE_LIMIT_KEY, "AUTH_RATE_LIMIT_KEY"),
+    registration: createRegistrationService(store, {
+      publicAppUrl: env.PUBLIC_APP_URL,
+      termsVersion: "terms-2026-01",
+      privacyVersion: "privacy-2026-01",
+      requestHashKey: parse32ByteSecret(env.AUTH_REQUEST_HASH_KEY, "AUTH_REQUEST_HASH_KEY"),
+      emailEnvelopeKey,
+    }),
+    invitations: createInvitationService(store, {
+      publicAppUrl: env.PUBLIC_APP_URL,
+      emailEnvelopeKey,
+    }),
+    ownership: createOwnershipService(store, {
+      tenantAppUrl: env.TENANT_APP_URL,
+      emailEnvelopeKey,
+    }),
+    login: createLoginService(store, {
+      dummyPasswordHash: await hashPassword("djay-invalid-credential-timing-value"),
+    }),
+    recovery: createRecoveryService(store, {
+      publicAppUrl: env.PUBLIC_APP_URL,
+      emailEnvelopeKey,
+    }),
+    session: createSessionService(store),
+    tenantMfa: createTenantMfaService(store, {
+      encryptionKey: parse32ByteSecret(env.AUTH_MFA_ENCRYPTION_KEY, "AUTH_MFA_ENCRYPTION_KEY"),
+      recoveryHashKey: parse32ByteSecret(env.AUTH_MFA_RECOVERY_HASH_KEY, "AUTH_MFA_RECOVERY_HASH_KEY"),
+    }),
+    platformAuth: createPlatformAuthService(platformStore, {
+      dummyPasswordHash: await hashPassword("djay-invalid-platform-credential-timing-value"),
+      mfaEncryptionKey: parse32ByteSecret(env.PLATFORM_MFA_ENCRYPTION_KEY, "PLATFORM_MFA_ENCRYPTION_KEY"),
+      recoveryHashKey: parse32ByteSecret(env.PLATFORM_RECOVERY_HASH_KEY, "PLATFORM_RECOVERY_HASH_KEY"),
+    }),
+  };
+}
+
+export function getServices(): Promise<Services> {
+  servicesPromise ??= buildServices();
+  return servicesPromise;
+}

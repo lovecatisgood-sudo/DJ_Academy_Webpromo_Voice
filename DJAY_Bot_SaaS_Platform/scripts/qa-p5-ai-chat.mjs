@@ -1,0 +1,117 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { chromium } from "playwright";
+
+const tenantUrl = process.env.TENANT_QA_URL || "http://127.0.0.1:3111";
+const browser = await chromium.launch({ headless: true });
+const scope = process.env.P5_QA_SCOPE || "all";
+const failures = [];
+const restricted = /\b(openai|anthropic|claude|gemini|gpt-[0-9]|provider[_ -]?(?:key|name|id)|model[_ -]?id)\b/i;
+const workspace = { tenantId: "20000000-0000-4000-8000-000000000001", slug: "ai-browser", businessName: "AI Browser Studio", role: "tenant_master_admin" };
+const agentId = "51000000-0000-4000-8000-000000000001";
+const revisionId = "52000000-0000-4000-8000-000000000001";
+const profileId = "53000000-0000-4000-8000-000000000001";
+
+function playbook() {
+  return {
+    schemaVersion: 1, playbookVersionId: "54000000-0000-4000-8000-000000000001",
+    businessName: "AI Browser Studio", agentName: "Mali", languages: ["en", "th"],
+    tone: "Warm and concise", salesGoal: "Qualify consultation interest",
+    approvedClaims: ["Consultations are available by request"], prohibitedClaims: ["Guaranteed results"],
+    discoveryQuestions: ["What would you like to improve?"], ctaPolicy: ["Offer a consultation request"],
+    requiredContactFields: ["name", "email"], greeting: { th: "สวัสดี", en: "Hello" },
+    offlineMessage: { th: "ทีมงานจะติดต่อกลับ", en: "Our team will follow up" }, timezone: "Asia/Bangkok",
+    weeklyWindows: [], notificationProfileId: profileId,
+  };
+}
+
+function json(route, value, status = 200) { return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(value) }); }
+
+async function mockTenant(page) {
+  await page.route("**/tenant/**", async (route) => {
+    const path = new URL(route.request().url()).pathname; const method = route.request().method();
+    if (path === "/tenant/session") return json(route, { user: { id: "user", displayName: "AI Owner" }, workspaces: [workspace], selectedTenantId: workspace.tenantId, mfaVerifiedAt: new Date().toISOString() });
+    if (path === "/tenant/support-access") return json(route, { grants: [] });
+    if (path === "/tenant/knowledge") return json(route, { sources: [{ id: "source", revisionId, name: "Approved service guide", sourceKind: "text", status: "active", version: 2 }] });
+    if (path === "/tenant/ai-chat/agents" && method === "GET") return json(route, { agents: [{ id: agentId, name: "Mali", status: "active", defaultLanguage: "en", currentPublishedPlaybookVersionId: playbook().playbookVersionId, draftRevision: 3, deploymentCount: 1 }], capabilities: { planKey: "ai_chat_basic", accessMode: "active", web: true, social: { line: false, whatsapp: false, messenger: false }, limits: { deployments: 1, knowledgeDocuments: 10 } } });
+    if (path.endsWith("/draft")) return json(route, method === "GET" ? { draft: { revision: 3, definition: playbook(), knowledgeRevisionIds: [revisionId], updatedAt: new Date().toISOString() } } : { status: "updated", revision: 4 });
+    if (path.endsWith("/deployments")) return json(route, { deployments: [{ id: "deployment", name: "Main website", channel: "web", keyPrefix: "djay_ai_demo", allowedOrigins: ["https://merchant.example"], status: "active", createdAt: new Date().toISOString() }] });
+    if (path.endsWith("/publish")) return json(route, { status: "published", playbookVersionId: crypto.randomUUID(), version: 2 });
+    if (path.endsWith("/test")) return json(route, { preview: { stage: "S2_DISCOVERY", text: "The approved consultation is 30 minutes. What would you like to improve?", proposedActionTypes: [], citationCount: 1, handover: false } });
+    if (path === "/tenant/ai-chat/notifications") return json(route, { notifications: [{ id: profileId, name: "Sales inbox", allowedTemplateKeys: ["ai_chat.lead_qualified"], status: "active" }] });
+    if (path === "/tenant/ai-chat/analytics") return json(route, { analytics: { periodDays: 30, level: "core", sessions: 21, completedTurns: 48, failedTurns: 1, handovers: 3, leads: 9, appointmentRequests: 4, settledResponses: 48 } });
+    return json(route, { status: "not_found" }, 404);
+  });
+}
+
+async function inspectDashboard(viewport, suffix) {
+  const context = await browser.newContext({ viewport }); const page = await context.newPage();
+  page.on("pageerror", (error) => failures.push(`dashboard-${suffix}: ${error.message}`));
+  page.on("console", (entry) => { if (entry.type() === "error") failures.push(`dashboard-${suffix}: console ${entry.text()}`); });
+  await mockTenant(page);
+  const response = await page.goto(`${tenantUrl}/workspace/ai-chat`, { waitUntil: "networkidle" });
+  if (!response?.ok()) failures.push(`dashboard-${suffix}: navigation ${response?.status()}`);
+  await page.locator("h1", { hasText: "AI Chat" }).waitFor();
+  if (!(await page.getByText("Approved service guide", { exact: false }).count())) failures.push(`dashboard-${suffix}: knowledge pin missing`);
+  if (!(await page.getByText("Sales inbox", { exact: true }).count())) failures.push(`dashboard-${suffix}: notification profile missing`);
+  if (suffix === "desktop") {
+    await page.getByRole("button", { name: "Run safe preview" }).click();
+    await page.getByText("The approved consultation is 30 minutes.", { exact: false }).waitFor();
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await page.getByRole("button", { name: "Publish immutable version" }).click();
+  }
+  const dimensions = await page.evaluate(() => ({ body: document.body.innerText, width: document.documentElement.scrollWidth, viewport: innerWidth }));
+  if (dimensions.width > dimensions.viewport + 1) failures.push(`dashboard-${suffix}: horizontal overflow ${dimensions.width}/${dimensions.viewport}`);
+  if (restricted.test(dimensions.body)) failures.push(`dashboard-${suffix}: restricted routing term visible`);
+  await page.screenshot({ path: `/tmp/djay-p5-ai-chat-${suffix}.png`, fullPage: true });
+  await context.close();
+}
+
+if (scope !== "widget") {
+  await inspectDashboard({ width: 1365, height: 900 }, "desktop");
+  await inspectDashboard({ width: 390, height: 844 }, "mobile");
+}
+
+async function inspectWidget() {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } }); const page = await context.newPage();
+  const widgetSource = readFileSync(resolve(import.meta.dirname, "../packages/ai-chat-widget/dist/index.js"), "utf8");
+  let messageCalls = 0; let humanReply = false;
+  await page.route("https://merchant.example/", (route) => route.fulfill({ status: 200, contentType: "text/html", body: `<!doctype html><body><main>Merchant</main><script type="module">import { mountAiChatWidget } from "https://widget.example/index.js"; mountAiChatWidget({ deploymentKey: "djay_ai_abcdefghijklmnopqrstuvwxyzABCDEFG", apiBaseUrl: "https://api.example", openOnLoad: true, language: "en" });</script></body>` }));
+  await page.route("https://widget.example/index.js", (route) => route.fulfill({ status: 200, contentType: "text/javascript", headers: { "Access-Control-Allow-Origin": "*" }, body: widgetSource }));
+  await page.route("https://api.example/public/ai-chat/**", async (route) => {
+    const request = route.request(); const path = new URL(request.url()).pathname;
+    const headers = { "Access-Control-Allow-Origin": "https://merchant.example", "Access-Control-Allow-Headers": "Content-Type, X-DJAY-AI-Key, X-DJAY-AI-Session", "Access-Control-Allow-Methods": "GET, POST, OPTIONS" };
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers });
+    const fulfill = (body, status = 200) => route.fulfill({ status, contentType: "application/json", headers, body: JSON.stringify(body) });
+    if (path.endsWith("/config")) return fulfill({ status: "available", config: { agentName: "Mali", defaultLanguage: "en", brandingRemoved: false } });
+    if (path.endsWith("/session")) return fulfill({ status: "started", sessionToken: "djay_ai_session_abcdefghijklmnopqrstuvwxyzABCDEFG", sessionId: crypto.randomUUID(), conversationId: crypto.randomUUID(), greeting: "Hello. What would you like to improve?", nextMessageSequence: 2 }, 201);
+    if (path.endsWith("/message")) {
+      messageCalls += 1; const inputId = request.postDataJSON().inputId;
+      const body = [
+        { type: "response.start", inputId },
+        { type: "response.delta", text: "I can help " },
+        { type: "response.delta", text: "with that." },
+        { type: "response.done", status: "completed", quickReplies: [], nextTurnSequence: 2 },
+      ].map((item) => JSON.stringify(item)).join("\n") + "\n";
+      return route.fulfill({ status: 200, contentType: "application/x-ndjson", headers, body });
+    }
+    if (path.endsWith("/sync")) return fulfill({ status: "synced", response: { status: humanReply ? "handover" : "active", lastMessageSequence: humanReply ? 3 : 2, messages: humanReply ? [{ sequence: 3, message: { content: { text: "A team member is here." } } }] : [] } });
+    return fulfill({ status: "not_found" }, 404);
+  });
+  await page.goto("https://merchant.example/", { waitUntil: "networkidle" });
+  const host = page.locator("[data-djay-ai-chat]"); await host.waitFor({ state: "attached" });
+  await host.locator(".message", { hasText: "Hello. What would you like to improve?" }).waitFor();
+  await host.locator("input").fill("I need more leads"); await host.locator("button.send").click();
+  await host.locator(".message", { hasText: "I can help with that." }).waitFor();
+  if (messageCalls !== 1) failures.push(`widget: expected one message request, received ${messageCalls}`);
+  humanReply = true; await page.waitForTimeout(5_500);
+  await host.locator(".message", { hasText: "A team member is here." }).waitFor();
+  if (restricted.test(await host.innerText())) failures.push("widget: restricted routing term visible");
+  await page.screenshot({ path: "/tmp/djay-p5-ai-widget-handover.png", fullPage: true });
+  await context.close();
+}
+
+if (scope !== "dashboard") await inspectWidget();
+await browser.close();
+if (failures.length) { console.error(failures.join("\n")); process.exit(1); }
+console.info("P5 AI Chat dashboard and widget passed desktop/mobile, streaming, handover, console, overflow, and provider-leak checks.");

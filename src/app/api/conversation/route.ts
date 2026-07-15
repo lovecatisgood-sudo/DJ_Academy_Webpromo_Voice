@@ -1,11 +1,12 @@
 import { getSql } from "@/lib/db";
 import { verifySessionContext } from "@/lib/session-context";
 import type { ConversationLanguage, TranscriptItem } from "@/lib/types";
-import { corsJson, corsNoContent } from "@/lib/cors";
+import { corsJson, corsNoContent, isAllowedCorsRequest } from "@/lib/cors";
 import { readJsonBody } from "@/lib/http-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getCachedSettings } from "@/lib/settings-cache";
-import { analyzeAndPersistConversation } from "@/lib/conversation-post-analysis";
+import { scheduleConversationAnalysis } from "@/lib/background-analysis";
+import { elapsedMs, logServerTiming, nowMs } from "@/lib/server-timing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,7 +43,15 @@ function parseLanguage(value: unknown): ConversationLanguage {
 }
 
 export async function POST(request: Request) {
+  const startedAt = nowMs();
+  let dbMs = 0;
+  let analysisMs = 0;
+  let conversationId: string | null = null;
   try {
+    if (!isAllowedCorsRequest(request)) {
+      return corsJson(request, { error: "Origin is not allowed." }, { status: 403 });
+    }
+
     const body = (await readJsonBody(request, 250000)) as {
       sessionContext?: unknown;
       duration_seconds?: unknown;
@@ -51,6 +60,7 @@ export async function POST(request: Request) {
       transcript?: unknown;
     };
     const session = verifySessionContext(body.sessionContext);
+    conversationId = session.conversationId;
     const rateLimit = checkRateLimit(`conversation:${session.conversationId}`, 20, 60 * 60 * 1000);
 
     if (!rateLimit.allowed) {
@@ -71,6 +81,7 @@ export async function POST(request: Request) {
     const sql = getSql();
     const settings = await getCachedSettings();
 
+    const dbStartedAt = nowMs();
     await sql`
       insert into conversations (
         id,
@@ -104,15 +115,27 @@ export async function POST(request: Request) {
         analysis_status = excluded.analysis_status,
         analysis_error = null
     `;
+    dbMs += elapsedMs(dbStartedAt);
 
     if (!settings.analysis_enabled || !transcript.length) {
       return corsJson(request, { ok: true, analysis: "skipped" });
     }
 
-    const analysis = await analyzeAndPersistConversation(session.conversationId, { settings });
-    return corsJson(request, { ok: true, analysis });
+    const analysisStartedAt = nowMs();
+    scheduleConversationAnalysis(session.conversationId, settings);
+    analysisMs += elapsedMs(analysisStartedAt);
+    return corsJson(request, { ok: true, analysis: "pending" });
   } catch (error) {
     console.error(error);
     return corsJson(request, { error: error instanceof Error ? error.message : "Conversation save failed." }, { status: 400 });
+  } finally {
+    logServerTiming({
+      route: "api.conversation",
+      conversationId,
+      channel: "voice_widget",
+      dbMs,
+      analysisMs,
+      totalMs: elapsedMs(startedAt),
+    });
   }
 }

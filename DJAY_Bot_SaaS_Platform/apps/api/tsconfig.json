@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "jsx": "preserve",
+    "noEmit": true,
+    "incremental": true,
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@djay/auth": ["../../packages/auth/src/index.ts"],
+      "@djay/authorization": ["../../packages/authorization/src/index.ts"],
+      "@djay/db": ["../../packages/db/src/index.ts"],
+      "@djay/shared": ["../../packages/shared/src/index.ts"],
+      "@djay/tenancy": ["../../packages/tenancy/src/index.ts"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}

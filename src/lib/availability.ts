@@ -8,15 +8,27 @@ export type BookingSlot = {
   label: string;
 };
 
-type CalendarProfileRow = {
-  admin_user_id: string;
-  timezone: string;
-  default_duration_minutes: number;
+export type BookingLinkForSlots = {
+  id: string;
+  owner_admin_id: string;
+  slug: string;
+  name: string;
+  title: string;
+  description: string | null;
+  meeting_location: string | null;
+  duration_minutes: number;
   buffer_before_minutes: number;
   buffer_after_minutes: number;
   minimum_notice_minutes: number;
   max_bookings_per_day: number | null;
   booking_window_days: number;
+  require_confirmation: boolean;
+  is_active: boolean;
+  is_ai_active: boolean;
+  owner_name: string;
+  timezone: string;
+  display_name: string;
+  calendar_active: boolean;
 };
 
 type AvailabilityRuleRow = {
@@ -66,29 +78,92 @@ function clampRange(start: number, end: number, min: number, max: number) {
   };
 }
 
-export async function getAvailableSlots(sql: Sql, bookingSlug: string, from: Date, to: Date): Promise<BookingSlot[]> {
-  const profiles = (await sql`
+export async function getBookingLinkBySlug(sql: Sql, slug: string): Promise<BookingLinkForSlots | null> {
+  const rows = (await sql`
     select
-      admin_user_id,
-      timezone,
-      default_duration_minutes,
-      buffer_before_minutes,
-      buffer_after_minutes,
-      minimum_notice_minutes,
-      max_bookings_per_day,
-      booking_window_days
-    from admin_calendar_profiles
-    where booking_slug = ${bookingSlug}
-      and is_active = true
+      bl.id,
+      bl.owner_admin_id,
+      bl.slug,
+      bl.name,
+      bl.title,
+      bl.description,
+      bl.meeting_location,
+      bl.duration_minutes,
+      bl.buffer_before_minutes,
+      bl.buffer_after_minutes,
+      bl.minimum_notice_minutes,
+      bl.max_bookings_per_day,
+      bl.booking_window_days,
+      bl.require_confirmation,
+      bl.is_active,
+      bl.is_ai_active,
+      au.name as owner_name,
+      coalesce(acp.timezone, 'Asia/Bangkok') as timezone,
+      coalesce(acp.display_name, au.name) as display_name,
+      coalesce(acp.is_active, false) as calendar_active
+    from booking_links bl
+    join admin_users au
+      on au.id = bl.owner_admin_id
+      and au.is_active = true
+      and au.deleted_at is null
+    left join admin_calendar_profiles acp
+      on acp.admin_user_id = bl.owner_admin_id
+    where bl.slug = ${slug}
+      and bl.deleted_at is null
     limit 1
-  `) as CalendarProfileRow[];
-  const profile = profiles[0];
+  `) as BookingLinkForSlots[];
 
-  if (!profile) return [];
+  return rows[0] || null;
+}
+
+export async function getActiveAiBookingLink(sql: Sql): Promise<BookingLinkForSlots | null> {
+  const rows = (await sql`
+    select
+      bl.id,
+      bl.owner_admin_id,
+      bl.slug,
+      bl.name,
+      bl.title,
+      bl.description,
+      bl.meeting_location,
+      bl.duration_minutes,
+      bl.buffer_before_minutes,
+      bl.buffer_after_minutes,
+      bl.minimum_notice_minutes,
+      bl.max_bookings_per_day,
+      bl.booking_window_days,
+      bl.require_confirmation,
+      bl.is_active,
+      bl.is_ai_active,
+      au.name as owner_name,
+      coalesce(acp.timezone, 'Asia/Bangkok') as timezone,
+      coalesce(acp.display_name, au.name) as display_name,
+      coalesce(acp.is_active, false) as calendar_active
+    from settings s
+    join booking_links bl
+      on bl.id = s.active_booking_link_id
+      and bl.deleted_at is null
+      and bl.is_active = true
+    join admin_users au
+      on au.id = bl.owner_admin_id
+      and au.is_active = true
+      and au.deleted_at is null
+    left join admin_calendar_profiles acp
+      on acp.admin_user_id = bl.owner_admin_id
+    where s.id = 1
+      and s.booking_enabled = true
+    limit 1
+  `) as BookingLinkForSlots[];
+
+  return rows[0] || null;
+}
+
+async function getAvailableSlotsForLink(sql: Sql, link: BookingLinkForSlots, from: Date, to: Date): Promise<BookingSlot[]> {
+  if (!link.is_active || !link.calendar_active) return [];
 
   const now = Date.now();
-  const minStart = now + profile.minimum_notice_minutes * 60 * 1000;
-  const maxStart = now + profile.booking_window_days * 24 * 60 * 60 * 1000;
+  const minStart = now + link.minimum_notice_minutes * 60 * 1000;
+  const maxStart = now + link.booking_window_days * 24 * 60 * 60 * 1000;
   const rangeStart = Math.max(from.getTime(), minStart);
   const rangeEnd = Math.min(to.getTime(), maxStart);
 
@@ -97,14 +172,14 @@ export async function getAvailableSlots(sql: Sql, bookingSlug: string, from: Dat
   const rules = (await sql`
     select weekday, start_time::text as start_time, end_time::text as end_time
     from availability_rules
-    where admin_user_id = ${profile.admin_user_id}
+    where admin_user_id = ${link.owner_admin_id}
       and is_active = true
     order by weekday, start_time
   `) as AvailabilityRuleRow[];
   const overrides = (await sql`
     select override_type, starts_at, ends_at
     from availability_overrides
-    where admin_user_id = ${profile.admin_user_id}
+    where admin_user_id = ${link.owner_admin_id}
       and ends_at > ${new Date(rangeStart).toISOString()}
       and starts_at < ${new Date(rangeEnd).toISOString()}
     order by starts_at
@@ -112,7 +187,7 @@ export async function getAvailableSlots(sql: Sql, bookingSlug: string, from: Dat
   const appointments = (await sql`
     select start_at, end_at, status
     from appointments
-    where assigned_admin_id = ${profile.admin_user_id}
+    where assigned_admin_id = ${link.owner_admin_id}
       and deleted_at is null
       and status in ('pending_confirmation', 'confirmed', 'completed', 'no_show')
       and end_at > ${new Date(rangeStart).toISOString()}
@@ -121,9 +196,9 @@ export async function getAvailableSlots(sql: Sql, bookingSlug: string, from: Dat
   `) as AppointmentBlockRow[];
 
   const slots: BookingSlot[] = [];
-  const durationMs = profile.default_duration_minutes * 60 * 1000;
-  const bufferBeforeMs = profile.buffer_before_minutes * 60 * 1000;
-  const bufferAfterMs = profile.buffer_after_minutes * 60 * 1000;
+  const durationMs = link.duration_minutes * 60 * 1000;
+  const bufferBeforeMs = link.buffer_before_minutes * 60 * 1000;
+  const bufferAfterMs = link.buffer_after_minutes * 60 * 1000;
   const startDay = localDateKey(new Date(rangeStart));
   const endDay = localDateKey(new Date(rangeEnd));
   let cursor = new Date(`${startDay}T00:00:00+07:00`);
@@ -165,7 +240,7 @@ export async function getAvailableSlots(sql: Sql, bookingSlug: string, from: Dat
           )
         ));
         const dayCount = slotsPerDay.get(dateKey) ?? 0;
-        const blockedByDailyCap = profile.max_bookings_per_day !== null && dayCount >= profile.max_bookings_per_day;
+        const blockedByDailyCap = link.max_bookings_per_day !== null && dayCount >= link.max_bookings_per_day;
 
         if (!blockedByOverride && !blockedByAppointment && !blockedByDailyCap) {
           const startIso = new Date(slotStart).toISOString();
@@ -186,4 +261,35 @@ export async function getAvailableSlots(sql: Sql, bookingSlug: string, from: Dat
   }
 
   return slots;
+}
+
+export async function getAvailableSlots(sql: Sql, bookingSlug: string, from: Date, to: Date): Promise<BookingSlot[]> {
+  const link = await getBookingLinkBySlug(sql, bookingSlug);
+
+  if (!link) return [];
+
+  return getAvailableSlotsForLink(sql, link, from, to);
+}
+
+export async function getAvailableSlotsForBookingLinkId(sql: Sql, bookingLinkId: string, from: Date, to: Date): Promise<BookingSlot[]> {
+  const rows = (await sql`
+    select slug
+    from booking_links
+    where id = ${bookingLinkId}
+      and deleted_at is null
+    limit 1
+  `) as { slug: string }[];
+
+  return rows[0] ? getAvailableSlots(sql, rows[0].slug, from, to) : [];
+}
+
+export async function findAvailableSlot(sql: Sql, bookingSlug: string, startAt: Date): Promise<BookingSlot | null> {
+  const slots = await getAvailableSlots(
+    sql,
+    bookingSlug,
+    new Date(startAt.getTime() - 60 * 1000),
+    new Date(startAt.getTime() + 24 * 60 * 60 * 1000),
+  );
+
+  return slots.find((slot) => slot.start_at === startAt.toISOString()) || null;
 }

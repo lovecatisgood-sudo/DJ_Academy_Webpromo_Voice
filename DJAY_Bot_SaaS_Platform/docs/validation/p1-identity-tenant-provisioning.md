@@ -1,0 +1,96 @@
+# P1 Validation: Identity and Tenant Provisioning
+
+- Result: Passed
+- Date: 2026-07-14
+- Product code migrated: none
+- Database: PostgreSQL 16
+- Runtime: Node 24, pnpm 11.12.0
+
+## Implemented scope
+
+- Public registration, email verification, login, logout, recovery, resend, and
+  session endpoints.
+- Atomic verified-user, tenant, exactly-one-owner membership, onboarding,
+  legal-acceptance, audit, and outbox provisioning.
+- Tenant workspace selection, session rotation/revocation, onboarding, team
+  invitations, tenant MFA, and MFA-gated ownership transfer.
+- Separate Platform Master application, identities, cookies, sessions, MFA,
+  recovery codes, database role, audit, and one-time offline owner bootstrap.
+- Forced RLS, same-tenant foreign keys, deferred exactly-one-active-owner
+  invariant, restricted database roles, and branded tenant/platform/system
+  execution contexts.
+- Encrypted outbox payloads, restricted worker claim, retry/backoff, dead-letter
+  handling, and HTTP email adapter.
+
+## Automated evidence
+
+The full workspace gate passed:
+
+```bash
+scripts/use-node24.sh pnpm run verify
+```
+
+This ran TypeScript linting, import/provider-boundary scans, type checking,
+unit tests, and production builds for every application and package.
+
+The disposable PostgreSQL integration gate passed:
+
+```bash
+scripts/test-db-integration.sh
+```
+
+It applied migrations `0000` through `0005` and verified:
+
+- missing-context and A-to-B cross-tenant access denial;
+- forced-RLS grants and same-tenant foreign-key enforcement;
+- last-owner denial and atomic owner transfer;
+- concurrent registration, verification, recovery, invitation, replay, and
+  ownership-transfer behavior;
+- tenant and platform MFA, recovery-code digests, session rotation, and revoke;
+- restricted worker delivery of real registration, recovery, invitation, and
+  transfer outbox payloads;
+- tenant team repository isolation.
+
+## HTTP and browser evidence
+
+A disposable production build and database fixture were exercised on desktop
+and mobile viewports. The gate verified:
+
+- public and API health returned 200;
+- login without an allowed Origin was rejected with a generic 401;
+- tenant session/team pages authenticated and rendered without horizontal
+  overflow;
+- a tenant cookie could not access `/platform/me`;
+- platform password login returned `mfa_required` without issuing a session;
+- valid TOTP completed platform authentication;
+- a platform cookie could not access tenant session routes;
+- public, tenant, and platform pages stayed within viewport bounds;
+- no provider/model identifier appeared in tenant/public HTML or bundles;
+- no unexpected browser errors or missing assets remained.
+
+The unauthenticated Platform Master shell intentionally probes `/platform/me`
+and receives 401 before showing login. That expected network response is not an
+authentication failure after MFA.
+
+## Recovery evidence
+
+The exercised database was dumped, restored to a fresh database, and checked.
+The restored database retained the expected tenant, platform user, and active
+tenant session records. See `../runbooks/backup-restore.md`.
+
+## Production prerequisites
+
+- Inject independent random secrets for every auth, hashing, encryption, and
+  platform setting; never share tenant and platform secrets.
+- Use TLS-only origins and secure cookies behind explicitly configured trusted
+  proxies.
+- Run migrations as the migrator, not an application role.
+- Configure and test a real email endpoint before enabling registration.
+- Complete Platform Owner bootstrap through the one-time offline procedure and
+  store the displayed recovery codes outside the runtime environment.
+- Enable operational metrics/alerts for auth denial, outbox age/dead letters,
+  owner-invariant failures, RLS denial, and platform login.
+- Take and verify a pre-deployment backup; retain a forward-fix migration path.
+
+P1 is complete. Sellable plans and payment remain disabled until the later
+catalog, entitlement, usage, and billing gates pass.

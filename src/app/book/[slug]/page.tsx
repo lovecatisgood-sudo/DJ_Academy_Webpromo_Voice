@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getAvailableSlots } from "@/lib/availability";
+import { getAvailableSlots, getBookingLinkBySlug } from "@/lib/availability";
 import { verifyBookingContext } from "@/lib/booking-context";
 import { getSql } from "@/lib/db";
 
@@ -30,31 +30,11 @@ export default async function BookingPage({
   const [settings] = (await sql`
     select booking_enabled from settings where id = 1 limit 1
   `) as { booking_enabled: boolean }[];
-  const [profile] = (await sql`
-    select
-      acp.booking_slug,
-      acp.display_name,
-      acp.meeting_title,
-      acp.meeting_location,
-      acp.default_duration_minutes,
-      acp.booking_window_days
-    from admin_calendar_profiles acp
-    join admin_users au on au.id = acp.admin_user_id and au.is_active = true and au.deleted_at is null
-    where acp.booking_slug = ${slug}
-      and acp.is_active = true
-    limit 1
-  `) as {
-    booking_slug: string;
-    display_name: string;
-    meeting_title: string;
-    meeting_location: string | null;
-    default_duration_minutes: number;
-    booking_window_days: number;
-  }[];
+  const profile = await getBookingLinkBySlug(sql, slug);
 
   if (!profile) notFound();
 
-  const slots = settings?.booking_enabled
+  const slots = settings?.booking_enabled && profile.is_active && profile.calendar_active
     ? await getAvailableSlots(
         sql,
         slug,
@@ -69,18 +49,23 @@ export default async function BookingPage({
       <div className="mx-auto max-w-5xl">
         <div className="mb-6">
           <div className="text-sm font-semibold text-cyan-200">DJAI Academy</div>
-          <h1 className="mt-2 text-3xl font-semibold text-white">{profile.meeting_title}</h1>
+          <h1 className="mt-2 text-3xl font-semibold text-white">{profile.title}</h1>
           <p className="mt-2 text-sm text-slate-400">
-            {profile.default_duration_minutes} minutes with {profile.display_name}
+            {profile.duration_minutes} minutes with {profile.display_name}
             {profile.meeting_location ? ` · ${profile.meeting_location}` : ""}
           </p>
+          {profile.description ? <p className="mt-2 max-w-2xl text-sm text-slate-400">{profile.description}</p> : null}
         </div>
 
         {query.booked ? (
           <section className="rounded-lg border border-cyan-300/30 bg-cyan-300/10 p-6">
-            <h2 className="text-xl font-semibold text-white">Appointment requested</h2>
+            <h2 className="text-xl font-semibold text-white">
+              {query.booked === "confirmed" ? "Appointment booked" : "Appointment requested"}
+            </h2>
             <p className="mt-2 text-sm text-cyan-50">
-              Your requested time has been sent to DJAI Academy. The team will review and confirm the appointment.
+              {query.booked === "confirmed"
+                ? "Your appointment time is booked. DJAI Academy has received your details."
+                : "Your requested time has been sent to DJAI Academy. The team will review and confirm the appointment."}
             </p>
           </section>
         ) : (

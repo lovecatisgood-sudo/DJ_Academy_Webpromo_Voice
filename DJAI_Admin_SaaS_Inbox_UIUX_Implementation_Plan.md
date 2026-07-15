@@ -775,6 +775,8 @@ Implemented scope:
 - Reframed Conversations as Inbox.
 - Added `/admin/inbox` channel landing with Website Voice Widget active and future channels locked.
 - Added `/admin/inbox/voice` as the primary three-pane voice workspace.
+- Simplified the voice inbox toolbar: search moved into the conversation pane, only All/Leads/High interest are primary filters, and secondary filters are hidden under More.
+- Added master-admin bulk selection and bulk soft-delete for voice conversations.
 - Converted `/admin/conversations` and `/admin/conversations/[id]` into compatibility redirects to the new voice inbox.
 - Redesigned Overview as an action-first dashboard.
 - Redesigned Leads into a pipeline/detail workflow.

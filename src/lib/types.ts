@@ -5,6 +5,9 @@ export type VoiceProvider = "openai" | "gemini";
 export type InterestLevel = "low" | "medium" | "high" | "unknown";
 export type AnalysisStatus = "pending" | "completed" | "failed" | "skipped";
 export type AdminRole = "master_admin" | "admin";
+export type ConversationChannel = "voice_widget" | "text_widget";
+export type InteractionMode = "voice" | "text";
+export type ConversationMessageRole = "user" | "assistant" | "system" | "tool";
 export type AppointmentStatus =
   | "pending_confirmation"
   | "confirmed"
@@ -12,7 +15,7 @@ export type AppointmentStatus =
   | "cancelled"
   | "completed"
   | "no_show";
-export type AppointmentSource = "voice_agent" | "manual" | "public_booking";
+export type AppointmentSource = "voice_agent" | "text_chat" | "manual" | "public_booking";
 export type AvailabilityOverrideType = "blocked" | "extra_available";
 
 export type Settings = {
@@ -32,9 +35,15 @@ export type Settings = {
   analysis_model_id: string;
   booking_enabled: boolean;
   active_booking_admin_id: string | null;
+  active_booking_link_id: string | null;
   default_timezone: string;
   require_booking_confirmation: boolean;
   default_booking_window_days: number;
+  text_chat_enabled: boolean;
+  text_chat_model_id: string;
+  text_chat_greeting: string | null;
+  text_chat_max_messages: number;
+  text_chat_daily_session_cap: number;
   updated_at: string;
 };
 
@@ -55,6 +64,17 @@ export type TranscriptItem = {
   role: "user" | "assistant" | "tool" | "system";
   text: string;
   t: number;
+};
+
+export type ConversationMessage = {
+  id: string;
+  conversation_id: string;
+  channel: ConversationChannel;
+  role: ConversationMessageRole;
+  content: string;
+  token_count: number | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
 };
 
 export type LeadPayload = {
@@ -96,6 +116,8 @@ export type LeadClientFields = {
   admin_notes: string | null;
   assigned_admin_id: string | null;
   updated_at: string | null;
+  source_channel: ConversationChannel;
+  source_mode: InteractionMode;
 };
 
 export type CalendarProfile = {
@@ -118,6 +140,28 @@ export type CalendarProfile = {
   updated_at: string;
 };
 
+export type BookingLink = {
+  id: string;
+  owner_admin_id: string;
+  name: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  meeting_location: string | null;
+  duration_minutes: number;
+  buffer_before_minutes: number;
+  buffer_after_minutes: number;
+  minimum_notice_minutes: number;
+  max_bookings_per_day: number | null;
+  booking_window_days: number;
+  require_confirmation: boolean;
+  is_active: boolean;
+  is_ai_active: boolean;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Appointment = {
   id: string;
   lead_id: string | null;
@@ -125,6 +169,7 @@ export type Appointment = {
   assigned_admin_id: string | null;
   assigned_admin_name_snapshot: string | null;
   meeting_type_id: string | null;
+  booking_link_id: string | null;
   status: AppointmentStatus;
   source: AppointmentSource;
   start_at: string;

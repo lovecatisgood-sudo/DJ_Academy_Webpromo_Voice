@@ -22,6 +22,10 @@ const geminiLiveSource = read("src/lib/gemini-live.ts");
 const sessionRoute = read("src/app/api/session/route.ts");
 const leadRoute = read("src/app/api/lead/route.ts");
 const conversationRoute = read("src/app/api/conversation/route.ts");
+const chatSessionRoute = read("src/app/api/chat/session/route.ts");
+const chatMessageRoute = read("src/app/api/chat/message/route.ts");
+const chatEndRoute = read("src/app/api/chat/end/route.ts");
+const timingHelper = read("src/lib/server-timing.ts");
 const settingsCache = read("src/lib/settings-cache.ts");
 const dependencies = {
   ...packageJson.dependencies,
@@ -46,6 +50,12 @@ for (const dependency of Object.keys(dependencies)) {
 
 assert(!browserWidget.includes("OPENAI_API_KEY"), "Browser widget references OPENAI_API_KEY.");
 assert(!browserWidget.includes("sk-"), "Browser widget appears to contain an OpenAI secret key.");
+assert(
+  browserWidget.includes("/api/chat/session") &&
+    browserWidget.includes("/api/chat/message") &&
+    browserWidget.includes("/api/chat/end"),
+  "Browser widget must call the DJAI backend text-chat APIs, not a provider API directly.",
+);
 assert(
   browserWidget.includes("https://api.openai.com/v1/realtime/calls"),
   "Browser widget is not configured for direct OpenAI WebRTC calls.",
@@ -119,6 +129,41 @@ assert(
     conversationRoute.includes("readJsonBody"),
   "Conversation API must accept beacon-compatible request bodies.",
 );
+assert(
+  conversationRoute.includes("scheduleConversationAnalysis") &&
+    !conversationRoute.includes("await analyzeAndPersistConversation"),
+  "Conversation save must not block on post-call analysis.",
+);
+assert(
+  chatSessionRoute.includes("isAllowedCorsRequest") &&
+    chatMessageRoute.includes("isAllowedCorsRequest") &&
+    chatEndRoute.includes("isAllowedCorsRequest"),
+  "Text chat endpoints must reject disallowed browser origins.",
+);
+assert(
+  chatSessionRoute.includes("text_chat_daily_session_cap") &&
+    chatMessageRoute.includes("text_chat_max_messages") &&
+    chatMessageRoute.includes("checkRateLimit"),
+  "Text chat endpoints must enforce caps, max messages, and rate limits.",
+);
+assert(
+  chatMessageRoute.includes("https://api.openai.com/v1/chat/completions") &&
+    chatMessageRoute.includes("requireEnv(\"OPENAI_API_KEY\")") &&
+    chatMessageRoute.includes("response_format") &&
+    chatMessageRoute.includes("lead_candidate"),
+  "Text chat message route must call OpenAI server-side and parse the lead sidecar.",
+);
+assert(
+  chatEndRoute.includes("scheduleConversationAnalysis") &&
+    !chatEndRoute.includes("await analyzeAndPersistConversation"),
+  "Text chat end must not block on post-chat analysis.",
+);
+assert(
+  timingHelper.includes("logServerTiming") &&
+    conversationRoute.includes("logServerTiming") &&
+    chatMessageRoute.includes("logServerTiming"),
+  "Public save/chat routes must include lightweight timing logs.",
+);
 
 const promptSections = [
   "# Identity",
@@ -157,6 +202,19 @@ for (const section of promptSections) {
 assert(
   promptSource.indexOf("# Knowledge Document") < promptSource.indexOf("# Dynamic Session Context"),
   "Knowledge must appear before dynamic session context for prefix caching.",
+);
+const textPromptStart = promptSource.indexOf("export function buildTextChatSystemPrompt");
+const textKnowledgeIndex = promptSource.indexOf("# Knowledge Document", textPromptStart);
+const textModeIndex = promptSource.indexOf("# Text Chat Mode", textPromptStart);
+const textDynamicIndex = promptSource.indexOf("# Dynamic Session Context", textPromptStart);
+assert(
+  textPromptStart !== -1 &&
+    textKnowledgeIndex !== -1 &&
+    textModeIndex !== -1 &&
+    textDynamicIndex !== -1 &&
+    textKnowledgeIndex < textModeIndex &&
+    textModeIndex < textDynamicIndex,
+  "Text chat prompt must keep knowledge before mode-specific instructions and dynamic context last.",
 );
 assert(
   promptSource.includes("Never invent prices") &&

@@ -8,10 +8,15 @@ function filterValue(value: string | null) {
   return value === "leads" || value === "no_leads" || value === "starred" || value === "failed" ? value : "all";
 }
 
+function channelValue(value: string | null) {
+  return value === "voice_widget" || value === "text_widget" ? value : "all";
+}
+
 export async function GET(request: Request) {
   const admin = await requireAdmin();
   const params = new URL(request.url).searchParams;
   const filter = filterValue(params.get("filter"));
+  const channel = channelValue(params.get("channel"));
   const q = (params.get("q") || "").trim().slice(0, 120);
   const search = `%${q}%`;
   const includeDeleted = params.get("includeDeleted") === "1";
@@ -19,6 +24,10 @@ export async function GET(request: Request) {
   const rows = (await sql`
     select
       id,
+      channel,
+      interaction_mode,
+      provider,
+      model_id,
       started_at,
       ended_at,
       duration_seconds,
@@ -46,6 +55,7 @@ export async function GET(request: Request) {
             and leads.assigned_admin_id = ${admin.id}
         )
       )
+      and (${channel} = 'all' or channel = ${channel})
       and (
         ${filter} = 'all'
         or (${filter} = 'leads' and had_lead)
@@ -64,6 +74,10 @@ export async function GET(request: Request) {
   `) as Record<string, unknown>[];
   const csv = toCsv(rows, [
     "id",
+    "channel",
+    "interaction_mode",
+    "provider",
+    "model_id",
     "started_at",
     "ended_at",
     "duration_seconds",

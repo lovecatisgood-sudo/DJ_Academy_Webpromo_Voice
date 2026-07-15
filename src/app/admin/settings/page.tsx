@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AdminShell } from "../AdminShell";
 import { changeOwnPasswordAction, saveSettingsAction } from "../actions";
 import { requireAdmin } from "@/lib/admin-auth";
@@ -22,15 +23,26 @@ export default async function SettingsPage({
   const sql = getSql();
   const rows = (await sql`select * from settings where id = 1 limit 1`) as Settings[];
   const settings = rows[0];
-  const activeAdmins = admin.role === "master_admin"
+  const activeBookingLinks = admin.role === "master_admin"
     ? (await sql`
-        select id, name, username
-        from admin_users
-        where is_active = true
-          and deleted_at is null
-        order by role desc, name asc
-      `) as { id: string; name: string; username: string }[]
+        select
+          bl.id,
+          bl.name,
+          bl.slug,
+          bl.is_ai_active,
+          au.name as owner_name,
+          au.username as owner_username
+        from booking_links bl
+        join admin_users au on au.id = bl.owner_admin_id
+        where bl.is_active = true
+          and bl.deleted_at is null
+          and au.is_active = true
+          and au.deleted_at is null
+        order by bl.is_ai_active desc, au.role desc, bl.created_at asc
+      `) as { id: string; name: string; slug: string; is_ai_active: boolean; owner_name: string; owner_username: string }[]
     : [];
+  const activeAiBookingLink = activeBookingLinks.find((item) => item.id === settings.active_booking_link_id) ||
+    activeBookingLinks.find((item) => item.is_ai_active);
 
   if (admin.role !== "master_admin") {
     return (
@@ -138,15 +150,17 @@ export default async function SettingsPage({
             </label>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
-            <label className={labelClass}>
-              Active AI booking admin
-              <select name="active_booking_admin_id" className={inputClass} defaultValue={settings.active_booking_admin_id || ""}>
-                <option value="">No active booking admin</option>
-                {activeAdmins.map((item) => (
-                  <option key={item.id} value={item.id}>{item.name} ({item.username})</option>
-                ))}
-              </select>
-            </label>
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+              <div className="text-sm font-medium text-slate-700">Active AI booking link</div>
+              <div className="mt-2 text-sm text-slate-600">
+                {activeAiBookingLink
+                  ? `${activeAiBookingLink.name} · /book/${activeAiBookingLink.slug} · ${activeAiBookingLink.owner_name}`
+                  : "No booking link selected for the voice agent."}
+              </div>
+              <Link href="/admin/calendar/links" className="mt-3 inline-flex rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800">
+                Manage booking links
+              </Link>
+            </div>
             <label className={labelClass}>
               Default timezone
               <input name="default_timezone" className={inputClass} defaultValue={settings.default_timezone || "Asia/Bangkok"} />
@@ -184,6 +198,39 @@ export default async function SettingsPage({
             <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
               Conversations with usable contact details become leads automatically. Admin edits to lead status and notes are kept separate from the voice model.
             </div>
+          </div>
+        </section>
+
+        <section className={sectionClass}>
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-950">Text Chatbot</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Text chatbot uses the same sales behavior and knowledge document as the voice agent.
+              </p>
+            </div>
+            <label className="flex items-center gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+              <input name="text_chat_enabled" type="checkbox" defaultChecked={settings.text_chat_enabled} />
+              Chatbot enabled
+            </label>
+          </div>
+          <label className={labelClass}>
+            Greeting
+            <textarea name="text_chat_greeting" rows={3} className={textAreaClass} defaultValue={settings.text_chat_greeting || settings.greeting || ""} />
+          </label>
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            <label className={labelClass}>
+              Text model
+              <input name="text_chat_model_id" className={inputClass} defaultValue={settings.text_chat_model_id || "gpt-5-mini"} />
+            </label>
+            <label className={labelClass}>
+              Max messages/session
+              <input name="text_chat_max_messages" type="number" min={1} max={200} className={inputClass} defaultValue={settings.text_chat_max_messages || 40} />
+            </label>
+            <label className={labelClass}>
+              Daily text session cap
+              <input name="text_chat_daily_session_cap" type="number" min={1} max={5000} className={inputClass} defaultValue={settings.text_chat_daily_session_cap || 200} />
+            </label>
           </div>
         </section>
 

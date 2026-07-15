@@ -69,7 +69,23 @@ function bookingSlug(value: string) {
 }
 
 function appointmentRedirect(formData: FormData) {
-  return redirectTo(formData, "/admin/appointments");
+  return redirectTo(formData, "/admin/calendar");
+}
+
+function availabilityRedirect(formData: FormData, targetAdminId?: string, saved?: string) {
+  const destination = redirectTo(formData, "/admin/calendar/availability");
+  const separator = destination.includes("?") ? "&" : "?";
+  const params = [
+    targetAdminId ? `admin=${encodeURIComponent(targetAdminId)}` : "",
+    saved ? `saved=${encodeURIComponent(saved)}` : "",
+  ].filter(Boolean).join("&");
+
+  return params ? `${destination}${separator}${params}` : destination;
+}
+
+function appendAdminQuery(destination: string, params: Record<string, string>) {
+  const query = new URLSearchParams(params).toString();
+  return `${destination}${destination.includes("?") ? "&" : "?"}${query}`;
 }
 
 function parseAppointmentStart(value: string) {
@@ -126,6 +142,25 @@ async function hasAppointmentConflict({
   return (row?.count ?? 0) > 0;
 }
 
+async function canEditAvailability(targetAdminId: string, adminId: string, isMaster: boolean) {
+  if (isMaster) return true;
+  if (targetAdminId !== adminId) return false;
+
+  const sql = getSql();
+  const rows = (await sql`
+    select allow_admin_self_edit
+    from admin_calendar_profiles
+    where admin_user_id = ${adminId}
+    limit 1
+  `) as { allow_admin_self_edit: boolean }[];
+
+  return rows[0]?.allow_admin_self_edit !== false;
+}
+
+function bookingLinkRedirect(formData: FormData) {
+  return redirectTo(formData, "/admin/calendar/links");
+}
+
 async function adminLoginKeys(username: string) {
   const headerStore = await headers();
   const realIp = headerStore.get("x-real-ip")?.trim();
@@ -177,6 +212,11 @@ export async function saveSettingsAction(formData: FormData) {
     transcription_model: text(formData, "transcription_model"),
     analysis_enabled: formData.get("analysis_enabled") === "on" ? "on" : "",
     analysis_model_id: text(formData, "analysis_model_id"),
+    text_chat_enabled: formData.get("text_chat_enabled") === "on" ? "on" : "",
+    text_chat_model_id: text(formData, "text_chat_model_id"),
+    text_chat_greeting: text(formData, "text_chat_greeting"),
+    text_chat_max_messages: numberValue(formData, "text_chat_max_messages", 40),
+    text_chat_daily_session_cap: numberValue(formData, "text_chat_daily_session_cap", 200),
     booking_enabled: formData.get("booking_enabled") === "on" ? "on" : "",
     active_booking_admin_id: text(formData, "active_booking_admin_id"),
     default_timezone: text(formData, "default_timezone"),
@@ -199,6 +239,11 @@ export async function saveSettingsAction(formData: FormData) {
       transcription_model = ${settings.transcription_model ?? ""},
       analysis_enabled = ${settings.analysis_enabled ?? true},
       analysis_model_id = ${settings.analysis_model_id ?? "gpt-4o-mini"},
+      text_chat_enabled = ${settings.text_chat_enabled ?? true},
+      text_chat_model_id = ${settings.text_chat_model_id ?? "gpt-5-mini"},
+      text_chat_greeting = ${settings.text_chat_greeting ?? ""},
+      text_chat_max_messages = ${settings.text_chat_max_messages ?? 40},
+      text_chat_daily_session_cap = ${settings.text_chat_daily_session_cap ?? 200},
       booking_enabled = ${settings.booking_enabled ?? true},
       active_booking_admin_id = ${settings.active_booking_admin_id},
       default_timezone = ${settings.default_timezone ?? "Asia/Bangkok"},
@@ -337,7 +382,32 @@ export async function deleteConversationAction(formData: FormData) {
     set deleted_at = now()
     where id = ${id}
   `;
-  redirect("/admin/conversations?deleted=1");
+  redirect(redirectTo(formData, "/admin/inbox/voice?deleted=1"));
+}
+
+export async function bulkDeleteConversationsAction(formData: FormData) {
+  await requireMasterAdmin();
+  const ids = [...new Set(
+    formData
+      .getAll("conversation_id")
+      .filter((value): value is string => typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value)),
+  )];
+
+  if (!ids.length) {
+    redirect(redirectTo(formData, "/admin/inbox/voice"));
+  }
+
+  const sql = getSql();
+  for (const id of ids) {
+    await sql`
+      update conversations
+      set deleted_at = now()
+      where id = ${id}
+        and deleted_at is null
+    `;
+  }
+
+  redirect(redirectTo(formData, "/admin/inbox/voice?deleted=1"));
 }
 
 export async function regenerateConversationAnalysisAction(formData: FormData) {
@@ -555,8 +625,24 @@ export async function deactivateAdminUserAction(formData: FormData) {
 
   await sql`
     update settings
-    set active_booking_admin_id = null, booking_enabled = false, updated_at = now()
+    set
+      active_booking_admin_id = null,
+      active_booking_link_id = null,
+      booking_enabled = false,
+      updated_at = now()
     where active_booking_admin_id = ${id}
+      or active_booking_link_id in (
+        select booking_links.id
+        from booking_links
+        where booking_links.owner_admin_id = ${id}
+      )
+  `;
+
+  await sql`
+    update booking_links
+    set is_ai_active = false, updated_at = now()
+    where owner_admin_id = ${id}
+      and is_ai_active = true
   `;
 
   invalidateSettingsCache();
@@ -590,6 +676,265 @@ export async function setActiveBookingAdminAction(formData: FormData) {
 
   invalidateSettingsCache();
   redirect("/admin/team?active=updated");
+}
+
+export async function setActiveAiBookingLinkAction(formData: FormData) {
+  await requireMasterAdmin();
+  const id = nullableText(formData, "booking_link_id");
+  const sql = getSql();
+
+  if (id) {
+    const rows = (await sql`
+      select bl.id
+      from booking_links bl
+      join admin_users au on au.id = bl.owner_admin_id
+      left join admin_calendar_profiles acp on acp.admin_user_id = bl.owner_admin_id
+      where bl.id = ${id}
+        and bl.is_active = true
+        and bl.deleted_at is null
+        and au.is_active = true
+        and au.deleted_at is null
+        and coalesce(acp.is_active, false) = true
+      limit 1
+    `) as { id: string }[];
+
+    if (!rows[0]) {
+      redirect(`${bookingLinkRedirect(formData)}?error=invalid_ai_link`);
+    }
+  }
+
+  await sql`update booking_links set is_ai_active = false where is_ai_active = true`;
+  await sql`
+    update settings
+    set active_booking_link_id = ${id}, booking_enabled = ${Boolean(id)}, updated_at = now()
+    where id = 1
+  `;
+
+  if (id) {
+    await sql`
+      update booking_links
+      set is_ai_active = true, updated_at = now()
+      where id = ${id}
+    `;
+  }
+
+  invalidateSettingsCache();
+  redirect(`${bookingLinkRedirect(formData)}?active=updated`);
+}
+
+export async function createBookingLinkAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const ownerAdminId = admin.role === "master_admin" ? text(formData, "owner_admin_id") || admin.id : admin.id;
+  const name = text(formData, "name") || "Free Consultation";
+  const slug = bookingSlug(text(formData, "slug") || name);
+  const title = text(formData, "title") || name;
+  const description = nullableText(formData, "description");
+  const meetingLocation = nullableText(formData, "meeting_location");
+  const duration = Math.min(240, Math.max(10, numberValue(formData, "duration_minutes", 30)));
+  const bufferBefore = Math.min(120, Math.max(0, numberValue(formData, "buffer_before_minutes", 0)));
+  const bufferAfter = Math.min(120, Math.max(0, numberValue(formData, "buffer_after_minutes", 0)));
+  const minimumNotice = Math.min(10080, Math.max(0, numberValue(formData, "minimum_notice_minutes", 240)));
+  const maxPerDayRaw = text(formData, "max_bookings_per_day");
+  const maxPerDay = maxPerDayRaw ? Math.min(50, Math.max(1, Number(maxPerDayRaw))) : null;
+  const bookingWindow = Math.min(365, Math.max(1, numberValue(formData, "booking_window_days", 30)));
+  const requireConfirmation = formData.get("require_confirmation") !== "off";
+  const setAiActive = admin.role === "master_admin" && formData.get("set_ai_active") === "on";
+  const sql = getSql();
+
+  const [owner] = (await sql`
+    select au.id, coalesce(acp.is_active, false) as calendar_active
+    from admin_users au
+    left join admin_calendar_profiles acp on acp.admin_user_id = au.id
+    where au.id = ${ownerAdminId}
+      and au.is_active = true
+      and au.deleted_at is null
+    limit 1
+  `) as { id: string; calendar_active: boolean }[];
+
+  if (!owner) {
+    redirect(`${bookingLinkRedirect(formData)}?error=invalid_owner`);
+  }
+
+  if (setAiActive && !owner.calendar_active) {
+    redirect(`${bookingLinkRedirect(formData)}?error=calendar_profile_required`);
+  }
+
+  const [existing] = (await sql`
+    select id
+    from booking_links
+    where slug = ${slug}
+      and deleted_at is null
+    limit 1
+  `) as { id: string }[];
+
+  if (existing) {
+    redirect(`${bookingLinkRedirect(formData)}?error=slug_taken`);
+  }
+
+  const rows = (await sql`
+    insert into booking_links (
+      owner_admin_id,
+      name,
+      slug,
+      title,
+      description,
+      meeting_location,
+      duration_minutes,
+      buffer_before_minutes,
+      buffer_after_minutes,
+      minimum_notice_minutes,
+      max_bookings_per_day,
+      booking_window_days,
+      require_confirmation,
+      is_active,
+      is_ai_active
+    )
+    values (
+      ${ownerAdminId},
+      ${name},
+      ${slug},
+      ${title},
+      ${description},
+      ${meetingLocation},
+      ${duration},
+      ${bufferBefore},
+      ${bufferAfter},
+      ${minimumNotice},
+      ${maxPerDay},
+      ${bookingWindow},
+      ${requireConfirmation},
+      true,
+      false
+    )
+    returning id
+  `) as { id: string }[];
+
+  if (setAiActive && rows[0]) {
+    await sql`update booking_links set is_ai_active = false where is_ai_active = true`;
+    await sql`
+      update booking_links
+      set is_ai_active = true, updated_at = now()
+      where id = ${rows[0].id}
+    `;
+    await sql`
+      update settings
+      set active_booking_link_id = ${rows[0].id}, booking_enabled = true, updated_at = now()
+      where id = 1
+    `;
+    invalidateSettingsCache();
+  }
+
+  redirect(`${bookingLinkRedirect(formData)}?created=1`);
+}
+
+export async function updateBookingLinkAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const id = text(formData, "id");
+  const name = text(formData, "name") || "Free Consultation";
+  const slug = bookingSlug(text(formData, "slug") || name);
+  const title = text(formData, "title") || name;
+  const description = nullableText(formData, "description");
+  const meetingLocation = nullableText(formData, "meeting_location");
+  const duration = Math.min(240, Math.max(10, numberValue(formData, "duration_minutes", 30)));
+  const bufferBefore = Math.min(120, Math.max(0, numberValue(formData, "buffer_before_minutes", 0)));
+  const bufferAfter = Math.min(120, Math.max(0, numberValue(formData, "buffer_after_minutes", 0)));
+  const minimumNotice = Math.min(10080, Math.max(0, numberValue(formData, "minimum_notice_minutes", 240)));
+  const maxPerDayRaw = text(formData, "max_bookings_per_day");
+  const maxPerDay = maxPerDayRaw ? Math.min(50, Math.max(1, Number(maxPerDayRaw))) : null;
+  const bookingWindow = Math.min(365, Math.max(1, numberValue(formData, "booking_window_days", 30)));
+  const requireConfirmation = formData.get("require_confirmation") !== "off";
+  const isActive = activeValue(formData, "is_active");
+  const sql = getSql();
+
+  const [link] = (await sql`
+    select owner_admin_id
+    from booking_links
+    where id = ${id}
+      and deleted_at is null
+    limit 1
+  `) as { owner_admin_id: string }[];
+
+  if (!link || (admin.role !== "master_admin" && link.owner_admin_id !== admin.id)) {
+    redirect(`${bookingLinkRedirect(formData)}?error=not_allowed`);
+  }
+
+  const [existing] = (await sql`
+    select id
+    from booking_links
+    where slug = ${slug}
+      and id <> ${id}
+      and deleted_at is null
+    limit 1
+  `) as { id: string }[];
+
+  if (existing) {
+    redirect(`${bookingLinkRedirect(formData)}?error=slug_taken`);
+  }
+
+  await sql`
+    update booking_links
+    set
+      name = ${name},
+      slug = ${slug},
+      title = ${title},
+      description = ${description},
+      meeting_location = ${meetingLocation},
+      duration_minutes = ${duration},
+      buffer_before_minutes = ${bufferBefore},
+      buffer_after_minutes = ${bufferAfter},
+      minimum_notice_minutes = ${minimumNotice},
+      max_bookings_per_day = ${maxPerDay},
+      booking_window_days = ${bookingWindow},
+      require_confirmation = ${requireConfirmation},
+      is_active = ${isActive},
+      updated_at = now()
+    where id = ${id}
+      and deleted_at is null
+  `;
+
+  if (!isActive) {
+    await sql`
+      update settings
+      set active_booking_link_id = null, booking_enabled = false, updated_at = now()
+      where active_booking_link_id = ${id}
+    `;
+    await sql`update booking_links set is_ai_active = false where id = ${id}`;
+    invalidateSettingsCache();
+  }
+
+  redirect(`${bookingLinkRedirect(formData)}?updated=1`);
+}
+
+export async function deleteBookingLinkAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const id = text(formData, "id");
+  const sql = getSql();
+  const [link] = (await sql`
+    select owner_admin_id
+    from booking_links
+    where id = ${id}
+      and deleted_at is null
+    limit 1
+  `) as { owner_admin_id: string }[];
+
+  if (!link || (admin.role !== "master_admin" && link.owner_admin_id !== admin.id)) {
+    redirect(`${bookingLinkRedirect(formData)}?error=not_allowed`);
+  }
+
+  await sql`
+    update booking_links
+    set deleted_at = now(), is_active = false, is_ai_active = false, updated_at = now()
+    where id = ${id}
+      and deleted_at is null
+  `;
+  await sql`
+    update settings
+    set active_booking_link_id = null, booking_enabled = false, updated_at = now()
+    where active_booking_link_id = ${id}
+  `;
+  invalidateSettingsCache();
+
+  redirect(`${bookingLinkRedirect(formData)}?deleted=1`);
 }
 
 export async function deleteAdminUserAction(formData: FormData) {
@@ -633,11 +978,21 @@ export async function deleteAdminUserAction(formData: FormData) {
   }
 
   const [settings] = (await sql`
-    select active_booking_admin_id from settings where id = 1 limit 1
-  `) as { active_booking_admin_id: string | null }[];
+    select active_booking_admin_id, active_booking_link_id from settings where id = 1 limit 1
+  `) as { active_booking_admin_id: string | null; active_booking_link_id: string | null }[];
   const isActiveBookingAdmin = settings?.active_booking_admin_id === id;
+  const [activeBookingLink] = settings?.active_booking_link_id
+    ? (await sql`
+        select id
+        from booking_links
+        where id = ${settings.active_booking_link_id}
+          and owner_admin_id = ${id}
+        limit 1
+      `) as { id: string }[]
+    : [];
+  const isActiveBookingLinkOwner = Boolean(activeBookingLink);
 
-  if (isActiveBookingAdmin && !activeReplacementId && !disableBooking) {
+  if ((isActiveBookingAdmin || isActiveBookingLinkOwner) && !activeReplacementId && !disableBooking) {
     redirect("/admin/team?error=active_booking_admin");
   }
 
@@ -674,17 +1029,47 @@ export async function deleteAdminUserAction(formData: FormData) {
     `;
   }
 
-  if (isActiveBookingAdmin) {
+  if (isActiveBookingAdmin || isActiveBookingLinkOwner) {
+    const [replacementLink] = activeReplacementId
+      ? (await sql`
+          select id
+          from booking_links
+          where owner_admin_id = ${activeReplacementId}
+            and is_active = true
+            and deleted_at is null
+          order by created_at asc
+          limit 1
+        `) as { id: string }[]
+      : [];
+
+    await sql`update booking_links set is_ai_active = false where is_ai_active = true`;
+
+    if (replacementLink?.id && !disableBooking) {
+      await sql`
+        update booking_links
+        set is_ai_active = true, updated_at = now()
+        where id = ${replacementLink.id}
+      `;
+    }
+
     await sql`
       update settings
       set
         active_booking_admin_id = ${activeReplacementId},
-        booking_enabled = ${Boolean(activeReplacementId) && !disableBooking},
+        active_booking_link_id = ${replacementLink?.id ?? null},
+        booking_enabled = ${Boolean(replacementLink?.id) && !disableBooking},
         updated_at = now()
       where id = 1
     `;
     invalidateSettingsCache();
   }
+
+  await sql`
+    update booking_links
+    set is_active = false, is_ai_active = false, updated_at = now()
+    where owner_admin_id = ${id}
+      and deleted_at is null
+  `;
 
   await sql`
     update admin_users
@@ -700,7 +1085,7 @@ export async function confirmAppointmentAction(formData: FormData) {
   const id = text(formData, "id");
 
   if (!(await appointmentIsAccessible(id, admin.id, admin.role === "master_admin"))) {
-    redirect("/admin/appointments?error=not_allowed");
+    redirect("/admin/calendar?error=not_allowed");
   }
 
   const sql = getSql();
@@ -725,7 +1110,7 @@ export async function rejectAppointmentAction(formData: FormData) {
   const id = text(formData, "id");
 
   if (!(await appointmentIsAccessible(id, admin.id, admin.role === "master_admin"))) {
-    redirect("/admin/appointments?error=not_allowed");
+    redirect("/admin/calendar?error=not_allowed");
   }
 
   const sql = getSql();
@@ -745,7 +1130,7 @@ export async function cancelAppointmentAction(formData: FormData) {
   const id = text(formData, "id");
 
   if (!(await appointmentIsAccessible(id, admin.id, admin.role === "master_admin"))) {
-    redirect("/admin/appointments?error=not_allowed");
+    redirect("/admin/calendar?error=not_allowed");
   }
 
   const sql = getSql();
@@ -765,7 +1150,7 @@ export async function markAppointmentCompletedAction(formData: FormData) {
   const id = text(formData, "id");
 
   if (!(await appointmentIsAccessible(id, admin.id, admin.role === "master_admin"))) {
-    redirect("/admin/appointments?error=not_allowed");
+    redirect("/admin/calendar?error=not_allowed");
   }
 
   const sql = getSql();
@@ -785,7 +1170,7 @@ export async function markAppointmentNoShowAction(formData: FormData) {
   const id = text(formData, "id");
 
   if (!(await appointmentIsAccessible(id, admin.id, admin.role === "master_admin"))) {
-    redirect("/admin/appointments?error=not_allowed");
+    redirect("/admin/calendar?error=not_allowed");
   }
 
   const sql = getSql();
@@ -805,7 +1190,7 @@ export async function updateAppointmentNotesAction(formData: FormData) {
   const id = text(formData, "id");
 
   if (!(await appointmentIsAccessible(id, admin.id, admin.role === "master_admin"))) {
-    redirect("/admin/appointments?error=not_allowed");
+    redirect("/admin/calendar?error=not_allowed");
   }
 
   const sql = getSql();
@@ -836,7 +1221,7 @@ export async function reassignAppointmentAction(formData: FormData) {
     `) as { id: string; name: string }[];
 
     if (!admins[0]) {
-      redirect("/admin/appointments?error=invalid_admin");
+      redirect("/admin/calendar?error=invalid_admin");
     }
 
     await sql`
@@ -864,7 +1249,7 @@ export async function rescheduleAppointmentAction(formData: FormData) {
   const duration = Math.min(240, Math.max(10, numberValue(formData, "duration_minutes", 30)));
 
   if (!startAt || !(await appointmentIsAccessible(id, admin.id, admin.role === "master_admin"))) {
-    redirect("/admin/appointments?error=invalid_reschedule");
+    redirect("/admin/calendar?error=invalid_reschedule");
   }
 
   const startDate = new Date(startAt);
@@ -880,7 +1265,7 @@ export async function rescheduleAppointmentAction(formData: FormData) {
   const assignedAdminId = appointment?.assigned_admin_id;
 
   if (assignedAdminId && await hasAppointmentConflict({ appointmentId: id, assignedAdminId, startAt, endAt })) {
-    redirect("/admin/appointments?error=conflict");
+    redirect("/admin/calendar?error=conflict");
   }
 
   await sql`
@@ -899,7 +1284,7 @@ export async function updateCalendarProfileAction(formData: FormData) {
   const sql = getSql();
 
   if (admin.role !== "master_admin" && targetAdminId !== admin.id) {
-    redirect("/admin/appointments/availability?error=not_allowed");
+    redirect(appendAdminQuery(redirectTo(formData, "/admin/calendar/availability"), { error: "not_allowed" }));
   }
 
   if (admin.role !== "master_admin") {
@@ -911,7 +1296,7 @@ export async function updateCalendarProfileAction(formData: FormData) {
     `) as { allow_admin_self_edit: boolean }[];
 
     if (rows[0] && !rows[0].allow_admin_self_edit) {
-      redirect("/admin/appointments/availability?error=locked");
+      redirect(appendAdminQuery(redirectTo(formData, "/admin/calendar/availability"), { error: "locked" }));
     }
   }
 
@@ -931,7 +1316,7 @@ export async function updateCalendarProfileAction(formData: FormData) {
   const allowSelfEdit = admin.role === "master_admin" ? activeValue(formData, "allow_admin_self_edit") : true;
 
   if (!displayName || !/^[A-Za-z0-9_+\-./]+$/.test(timezone)) {
-    redirect("/admin/appointments/availability?error=invalid_profile");
+    redirect(appendAdminQuery(redirectTo(formData, "/admin/calendar/availability"), { error: "invalid_profile" }));
   }
 
   await sql`
@@ -984,15 +1369,15 @@ export async function updateCalendarProfileAction(formData: FormData) {
       updated_at = now()
   `;
 
-  redirect(`/admin/appointments/availability?admin=${targetAdminId}&saved=profile`);
+  redirect(availabilityRedirect(formData, targetAdminId, "profile"));
 }
 
 export async function updateWeeklyAvailabilityAction(formData: FormData) {
   const admin = await requireAdmin();
   const targetAdminId = text(formData, "admin_user_id") || admin.id;
 
-  if (admin.role !== "master_admin" && targetAdminId !== admin.id) {
-    redirect("/admin/appointments/availability?error=not_allowed");
+  if (!(await canEditAvailability(targetAdminId, admin.id, admin.role === "master_admin"))) {
+    redirect(appendAdminQuery(redirectTo(formData, "/admin/calendar/availability"), { error: "not_allowed" }));
   }
 
   const sql = getSql();
@@ -1012,7 +1397,7 @@ export async function updateWeeklyAvailabilityAction(formData: FormData) {
     }
   }
 
-  redirect(`/admin/appointments/availability?admin=${targetAdminId}&saved=weekly`);
+  redirect(availabilityRedirect(formData, targetAdminId, "weekly"));
 }
 
 export async function createAvailabilityOverrideAction(formData: FormData) {
@@ -1023,12 +1408,12 @@ export async function createAvailabilityOverrideAction(formData: FormData) {
   const endsAt = parseDateTimeLocal(text(formData, "ends_at"));
   const reason = nullableText(formData, "reason");
 
-  if (admin.role !== "master_admin" && targetAdminId !== admin.id) {
-    redirect("/admin/appointments/availability?error=not_allowed");
+  if (!(await canEditAvailability(targetAdminId, admin.id, admin.role === "master_admin"))) {
+    redirect(appendAdminQuery(redirectTo(formData, "/admin/calendar/availability"), { error: "not_allowed" }));
   }
 
   if (!startsAt || !endsAt || startsAt >= endsAt) {
-    redirect(`/admin/appointments/availability?admin=${targetAdminId}&error=invalid_override`);
+    redirect(appendAdminQuery(availabilityRedirect(formData, targetAdminId), { error: "invalid_override" }));
   }
 
   const sql = getSql();
@@ -1037,7 +1422,7 @@ export async function createAvailabilityOverrideAction(formData: FormData) {
     values (${targetAdminId}, ${overrideType}, ${startsAt}, ${endsAt}, ${reason}, ${admin.id})
   `;
 
-  redirect(`/admin/appointments/availability?admin=${targetAdminId}&saved=override`);
+  redirect(availabilityRedirect(formData, targetAdminId, "override"));
 }
 
 export async function deleteAvailabilityOverrideAction(formData: FormData) {
@@ -1045,6 +1430,10 @@ export async function deleteAvailabilityOverrideAction(formData: FormData) {
   const id = text(formData, "id");
   const targetAdminId = text(formData, "admin_user_id") || admin.id;
   const sql = getSql();
+
+  if (!(await canEditAvailability(targetAdminId, admin.id, admin.role === "master_admin"))) {
+    redirect(appendAdminQuery(redirectTo(formData, "/admin/calendar/availability"), { error: "not_allowed" }));
+  }
 
   await sql`
     delete from availability_overrides
@@ -1055,5 +1444,5 @@ export async function deleteAvailabilityOverrideAction(formData: FormData) {
       )
   `;
 
-  redirect(`/admin/appointments/availability?admin=${targetAdminId}&saved=override_deleted`);
+  redirect(availabilityRedirect(formData, targetAdminId, "override_deleted"));
 }

@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONTAINER="djay-saas-pg-test-$$"
+
+cleanup() {
+  docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+docker run --rm --detach \
+  --name "$CONTAINER" \
+  --env POSTGRES_PASSWORD=djay_test \
+  --publish 127.0.0.1:55432:5432 \
+  --volume "$ROOT_DIR:/workspace:ro" \
+  postgres:16-alpine >/dev/null
+
+echo "Started PostgreSQL 16 test container."
+
+for _ in $(seq 1 60); do
+  if docker exec "$CONTAINER" pg_isready -U postgres >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.25
+done
+
+docker exec "$CONTAINER" pg_isready -U postgres >/dev/null
+echo "PostgreSQL is ready."
+
+run_sql() {
+  echo "Applying $1"
+  docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f "$1"
+}
+
+expect_failure() {
+  echo "Asserting failure for $1"
+  if docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres -f "$1" >/tmp/djay-db-expected-failure.log 2>&1; then
+    echo "Expected failure but SQL succeeded: $1" >&2
+    return 1
+  fi
+  tail -n 2 /tmp/djay-db-expected-failure.log
+}
+
+run_sql /workspace/packages/db/migrations/0000_roles.sql
+run_sql /workspace/packages/db/migrations/0001_identity_tenancy.sql
+run_sql /workspace/packages/db/migrations/0002_identity_hardening.sql
+run_sql /workspace/packages/db/migrations/0003_tenant_team_queries.sql
+run_sql /workspace/packages/db/migrations/0004_platform_identity.sql
+run_sql /workspace/packages/db/migrations/0005_tenant_mfa.sql
+run_sql /workspace/packages/db/migrations/0006_catalog_entitlements_usage.sql
+run_sql /workspace/packages/db/migrations/0007_shared_domain.sql
+run_sql /workspace/packages/db/migrations/0008_privacy_support_hardening.sql
+run_sql /workspace/packages/db/migrations/0009_flowbot_saas.sql
+run_sql /workspace/packages/db/migrations/0010_flowbot_public_runtime.sql
+run_sql /workspace/packages/db/migrations/0011_flowbot_premium_workers.sql
+run_sql /workspace/packages/db/migrations/0012_flowbot_integration_dispatch.sql
+run_sql /workspace/packages/db/migrations/0013_flowbot_session_sync.sql
+run_sql /workspace/packages/db/migrations/0014_flowbot_operations.sql
+run_sql /workspace/packages/db/migrations/0015_flowbot_release_operations.sql
+run_sql /workspace/packages/db/migrations/0016_flowbot_lead_notifications.sql
+run_sql /workspace/packages/db/migrations/0017_ai_chat_saas.sql
+run_sql /workspace/packages/db/migrations/0018_ai_chat_public_runtime.sql
+run_sql /workspace/packages/db/migrations/0019_ai_chat_notifications.sql
+docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  -c "ALTER ROLE djay_auth_runtime LOGIN PASSWORD 'djay_auth_test'" >/dev/null
+docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  -c "ALTER ROLE djay_runtime LOGIN PASSWORD 'djay_tenant_test'" >/dev/null
+docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  -c "ALTER ROLE djay_worker LOGIN PASSWORD 'djay_worker_test'" >/dev/null
+docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  -c "ALTER ROLE djay_platform LOGIN PASSWORD 'djay_platform_test'" >/dev/null
+docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  -c "ALTER ROLE djay_flowbot_runtime LOGIN PASSWORD 'djay_flowbot_test'" >/dev/null
+docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  -c "ALTER ROLE djay_ai_runtime LOGIN PASSWORD 'djay_ai_test'" >/dev/null
+run_sql /workspace/packages/db/tests/seed.sql
+run_sql /workspace/packages/db/tests/rls-isolation.sql
+expect_failure /workspace/packages/db/tests/cross-tenant-insert-must-fail.sql
+expect_failure /workspace/packages/db/tests/cross-tenant-reference-must-fail.sql
+expect_failure /workspace/packages/db/tests/last-owner-must-fail.sql
+run_sql /workspace/packages/db/tests/owner-transfer.sql
+
+echo "Running platform identity integration test."
+PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:55432/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/platform-auth-store.integration.test.ts
+
+echo "Running email outbox worker integration test."
+WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:55432/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/email-outbox-store.integration.test.ts
+
+echo "Running auth repository integration test."
+DATABASE_URL="postgresql://djay_auth_runtime:djay_auth_test@127.0.0.1:55432/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/auth-store.integration.test.ts
+
+echo "Running tenant repository integration test."
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/tenant-workspace-store.integration.test.ts
+
+echo "Running catalog, subscription, entitlement, usage, and webhook integration test."
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:55432/postgres" \
+PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:55432/postgres" \
+WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:55432/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/commerce-store.integration.test.ts
+
+echo "Running shared contacts, conversations, knowledge, actions, and privacy integration test."
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:55432/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/shared-domain-store.integration.test.ts
+
+echo "Running encrypted privacy export and erasure integration test."
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:55432/postgres" \
+WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:55432/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/privacy-store.integration.test.ts
+
+echo "Running two-person platform support access integration test."
+PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:55432/postgres" \
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:55432/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/platform-support-store.integration.test.ts
+
+echo "Running FlowBot Basic and Premium authoring integration test."
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:55432/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/flowbot-store.integration.test.ts
+
+echo "Running restricted FlowBot public runtime integration test."
+FLOWBOT_DATABASE_URL="postgresql://djay_flowbot_runtime:djay_flowbot_test@127.0.0.1:55432/postgres" \
+WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:55432/postgres" \
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:55432/postgres" \
+PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:55432/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/flowbot-runtime-store.integration.test.ts
+
+echo "Running restricted AI Chat Basic authoring and public runtime integration test."
+AI_DATABASE_URL="postgresql://djay_ai_runtime:djay_ai_test@127.0.0.1:55432/postgres" \
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:55432/postgres" \
+WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:55432/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/ai-chat-runtime-store.integration.test.ts
+
+echo "PostgreSQL 16 migration, RLS, scoped repositories, same-tenant references, and owner invariants passed."

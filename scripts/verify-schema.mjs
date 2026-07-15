@@ -12,11 +12,13 @@ function assertIncludes(value, message) {
 const requiredTables = [
   "settings",
   "conversations",
+  "conversation_messages",
   "leads",
   "admin_users",
   "admin_calendar_profiles",
   "availability_rules",
   "availability_overrides",
+  "booking_links",
   "meeting_types",
   "appointments",
 ];
@@ -36,9 +38,15 @@ const requiredSettingsColumns = [
   "analysis_model_id text",
   "booking_enabled boolean",
   "active_booking_admin_id uuid references admin_users(id)",
+  "active_booking_link_id uuid",
   "default_timezone text",
   "require_booking_confirmation boolean",
   "default_booking_window_days int",
+  "text_chat_enabled boolean",
+  "text_chat_model_id text",
+  "text_chat_greeting text",
+  "text_chat_max_messages int",
+  "text_chat_daily_session_cap int",
 ];
 const requiredConversationColumns = [
   "started_at timestamptz",
@@ -63,6 +71,21 @@ const requiredConversationColumns = [
   "starred boolean",
   "deleted_at timestamptz",
   "assigned_admin_id uuid references admin_users(id)",
+  "channel text",
+  "interaction_mode text",
+  "provider text",
+  "model_id text",
+  "last_message_at timestamptz",
+  "message_count int",
+];
+const requiredConversationMessageColumns = [
+  "conversation_id uuid not null references conversations(id)",
+  "channel text not null",
+  "role text not null",
+  "content text not null",
+  "token_count int",
+  "metadata jsonb",
+  "created_at timestamptz not null",
 ];
 const requiredLeadColumns = [
   "conversation_id uuid references conversations(id)",
@@ -85,6 +108,8 @@ const requiredLeadColumns = [
   "admin_notes text",
   "assigned_admin_id uuid references admin_users(id)",
   "updated_at timestamptz",
+  "source_channel text",
+  "source_mode text",
 ];
 const requiredAdminUserColumns = [
   "name text not null",
@@ -121,6 +146,24 @@ const requiredAvailabilityColumns = [
   "ends_at timestamptz not null",
   "created_by_admin_id uuid references admin_users(id)",
 ];
+const requiredBookingLinkColumns = [
+  "owner_admin_id uuid not null references admin_users(id)",
+  "name text not null",
+  "slug text unique not null",
+  "title text not null",
+  "description text",
+  "meeting_location text",
+  "duration_minutes int not null",
+  "buffer_before_minutes int not null",
+  "buffer_after_minutes int not null",
+  "minimum_notice_minutes int not null",
+  "max_bookings_per_day int",
+  "booking_window_days int not null",
+  "require_confirmation boolean not null",
+  "is_active boolean not null",
+  "is_ai_active boolean not null",
+  "deleted_at timestamptz",
+];
 const requiredMeetingTypeColumns = [
   "name text not null",
   "duration_minutes int not null",
@@ -133,6 +176,7 @@ const requiredAppointmentColumns = [
   "assigned_admin_id uuid references admin_users(id)",
   "assigned_admin_name_snapshot text",
   "meeting_type_id uuid references meeting_types(id)",
+  "booking_link_id uuid references booking_links(id)",
   "status text not null",
   "source text not null",
   "start_at timestamptz not null",
@@ -159,15 +203,26 @@ const requiredIndexes = [
   "admin_users_role_idx",
   "admin_users_deleted_at_idx",
   "conversations_assigned_admin_idx",
+  "conversations_channel_started_idx",
+  "conversations_channel_interest_idx",
   "leads_assigned_admin_idx",
+  "leads_status_channel_updated_idx",
   "admin_calendar_profiles_admin_unique",
   "admin_calendar_profiles_admin_idx",
   "availability_rules_admin_weekday_idx",
   "availability_overrides_admin_time_idx",
+  "booking_links_slug_unique",
+  "booking_links_owner_idx",
+  "booking_links_active_idx",
+  "booking_links_single_ai_active_idx",
   "appointments_assigned_admin_time_idx",
   "appointments_lead_idx",
   "appointments_conversation_idx",
+  "appointments_booking_link_idx",
   "appointments_status_idx",
+  "appointments_source_start_idx",
+  "conversation_messages_conversation_time_idx",
+  "conversation_messages_channel_time_idx",
 ];
 
 for (const table of requiredTables) {
@@ -177,10 +232,12 @@ for (const table of requiredTables) {
 for (const column of [
   ...requiredSettingsColumns,
   ...requiredConversationColumns,
+  ...requiredConversationMessageColumns,
   ...requiredLeadColumns,
   ...requiredAdminUserColumns,
   ...requiredCalendarColumns,
   ...requiredAvailabilityColumns,
+  ...requiredBookingLinkColumns,
   ...requiredMeetingTypeColumns,
   ...requiredAppointmentColumns,
 ]) {

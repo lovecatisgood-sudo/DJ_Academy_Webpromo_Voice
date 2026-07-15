@@ -1,0 +1,101 @@
+import { parse32ByteSecret } from "@djay/auth";
+import {
+  AiChatNotificationWorkerStore, createDatabaseClient, FlowbotNotificationWorkerStore, FlowbotWorkerStore,
+  PostgresEmailOutboxStore, PrivacyStore,
+} from "@djay/db";
+import { createHttpEmailDelivery, runAiChatMerchantEmail, runEmailBatch, runFlowbotMerchantEmail } from "@djay/notifications";
+import { z } from "zod";
+import { deliverFlowbotIntegration } from "./flowbot-integration";
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  WORKER_DATABASE_URL: z.string().url(),
+  AUTH_EMAIL_ENVELOPE_KEY: z.string().min(40).optional(),
+  EMAIL_DELIVERY_MODE: z.enum(["disabled", "http"]).default("disabled"),
+  EMAIL_DELIVERY_ENDPOINT: z.string().url().optional(),
+  EMAIL_DELIVERY_API_TOKEN: z.string().min(16).optional(),
+  EMAIL_FROM: z.string().min(3).max(320).optional(),
+  EMAIL_WORKER_INTERVAL_MS: z.coerce.number().int().min(250).max(60_000).default(2_000),
+  EMAIL_WORKER_ONCE: z.enum(["true", "false"]).default("false"),
+  PRIVACY_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  PRIVACY_EXPORT_KEY: z.string().min(40).optional(),
+  FLOWBOT_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  FLOWBOT_INTEGRATION_ENVELOPE_KEY: z.string().min(40).optional(),
+  FLOWBOT_NOTIFICATION_ENVELOPE_KEY: z.string().min(40).optional(),
+  AI_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  AI_NOTIFICATION_ENVELOPE_KEY: z.string().min(40).optional(),
+}).passthrough();
+
+const env = envSchema.parse(process.env);
+if (env.NODE_ENV === "production" && env.EMAIL_DELIVERY_MODE !== "http") throw new Error("EMAIL_DELIVERY_MODE=http is required in production.");
+if (env.NODE_ENV === "production" && env.PRIVACY_WORKER_ENABLED !== "true") throw new Error("PRIVACY_WORKER_ENABLED=true is required in production.");
+if (env.NODE_ENV === "production" && env.FLOWBOT_WORKER_ENABLED !== "true") throw new Error("FLOWBOT_WORKER_ENABLED=true is required in production.");
+if (env.NODE_ENV === "production" && env.AI_WORKER_ENABLED !== "true") throw new Error("AI_WORKER_ENABLED=true is required in production.");
+if (env.EMAIL_DELIVERY_MODE === "http" && (!env.EMAIL_DELIVERY_ENDPOINT || !env.EMAIL_DELIVERY_API_TOKEN || !env.EMAIL_FROM || !env.AUTH_EMAIL_ENVELOPE_KEY)) {
+  throw new Error("HTTP email delivery configuration is incomplete.");
+}
+if (env.PRIVACY_WORKER_ENABLED === "true" && !env.PRIVACY_EXPORT_KEY) throw new Error("PRIVACY_EXPORT_KEY is required when privacy processing is enabled.");
+if (env.FLOWBOT_WORKER_ENABLED === "true" && !env.FLOWBOT_INTEGRATION_ENVELOPE_KEY) throw new Error("FLOWBOT_INTEGRATION_ENVELOPE_KEY is required when FlowBot processing is enabled.");
+if (env.FLOWBOT_WORKER_ENABLED === "true" && !env.FLOWBOT_NOTIFICATION_ENVELOPE_KEY) throw new Error("FLOWBOT_NOTIFICATION_ENVELOPE_KEY is required when FlowBot processing is enabled.");
+if (env.AI_WORKER_ENABLED === "true" && !env.AI_NOTIFICATION_ENVELOPE_KEY) throw new Error("AI_NOTIFICATION_ENVELOPE_KEY is required when AI processing is enabled.");
+
+const client = createDatabaseClient(env.WORKER_DATABASE_URL);
+const emailStore = new PostgresEmailOutboxStore(client);
+const privacyStore = new PrivacyStore(client);
+const flowbotWorker = new FlowbotWorkerStore(client);
+const flowbotNotificationWorker = new FlowbotNotificationWorkerStore(client);
+const aiChatNotificationWorker = new AiChatNotificationWorkerStore(client);
+const delivery = env.EMAIL_DELIVERY_MODE === "http" ? createHttpEmailDelivery({
+  endpoint: env.EMAIL_DELIVERY_ENDPOINT!, apiToken: env.EMAIL_DELIVERY_API_TOKEN!, from: env.EMAIL_FROM!,
+}) : null;
+const emailEnvelopeKey = env.AUTH_EMAIL_ENVELOPE_KEY ? parse32ByteSecret(env.AUTH_EMAIL_ENVELOPE_KEY, "AUTH_EMAIL_ENVELOPE_KEY") : null;
+const privacyExportKey = env.PRIVACY_EXPORT_KEY ? parse32ByteSecret(env.PRIVACY_EXPORT_KEY, "PRIVACY_EXPORT_KEY") : null;
+const flowbotIntegrationKey = env.FLOWBOT_INTEGRATION_ENVELOPE_KEY ? parse32ByteSecret(env.FLOWBOT_INTEGRATION_ENVELOPE_KEY, "FLOWBOT_INTEGRATION_ENVELOPE_KEY") : null;
+const flowbotNotificationKey = env.FLOWBOT_NOTIFICATION_ENVELOPE_KEY ? parse32ByteSecret(env.FLOWBOT_NOTIFICATION_ENVELOPE_KEY, "FLOWBOT_NOTIFICATION_ENVELOPE_KEY") : null;
+const aiNotificationKey = env.AI_NOTIFICATION_ENVELOPE_KEY ? parse32ByteSecret(env.AI_NOTIFICATION_ENVELOPE_KEY, "AI_NOTIFICATION_ENVELOPE_KEY") : null;
+let stopping = false;
+
+process.on("SIGTERM", () => { stopping = true; });
+process.on("SIGINT", () => { stopping = true; });
+
+do {
+  if (delivery && emailEnvelopeKey) {
+    const result = await runEmailBatch(emailStore, delivery, emailEnvelopeKey);
+    if (result.claimed > 0) console.info("email_batch_complete", result);
+  }
+  if (env.PRIVACY_WORKER_ENABLED === "true" && privacyExportKey) {
+    const result = await privacyStore.processNext(privacyExportKey);
+    if (result.status === "completed") console.info("privacy_job_complete", { jobId: result.jobId, jobType: result.jobType });
+  }
+  if (env.FLOWBOT_WORKER_ENABLED === "true") {
+    const result = await flowbotWorker.processNextTimer();
+    if (result.status !== "idle") console.info("flowbot_timer_result", result);
+    if (flowbotIntegrationKey) {
+      const dispatch = await flowbotWorker.claimNextDispatch();
+      if (dispatch) {
+        try {
+          await deliverFlowbotIntegration(dispatch, flowbotIntegrationKey);
+          await flowbotWorker.completeDispatch(dispatch, true);
+          console.info("flowbot_dispatch_succeeded", { dispatchId: dispatch.dispatchId });
+        } catch (error) {
+          const errorCode = error instanceof Error ? error.message.slice(0, 100) : "delivery_failed";
+          if (dispatch.attemptCount >= 10) await flowbotWorker.completeDispatch(dispatch, false, errorCode);
+          else await flowbotWorker.finishDispatch(dispatch.dispatchId, false, errorCode);
+          console.warn("flowbot_dispatch_failed", { dispatchId: dispatch.dispatchId, errorCode });
+        }
+      }
+    }
+    if (delivery && flowbotNotificationKey) {
+      const notification = await runFlowbotMerchantEmail(flowbotNotificationWorker, delivery, flowbotNotificationKey);
+      if (notification.status !== "idle") console.info("flowbot_notification_result", notification);
+    }
+  }
+  if (env.AI_WORKER_ENABLED === "true" && delivery && aiNotificationKey) {
+    const notification = await runAiChatMerchantEmail(aiChatNotificationWorker, delivery, aiNotificationKey);
+    if (notification.status !== "idle") console.info("ai_chat_notification_result", notification);
+  }
+  if (env.EMAIL_WORKER_ONCE === "true") break;
+  await new Promise((resolve) => setTimeout(resolve, env.EMAIL_WORKER_INTERVAL_MS));
+} while (!stopping);
+
+await client.end({ timeout: 5 });

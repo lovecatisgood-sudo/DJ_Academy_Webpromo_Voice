@@ -13,9 +13,15 @@ export type SettingsInput = {
   analysis_model_id?: unknown;
   booking_enabled?: unknown;
   active_booking_admin_id?: unknown;
+  active_booking_link_id?: unknown;
   default_timezone?: unknown;
   require_booking_confirmation?: unknown;
   default_booking_window_days?: unknown;
+  text_chat_enabled?: unknown;
+  text_chat_model_id?: unknown;
+  text_chat_greeting?: unknown;
+  text_chat_max_messages?: unknown;
+  text_chat_daily_session_cap?: unknown;
 };
 
 export type NormalizedSettings = {
@@ -33,9 +39,15 @@ export type NormalizedSettings = {
   analysis_model_id?: string;
   booking_enabled?: boolean;
   active_booking_admin_id?: string | null;
+  active_booking_link_id?: string | null;
   default_timezone?: string;
   require_booking_confirmation?: boolean;
   default_booking_window_days?: number;
+  text_chat_enabled?: boolean;
+  text_chat_model_id?: string;
+  text_chat_greeting?: string;
+  text_chat_max_messages?: number;
+  text_chat_daily_session_cap?: number;
 };
 
 function cleanString(value: unknown, maxLength: number) {
@@ -90,6 +102,14 @@ export function normalizeSettingsInput(input: SettingsInput, mode: "form" | "pat
     output.booking_enabled = input.booking_enabled === "on";
   }
 
+  if (typeof input.text_chat_enabled === "boolean") {
+    output.text_chat_enabled = input.text_chat_enabled;
+  }
+
+  if (mode === "form" && input.text_chat_enabled !== undefined) {
+    output.text_chat_enabled = input.text_chat_enabled === "on";
+  }
+
   if (typeof input.require_booking_confirmation === "boolean") {
     output.require_booking_confirmation = input.require_booking_confirmation;
   }
@@ -124,6 +144,18 @@ export function normalizeSettingsInput(input: SettingsInput, mode: "form" | "pat
     output.daily_session_cap = dailySessionCap;
   }
 
+  if (input.text_chat_max_messages !== undefined) {
+    const maxMessages = clampNumber(input.text_chat_max_messages, 1, 200);
+    if (!maxMessages) throw new Error("Text chat max messages is invalid.");
+    output.text_chat_max_messages = maxMessages;
+  }
+
+  if (input.text_chat_daily_session_cap !== undefined) {
+    const dailyTextCap = clampNumber(input.text_chat_daily_session_cap, 1, 5000);
+    if (!dailyTextCap) throw new Error("Text chat daily cap is invalid.");
+    output.text_chat_daily_session_cap = dailyTextCap;
+  }
+
   if (input.default_booking_window_days !== undefined) {
     const bookingWindowDays = clampNumber(input.default_booking_window_days, 1, 365);
     if (!bookingWindowDays) throw new Error("Booking window is invalid.");
@@ -156,6 +188,13 @@ export function normalizeSettingsInput(input: SettingsInput, mode: "form" | "pat
     output.analysis_model_id = requiredIdentifier(input.analysis_model_id, "Analysis model ID");
   }
 
+  if (input.text_chat_model_id !== undefined) {
+    output.text_chat_model_id = requiredIdentifier(input.text_chat_model_id, "Text chat model ID");
+  }
+
+  const textChatGreeting = cleanString(input.text_chat_greeting, 4000);
+  if (textChatGreeting !== undefined) output.text_chat_greeting = textChatGreeting;
+
   if (input.active_booking_admin_id !== undefined) {
     const value = cleanString(input.active_booking_admin_id, 80);
     if (!value) {
@@ -164,6 +203,17 @@ export function normalizeSettingsInput(input: SettingsInput, mode: "form" | "pat
       output.active_booking_admin_id = value;
     } else {
       throw new Error("Active booking admin is invalid.");
+    }
+  }
+
+  if (input.active_booking_link_id !== undefined) {
+    const value = cleanString(input.active_booking_link_id, 80);
+    if (!value) {
+      output.active_booking_link_id = null;
+    } else if (/^[0-9a-fA-F-]{36}$/.test(value)) {
+      output.active_booking_link_id = value;
+    } else {
+      throw new Error("Active booking link is invalid.");
     }
   }
 

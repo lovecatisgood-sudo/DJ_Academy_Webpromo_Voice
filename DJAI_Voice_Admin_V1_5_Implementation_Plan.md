@@ -7,6 +7,18 @@
 
 ---
 
+## Calendar Correction Notice
+
+The calendar/booking portions of this original V1.5 plan are superseded by:
+
+```text
+DJAI_Calendar_Booking_Link_Rebuild_Implementation_Plan.md
+```
+
+Reason: the implemented appointment module created useful primitives, but the product model was incomplete. The corrected design starts with calendar setup, centers booking links as the scheduling object, allows master admin to select one active AI booking link, and requires the admin calendar to render as a real week time-grid calendar rather than a grouped appointment table.
+
+---
+
 ## Implementation Goal
 
 After this plan is executed, the app should support:

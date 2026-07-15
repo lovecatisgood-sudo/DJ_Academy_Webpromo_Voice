@@ -4,9 +4,22 @@
 **Version:** 1.5 final plan  
 **Date:** 13 July 2026  
 **Owner:** DJAI Academy  
-**Status:** Product plan for implementation
+**Status:** Product plan updated with corrected calendar/booking-link flow
 
 ---
+
+## V2 Planning Note
+
+The next planned product expansion is documented separately as:
+
+```text
+DJAI_Agent_Widget_V2_PRD.md
+DJAI_Agent_Widget_V2_Architecture.md
+DJAI_Agent_Widget_V2_UIUX.md
+DJAI_Agent_Widget_V2_Implementation_Plan.md
+```
+
+V2 adds a text chatbot beside the voicebot in the same visitor widget section, while sharing the same backend, knowledge document, lead pipeline, booking-link CTA, calendar, and admin dashboard. V1.5 remains the implemented voice-agent/admin/calendar foundation.
 
 ## 1. Product Goal
 
@@ -26,6 +39,8 @@ The admin system's job is follow-up operations:
 
 This version is not a full Calendly clone and not a full CRM. It is the minimum production-grade appointment and follow-up layer needed for the voice-agent sales product.
 
+Important correction added 13 July 2026: the calendar product must start from calendar setup and booking-link creation. The central object is a booking link/meeting type, not only an admin calendar profile. The admin calendar UI must look and behave like a real calendar workspace, similar in clarity to Google Calendar, not a grouped appointment table.
+
 ---
 
 ## 2. Product Principles
@@ -34,7 +49,7 @@ This version is not a full Calendly clone and not a full CRM. It is the minimum 
 2. **Voice sells; text model summarizes.** Realtime voice handles the call. A cheaper text model handles post-call intelligence.
 3. **Lead capture comes before booking.** The AI should collect contact details before showing the booking link.
 4. **Booking is the conversion handoff.** The AI should not read long URLs aloud; the widget should show a clear booking CTA.
-5. **Master admin controls the operation.** Master admin can create admins, delete/deactivate admins, view all calendars, and set the active AI booking admin.
+5. **Master admin controls the operation.** Master admin can create admins, delete/deactivate admins, view all calendars, and set the active AI booking link.
 6. **Normal admin gets a personal work desk.** Normal admins see their own leads, appointments, and availability, not company-wide controls.
 7. **Admin is the final authority.** AI fills summaries and suggestions; admins can edit statuses, notes, contact fields, and appointments.
 8. **No V2 infrastructure creep.** No calendar OAuth, Google/Outlook sync, email invites, notifications, payments, RAG, workers, Redis, or multi-tenancy in this version.
@@ -99,7 +114,7 @@ Normal admin cannot:
 
 - Create/delete admins.
 - View all-admin calendars.
-- Set the active AI booking admin.
+- Set the active AI booking link.
 - Change global voice/provider/knowledge settings.
 - Delete conversations globally.
 - Export all company records unless later allowed.
@@ -129,7 +144,7 @@ Master admin guardrails:
 - Cannot delete or downgrade the last remaining master admin.
 - Deleting an admin is soft delete.
 - Historical records remain visible after admin deletion.
-- If deleting the active booking admin, master admin must choose a replacement or disable booking.
+- If deleting an admin who owns the active AI booking link, master admin must choose a replacement booking link or disable booking.
 
 ---
 
@@ -269,19 +284,36 @@ Admin actions:
 - Mark no-show
 - Add notes
 
-### F. Availability And Booking
+### F. Calendar, Availability, And Booking Links
 
 Each admin can have a calendar profile.
 
 Calendar profile fields:
 
 - Display name
-- Booking slug
 - Timezone
-- Meeting title
-- Meeting location/link/instruction
-- Default meeting duration
 - Active/inactive
+
+Each admin can create one or more booking links.
+
+Booking link fields:
+
+- Owner admin
+- Link name, for internal admin display
+- Public slug, for example `/book/free-consultation`
+- Meeting title shown to visitors
+- Meeting description/instructions
+- Meeting location or call link
+- Duration in minutes, with UI presets and custom input
+- Active/inactive
+- Require admin confirmation
+- Booking window days
+- Minimum notice
+- Buffer before
+- Buffer after
+- Max bookings per day
+- Required fields, V1.5 fixed to name and email
+- Optional fields, V1.5 fixed to phone, LINE, WhatsApp, company, note
 
 Availability:
 
@@ -298,18 +330,41 @@ Availability:
   - Maximum bookings per day
   - Booking window, for example 30 days ahead
 
-Only one admin calendar is active for AI-agent booking at a time:
+Only one booking link is active for AI-agent booking at a time:
 
-- Stored as `active_booking_admin_id`.
+- Stored as active AI booking link.
 - Master admin can change it.
 - If none is selected, booking CTA is disabled.
+- The AI/widget booking CTA must use the active AI booking link, not any random admin calendar slug.
+- Public booking pages for inactive links should show unavailable or 404 depending on admin setting.
+
+Calendar setup must be first-run aware:
+
+- If an admin has no calendar profile, weekly hours, or booking link, show a setup flow instead of an empty appointment table.
+- Setup must guide the admin through calendar profile, weekly availability, blocked time, and booking link creation.
+- After setup, the admin lands on the calendar dashboard.
+
+Calendar dashboard requirements:
+
+- Must visually look like a real calendar, not a table.
+- Must support at least week view in V1.5 rebuild.
+- Day and month views are desirable if feasible in the same phase, but week view is the minimum.
+- Show time rows and day columns.
+- Show appointments as blocks positioned by time.
+- Show blocked time as muted/striped blocks.
+- Show pending appointments in amber.
+- Show confirmed appointments in cyan/blue.
+- Show completed appointments in green.
+- Show cancelled/rejected appointments muted.
+- Clicking an appointment opens a detail side panel.
+- Empty available slots should be visible or previewable in the availability screen.
 
 ### G. Public Booking Page
 
 Public booking page:
 
-- URL by booking slug, for example `/book/dj`.
-- Shows available days and time slots.
+- URL by booking link slug, for example `/book/free-consultation`.
+- Shows a customer-friendly booking flow: choose date, choose time, enter details, request appointment.
 - Requires name and email.
 - Optional phone, LINE, WhatsApp, company, note.
 - Supports prefilled fields from voice-agent lead context.
@@ -323,7 +378,7 @@ After the voice agent gets appointment agreement and captures lead details:
 
 1. Voice agent calls `capture_lead`.
 2. Widget shows `Book consultation` CTA.
-3. CTA opens public booking page with signed lead/conversation context.
+3. CTA opens the active AI booking link with signed lead/conversation context.
 4. Visitor chooses a time.
 5. Appointment appears in admin as `pending_confirmation`.
 6. Admin confirms or rejects.
@@ -338,7 +393,7 @@ Master admin sees:
 - All-admin appointment queues.
 - All-admin calendar.
 - Team page.
-- Active AI booking admin controls.
+- Active AI booking link controls.
 
 Normal admin sees:
 
@@ -407,13 +462,66 @@ CSV must escape formula-like values starting with `=`, `+`, `-`, or `@`.
 1. Visitor agrees to consultation.
 2. Voice agent collects contact details first.
 3. Voice agent captures lead.
-4. Widget shows booking CTA.
-5. Visitor opens booking page.
-6. Visitor selects available slot.
-7. Visitor submits required name/email and optional contact details.
-8. Appointment is created as `pending_confirmation`.
-9. Lead status becomes `appointment_set` or remains linked to pending appointment depending on UI language.
-10. Assigned admin/master admin confirms or rejects.
+4. Backend returns the active AI booking link if booking is enabled and configured.
+5. Widget shows booking CTA.
+6. Visitor opens booking page with lead details prefilled.
+7. Visitor chooses date.
+8. Visitor chooses available time.
+9. Visitor submits required name/email and optional contact details.
+10. Appointment is created as `pending_confirmation`.
+11. Lead status becomes `appointment_set` or remains linked to pending appointment depending on UI language.
+12. Assigned admin/master admin confirms or rejects.
+
+### Flow B2: First-Time Calendar Setup
+
+1. Admin opens Calendar.
+2. If no usable calendar profile, weekly availability, or booking link exists, show setup flow.
+3. Admin creates calendar profile:
+   - display name
+   - timezone
+   - meeting location or default call link
+4. Admin sets weekly availability:
+   - toggle each day available/unavailable
+   - add one or more time ranges per day
+   - optional copy weekday schedule
+5. Admin adds blocked time if needed:
+   - full day block
+   - specific time block
+   - optional reason
+6. Admin creates a booking link:
+   - link name
+   - public slug
+   - duration in minutes
+   - meeting title
+   - location/link
+   - booking window
+   - minimum notice
+   - buffer before/after
+7. Master admin can set this booking link as active for the AI.
+8. Setup completion redirects to Calendar dashboard.
+
+### Flow B3: Admin Creates Booking Link
+
+1. Admin opens Calendar Links.
+2. Clicks Create booking link.
+3. Chooses the owner admin, master only. Normal admin defaults to self.
+4. Enters link name and slug.
+5. Chooses meeting duration:
+   - 15 minutes
+   - 30 minutes
+   - 45 minutes
+   - 60 minutes
+   - custom minute input
+6. Enters meeting title and meeting location/link.
+7. Sets booking rules:
+   - booking window
+   - minimum notice
+   - buffer before
+   - buffer after
+   - max bookings per day
+   - require confirmation
+8. Saves link.
+9. Master admin may set it as the active AI booking link.
 
 ### Flow C: Master Admin Creates Admin
 
@@ -430,10 +538,10 @@ CSV must escape formula-like values starting with `=`, `+`, `-`, or `@`.
 3. System checks:
    - Is this the current user?
    - Is this the last master admin?
-   - Is this the active booking admin?
+   - Does this admin own the active AI booking link?
    - Does this admin have future appointments?
 4. If future appointments exist, master admin chooses reassign, leave unassigned, or cancel.
-5. If active booking admin, master admin selects replacement or disables booking.
+5. If the admin owns the active AI booking link, master admin selects a replacement booking link or disables booking.
 6. Admin is soft-deleted and cannot log in.
 7. Historical records remain visible.
 
@@ -448,19 +556,21 @@ CSV must escape formula-like values starting with `=`, `+`, `-`, or `@`.
 
 ### Flow F: Master Admin Views All Calendars
 
-1. Master admin opens Appointments.
-2. Selects Calendar view.
-3. Uses filter: All admins or one admin.
-4. Reviews pending, confirmed, blocked, completed, no-show, cancelled slots.
-5. Opens appointment drawer to confirm, reject, reassign, or update status.
+1. Master admin opens Calendar.
+2. Calendar opens in week view by default.
+3. Master can filter by all admins or one admin.
+4. Reviews pending, confirmed, blocked, completed, no-show, cancelled slots in a real time-grid calendar.
+5. Opens appointment side panel to confirm, reject, reassign, reschedule, cancel, complete, no-show, or add notes.
 
 ### Flow G: Availability Management
 
-1. Admin opens personal availability.
+1. Admin opens Calendar Availability.
 2. Sets weekly availability.
 3. Adds blocked full days or time ranges.
-4. Saves.
-5. Public booking page immediately uses updated slots.
+4. Adds extra available time if needed.
+5. Opens preview tab to confirm bookable slots are generated correctly.
+6. Saves.
+7. Public booking page immediately uses updated slots.
 
 Master admin can do this for any admin.
 
@@ -477,7 +587,7 @@ Master admin:
 - Pending confirmation queue.
 - Today's appointments.
 - High-interest leads.
-- Warnings for no active booking admin or no availability.
+- Warnings for no active AI booking link or no availability.
 
 Normal admin:
 
@@ -505,15 +615,37 @@ Normal admin:
 - Notes preview.
 - CSV export, master company-wide and normal scoped.
 
-### Appointments
+### Calendar
 
-- List and calendar view.
-- Status filters.
-- Date controls.
+- First-run setup screen when no calendar/link exists.
+- Real calendar dashboard, week view minimum.
+- Day columns and time rows.
+- Appointment blocks positioned by time.
+- Blocked-time blocks.
+- Date controls: today, previous, next, selected week/date.
+- View controls: week minimum, day/month/list if feasible.
 - Master admin filter by all/specific admin.
 - Normal admin scoped to self.
 - Detail drawer.
 - Confirm/reject/reschedule/cancel/complete/no-show actions.
+
+### Booking Links
+
+- List booking links.
+- Create booking link.
+- Edit booking link.
+- Activate/deactivate booking link.
+- Master can set one booking link as active AI booking link.
+- Normal admin can manage own links if allowed.
+- Link detail shows public URL, duration, owner admin, availability status, upcoming appointments.
+
+### Availability
+
+- Weekly hours editor.
+- Date-specific blocked time.
+- Date-specific extra availability.
+- Slot preview.
+- Clear warning when no available slots are generated.
 
 ### Team
 
@@ -525,7 +657,7 @@ Master-only.
 - Deactivate.
 - Delete.
 - View calendar.
-- Set active AI booking admin.
+- Set active AI booking link.
 - View deleted/deactivated admins.
 
 ### Settings
@@ -537,7 +669,7 @@ Master settings:
 - Knowledge document.
 - Post-call analysis.
 - Booking settings.
-- Active AI booking admin.
+- Active AI booking link.
 
 Normal admin settings:
 
@@ -564,8 +696,11 @@ V1.5 is successful when:
 - Master admin can create, edit, deactivate, and delete admins safely.
 - Normal admins can log in and see only their scoped work.
 - Master admin can view all admins' calendars.
-- Only one admin calendar can be selected for AI booking.
+- Only one booking link can be selected for AI booking.
 - Admin availability produces accurate public booking slots.
+- Calendar dashboard looks like a real calendar with time grid and event blocks.
+- Admin can create a booking link with duration and booking rules.
+- Active AI booking link is the only link used by the voice widget CTA.
 - Visitor can book after a voice-agent lead capture.
 - Appointment appears in admin as pending confirmation.
 - Admin can confirm/reject appointment.
@@ -582,11 +717,13 @@ Recommended build order:
 
 1. Multi-admin auth foundation and role permissions.
 2. Team page for master admin.
-3. Appointment data model and appointment list.
-4. Availability model and editor.
-5. Public booking page and slot calculation.
-6. Voice widget booking CTA after lead capture.
-7. Master all-admin calendar view.
-8. Normal admin scoped overview/leads/conversations.
-9. CSV export for appointments.
-10. Final acceptance run.
+3. Booking-link data model.
+4. Calendar setup flow.
+5. Availability model and editor.
+6. Real calendar dashboard with week view.
+7. Public booking page and slot calculation.
+8. Voice widget booking CTA after lead capture.
+9. Master all-admin calendar view.
+10. Normal admin scoped overview/leads/conversations.
+11. CSV export for appointments.
+12. Final acceptance run.

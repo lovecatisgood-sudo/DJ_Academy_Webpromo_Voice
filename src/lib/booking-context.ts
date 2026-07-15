@@ -10,6 +10,8 @@ export type BookingContext = {
   phone: string | null;
   lineId: string | null;
   whatsapp: string | null;
+  sourceChannel?: string | null;
+  sourceMode?: string | null;
   expiresAt: number;
 };
 
@@ -58,6 +60,8 @@ export function verifyBookingContext(token: string | null | undefined): BookingC
       phone: typeof parsed.phone === "string" ? parsed.phone : null,
       lineId: typeof parsed.lineId === "string" ? parsed.lineId : null,
       whatsapp: typeof parsed.whatsapp === "string" ? parsed.whatsapp : null,
+      sourceChannel: typeof parsed.sourceChannel === "string" ? parsed.sourceChannel : null,
+      sourceMode: typeof parsed.sourceMode === "string" ? parsed.sourceMode : null,
       expiresAt: parsed.expiresAt,
     };
   } catch {

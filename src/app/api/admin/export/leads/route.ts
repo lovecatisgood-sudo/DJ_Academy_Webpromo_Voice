@@ -14,10 +14,15 @@ function statusValue(value: string | null) {
     : "all";
 }
 
+function channelValue(value: string | null) {
+  return value === "voice_widget" || value === "text_widget" ? value : "all";
+}
+
 export async function GET(request: Request) {
   const admin = await requireAdmin();
   const params = new URL(request.url).searchParams;
   const status = statusValue(params.get("status"));
+  const channel = channelValue(params.get("channel"));
   const q = (params.get("q") || "").trim().slice(0, 120);
   const search = `%${q}%`;
   const includeDeleted = params.get("includeDeleted") === "1";
@@ -28,6 +33,8 @@ export async function GET(request: Request) {
       leads.created_at,
       leads.updated_at,
       leads.status,
+      leads.source_channel,
+      leads.source_mode,
       leads.client_name,
       leads.company_name,
       leads.phone,
@@ -49,6 +56,7 @@ export async function GET(request: Request) {
     from leads
     left join conversations on conversations.id = leads.conversation_id
     where (${status} = 'all' or leads.status = ${status})
+      and (${channel} = 'all' or leads.source_channel = ${channel})
       and (${includeDeleted} or conversations.deleted_at is null or conversations.id is null)
       and (
         ${admin.role === "master_admin"}::boolean
@@ -69,6 +77,8 @@ export async function GET(request: Request) {
     "created_at",
     "updated_at",
     "status",
+    "source_channel",
+    "source_mode",
     "client_name",
     "company_name",
     "phone",

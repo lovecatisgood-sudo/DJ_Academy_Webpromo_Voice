@@ -1,0 +1,40 @@
+{
+  "name": "@djay/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@djay/auth": "workspace:*",
+    "@djay/action-gateway": "workspace:*",
+    "@djay/ai-chat-runtime": "workspace:*",
+    "@djay/catalog": "workspace:*",
+    "@djay/domain": "workspace:*",
+    "@djay/entitlements": "workspace:*",
+    "@djay/flowbot-domain": "workspace:*",
+    "@djay/flowbot-engine": "workspace:*",
+    "@djay/notifications": "workspace:*",
+    "@djay/platform-auth": "workspace:*",
+    "@djay/sales-core": "workspace:*",
+    "@djay/authorization": "workspace:*",
+    "@djay/shared": "workspace:*",
+    "@djay/tenancy": "workspace:*",
+    "@djay/usage-billing": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "postgres": "3.4.9",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "3.2.6"
+  }
+}

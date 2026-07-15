@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AdminShell } from "../../AdminShell";
 import { ConfirmSubmitButton } from "../../ConfirmSubmitButton";
 import {
+  bulkDeleteConversationsAction,
   deleteConversationAction,
   regenerateConversationAnalysisAction,
   toggleConversationStarAction,
@@ -26,15 +27,26 @@ type InboxFilter =
   | "starred"
   | "failed";
 
+type ChannelFilter = "all" | "voice_widget" | "text_widget";
+
 const filters: { key: InboxFilter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "leads", label: "Leads" },
-  { key: "no_leads", label: "No lead" },
   { key: "high_interest", label: "High interest" },
+  { key: "no_leads", label: "No lead" },
   { key: "pending_follow_up", label: "Pending" },
   { key: "appointment_set", label: "Appointment" },
   { key: "starred", label: "Starred" },
   { key: "failed", label: "Failed analysis" },
+];
+
+const primaryFilters = filters.filter((item) => item.key === "all" || item.key === "leads" || item.key === "high_interest");
+const secondaryFilters = filters.filter((item) => !primaryFilters.some((primary) => primary.key === item.key));
+
+const channelFilters: { key: ChannelFilter; label: string }[] = [
+  { key: "all", label: "All channels" },
+  { key: "voice_widget", label: "Voice" },
+  { key: "text_widget", label: "Chat" },
 ];
 
 const leadStatuses = [
@@ -59,8 +71,24 @@ function filterValue(value: unknown): InboxFilter {
     : "all";
 }
 
-function selectedHref(id: string, filter: InboxFilter, q: string) {
-  return `/admin/inbox/voice?id=${id}&filter=${filter}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+function channelValue(value: unknown): ChannelFilter {
+  return value === "voice_widget" || value === "text_widget" ? value : "all";
+}
+
+function channelLabel(channel: string | null | undefined) {
+  return channel === "text_widget" ? "Chat" : "Voice";
+}
+
+function channelTone(channel: string | null | undefined) {
+  return channel === "text_widget" ? "emerald" : "cyan";
+}
+
+function selectedHref(id: string, filter: InboxFilter, q: string, channel: ChannelFilter) {
+  return `/admin/inbox/voice?id=${id}&filter=${filter}&channel=${channel}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+}
+
+function listHref(filter: InboxFilter, q: string, channel: ChannelFilter) {
+  return `/admin/inbox/voice?filter=${filter}&channel=${channel}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
 }
 
 function contactLine(lead: {
@@ -90,18 +118,22 @@ function bubbleClass(role: TranscriptItem["role"]) {
 export default async function VoiceInboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string; filter?: InboxFilter; q?: string; analysis?: string; deleted?: string }>;
+  searchParams: Promise<{ id?: string; filter?: InboxFilter; channel?: ChannelFilter; q?: string; analysis?: string; deleted?: string }>;
 }) {
   const admin = await requireAdmin();
   const params = await searchParams;
   const filter = filterValue(params.filter);
+  const channel = channelValue(params.channel);
   const q = typeof params.q === "string" ? params.q.trim().slice(0, 120) : "";
   const search = `%${q}%`;
   const sql = getSql();
+  const pageSize = 100;
 
-  const conversations = (await sql`
+  const conversationRows = (await sql`
     select
       c.id,
+      c.channel,
+      c.interaction_mode,
       c.started_at,
       c.duration_seconds,
       c.language,
@@ -145,6 +177,7 @@ export default async function VoiceInboxPage({
             and leads.assigned_admin_id = ${admin.id}
         )
       )
+      and (${channel} = 'all' or c.channel = ${channel})
       and (
         ${filter} = 'all'
         or (${filter} = 'leads' and c.had_lead)
@@ -163,11 +196,20 @@ export default async function VoiceInboxPage({
         or coalesce(c.recommended_service, '') ilike ${search}
         or coalesce(lead.client_name, '') ilike ${search}
         or coalesce(lead.company_name, '') ilike ${search}
+        or exists (
+          select 1
+          from conversation_messages cm
+          where cm.conversation_id = c.id
+            and cm.content ilike ${search}
+          limit 1
+        )
       )
     order by c.started_at desc
-    limit 100
+    limit ${pageSize + 1}
   `) as {
     id: string;
+    channel: string | null;
+    interaction_mode: string | null;
     started_at: string;
     duration_seconds: number | null;
     language: string | null;
@@ -186,6 +228,8 @@ export default async function VoiceInboxPage({
     appointment_status: string | null;
     appointment_start_at: string | null;
   }[];
+  const hasMoreConversations = conversationRows.length > pageSize;
+  const conversations = conversationRows.slice(0, pageSize);
 
   const selectedId = params.id || conversations[0]?.id || "";
   const [conversation] = selectedId
@@ -211,6 +255,8 @@ export default async function VoiceInboxPage({
         language: string | null;
         page_url: string | null;
         transcript: TranscriptItem[] | null;
+        channel: string | null;
+        interaction_mode: string | null;
         had_lead: boolean;
         summary: string | null;
         business_type: string | null;
@@ -292,6 +338,25 @@ export default async function VoiceInboxPage({
         assigned_admin_name: string | null;
       }[]
     : [];
+  const messageTranscript = conversation && (!conversation.transcript || conversation.transcript.length === 0)
+    ? (await sql`
+        select role, content, created_at
+        from conversation_messages
+        where conversation_id = ${conversation.id}
+          and role in ('user', 'assistant', 'tool', 'system')
+        order by created_at asc
+        limit 200
+      `) as { role: TranscriptItem["role"]; content: string; created_at: string }[]
+    : [];
+  const transcriptItems: TranscriptItem[] = conversation?.transcript && conversation.transcript.length > 0
+    ? conversation.transcript
+    : messageTranscript.map((item) => ({
+        role: item.role,
+        text: item.content,
+        t: new Date(item.created_at).getTime(),
+      }));
+  const activeSecondaryFilter = secondaryFilters.find((item) => item.key === filter);
+  const currentListHref = listHref(filter, q, channel);
 
   return (
     <AdminShell>
@@ -306,35 +371,47 @@ export default async function VoiceInboxPage({
         </div>
       ) : null}
 
-      <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-950">Website Voice Widget</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Voice conversations in a channel workspace with lead, appointment, and customer context.
-          </p>
-        </div>
-        <Link href="/admin/inbox" className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
-          All channels
-        </Link>
-      </div>
-
       <div className="grid min-h-[760px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm xl:grid-cols-[330px_minmax(0,1fr)_360px]">
         <aside className="border-b border-slate-200 bg-slate-50 xl:border-b-0 xl:border-r">
           <div className="border-b border-slate-200 p-4">
-            <form className="grid gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <form className="min-w-0 flex-1">
+                <input type="hidden" name="filter" value={filter} />
+                <input type="hidden" name="channel" value={channel} />
+                <input
+                  name="q"
+                  defaultValue={q}
+                  placeholder="Search conversations"
+                  className="w-full rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900"
+                />
+              </form>
+              <Link href="/admin/inbox" className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+                Channels
+              </Link>
+            </div>
+
+            <form className="mt-3 grid grid-cols-[1fr_auto] gap-2">
               <input type="hidden" name="filter" value={filter} />
-              <input
-                name="q"
-                defaultValue={q}
-                placeholder="Search conversations"
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900"
-              />
+              <input type="hidden" name="q" value={q} />
+              <select
+                name="channel"
+                defaultValue={channel}
+                className="w-full rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+              >
+                {channelFilters.map((item) => (
+                  <option key={item.key} value={item.key}>{item.label}</option>
+                ))}
+              </select>
+              <button className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
+                Apply
+              </button>
             </form>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {filters.map((item) => (
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {primaryFilters.map((item) => (
                 <Link
                   key={item.key}
-                  href={`/admin/inbox/voice?filter=${item.key}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+                  href={listHref(item.key, q, channel)}
                   className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
                     item.key === filter ? "border-[#0e7c86] bg-[#0e7c86] text-white" : "border-slate-200 bg-white text-slate-600"
                   }`}
@@ -342,43 +419,95 @@ export default async function VoiceInboxPage({
                   {item.label}
                 </Link>
               ))}
+              <details className="relative">
+                <summary className={`cursor-pointer list-none rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                  activeSecondaryFilter ? "border-[#0e7c86] bg-[#0e7c86] text-white" : "border-slate-200 bg-white text-slate-600"
+                }`}>
+                  {activeSecondaryFilter ? activeSecondaryFilter.label : "More"}
+                </summary>
+                <div className="absolute left-0 z-20 mt-2 w-48 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+                  {secondaryFilters.map((item) => (
+                    <Link
+                      key={item.key}
+                      href={listHref(item.key, q, channel)}
+                      className={`block rounded-md px-3 py-2 text-sm ${
+                        item.key === filter ? "bg-cyan-50 font-semibold text-cyan-800" : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              </details>
             </div>
           </div>
-          <div className="max-h-[660px] overflow-auto">
-            {conversations.map((item) => (
-              <Link
-                key={item.id}
-                href={selectedHref(item.id, filter, q)}
-                className={`block border-b border-slate-200 px-4 py-4 text-sm ${
-                  conversation?.id === item.id ? "bg-cyan-50" : "bg-white hover:bg-slate-50"
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
-                    {(item.lead_client_name || item.lead_company_name || "V").slice(0, 1).toUpperCase()}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="truncate font-semibold text-slate-950">
-                        {item.lead_client_name || item.lead_company_name || item.summary || item.main_problem || "Visitor"}
-                      </div>
-                      {item.starred ? <span className="text-amber-500">Star</span> : null}
-                    </div>
-                    <div className="mt-1 line-clamp-2 text-slate-600">{item.main_problem || item.summary || item.page_url || item.id}</div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {item.had_lead ? <StatusPill tone="cyan">Lead</StatusPill> : <StatusPill tone="slate">No lead</StatusPill>}
-                      {item.lead_status ? <StatusPill status={item.lead_status} /> : null}
-                      {item.appointment_status ? <StatusPill status={item.appointment_status} /> : null}
-                    </div>
-                    <div className="mt-2 text-xs text-slate-500">
-                      {new Date(item.started_at).toLocaleString()} · {item.language || "unknown"} · {item.duration_seconds ?? 0}s
-                    </div>
-                  </div>
+          <form action={bulkDeleteConversationsAction}>
+            <input type="hidden" name="redirect_to" value={`${currentListHref}&deleted=1`} />
+            {admin.role === "master_admin" ? (
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2">
+                <div className="text-xs font-medium text-slate-500">
+                  {conversations.length} conversations{hasMoreConversations ? "+" : ""}
                 </div>
-              </Link>
-            ))}
-            {conversations.length === 0 ? <div className="p-6 text-sm text-slate-500">No conversations in this view.</div> : null}
-          </div>
+                <ConfirmSubmitButton
+                  message="Delete selected conversations? This hides them from normal admin lists."
+                  className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700"
+                >
+                  Delete selected
+                </ConfirmSubmitButton>
+              </div>
+            ) : null}
+            <div className="max-h-[660px] overflow-auto">
+              {conversations.map((item) => (
+                <div
+                  key={item.id}
+                className={`grid grid-cols-[auto_1fr] gap-3 border-b border-slate-200 px-4 py-4 text-sm ${
+                    conversation?.id === item.id ? "bg-cyan-50" : "bg-white hover:bg-slate-50"
+                  }`}
+                >
+                  {admin.role === "master_admin" ? (
+                    <input
+                      type="checkbox"
+                      name="conversation_id"
+                      value={item.id}
+                      aria-label={`Select conversation ${item.lead_client_name || item.lead_company_name || item.id}`}
+                      className="mt-3 h-4 w-4 rounded border-slate-300 text-cyan-700"
+                    />
+                  ) : null}
+                  <Link href={selectedHref(item.id, filter, q, channel)} className="min-w-0">
+                    <div className="flex items-start gap-3">
+                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
+                        {(item.lead_client_name || item.lead_company_name || "V").slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <div className="truncate font-semibold text-slate-950">
+                            {item.lead_client_name || item.lead_company_name || item.summary || item.main_problem || "Visitor"}
+                          </div>
+                          {item.starred ? <span className="text-amber-500">Star</span> : null}
+                        </div>
+                        <div className="mt-1 line-clamp-2 text-slate-600">{item.main_problem || item.summary || item.page_url || item.id}</div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {item.had_lead ? <StatusPill tone="cyan">Lead</StatusPill> : <StatusPill tone="slate">No lead</StatusPill>}
+                          <StatusPill tone={channelTone(item.channel)}>{channelLabel(item.channel)}</StatusPill>
+                          {item.lead_status ? <StatusPill status={item.lead_status} /> : null}
+                          {item.appointment_status ? <StatusPill status={item.appointment_status} /> : null}
+                        </div>
+                        <div className="mt-2 text-xs text-slate-500">
+                          {new Date(item.started_at).toLocaleString()} · {item.language || "unknown"} · {item.interaction_mode === "text" ? "text chat" : `${item.duration_seconds ?? 0}s`}
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                </div>
+              ))}
+              {hasMoreConversations ? (
+                <div className="border-b border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+                  Showing the latest {pageSize}. Narrow search or filters to find older conversations.
+                </div>
+              ) : null}
+              {conversations.length === 0 ? <div className="p-6 text-sm text-slate-500">No conversations in this view.</div> : null}
+            </div>
+          </form>
         </aside>
 
         <section className="min-w-0 bg-[#f5f8fa]">
@@ -389,26 +518,27 @@ export default async function VoiceInboxPage({
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-lg font-semibold text-slate-950">
-                        {lead?.client_name || lead?.company_name || conversation.summary || "Voice conversation"}
+                        {lead?.client_name || lead?.company_name || conversation.summary || `${channelLabel(conversation.channel)} conversation`}
                       </h3>
+                      <StatusPill tone={channelTone(conversation.channel)}>{channelLabel(conversation.channel)}</StatusPill>
                       <InterestPill value={conversation.interest_level} />
                       <StatusPill status={conversation.analysis_status} />
                     </div>
                     <div className="mt-1 text-sm text-slate-500">
-                      {new Date(conversation.started_at).toLocaleString()} · {conversation.language || "unknown"} · {conversation.duration_seconds ?? 0}s · {conversation.page_url || "unknown page"}
+                      {new Date(conversation.started_at).toLocaleString()} · {conversation.language || "unknown"} · {conversation.interaction_mode === "text" ? "text chat" : `${conversation.duration_seconds ?? 0}s`} · {conversation.page_url || "unknown page"}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <form action={toggleConversationStarAction}>
                       <input type="hidden" name="id" value={conversation.id} />
-                      <input type="hidden" name="redirect_to" value={selectedHref(conversation.id, filter, q)} />
+                      <input type="hidden" name="redirect_to" value={selectedHref(conversation.id, filter, q, channel)} />
                       <button className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
                         {conversation.starred ? "Unstar" : "Star"}
                       </button>
                     </form>
                     <form action={regenerateConversationAnalysisAction}>
                       <input type="hidden" name="id" value={conversation.id} />
-                      <input type="hidden" name="redirect_to" value={`${selectedHref(conversation.id, filter, q)}&analysis=updated`} />
+                      <input type="hidden" name="redirect_to" value={`${selectedHref(conversation.id, filter, q, channel)}&analysis=updated`} />
                       <button className="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800">
                         Reanalyse
                       </button>
@@ -420,7 +550,7 @@ export default async function VoiceInboxPage({
               <div className="max-h-[690px] overflow-auto p-5">
                 <form action={updateConversationIntelligenceAction} className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <input type="hidden" name="id" value={conversation.id} />
-                  <input type="hidden" name="redirect_to" value={selectedHref(conversation.id, filter, q)} />
+                  <input type="hidden" name="redirect_to" value={selectedHref(conversation.id, filter, q, channel)} />
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <h4 className="font-semibold text-slate-950">Conversation intelligence</h4>
                     <span className="text-xs text-slate-500">
@@ -475,7 +605,7 @@ export default async function VoiceInboxPage({
                 </form>
 
                 <div className="space-y-3">
-                  {(conversation.transcript || []).map((item, index) => (
+                  {transcriptItems.map((item, index) => (
                     <div
                       key={`${item.t}-${index}`}
                       className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm shadow-sm ${bubbleClass(item.role)}`}
@@ -484,7 +614,7 @@ export default async function VoiceInboxPage({
                       <div className="whitespace-pre-wrap leading-6">{item.text}</div>
                     </div>
                   ))}
-                  {!(conversation.transcript || []).length ? (
+                  {!transcriptItems.length ? (
                     <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
                       No transcript saved.
                     </div>
@@ -508,7 +638,7 @@ export default async function VoiceInboxPage({
               {lead ? (
                 <form action={updateLeadAction} className="rounded-xl border border-slate-200 p-4">
                   <input type="hidden" name="id" value={lead.id} />
-                  <input type="hidden" name="redirect_to" value={selectedHref(conversation.id, filter, q)} />
+                  <input type="hidden" name="redirect_to" value={selectedHref(conversation.id, filter, q, channel)} />
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <h4 className="font-semibold text-slate-950">Customer and lead</h4>
                     <StatusPill status={lead.status} />
@@ -582,7 +712,7 @@ export default async function VoiceInboxPage({
                 <h4 className="font-semibold text-slate-950">Appointments</h4>
                 <div className="mt-3 grid gap-3">
                   {appointments.map((appointment) => (
-                    <Link key={appointment.id} href="/admin/appointments" className="block rounded-lg bg-slate-50 p-3 text-sm">
+                    <Link key={appointment.id} href="/admin/calendar" className="block rounded-lg bg-slate-50 p-3 text-sm">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold text-slate-950">{appointment.client_name}</span>
                         <StatusPill status={appointment.status} />

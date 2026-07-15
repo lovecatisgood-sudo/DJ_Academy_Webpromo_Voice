@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAvailableSlots } from "@/lib/availability";
+import { findAvailableSlot, getBookingLinkBySlug } from "@/lib/availability";
 import { verifyBookingContext } from "@/lib/booking-context";
 import { getSql } from "@/lib/db";
 import { readJsonBody } from "@/lib/http-guards";
@@ -73,50 +73,36 @@ export async function POST(request: Request) {
     return fail("Booking is currently disabled.", 503);
   }
 
-  const [profile] = (await sql`
-    select
-      acp.admin_user_id,
-      acp.timezone,
-      acp.default_duration_minutes,
-      acp.meeting_location,
-      au.name as admin_name,
-      mt.id as meeting_type_id
-    from admin_calendar_profiles acp
-    join admin_users au on au.id = acp.admin_user_id and au.is_active = true and au.deleted_at is null
-    left join meeting_types mt on mt.is_default = true and mt.is_active = true
-    where acp.booking_slug = ${slug}
-      and acp.is_active = true
-    limit 1
-  `) as {
-    admin_user_id: string;
-    timezone: string;
-    default_duration_minutes: number;
-    meeting_location: string | null;
-    admin_name: string;
-    meeting_type_id: string | null;
-  }[];
+  const bookingLink = await getBookingLinkBySlug(sql, slug);
 
-  if (!profile) {
+  if (!bookingLink || !bookingLink.is_active || !bookingLink.calendar_active) {
     return fail("Booking page is unavailable.", 404);
   }
+
+  const [meetingType] = (await sql`
+    select id
+    from meeting_types
+    where is_default = true
+      and is_active = true
+    limit 1
+  `) as { id: string }[];
 
   const start = new Date(startAt);
   if (!Number.isFinite(start.getTime())) {
     return fail("Invalid appointment time.");
   }
 
-  const slots = await getAvailableSlots(
-    sql,
-    slug,
-    new Date(start.getTime() - 60 * 1000),
-    new Date(start.getTime() + 24 * 60 * 60 * 1000),
-  );
-  const slot = slots.find((item) => item.start_at === start.toISOString());
+  const slot = await findAvailableSlot(sql, slug, start);
 
   if (!slot) {
     return fail("That time is no longer available.");
   }
 
+  const appointmentSource = context?.sourceChannel === "text_widget"
+    ? "text_chat"
+    : context?.leadId || context?.conversationId
+      ? "voice_agent"
+      : "public_booking";
   const rows = (await sql`
     insert into appointments (
       lead_id,
@@ -124,6 +110,7 @@ export async function POST(request: Request) {
       assigned_admin_id,
       assigned_admin_name_snapshot,
       meeting_type_id,
+      booking_link_id,
       status,
       source,
       start_at,
@@ -137,20 +124,22 @@ export async function POST(request: Request) {
       line_id,
       whatsapp,
       note,
-      meeting_location
+      meeting_location,
+      confirmed_at
     )
     values (
       ${context?.leadId || null},
       ${context?.conversationId || null},
-      ${profile.admin_user_id},
-      ${profile.admin_name},
-      ${profile.meeting_type_id},
-      'pending_confirmation',
-      ${context?.leadId || context?.conversationId ? "voice_agent" : "public_booking"},
+      ${bookingLink.owner_admin_id},
+      ${bookingLink.owner_name},
+      ${meetingType?.id || null},
+      ${bookingLink.id},
+      ${bookingLink.require_confirmation ? "pending_confirmation" : "confirmed"},
+      ${appointmentSource},
       ${slot.start_at},
       ${slot.end_at},
-      ${profile.timezone},
-      ${profile.default_duration_minutes},
+      ${bookingLink.timezone},
+      ${bookingLink.duration_minutes},
       ${clientName},
       ${companyName},
       ${email},
@@ -158,7 +147,8 @@ export async function POST(request: Request) {
       ${lineId},
       ${whatsapp},
       ${note},
-      ${profile.meeting_location}
+      ${bookingLink.meeting_location},
+      ${bookingLink.require_confirmation ? null : new Date().toISOString()}
     )
     returning id
   `) as { id: string }[];
@@ -174,15 +164,15 @@ export async function POST(request: Request) {
         phone = coalesce(nullif(phone, ''), ${phone}),
         line_id = coalesce(nullif(line_id, ''), ${lineId}),
         whatsapp = coalesce(nullif(whatsapp, ''), ${whatsapp}),
-        assigned_admin_id = ${profile.admin_user_id},
+        assigned_admin_id = ${bookingLink.owner_admin_id},
         updated_at = now()
       where id = ${context.leadId}
     `;
   }
 
   if (wantsHtml) {
-    return NextResponse.redirect(new URL(`/book/${slug}?booked=1`, request.url), 303);
+    return NextResponse.redirect(new URL(`/book/${slug}?booked=${bookingLink.require_confirmation ? "requested" : "confirmed"}`, request.url), 303);
   }
 
-  return NextResponse.json({ ok: true, appointmentId: rows[0]?.id ?? null, status: "pending_confirmation" });
+  return NextResponse.json({ ok: true, appointmentId: rows[0]?.id ?? null, status: bookingLink.require_confirmation ? "pending_confirmation" : "confirmed" });
 }

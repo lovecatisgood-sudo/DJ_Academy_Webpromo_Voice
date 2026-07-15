@@ -1,0 +1,34 @@
+{
+  "name": "@flowbot/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./auth": "./src/auth.ts",
+    "./env": "./src/env.ts",
+    "./password": "./src/password.ts",
+    "./schema": "./src/schema.ts",
+    "./tenant-db": "./src/tenant-db.ts",
+    "./token": "./src/token.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "migrate": "node --env-file-if-exists=../../.env.local scripts/migrate.mjs",
+    "seed": "node --env-file-if-exists=../../.env.local scripts/seed.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@flowbot/shared": "workspace:*",
+    "@neondatabase/serverless": "1.1.0",
+    "@node-rs/argon2": "2.0.2",
+    "drizzle-orm": "0.45.2",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "3.2.6"
+  }
+}

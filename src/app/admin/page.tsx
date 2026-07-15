@@ -41,7 +41,19 @@ export default async function AdminOverview({
   const [stats] = (await sql`
     select
       count(*)::text as conversations,
+      count(*) filter (where channel = 'voice_widget')::text as voice_conversations,
+      count(*) filter (where channel = 'text_widget')::text as text_conversations,
       count(*) filter (where had_lead)::text as leads,
+      count(*) filter (where exists (
+        select 1 from leads
+        where leads.conversation_id = conversations.id
+          and leads.source_channel = 'voice_widget'
+      ))::text as voice_leads,
+      count(*) filter (where exists (
+        select 1 from leads
+        where leads.conversation_id = conversations.id
+          and leads.source_channel = 'text_widget'
+      ))::text as text_leads,
       count(*) filter (where exists (
         select 1 from leads
         where leads.conversation_id = conversations.id
@@ -71,6 +83,24 @@ export default async function AdminOverview({
             or assigned_admin_id = ${admin.id}
           )
       ) as appointments_today,
+      (select count(*)::text from appointments
+        where source = 'voice_agent'
+          and deleted_at is null
+          and start_at >= now() - ${interval}::interval
+          and (
+            ${admin.role === "master_admin"}::boolean
+            or assigned_admin_id = ${admin.id}
+          )
+      ) as voice_appointments,
+      (select count(*)::text from appointments
+        where source = 'text_chat'
+          and deleted_at is null
+          and start_at >= now() - ${interval}::interval
+          and (
+            ${admin.role === "master_admin"}::boolean
+            or assigned_admin_id = ${admin.id}
+          )
+      ) as text_appointments,
       round(avg(duration_seconds)) as avg_duration,
       case when count(*) = 0 then 0 else round((count(*) filter (where had_lead)::numeric / count(*)::numeric) * 100) end as capture_rate
     from conversations
@@ -88,12 +118,18 @@ export default async function AdminOverview({
   `) as
     {
       conversations: string;
+      voice_conversations: string;
+      text_conversations: string;
       leads: string;
+      voice_leads: string;
+      text_leads: string;
       pending_follow_up: string;
       high_interest: string;
       appointment_set: string;
       pending_appointments: string;
       appointments_today: string;
+      voice_appointments: string;
+      text_appointments: string;
       avg_duration: number | null;
       capture_rate: number | null;
     }[];
@@ -108,6 +144,7 @@ export default async function AdminOverview({
       leads.line_id,
       leads.whatsapp,
       leads.other_contact,
+      leads.source_channel,
       conversations.interest_level,
       conversations.main_problem,
       conversations.next_action
@@ -132,6 +169,7 @@ export default async function AdminOverview({
       line_id: string | null;
       whatsapp: string | null;
       other_contact: string | null;
+      source_channel: string | null;
       interest_level: string | null;
       main_problem: string | null;
       next_action: string | null;
@@ -168,26 +206,31 @@ export default async function AdminOverview({
   const [bookingState] = (await sql`
     select
       settings.booking_enabled,
-      settings.active_booking_admin_id,
+      settings.active_booking_link_id,
+      booking_links.name as active_link_name,
+      booking_links.slug as active_link_slug,
       admin_users.name as active_admin_name,
       count(availability_rules.id)::int as availability_rule_count
     from settings
-    left join admin_users on admin_users.id = settings.active_booking_admin_id
+    left join booking_links on booking_links.id = settings.active_booking_link_id
+    left join admin_users on admin_users.id = booking_links.owner_admin_id
     left join availability_rules
-      on availability_rules.admin_user_id = settings.active_booking_admin_id
+      on availability_rules.admin_user_id = booking_links.owner_admin_id
       and availability_rules.is_active = true
     where settings.id = 1
-    group by settings.booking_enabled, settings.active_booking_admin_id, admin_users.name
+    group by settings.booking_enabled, settings.active_booking_link_id, booking_links.name, booking_links.slug, admin_users.name
     limit 1
   `) as
     {
       booking_enabled: boolean;
-      active_booking_admin_id: string | null;
+      active_booking_link_id: string | null;
+      active_link_name: string | null;
+      active_link_slug: string | null;
       active_admin_name: string | null;
       availability_rule_count: number;
     }[];
   const recent = (await sql`
-    select id, started_at, duration_seconds, language, had_lead, page_url, summary, main_problem
+    select id, channel, interaction_mode, started_at, duration_seconds, language, had_lead, page_url, summary, main_problem
     from conversations
     where deleted_at is null
       and (
@@ -204,6 +247,8 @@ export default async function AdminOverview({
   `) as
     {
       id: string;
+      channel: string | null;
+      interaction_mode: string | null;
       started_at: string;
       duration_seconds: number | null;
       language: string | null;
@@ -215,14 +260,16 @@ export default async function AdminOverview({
 
   return (
     <AdminShell>
-      {admin.role === "master_admin" && bookingState?.booking_enabled && !bookingState.active_booking_admin_id ? (
+      {admin.role === "master_admin" && bookingState?.booking_enabled && !bookingState.active_booking_link_id ? (
         <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
-          Booking is enabled but no active booking admin is selected.
+          Booking is enabled but no active AI booking link is selected.
+          <Link href="/admin/calendar/links" className="ml-2 underline">Choose a link</Link>
         </div>
       ) : null}
-      {admin.role === "master_admin" && bookingState?.booking_enabled && bookingState.active_booking_admin_id && bookingState.availability_rule_count === 0 ? (
+      {admin.role === "master_admin" && bookingState?.booking_enabled && bookingState.active_booking_link_id && bookingState.availability_rule_count === 0 ? (
         <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
           {bookingState.active_admin_name || "The active booking admin"} has no weekly availability configured.
+          <Link href="/admin/calendar/availability" className="ml-2 underline">Set hours</Link>
         </div>
       ) : null}
 
@@ -254,7 +301,7 @@ export default async function AdminOverview({
           <div className="mt-2 text-3xl font-semibold text-amber-700">{stats?.pending_follow_up ?? "0"}</div>
           <div className="mt-1 text-sm text-slate-500">Leads waiting for admin action</div>
         </Link>
-        <Link href="/admin/appointments?status=pending_confirmation&range=upcoming" className="rounded-xl border border-cyan-200 bg-white p-4 shadow-sm transition hover:border-cyan-300">
+        <Link href="/admin/calendar?status=pending_confirmation" className="rounded-xl border border-cyan-200 bg-white p-4 shadow-sm transition hover:border-cyan-300">
           <div className="text-sm font-semibold text-slate-700">Pending confirmations</div>
           <div className="mt-2 text-3xl font-semibold text-cyan-700">{stats?.pending_appointments ?? "0"}</div>
           <div className="mt-1 text-sm text-slate-500">Appointments that need confirm or reject</div>
@@ -266,13 +313,19 @@ export default async function AdminOverview({
         </Link>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-12">
         <MetricCard label="Conversations" value={stats?.conversations ?? "0"} />
+        <MetricCard label="Voice calls" value={stats?.voice_conversations ?? "0"} />
+        <MetricCard label="Text chats" value={stats?.text_conversations ?? "0"} tone="emerald" />
         <MetricCard label="Leads captured" value={stats?.leads ?? "0"} tone="cyan" />
+        <MetricCard label="Voice leads" value={stats?.voice_leads ?? "0"} tone="cyan" />
+        <MetricCard label="Text leads" value={stats?.text_leads ?? "0"} tone="emerald" />
         <MetricCard label="Capture rate" value={`${stats?.capture_rate ?? 0}%`} />
         <MetricCard label="High interest" value={stats?.high_interest ?? "0"} tone="red" />
         <MetricCard label="Pending follow-up" value={stats?.pending_follow_up ?? "0"} tone="amber" />
         <MetricCard label="Appointment set" value={stats?.appointment_set ?? "0"} tone="emerald" />
+        <MetricCard label="Voice appts" value={stats?.voice_appointments ?? "0"} />
+        <MetricCard label="Text appts" value={stats?.text_appointments ?? "0"} tone="emerald" />
         <MetricCard label="Appts today" value={stats?.appointments_today ?? "0"} />
         <MetricCard label="Avg duration" value={`${stats?.avg_duration ?? 0}s`} />
       </section>
@@ -286,7 +339,7 @@ export default async function AdminOverview({
             {pendingAppointments.map((appointment) => (
               <QueueItem
                 key={appointment.id}
-                href="/admin/appointments?status=pending_confirmation&range=upcoming"
+                href="/admin/calendar?status=pending_confirmation"
                 status="pending_confirmation"
                 title={`${appointment.client_name}${appointment.company_name ? ` · ${appointment.company_name}` : ""}`}
                 subtitle={`Requested ${new Date(appointment.start_at).toLocaleString()}`}
@@ -329,7 +382,7 @@ export default async function AdminOverview({
             <div className="font-semibold text-slate-800">Booking calendar</div>
             <div className="mt-1">
               {bookingState?.booking_enabled
-                ? `Enabled${bookingState.active_admin_name ? ` for ${bookingState.active_admin_name}` : ""}`
+                ? `Enabled${bookingState.active_link_name ? ` via ${bookingState.active_link_name}` : ""}${bookingState.active_admin_name ? ` for ${bookingState.active_admin_name}` : ""}`
                 : "Disabled"}
             </div>
           </div>
@@ -373,7 +426,7 @@ export default async function AdminOverview({
                     {conversation.summary || conversation.main_problem || conversation.page_url || conversation.id}
                   </div>
                   <div className="mt-1 text-slate-500">
-                    {conversation.language || "unknown"} · {conversation.duration_seconds ?? 0}s · {conversation.page_url || "unknown page"}
+                    {conversation.channel === "text_widget" ? "Chat" : "Voice"} · {conversation.language || "unknown"} · {conversation.interaction_mode === "text" ? "text chat" : `${conversation.duration_seconds ?? 0}s`} · {conversation.page_url || "unknown page"}
                   </div>
                 </div>
                 <div className="flex items-start justify-end">

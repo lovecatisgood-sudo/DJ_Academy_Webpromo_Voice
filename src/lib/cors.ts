@@ -32,6 +32,19 @@ function requestOrigins(request: Request) {
   return origins;
 }
 
+export function isAllowedCorsRequest(request: Request) {
+  const origin = request.headers.get("origin");
+
+  if (!origin) {
+    return true;
+  }
+
+  const allowed = allowedOrigins();
+  const sameAppOrigins = requestOrigins(request);
+
+  return sameAppOrigins.has(origin) || allowed.includes(origin) || allowed.includes("*");
+}
+
 export function corsHeaders(request: Request) {
   const origin = request.headers.get("origin");
   const allowed = allowedOrigins();

@@ -14,6 +14,8 @@ type ConversationForAnalysis = {
   page_url: string | null;
   language: string | null;
   transcript: TranscriptItem[] | null;
+  channel?: string | null;
+  interaction_mode?: string | null;
 };
 
 function errorMessage(error: unknown) {
@@ -22,6 +24,24 @@ function errorMessage(error: unknown) {
 
 function safeTranscript(value: TranscriptItem[] | null): TranscriptItem[] {
   return Array.isArray(value) ? value : [];
+}
+
+async function messageTranscript(conversationId: string): Promise<TranscriptItem[]> {
+  const sql = getSql();
+  const rows = (await sql`
+    select role, content, created_at
+    from conversation_messages
+    where conversation_id = ${conversationId}
+      and role in ('user', 'assistant', 'tool', 'system')
+    order by created_at asc
+    limit 200
+  `) as { role: TranscriptItem["role"]; content: string; created_at: string }[];
+
+  return rows.map((row) => ({
+    role: row.role,
+    text: row.content,
+    t: new Date(row.created_at).getTime(),
+  }));
 }
 
 export async function analyzeAndPersistConversation(conversationId: string, options: AnalyzeAndPersistOptions = {}) {
@@ -41,7 +61,7 @@ export async function analyzeAndPersistConversation(conversationId: string, opti
   }
 
   const conversations = (await sql`
-    select id, page_url, language, transcript
+    select id, page_url, language, transcript, channel, interaction_mode
     from conversations
     where id = ${conversationId} and deleted_at is null
     limit 1
@@ -53,7 +73,8 @@ export async function analyzeAndPersistConversation(conversationId: string, opti
   }
 
   const transcript = safeTranscript(conversation.transcript);
-  if (!transcript.length) {
+  const effectiveTranscript = transcript.length ? transcript : await messageTranscript(conversationId);
+  if (!effectiveTranscript.length) {
     await sql`
       update conversations set
         analysis_status = 'skipped',
@@ -86,7 +107,7 @@ export async function analyzeAndPersistConversation(conversationId: string, opti
       conversationId,
       pageUrl: conversation.page_url,
       language: conversation.language,
-      transcript,
+      transcript: effectiveTranscript,
       existingLeads,
     });
     const contact = firstUsableContact(analysis.client);
@@ -95,6 +116,8 @@ export async function analyzeAndPersistConversation(conversationId: string, opti
       .join(" ")
       .trim();
     const hasLead = Boolean(analysis.has_lead && contact);
+    const sourceChannel = conversation.channel === "text_widget" ? "text_widget" : "voice_widget";
+    const sourceMode = conversation.interaction_mode === "text" ? "text" : "voice";
 
     await sql`
       update conversations set
@@ -134,6 +157,8 @@ export async function analyzeAndPersistConversation(conversationId: string, opti
           preferred_contact_method,
           preferred_meeting_day,
           preferred_meeting_time,
+          source_channel,
+          source_mode,
           updated_at
         )
         values (
@@ -154,6 +179,8 @@ export async function analyzeAndPersistConversation(conversationId: string, opti
           ${analysis.client.preferred_contact_method || null},
           ${analysis.client.preferred_meeting_day || null},
           ${analysis.client.preferred_meeting_time || null},
+          ${sourceChannel},
+          ${sourceMode},
           now()
         )
         on conflict (conversation_id, contact) do update set
@@ -170,6 +197,8 @@ export async function analyzeAndPersistConversation(conversationId: string, opti
           preferred_contact_method = coalesce(nullif(leads.preferred_contact_method, ''), excluded.preferred_contact_method),
           preferred_meeting_day = coalesce(nullif(leads.preferred_meeting_day, ''), excluded.preferred_meeting_day),
           preferred_meeting_time = coalesce(nullif(leads.preferred_meeting_time, ''), excluded.preferred_meeting_time),
+          source_channel = coalesce(leads.source_channel, excluded.source_channel),
+          source_mode = coalesce(leads.source_mode, excluded.source_mode),
           updated_at = now()
       `;
     }

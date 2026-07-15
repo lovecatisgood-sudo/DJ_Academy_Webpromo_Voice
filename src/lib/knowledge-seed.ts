@@ -33,7 +33,6 @@ export const initialKnowledgeMarkdown = `# DJAI Academy Voice Agent Knowledge
 - Original listed price: 20,000 THB.
 - Best for a full 5-page business website.
 - Includes: 5 custom-designed pages, responsive design, SEO-ready structure, professional UI, contact page, gallery, business information, contact form, social media integration, first-year hosting, mobile responsive layout, and priority support.
-- Landing page comparison states that buying 5 pages individually would be 15,000 THB, the bundle price is 10,000 THB, and the customer saves 5,000 THB.
 - Renewal note: 3,000 THB/year after the first year.
 
 ## AI Sales Chatbot

@@ -78,7 +78,6 @@ const initialKnowledgeMarkdown = `# DJAI Academy Voice Agent Knowledge
 - Original listed price: 20,000 THB.
 - Best for a full 5-page business website.
 - Includes: 5 custom-designed pages, responsive design, SEO-ready structure, professional UI, contact page, gallery, business information, contact form, social media integration, first-year hosting, mobile responsive layout, and priority support.
-- Landing page comparison states that buying 5 pages individually would be 15,000 THB, the bundle price is 10,000 THB, and the customer saves 5,000 THB.
 - Renewal note: 3,000 THB/year after the first year.
 
 ## AI Sales Chatbot
@@ -178,6 +177,7 @@ async function migrate() {
         analysis_model_id text default 'gpt-4o-mini',
         booking_enabled boolean default true,
         active_booking_admin_id uuid references admin_users(id),
+        active_booking_link_id uuid,
         default_timezone text default 'Asia/Bangkok',
         require_booking_confirmation boolean default true,
         default_booking_window_days int default 30,
@@ -210,6 +210,10 @@ async function migrate() {
     `,
     tx`
       alter table settings
+      add column if not exists active_booking_link_id uuid
+    `,
+    tx`
+      alter table settings
       add column if not exists default_timezone text default 'Asia/Bangkok'
     `,
     tx`
@@ -220,6 +224,26 @@ async function migrate() {
       alter table settings
       add column if not exists default_booking_window_days int default 30
     `,
+    tx`
+      alter table settings
+      add column if not exists text_chat_enabled boolean default true
+    `,
+    tx`
+      alter table settings
+      add column if not exists text_chat_model_id text default 'gpt-5-mini'
+    `,
+    tx`
+      alter table settings
+      add column if not exists text_chat_greeting text
+    `,
+    tx`
+      alter table settings
+      add column if not exists text_chat_max_messages int default 40
+    `,
+    tx`
+      alter table settings
+      add column if not exists text_chat_daily_session_cap int default 200
+    `,
     tx`alter table settings alter column model_id set default 'gpt-realtime-2.1'`,
     tx`alter table settings alter column transcription_model set default 'gpt-realtime-whisper'`,
     tx`alter table settings alter column analysis_enabled set default true`,
@@ -228,6 +252,10 @@ async function migrate() {
     tx`alter table settings alter column default_timezone set default 'Asia/Bangkok'`,
     tx`alter table settings alter column require_booking_confirmation set default true`,
     tx`alter table settings alter column default_booking_window_days set default 30`,
+    tx`alter table settings alter column text_chat_enabled set default true`,
+    tx`alter table settings alter column text_chat_model_id set default 'gpt-5-mini'`,
+    tx`alter table settings alter column text_chat_max_messages set default 40`,
+    tx`alter table settings alter column text_chat_daily_session_cap set default 200`,
     tx`
       create table if not exists conversations (
         id uuid primary key default gen_random_uuid(),
@@ -252,7 +280,13 @@ async function migrate() {
         analysis_updated_at timestamptz,
         starred boolean default false,
         deleted_at timestamptz,
-        assigned_admin_id uuid references admin_users(id)
+        assigned_admin_id uuid references admin_users(id),
+        channel text not null default 'voice_widget',
+        interaction_mode text not null default 'voice',
+        provider text,
+        model_id text,
+        last_message_at timestamptz,
+        message_count int not null default 0
       )
     `,
     tx`alter table conversations add column if not exists summary text`,
@@ -270,9 +304,30 @@ async function migrate() {
     tx`alter table conversations add column if not exists starred boolean default false`,
     tx`alter table conversations add column if not exists deleted_at timestamptz`,
     tx`alter table conversations add column if not exists assigned_admin_id uuid references admin_users(id)`,
+    tx`alter table conversations add column if not exists channel text not null default 'voice_widget'`,
+    tx`alter table conversations add column if not exists interaction_mode text not null default 'voice'`,
+    tx`alter table conversations add column if not exists provider text`,
+    tx`alter table conversations add column if not exists model_id text`,
+    tx`alter table conversations add column if not exists last_message_at timestamptz`,
+    tx`alter table conversations add column if not exists message_count int not null default 0`,
     tx`alter table conversations alter column interest_level set default 'unknown'`,
     tx`alter table conversations alter column analysis_status set default 'pending'`,
     tx`alter table conversations alter column starred set default false`,
+    tx`alter table conversations alter column channel set default 'voice_widget'`,
+    tx`alter table conversations alter column interaction_mode set default 'voice'`,
+    tx`alter table conversations alter column message_count set default 0`,
+    tx`
+      create table if not exists conversation_messages (
+        id uuid primary key default gen_random_uuid(),
+        conversation_id uuid not null references conversations(id),
+        channel text not null,
+        role text not null,
+        content text not null,
+        token_count int,
+        metadata jsonb,
+        created_at timestamptz not null default now()
+      )
+    `,
     tx`
       create table if not exists leads (
         id uuid primary key default gen_random_uuid(),
@@ -296,7 +351,9 @@ async function migrate() {
         preferred_meeting_time text,
         admin_notes text,
         assigned_admin_id uuid references admin_users(id),
-        updated_at timestamptz default now()
+        updated_at timestamptz default now(),
+        source_channel text default 'voice_widget',
+        source_mode text default 'voice'
       )
     `,
     tx`alter table leads add column if not exists client_name text`,
@@ -312,8 +369,12 @@ async function migrate() {
     tx`alter table leads add column if not exists admin_notes text`,
     tx`alter table leads add column if not exists assigned_admin_id uuid references admin_users(id)`,
     tx`alter table leads add column if not exists updated_at timestamptz default now()`,
+    tx`alter table leads add column if not exists source_channel text default 'voice_widget'`,
+    tx`alter table leads add column if not exists source_mode text default 'voice'`,
     tx`alter table leads alter column status set default 'pending_follow_up'`,
     tx`alter table leads alter column updated_at set default now()`,
+    tx`alter table leads alter column source_channel set default 'voice_widget'`,
+    tx`alter table leads alter column source_mode set default 'voice'`,
     tx`
       create table if not exists admin_calendar_profiles (
         id uuid primary key default gen_random_uuid(),
@@ -335,6 +396,55 @@ async function migrate() {
         updated_at timestamptz not null default now()
       )
     `,
+    tx`
+      create table if not exists booking_links (
+        id uuid primary key default gen_random_uuid(),
+        owner_admin_id uuid not null references admin_users(id),
+        name text not null,
+        slug text unique not null,
+        title text not null,
+        description text,
+        meeting_location text,
+        duration_minutes int not null,
+        buffer_before_minutes int not null default 0,
+        buffer_after_minutes int not null default 0,
+        minimum_notice_minutes int not null default 240,
+        max_bookings_per_day int,
+        booking_window_days int not null default 30,
+        require_confirmation boolean not null default true,
+        is_active boolean not null default true,
+        is_ai_active boolean not null default false,
+        deleted_at timestamptz,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      )
+    `,
+    tx`alter table booking_links add column if not exists owner_admin_id uuid references admin_users(id)`,
+    tx`alter table booking_links add column if not exists name text`,
+    tx`alter table booking_links add column if not exists slug text`,
+    tx`alter table booking_links add column if not exists title text`,
+    tx`alter table booking_links add column if not exists description text`,
+    tx`alter table booking_links add column if not exists meeting_location text`,
+    tx`alter table booking_links add column if not exists duration_minutes int not null default 30`,
+    tx`alter table booking_links add column if not exists buffer_before_minutes int not null default 0`,
+    tx`alter table booking_links add column if not exists buffer_after_minutes int not null default 0`,
+    tx`alter table booking_links add column if not exists minimum_notice_minutes int not null default 240`,
+    tx`alter table booking_links add column if not exists max_bookings_per_day int`,
+    tx`alter table booking_links add column if not exists booking_window_days int not null default 30`,
+    tx`alter table booking_links add column if not exists require_confirmation boolean not null default true`,
+    tx`alter table booking_links add column if not exists is_active boolean not null default true`,
+    tx`alter table booking_links add column if not exists is_ai_active boolean not null default false`,
+    tx`alter table booking_links add column if not exists deleted_at timestamptz`,
+    tx`alter table booking_links add column if not exists created_at timestamptz not null default now()`,
+    tx`alter table booking_links add column if not exists updated_at timestamptz not null default now()`,
+    tx`alter table booking_links alter column duration_minutes set default 30`,
+    tx`alter table booking_links alter column buffer_before_minutes set default 0`,
+    tx`alter table booking_links alter column buffer_after_minutes set default 0`,
+    tx`alter table booking_links alter column minimum_notice_minutes set default 240`,
+    tx`alter table booking_links alter column booking_window_days set default 30`,
+    tx`alter table booking_links alter column require_confirmation set default true`,
+    tx`alter table booking_links alter column is_active set default true`,
+    tx`alter table booking_links alter column is_ai_active set default false`,
     tx`
       create table if not exists availability_rules (
         id uuid primary key default gen_random_uuid(),
@@ -381,6 +491,7 @@ async function migrate() {
         assigned_admin_id uuid references admin_users(id),
         assigned_admin_name_snapshot text,
         meeting_type_id uuid references meeting_types(id),
+        booking_link_id uuid references booking_links(id),
         status text not null default 'pending_confirmation',
         source text not null default 'voice_agent',
         start_at timestamptz not null,
@@ -406,6 +517,7 @@ async function migrate() {
         deleted_at timestamptz
       )
     `,
+    tx`alter table appointments add column if not exists booking_link_id uuid references booking_links(id)`,
     tx`
       insert into meeting_types (name, description, duration_minutes, is_default, is_active)
       select 'Free Consultation', 'Initial consultation for qualified DJAI leads.', 30, true, true
@@ -435,6 +547,46 @@ async function migrate() {
         )
       order by au.created_at asc
       limit 1
+    `,
+    tx`
+      insert into booking_links (
+        owner_admin_id,
+        name,
+        slug,
+        title,
+        description,
+        meeting_location,
+        duration_minutes,
+        buffer_before_minutes,
+        buffer_after_minutes,
+        minimum_notice_minutes,
+        max_bookings_per_day,
+        booking_window_days,
+        require_confirmation,
+        is_active,
+        is_ai_active
+      )
+      select
+        acp.admin_user_id,
+        'Free Consultation',
+        acp.booking_slug,
+        acp.meeting_title,
+        'Initial DJAI consultation for qualified leads.',
+        acp.meeting_location,
+        acp.default_duration_minutes,
+        acp.buffer_before_minutes,
+        acp.buffer_after_minutes,
+        acp.minimum_notice_minutes,
+        acp.max_bookings_per_day,
+        acp.booking_window_days,
+        true,
+        acp.is_active,
+        false
+      from admin_calendar_profiles acp
+      where acp.booking_slug is not null
+        and not exists (
+          select 1 from booking_links bl where bl.slug = acp.booking_slug
+        )
     `,
     tx`
       create unique index if not exists leads_conversation_contact_unique
@@ -469,12 +621,43 @@ async function migrate() {
       on conversations (assigned_admin_id)
     `,
     tx`
+      create index if not exists conversations_channel_started_idx
+      on conversations (channel, started_at desc)
+      where deleted_at is null
+    `,
+    tx`
+      create index if not exists conversations_channel_interest_idx
+      on conversations (channel, interest_level, started_at desc)
+      where deleted_at is null
+    `,
+    tx`
       create index if not exists leads_assigned_admin_idx
       on leads (assigned_admin_id)
     `,
     tx`
+      create index if not exists leads_status_channel_updated_idx
+      on leads (status, source_channel, updated_at desc)
+    `,
+    tx`
       create unique index if not exists admin_calendar_profiles_admin_unique
       on admin_calendar_profiles (admin_user_id)
+    `,
+    tx`
+      create unique index if not exists booking_links_slug_unique
+      on booking_links (slug)
+    `,
+    tx`
+      create index if not exists booking_links_owner_idx
+      on booking_links (owner_admin_id)
+    `,
+    tx`
+      create index if not exists booking_links_active_idx
+      on booking_links (is_active, deleted_at)
+    `,
+    tx`
+      create unique index if not exists booking_links_single_ai_active_idx
+      on booking_links (is_ai_active)
+      where is_ai_active = true
     `,
     tx`
       create index if not exists admin_calendar_profiles_admin_idx
@@ -501,8 +684,25 @@ async function migrate() {
       on appointments (conversation_id)
     `,
     tx`
+      create index if not exists appointments_booking_link_idx
+      on appointments (booking_link_id)
+    `,
+    tx`
       create index if not exists appointments_status_idx
       on appointments (status)
+    `,
+    tx`
+      create index if not exists appointments_source_start_idx
+      on appointments (source, start_at desc)
+      where deleted_at is null
+    `,
+    tx`
+      create index if not exists conversation_messages_conversation_time_idx
+      on conversation_messages (conversation_id, created_at asc)
+    `,
+    tx`
+      create index if not exists conversation_messages_channel_time_idx
+      on conversation_messages (channel, created_at desc)
     `,
     tx`
       create index if not exists conversations_starred_idx
@@ -539,7 +739,12 @@ async function migrate() {
         booking_enabled,
         default_timezone,
         require_booking_confirmation,
-        default_booking_window_days
+        default_booking_window_days,
+        text_chat_enabled,
+        text_chat_model_id,
+        text_chat_greeting,
+        text_chat_max_messages,
+        text_chat_daily_session_cap
       )
       values (
         1,
@@ -559,7 +764,12 @@ async function migrate() {
         true,
         'Asia/Bangkok',
         true,
-        30
+        30,
+        true,
+        'gpt-5-mini',
+        'Hi, I am DJ from DJAI Academy. What kind of business are you running, and what are you trying to improve right now?',
+        40,
+        200
       )
       on conflict (id) do nothing
     `,
@@ -575,17 +785,69 @@ async function migrate() {
           active_booking_admin_id,
           (select id from admin_users where role = 'master_admin' and is_active = true and deleted_at is null order by created_at asc limit 1)
         ),
+        active_booking_link_id = coalesce(
+          active_booking_link_id,
+          (
+            select bl.id
+            from booking_links bl
+            where bl.owner_admin_id = coalesce(
+                active_booking_admin_id,
+                (select id from admin_users where role = 'master_admin' and is_active = true and deleted_at is null order by created_at asc limit 1)
+              )
+              and bl.is_active = true
+              and bl.deleted_at is null
+            order by bl.created_at asc
+            limit 1
+          ),
+          (
+            select bl.id
+            from booking_links bl
+            join admin_users au on au.id = bl.owner_admin_id
+            where au.role = 'master_admin'
+              and au.is_active = true
+              and au.deleted_at is null
+              and bl.is_active = true
+              and bl.deleted_at is null
+            order by bl.created_at asc
+            limit 1
+          )
+        ),
         default_timezone = coalesce(nullif(default_timezone, ''), 'Asia/Bangkok'),
         require_booking_confirmation = coalesce(require_booking_confirmation, true),
         default_booking_window_days = coalesce(default_booking_window_days, 30),
+        text_chat_enabled = coalesce(text_chat_enabled, true),
+        text_chat_model_id = case
+          when text_chat_model_id is null or text_chat_model_id = '' or text_chat_model_id = 'gpt-4o-mini'
+            then 'gpt-5-mini'
+          else text_chat_model_id
+        end,
+        text_chat_greeting = coalesce(nullif(text_chat_greeting, ''), 'Hi, I am DJ from DJAI Academy. What kind of business are you running, and what are you trying to improve right now?'),
+        text_chat_max_messages = coalesce(text_chat_max_messages, 40),
+        text_chat_daily_session_cap = coalesce(text_chat_daily_session_cap, 200),
         greeting = case
           when greeting = 'Hi, this is DJAI Academy. Tell me what you want to build, and I will help you choose the right next step.'
             then 'Hi, I am DJ from DJAI Academy. What kind of business are you running, and what are you trying to improve right now?'
           else greeting
         end,
-        knowledge_md = case when knowledge_md = ${legacyKnowledgeMarkdown} then ${initialKnowledgeMarkdown} else knowledge_md end,
+        knowledge_md = replace(
+          case when knowledge_md = ${legacyKnowledgeMarkdown} then ${initialKnowledgeMarkdown} else knowledge_md end,
+          '- Landing page comparison states that buying 5 pages individually would be 15,000 THB, the bundle price is 10,000 THB, and the customer saves 5,000 THB.' || chr(10),
+          ''
+        ),
         updated_at = now()
       where id = 1
+    `,
+    tx`
+      update booking_links
+      set is_ai_active = false
+      where is_ai_active = true
+        and id <> (select active_booking_link_id from settings where id = 1)
+    `,
+    tx`
+      update booking_links
+      set is_ai_active = true
+      where id = (select active_booking_link_id from settings where id = 1)
+        and deleted_at is null
     `,
     tx`
       update leads set
@@ -602,7 +864,15 @@ async function migrate() {
         email = case when contact_type = 'email' then coalesce(nullif(email, ''), contact) else email end,
         line_id = case when contact_type = 'line' then coalesce(nullif(line_id, ''), contact) else line_id end,
         other_contact = case when contact_type = 'other' then coalesce(nullif(other_contact, ''), contact) else other_contact end,
-        updated_at = coalesce(updated_at, created_at, now())
+        updated_at = coalesce(updated_at, created_at, now()),
+        source_channel = coalesce(source_channel, 'voice_widget'),
+        source_mode = coalesce(source_mode, 'voice')
+    `,
+    tx`
+      update conversations set
+        channel = coalesce(channel, 'voice_widget'),
+        interaction_mode = coalesce(interaction_mode, 'voice'),
+        message_count = coalesce(message_count, 0)
     `,
   ]);
 }
