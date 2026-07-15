@@ -31,6 +31,9 @@ export interface VoiceSessionAuthority {
     protocolVersion: typeof voiceProtocolVersion;
     connectionId: string;
   }>): Promise<AuthorizedVoiceSession | null>;
+  heartbeat(input: Readonly<{ sessionId: string; connectionId: string }>): Promise<Readonly<{
+    alive: boolean; runtimeMode: "running" | "paused" | "emergency_stop";
+  }>>;
   disconnect(input: Readonly<{ sessionId: string; connectionId: string }>): Promise<boolean>;
   finish(input: Readonly<{
     sessionId: string;
@@ -111,6 +114,7 @@ export function attachVoiceWebSocketGateway(input: Readonly<{
   registry: VoiceGatewayRegistry;
   path?: string;
   connectTimeoutMs?: number;
+  heartbeatIntervalMs?: number;
 }>) {
   const path = input.path ?? "/v1/connect";
   const websocketServer = new WebSocketServer({ noServer: true, maxPayload: 300_000 });
@@ -144,6 +148,9 @@ export function attachVoiceWebSocketGateway(input: Readonly<{
     let terminal = false;
     let operation = Promise.resolve();
     let durationTimer: ReturnType<typeof setTimeout> | null = null;
+    let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+    let heartbeatInFlight = false;
+    let heartbeatFailures = 0;
     let connectedAtMs = 0;
 
     const send = (message: VoiceServerMessage) => {
@@ -161,6 +168,7 @@ export function attachVoiceWebSocketGateway(input: Readonly<{
       if (terminal || !authorized || !connectionId) return;
       terminal = true;
       if (durationTimer) clearTimeout(durationTimer);
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
       try { lifecycle?.apply({ type: "ended", atMs: Date.now(), reason }); } catch { /* database authority remains terminal source */ }
       try { await media?.close(reason); } catch { /* terminal settlement still runs */ }
       try {
@@ -244,6 +252,25 @@ export function attachVoiceWebSocketGateway(input: Readonly<{
         resumed: message.reconnectAttempt > 0, outputAudioEncoding: "pcm_s16le_24000",
       });
       durationTimer = setTimeout(() => { void finish("time_limit", "time_limit"); }, result.maxCallSeconds * 1000);
+      heartbeatTimer = setInterval(() => {
+        if (heartbeatInFlight || terminal || !authorized || !connectionId) return;
+        heartbeatInFlight = true;
+        void input.authority.heartbeat({ sessionId: authorized.sessionId, connectionId })
+          .then(async (heartbeat) => {
+            heartbeatFailures = 0;
+            if (!heartbeat.alive || heartbeat.runtimeMode === "emergency_stop") {
+              await finish("unavailable", "unavailable");
+            }
+          })
+          .catch(() => {
+            heartbeatFailures += 1;
+            if (heartbeatFailures >= 3 && socket.readyState === WebSocket.OPEN) {
+              sendError("session_unavailable", true);
+              socket.close(1011, "authority_unavailable");
+            }
+          })
+          .finally(() => { heartbeatInFlight = false; });
+      }, input.heartbeatIntervalMs ?? 5_000);
     };
 
     const handle = async (raw: RawData, isBinary: boolean) => {
@@ -287,6 +314,7 @@ export function attachVoiceWebSocketGateway(input: Readonly<{
     socket.on("close", () => {
       sockets.delete(socket); clearTimeout(connectTimer);
       if (durationTimer) clearTimeout(durationTimer);
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
       operation = operation.then(async () => {
         if (authorized && connectionId && !terminal) {
           try { lifecycle?.apply({ type: "transport_lost", atMs: Date.now() }); } catch { /* close remains idempotent */ }

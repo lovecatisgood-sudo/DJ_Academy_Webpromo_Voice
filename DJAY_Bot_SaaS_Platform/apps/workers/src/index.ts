@@ -2,7 +2,7 @@ import { parse32ByteSecret } from "@djay/auth";
 import { AiTextRuntimeError, generateAiTurn } from "@djay/ai-chat-runtime";
 import {
   AiChatNotificationWorkerStore, AiSocialWorkerStore, createDatabaseClient, FlowbotNotificationWorkerStore, FlowbotWorkerStore,
-  PostgresEmailOutboxStore, PrivacyStore,
+  PostgresEmailOutboxStore, PrivacyStore, VoiceReaperStore,
 } from "@djay/db";
 import { createHttpEmailDelivery, runAiChatMerchantEmail, runEmailBatch, runFlowbotMerchantEmail } from "@djay/notifications";
 import { createHttpTextProviderGateway, ProviderGatewayError } from "@djay/provider-gateway";
@@ -33,6 +33,9 @@ const envSchema = z.object({
   AI_TEXT_GATEWAY_SERVICE_TOKEN: z.string().min(32).optional(),
   AI_SOCIAL_LINE_API_BASE_URL: z.string().url().default("https://api.line.me/"),
   AI_SOCIAL_META_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com/v23.0/"),
+  VOICE_REAPER_ENABLED: z.enum(["true", "false"]).default("false"),
+  VOICE_REAPER_STALE_SECONDS: z.coerce.number().int().min(15).max(300).default(30),
+  VOICE_REAPER_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(100),
 }).passthrough();
 
 const env = envSchema.parse(process.env);
@@ -70,6 +73,7 @@ const aiNotificationKey = env.AI_NOTIFICATION_ENVELOPE_KEY ? parse32ByteSecret(e
 const aiSocialCredentialKey = env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY
   ? parse32ByteSecret(env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY, "AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY") : null;
 const aiSocialWorker = aiSocialCredentialKey ? new AiSocialWorkerStore(client, aiSocialCredentialKey) : null;
+const voiceReaper = new VoiceReaperStore(client);
 const aiTextGateway = env.AI_TEXT_GATEWAY_ENDPOINT && env.AI_TEXT_GATEWAY_SERVICE_TOKEN
   ? createHttpTextProviderGateway({
     endpoint: env.AI_TEXT_GATEWAY_ENDPOINT, serviceToken: env.AI_TEXT_GATEWAY_SERVICE_TOKEN,
@@ -112,6 +116,15 @@ process.on("SIGTERM", () => { stopping = true; });
 process.on("SIGINT", () => { stopping = true; });
 
 do {
+  if (env.VOICE_REAPER_ENABLED === "true") {
+    const now = new Date();
+    const reaped = await voiceReaper.reap({
+      now,
+      staleBefore: new Date(now.getTime() - env.VOICE_REAPER_STALE_SECONDS * 1_000),
+      limit: env.VOICE_REAPER_BATCH_SIZE,
+    });
+    if (reaped.length) console.info("voice_sessions_reaped", { count: reaped.length });
+  }
   if (delivery && emailEnvelopeKey) {
     const result = await runEmailBatch(emailStore, delivery, emailEnvelopeKey);
     if (result.claimed > 0) console.info("email_batch_complete", result);

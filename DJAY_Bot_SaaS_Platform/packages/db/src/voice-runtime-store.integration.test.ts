@@ -4,16 +4,20 @@ import { voiceSessionGrantSchema } from "@djay/voice-runtime";
 import { afterAll, describe, expect, it } from "vitest";
 import { createDatabaseClient } from "./client";
 import { VoiceRuntimeStore } from "./voice-runtime-store";
+import { VoiceReaperStore } from "./voice-operations-store";
 
 const voiceUrl = process.env.VOICE_DATABASE_URL;
 const adminUrl = process.env.ADMIN_DATABASE_URL;
-const enabled = Boolean(voiceUrl && adminUrl);
+const workerUrl = process.env.WORKER_DATABASE_URL;
+const enabled = Boolean(voiceUrl && adminUrl && workerUrl);
 const voiceClient = enabled ? createDatabaseClient(voiceUrl!) : null;
 const adminClient = enabled ? createDatabaseClient(adminUrl!) : null;
+const workerClient = enabled ? createDatabaseClient(workerUrl!) : null;
 
 afterAll(async () => {
   await voiceClient?.end();
   await adminClient?.end();
+  await workerClient?.end();
 });
 
 describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
@@ -42,6 +46,11 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
       limits: { concurrent_calls: 1, phone_numbers: 0, storage_mb: 100, retention_days: 30 },
       resolvedAt: new Date().toISOString(),
     };
+    await adminClient!`
+      UPDATE platform.voice_runtime_controls
+      SET mode = 'paused', reason_code = 'integration_test_pause', version = version + 1, changed_at = now()
+      WHERE singleton = true
+    `;
     await adminClient!`
       UPDATE tenancy.product_subscriptions SET status = 'cancelled', cancelled_at = now()
       WHERE tenant_id = ${tenantId}::uuid AND product_key = 'voice' AND status <> 'cancelled'
@@ -95,6 +104,14 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
     `).rejects.toThrow(/voice_runtime_role_required/);
 
     const runtime = new VoiceRuntimeStore(voiceClient!);
+    await expect(runtime.issue({
+      deploymentKey, origin: "https://merchant.example", locale: "en", expiresAt: new Date(Date.now() + 60_000),
+    })).rejects.toThrow(/voice_runtime_not_accepting_new_sessions/);
+    await adminClient!`
+      UPDATE platform.voice_runtime_controls
+      SET mode = 'running', reason_code = 'integration_test_resume', version = version + 1, changed_at = now()
+      WHERE singleton = true
+    `;
     await expect(runtime.issue({
       deploymentKey, origin: "https://evil.example", locale: "en", expiresAt: new Date(Date.now() + 60_000),
     })).rejects.toThrow();
@@ -163,6 +180,24 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
       protocolVersion: "djay.voice.v1", connectionId: reconnectId,
     })).resolves.toMatchObject({ replayed: false });
 
+    const settlementAnchor = new Date();
+    await adminClient!`
+      UPDATE tenancy.voice_sessions SET connected_at = now() - interval '62 seconds'
+      WHERE id = ${issued.sessionId}::uuid
+    `;
+    await adminClient!`
+      UPDATE tenancy.voice_session_connections
+      SET connected_at = ${new Date(settlementAnchor.getTime() - 62_000)},
+          heartbeat_at = ${new Date(settlementAnchor.getTime() - 31_000)},
+          disconnected_at = ${new Date(settlementAnchor.getTime() - 31_000)}
+      WHERE id = ${firstConnectionId}::uuid
+    `;
+    await adminClient!`
+      UPDATE tenancy.voice_session_connections
+      SET connected_at = ${new Date(settlementAnchor.getTime() - 31_000)}, heartbeat_at = ${settlementAnchor}
+      WHERE id = ${reconnectId}::uuid
+    `;
+
     await expect(runtime.finish({
       sessionId: issued.sessionId, connectionId: reconnectId, elapsedSeconds: 62, terminalReason: "completed",
     })).resolves.toEqual({ status: "ended", customerMinutes: 2, replayed: false });
@@ -176,12 +211,14 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
 
     const afterSettlement = await adminClient!<{
       reserved: number; settled: number; terminalEvents: number; reservationStatus: string;
-      sessionStatus: string; leaseReleased: boolean;
+      sessionStatus: string; leaseReleased: boolean; reportedSeconds: number; settledSeconds: number;
     }[]>`
       SELECT account.reserved_quantity::int AS reserved, account.settled_quantity::int AS settled,
         (SELECT count(*)::int FROM tenancy.usage_events event
           WHERE event.tenant_id = account.tenant_id AND event.operation_id = ${issued.sessionId} AND event.event_type = 'settled') AS "terminalEvents",
         reservation.status AS "reservationStatus", session.status AS "sessionStatus",
+        session.reported_elapsed_seconds AS "reportedSeconds",
+        session.settled_elapsed_seconds AS "settledSeconds",
         lease.released_at IS NOT NULL AS "leaseReleased"
       FROM tenancy.quota_accounts account
       JOIN tenancy.voice_sessions session ON session.tenant_id = account.tenant_id AND session.id = ${issued.sessionId}::uuid
@@ -190,7 +227,8 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
       WHERE account.id = ${quotaId}::uuid
     `;
     expect(afterSettlement[0]).toEqual({
-      reserved: 0, settled: 2, terminalEvents: 1, reservationStatus: "settled", sessionStatus: "ended", leaseReleased: true,
+      reserved: 0, settled: 2, terminalEvents: 1, reservationStatus: "settled", sessionStatus: "ended",
+      leaseReleased: true, reportedSeconds: 62, settledSeconds: 62,
     });
 
     const secondConnectionId = randomUUID();
@@ -198,6 +236,11 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
       sessionGrant: competing.sessionGrant, sessionId: competing.sessionId, origin: "https://merchant.example",
       protocolVersion: "djay.voice.v1", connectionId: secondConnectionId,
     })).resolves.toMatchObject({ replayed: false });
+    await adminClient!`
+      UPDATE tenancy.voice_session_connections
+      SET connected_at = now() - interval '1 second', heartbeat_at = now()
+      WHERE id = ${secondConnectionId}::uuid
+    `;
     await expect(runtime.finish({
       sessionId: competing.sessionId, connectionId: secondConnectionId, elapsedSeconds: 1, terminalReason: "customer_ended",
     })).resolves.toEqual({ status: "ended", customerMinutes: 1, replayed: false });
@@ -206,6 +249,58 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
       FROM tenancy.quota_accounts WHERE id = ${quotaId}::uuid
     `;
     expect(finalAccount[0]).toEqual({ reserved: 0, settled: 3 });
+
+    const expired = await runtime.issue({
+      deploymentKey, origin: "https://merchant.example", locale: "en", expiresAt: new Date(Date.now() + 60_000),
+    });
+    await adminClient!`
+      UPDATE tenancy.voice_sessions
+      SET created_at = now() - interval '2 minutes', grant_expires_at = now() - interval '1 minute'
+      WHERE id = ${expired.sessionId}::uuid
+    `;
+    const stale = await runtime.issue({
+      deploymentKey, origin: "https://merchant.example", locale: "en", expiresAt: new Date(Date.now() + 60_000),
+    });
+    const staleConnectionId = randomUUID();
+    await runtime.authorize({
+      sessionGrant: stale.sessionGrant, sessionId: stale.sessionId, origin: "https://merchant.example",
+      protocolVersion: "djay.voice.v1", connectionId: staleConnectionId,
+    });
+    await adminClient!`
+      UPDATE tenancy.voice_sessions SET connected_at = now() - interval '45 seconds'
+      WHERE id = ${stale.sessionId}::uuid
+    `;
+    await adminClient!`
+      UPDATE tenancy.voice_session_connections
+      SET connected_at = now() - interval '45 seconds', heartbeat_at = now() - interval '31 seconds'
+      WHERE id = ${staleConnectionId}::uuid
+    `;
+    await adminClient!`
+      UPDATE tenancy.voice_concurrency_leases
+      SET acquired_at = now() - interval '45 seconds', expires_at = now() + interval '75 seconds'
+      WHERE session_id = ${stale.sessionId}::uuid
+    `;
+    const reaper = new VoiceReaperStore(workerClient!);
+    const reapNow = new Date();
+    const reaped = (await Promise.all([reaper.reap({
+      now: reapNow, staleBefore: new Date(reapNow.getTime() - 30_000), limit: 20,
+    }), reaper.reap({
+      now: reapNow, staleBefore: new Date(reapNow.getTime() - 30_000), limit: 20,
+    })])).flat();
+    expect(new Set(reaped.map((item) => item.sessionId)).size).toBe(reaped.length);
+    expect(reaped).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sessionId: expired.sessionId, terminalReason: "grant_expired", customerMinutes: 0 }),
+      expect.objectContaining({ sessionId: stale.sessionId, terminalReason: "unavailable", customerMinutes: 1 }),
+    ]));
+    const recovered = await adminClient!<{ expiredStatus: string; staleStatus: string; openLeases: number; reserved: number }[]>`
+      SELECT
+        (SELECT status FROM tenancy.voice_sessions WHERE id = ${expired.sessionId}::uuid) AS "expiredStatus",
+        (SELECT status FROM tenancy.voice_sessions WHERE id = ${stale.sessionId}::uuid) AS "staleStatus",
+        (SELECT count(*)::int FROM tenancy.voice_concurrency_leases WHERE released_at IS NULL) AS "openLeases",
+        reserved_quantity::int AS reserved
+      FROM tenancy.quota_accounts WHERE id = ${quotaId}::uuid
+    `;
+    expect(recovered[0]).toEqual({ expiredStatus: "expired", staleStatus: "failed", openLeases: 0, reserved: 0 });
 
     const advancedTenantId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb10";
     const advancedSubscriptionId = randomUUID();

@@ -72,6 +72,7 @@ run_sql /workspace/packages/db/migrations/0026_ai_chat_social_service_window.sql
 run_sql /workspace/packages/db/migrations/0027_ai_chat_social_delivery_progress.sql
 run_sql /workspace/packages/db/migrations/0028_ai_chat_social_operations.sql
 run_sql /workspace/packages/db/migrations/0029_voice_basic_authority.sql
+run_sql /workspace/packages/db/migrations/0030_voice_runtime_recovery.sql
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -c "ALTER ROLE djay_auth_runtime LOGIN PASSWORD 'djay_auth_test'" >/dev/null
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
@@ -165,8 +166,14 @@ PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:5
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/ai-social-store.integration.test.ts
 
+echo "Running Voice platform runtime-control integration test."
+PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:55432/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/voice-operations-store.integration.test.ts
+
 echo "Running restricted Voice Basic grant, concurrency, reconnect, and minute settlement integration test."
 VOICE_DATABASE_URL="postgresql://djay_voice_runtime:djay_voice_test@127.0.0.1:55432/postgres" \
+WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:55432/postgres" \
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/voice-runtime-store.integration.test.ts
 

@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0029_voice_basic_authority";
+export const currentSchemaVersion = "0030_voice_runtime_recovery";
 
 export { PostgresAuthStore } from "./auth-store";
 export { BillingWebhookStore } from "./billing-webhook-store";
@@ -30,4 +30,5 @@ export { PlatformSupportStore } from "./platform-support-store";
 export { TenantWorkspaceStore, type OnboardingStage } from "./tenant-workspace-store";
 export { VoiceRuntimeStore } from "./voice-runtime-store";
 export { VoiceDeploymentStore } from "./voice-deployment-store";
+export { PlatformVoiceOperationsStore, VoiceReaperStore, type VoiceRuntimeMode } from "./voice-operations-store";
 export * from "./schema";

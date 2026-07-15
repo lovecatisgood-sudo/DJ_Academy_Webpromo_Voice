@@ -29,6 +29,7 @@ const socialServiceWindowMigration = readFileSync(resolve(import.meta.dirname, "
 const socialDeliveryProgressMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0027_ai_chat_social_delivery_progress.sql"), "utf8");
 const socialOperationsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0028_ai_chat_social_operations.sql"), "utf8");
 const voiceBasicAuthorityMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0029_voice_basic_authority.sql"), "utf8");
+const voiceRecoveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0030_voice_runtime_recovery.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -448,5 +449,23 @@ describe("P7 Voice Basic database migration invariants", () => {
     expect(voiceBasicAuthorityMigration).toContain("released_at = COALESCE(released_at, now())");
     expect(voiceBasicAuthorityMigration).toContain("IF runtime.status IN ('ended', 'failed', 'expired')");
     expect(voiceBasicAuthorityMigration).not.toMatch(/openai|anthropic|gemini|gpt-|claude-/i);
+  });
+
+  it("keeps runtime control private and audited with a safe paused default", () => {
+    expect(voiceRecoveryMigration).toContain("VALUES (true, 'paused', 'activation_required')");
+    expect(voiceRecoveryMigration).toContain("voice.runtime_control_changed");
+    expect(voiceRecoveryMigration).toContain("platform_owner', 'platform_ai_operations");
+    expect(voiceRecoveryMigration).toContain("REVOKE ALL ON platform.voice_runtime_controls FROM PUBLIC");
+    expect(voiceRecoveryMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+voice_runtime_controls/i);
+  });
+
+  it("settles from connection history and reaps grants, stale transports, and emergency stops", () => {
+    expect(voiceRecoveryMigration).toContain("settled_elapsed_seconds");
+    expect(voiceRecoveryMigration).toContain("heartbeat_voice_basic_session");
+    expect(voiceRecoveryMigration).toContain("reap_voice_basic_sessions");
+    expect(voiceRecoveryMigration).toContain("FOR UPDATE OF session SKIP LOCKED");
+    expect(voiceRecoveryMigration).toContain("current_setting('app.service', true) IS DISTINCT FROM 'voice_reaper_worker'");
+    expect(voiceRecoveryMigration).toContain("GRANT EXECUTE ON FUNCTION tenancy.reap_voice_basic_sessions");
+    expect(voiceRecoveryMigration).not.toMatch(/openai|anthropic|gemini|gpt-|claude-/i);
   });
 });

@@ -43,6 +43,7 @@ async function mockPlatform(page) {
     if (path === "/platform/subscriptions") return json(route, { subscriptions: [{ id: "sub", tenantId: workspace.tenantId, businessName: workspace.businessName, productKey: "ai_chat", planKey: "ai_chat_premium", publicName: "AI Chatbot Premium", status: "active", createdAt: new Date().toISOString() }] });
     if (path === "/platform/tenants") return json(route, { tenants: [{ id: workspace.tenantId, businessName: workspace.businessName, slug: workspace.slug, status: "active" }] });
     if (path === "/platform/support-grants") return json(route, { grants: [{ id: "grant", tenantId: workspace.tenantId, businessName: workspace.businessName, requestedByPlatformUserId: "support-user", approvedByPlatformUserId: "platform-owner", reason: "Investigating a merchant-reported message delivery issue.", status: "active", startsAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3_600_000).toISOString() }] });
+    if (path === "/platform/voice/runtime-control") return json(route, { control: { mode: "paused", reasonCode: "scheduled_maintenance", version: 4, changedAt: new Date().toISOString(), activeSessions: 2, reconnectingSessions: 1, expiredGrants: 0, staleConnections: 0 } });
     return json(route, { status: "ok" });
   });
 }
@@ -64,6 +65,7 @@ async function inspect(url, name, viewport, mock) {
   }));
   if (result.bodyWidth > result.viewportWidth + 1) failures.push(`${name}: horizontal overflow ${result.bodyWidth}/${result.viewportWidth}`);
   if (restricted.test(result.bodyText)) failures.push(`${name}: restricted provider/model term visible`);
+  if (name.startsWith("platform-") && !result.bodyText.includes("Runtime admission and recovery")) failures.push(`${name}: Voice operations control missing`);
   await page.screenshot({ path: `/tmp/djay-p3-${name}.png`, fullPage: true });
   await context.close();
   return result.title;

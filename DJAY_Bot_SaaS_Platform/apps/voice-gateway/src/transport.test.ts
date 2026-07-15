@@ -20,23 +20,28 @@ afterEach(async () => {
 });
 
 function authority(): VoiceSessionAuthority & {
-  authorize: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn>; finish: ReturnType<typeof vi.fn>;
+  authorize: ReturnType<typeof vi.fn>; heartbeat: ReturnType<typeof vi.fn>;
+  disconnect: ReturnType<typeof vi.fn>; finish: ReturnType<typeof vi.fn>;
 } {
   return {
     authorize: vi.fn().mockResolvedValue({
       sessionId, capabilityProfile: "voice_gen1", locale: "en", maxCallSeconds: 900,
       resumeWindowSeconds: 30, replayed: false,
     }),
+    heartbeat: vi.fn().mockResolvedValue({ alive: true, runtimeMode: "running" }),
     disconnect: vi.fn().mockResolvedValue(true),
     finish: vi.fn().mockResolvedValue({ status: "ended" }),
   };
 }
 
-async function harness(input: { authority?: VoiceSessionAuthority; mediaFactory: VoiceMediaFactory; maxSessions?: number }) {
+async function harness(input: { authority?: VoiceSessionAuthority; mediaFactory: VoiceMediaFactory; maxSessions?: number; heartbeatIntervalMs?: number }) {
   const server = createServer((_request, response) => { response.writeHead(404); response.end(); });
   servers.push(server);
   const registry = new VoiceGatewayRegistry(input.maxSessions ?? 2);
-  attachVoiceWebSocketGateway({ server, authority: input.authority ?? authority(), mediaFactory: input.mediaFactory, registry });
+  attachVoiceWebSocketGateway({
+    server, authority: input.authority ?? authority(), mediaFactory: input.mediaFactory,
+    registry, ...(input.heartbeatIntervalMs ? { heartbeatIntervalMs: input.heartbeatIntervalMs } : {}),
+  });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
@@ -145,6 +150,22 @@ describe("voice WebSocket transport", () => {
     await closed;
     expect(auth.finish).toHaveBeenCalledWith(expect.objectContaining({ terminalReason: "unavailable" }));
     expect(registry.snapshot().activeSessions).toBe(0);
+  });
+
+  it("ends an active session when the durable authority enters emergency stop", async () => {
+    const auth = authority();
+    auth.heartbeat.mockResolvedValue({ alive: false, runtimeMode: "emergency_stop" });
+    const mediaFactory: VoiceMediaFactory = {
+      async open() { return { async accept() {}, async close() {} }; },
+    };
+    const { url } = await harness({ authority: auth, mediaFactory, heartbeatIntervalMs: 10 });
+    const websocket = await socket(url);
+    const connected = nextMessage(websocket); connect(websocket);
+    await expect(connected).resolves.toMatchObject({ type: "session.connected" });
+    await expect(nextMessage(websocket)).resolves.toMatchObject({ type: "session.ended", reason: "unavailable" });
+    await vi.waitFor(() => expect(auth.finish).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId, connectionId, terminalReason: "unavailable",
+    })));
   });
 
   it("maps authority outages to a retryable safe error without leaking capacity", async () => {

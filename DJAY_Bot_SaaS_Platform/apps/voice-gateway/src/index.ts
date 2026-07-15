@@ -12,6 +12,7 @@ const env = z.object({
   PORT: z.coerce.number().int().min(1).max(65_535).default(8080),
   VOICE_GATEWAY_MAX_SESSIONS: z.coerce.number().int().positive().default(100),
   VOICE_AUTHORIZATION_ENDPOINT: z.string().url(),
+  VOICE_HEARTBEAT_ENDPOINT: z.string().url(),
   VOICE_DISCONNECT_ENDPOINT: z.string().url(),
   VOICE_FINISH_ENDPOINT: z.string().url(),
   VOICE_AUTHORIZATION_SERVICE_TOKEN: z.string().min(32),
@@ -33,6 +34,13 @@ async function authorityRequest<T>(endpoint: string, body: unknown, idempotencyK
 
 const authority: VoiceSessionAuthority = {
   authorize(input) { return authorityRequest(env.VOICE_AUTHORIZATION_ENDPOINT, input, input.connectionId); },
+  async heartbeat(input) {
+    const result = await authorityRequest<{
+      alive: boolean; runtimeMode: "running" | "paused" | "emergency_stop";
+    }>(env.VOICE_HEARTBEAT_ENDPOINT, input, `${input.connectionId}:heartbeat`);
+    if (!result) throw new Error("voice_heartbeat_unavailable");
+    return result;
+  },
   async disconnect(input) {
     return Boolean(await authorityRequest(env.VOICE_DISCONNECT_ENDPOINT, input, `${input.connectionId}:disconnect`));
   },

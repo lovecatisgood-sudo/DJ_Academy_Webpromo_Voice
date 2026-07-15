@@ -12,6 +12,7 @@ type Subscription = {
 };
 type Tenant = { id: string; businessName: string; slug: string; status: string };
 type SupportGrant = { id: string; tenantId: string; businessName: string; requestedByPlatformUserId: string; approvedByPlatformUserId: string | null; reason: string; status: string; startsAt: string; expiresAt: string };
+type VoiceControl = { mode: "running" | "paused" | "emergency_stop"; reasonCode: string; version: number; changedAt: string; activeSessions: number; reconnectingSessions: number; expiredGrants: number; staleConnections: number };
 
 export default function PlatformMasterPage() {
   const [stage, setStage] = useState<"loading" | "password" | "mfa" | "dashboard">("loading");
@@ -23,6 +24,8 @@ export default function PlatformMasterPage() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [supportGrants, setSupportGrants] = useState<SupportGrant[]>([]);
+  const [voiceControl, setVoiceControl] = useState<VoiceControl | null>(null);
+  const [voiceReason, setVoiceReason] = useState("scheduled_maintenance");
 
   async function loadCurrent() {
     const response = await fetch("/platform/me", { cache: "no-store" });
@@ -43,6 +46,8 @@ export default function PlatformMasterPage() {
     if (tenantResponse.ok) setTenants((await tenantResponse.json()).tenants || []);
     const grantResponse = await fetch("/platform/support-grants", { cache: "no-store" });
     if (grantResponse.ok) setSupportGrants((await grantResponse.json()).grants || []);
+    const voiceResponse = await fetch("/platform/voice/runtime-control", { cache: "no-store" });
+    if (voiceResponse.ok) setVoiceControl((await voiceResponse.json()).control);
   }
 
   useEffect(() => { void loadCurrent(); }, []);
@@ -91,6 +96,7 @@ export default function PlatformMasterPage() {
     setSubscriptions([]);
     setTenants([]);
     setSupportGrants([]);
+    setVoiceControl(null);
     setStage("password");
   }
 
@@ -119,6 +125,28 @@ export default function PlatformMasterPage() {
     await loadCurrent();
   }
 
+  async function changeVoiceMode(mode: VoiceControl["mode"]) {
+    const warning = mode === "emergency_stop"
+      ? "Emergency stop ends every active Voice session and prevents new sessions. Continue?"
+      : mode === "running"
+        ? "Resume new Voice sessions? Confirm deployment readiness first."
+        : "Pause admission of new Voice sessions? Active sessions will continue.";
+    if (!window.confirm(warning)) return;
+    setWorking(true); setMessage("");
+    const response = await fetch("/platform/voice/runtime-control", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode, reasonCode: voiceReason }),
+    });
+    setWorking(false);
+    if (!response.ok) {
+      setMessage(response.status === 403
+        ? "Voice controls require recent authentication. Sign out and verify again."
+        : "Voice runtime control could not be changed.");
+      return;
+    }
+    await loadCurrent();
+  }
+
   if (stage === "loading") return <main className="platform-loading">Checking platform session...</main>;
   if (stage === "dashboard" && user) {
     return (
@@ -131,6 +159,7 @@ export default function PlatformMasterPage() {
         </aside>
         <section className="platform-content">
           <header><div><p>Internal operations</p><h1>Platform health</h1></div><span>{user.displayName}<small>{user.role.replaceAll("_", " ")}</small></span></header>
+          {message ? <div className="platform-message dashboard-message" role="alert">{message}</div> : null}
           <div className="metrics-band">
             <div><span>Platform users</span><strong>{health?.platformUsers ?? "-"}</strong></div>
             <div><span>Active sessions</span><strong>{health?.activeSessions ?? "-"}</strong></div>
@@ -140,6 +169,21 @@ export default function PlatformMasterPage() {
             <div><span>Pending activation</span><strong>{commerce?.pending ?? "-"}</strong></div>
           </div>
           <div className="operations-band"><p>System</p><h2>Identity and commerce foundations operational</h2></div>
+          {voiceControl ? <div className={`subscription-band voice-control-band mode-${voiceControl.mode}`}>
+            <div><p>Voice operations</p><h2>Runtime admission and recovery</h2></div>
+            <div className="voice-control-summary">
+              <div><span>Mode</span><strong>{voiceControl.mode.replaceAll("_", " ")}</strong><small>{voiceControl.reasonCode.replaceAll("_", " ")}</small></div>
+              <div><span>Active</span><strong>{voiceControl.activeSessions}</strong><small>{voiceControl.reconnectingSessions} reconnecting</small></div>
+              <div><span>Recovery queue</span><strong>{voiceControl.expiredGrants + voiceControl.staleConnections}</strong><small>{voiceControl.staleConnections} stale connections</small></div>
+            </div>
+            <label className="voice-reason">Operational reason<input value={voiceReason} minLength={3} maxLength={200} onChange={(event) => setVoiceReason(event.target.value)} /></label>
+            <div className="voice-control-actions">
+              <button type="button" disabled={working || voiceControl.mode === "running"} onClick={() => void changeVoiceMode("running")}>Resume admission</button>
+              <button className="outline-button" type="button" disabled={working || voiceControl.mode === "paused"} onClick={() => void changeVoiceMode("paused")}>Pause new sessions</button>
+              <button className="danger-button" type="button" disabled={working || voiceControl.mode === "emergency_stop"} onClick={() => void changeVoiceMode("emergency_stop")}>Emergency stop</button>
+            </div>
+            <small>Version {voiceControl.version} · changed {new Date(voiceControl.changedAt).toLocaleString()}</small>
+          </div> : null}
           {health?.socialChannels?.length ? <div className="subscription-band"><div><p>AI Chat operations</p><h2>Social channel health</h2></div><div className="platform-table" role="table" aria-label="Social channel health">{health.socialChannels.map((channel) => <div className="platform-row" role="row" key={channel.channel}><div><strong>{channel.channel === "line" ? "LINE" : channel.channel === "whatsapp" ? "WhatsApp" : "Messenger"}</strong><span>{channel.activeConnections} active / {channel.reauthorizationRequired} reauthorization</span></div><span>{channel.queuedInbound} inbound queued / {channel.oldestInboundQueueSeconds}s oldest</span><span>{channel.queuedDeliveries} delivery queued / {channel.oldestDeliveryQueueSeconds}s oldest</span><span>{channel.deadLetterInbound + channel.deadLetterDeliveries} dead letters / {channel.failedAttempts24h} failed attempts</span></div>)}</div></div> : null}
           <div className="subscription-band">
             <div><p>Commerce</p><h2>Product subscriptions</h2></div>

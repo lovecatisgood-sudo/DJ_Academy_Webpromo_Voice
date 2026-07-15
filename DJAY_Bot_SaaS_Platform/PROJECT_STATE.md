@@ -20,9 +20,11 @@ P7 Voice Agent Basic is in progress. Its current foundation establishes a strict
 provider-neutral opaque grant/message contract, deterministic disclosure,
 interruption, reconnect, and terminal minute intent lifecycle, plus a separately
 deployable gateway health/capacity and fail-closed authorization boundary.
-Migration `0029_voice_basic_authority` adds forced-RLS deployment/session state,
+Migrations `0029_voice_basic_authority` and `0030_voice_runtime_recovery` add forced-RLS deployment/session state,
 Gen1-only exact-origin grant issuance, atomic maximum-minute and concurrency
-reservation, bounded reconnect, and exactly-once rounded terminal settlement.
+reservation, bounded reconnect, database-derived exactly-once settlement,
+gateway heartbeats, durable stale-session reaping, and audited pause/resume/
+emergency-stop authority.
 The public and gateway-only APIs exist but remain disabled by default. Media,
 actions, and release acceptance remain pending. Tenant Voice operations now
 provide Basic-only exact-origin creation, one-time keys, safe listing,
@@ -32,6 +34,8 @@ bilingual consent/call states, strict public decoding, process capacity,
 disconnect/reconnect, and terminal authority calls. The gateway remains
 not-ready and production activation remains off until its restricted realtime
 media adapter and the remaining P7 release gates pass.
+Platform Owner and AI Operations users now have a responsive, recently
+reauthenticated runtime-control panel; admission remains paused by default.
 
 P6 AI Chatbot Premium social local engineering is complete on the P1-P5 authority.
 The controlled delivery order is LINE, WhatsApp, then Messenger. All three

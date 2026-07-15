@@ -24,6 +24,7 @@ import {
   FlowbotRuntimeStore,
   PlatformFlowbotIntegrationStore,
   PlatformCommerceStore,
+  PlatformVoiceOperationsStore,
   PlatformSupportStore,
   PostgresAuthStore,
   PostgresCatalogStore,
@@ -156,6 +157,7 @@ async function buildServices() {
       ? parse32ByteSecret(env.PRIVACY_EXPORT_KEY, "PRIVACY_EXPORT_KEY") : null,
     catalog: new PostgresCatalogStore(client),
     platformCommerce: new PlatformCommerceStore(platformClient),
+    platformVoiceOperations: new PlatformVoiceOperationsStore(platformClient),
     platformSupport: new PlatformSupportStore(platformClient),
     platformFlowbotIntegrations: new PlatformFlowbotIntegrationStore(platformClient),
     flowbotIntegrationEnvelopeKey: env.FLOWBOT_INTEGRATION_ENVELOPE_KEY

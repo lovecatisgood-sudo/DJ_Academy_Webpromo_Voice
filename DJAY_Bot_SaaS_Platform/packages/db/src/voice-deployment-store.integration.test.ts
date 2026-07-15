@@ -23,6 +23,11 @@ describe.runIf(enabled)("P7 Voice Basic tenant deployment operations", () => {
     const subscriptionId = randomUUID(); const snapshotId = randomUUID();
     const planVersionId = "62000000-0000-4000-8000-000000000005";
     await adminClient!`
+      UPDATE platform.voice_runtime_controls
+      SET mode = 'running', reason_code = 'integration_test', version = version + 1, changed_at = now()
+      WHERE singleton = true
+    `;
+    await adminClient!`
       UPDATE tenancy.product_subscriptions SET status = 'cancelled', cancelled_at = now()
       WHERE tenant_id = ${tenantId}::uuid AND product_key = 'voice' AND status <> 'cancelled'
     `;

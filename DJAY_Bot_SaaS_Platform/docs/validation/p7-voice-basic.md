@@ -2,7 +2,7 @@
 
 - Result: Browser transport/widget gate passed; P7 release gate remains open
 - Date: 2026-07-15
-- Database migrations: `0029_voice_basic_authority`
+- Database migrations: `0029_voice_basic_authority`, `0030_voice_runtime_recovery`
 - Production activation: Disabled
 
 ## Executed foundation gates
@@ -18,6 +18,7 @@ scripts/use-node24.sh pnpm run lint:boundaries
 scripts/test-db-integration.sh
 scripts/use-node24.sh pnpm run verify
 scripts/use-node24.sh pnpm run qa:p7-voice
+scripts/use-node24.sh pnpm run qa:p3-ui
 P7_TENANT_QA_URL=http://127.0.0.1:3111 scripts/use-node24.sh pnpm run qa:p7-voice
 ```
 
@@ -53,6 +54,16 @@ All passed across 30 packages/apps. Coverage proves that:
   the conversation, and a duplicate terminal call returns the stored result;
 - after release, the waiting session can connect and a one-second call settles
   one minute under the same rounding rule.
+- settlement derives cumulative connected time from durable connection history,
+  excludes reconnect downtime, and retains gateway-reported time only for
+  reconciliation;
+- two concurrent worker reapers settle each expired or stale session once,
+  release its reservation and lease, and close its conversation;
+- the runtime starts paused, direct control-table access is denied, and only an
+  active Platform Owner or AI Operations role can read/change the audited
+  control through its restricted functions;
+- gateway heartbeats preserve active sessions while paused and terminate them
+  safely when emergency stop becomes authoritative;
 - tenant deployment creation requires active Basic Gen1 authority and an exact
   origin; an invalid path origin fails before storage;
 - only a one-time deployment key is returned, while subsequent lists expose its
@@ -79,22 +90,37 @@ All passed across 30 packages/apps. Coverage proves that:
   call, expose the correct one-time install snippet, require confirmation before
   irreversible revocation, and remain responsive on desktop and mobile.
 
-The API production build contains 93 route handlers, including the disabled-by-default
+The API production build includes the disabled-by-default
 `/public/voice/session` route and the service-authorized voice `authorize`,
-`disconnect`, and `finish` routes. The voice gateway also builds as an
+`heartbeat`, `disconnect`, and `finish` routes plus restricted Platform runtime
+controls. The voice gateway also builds as an
 independent Node application.
 
 ## Remaining P7 gates
 
 - Restricted realtime media adapter and production speech transport.
-- Expired unused-grant/reconnect reaping, crash recovery, emergency stop, and
-  concurrent race tests beyond the serialized integration journey.
 - Spend reservation once approved rates exist; no monetary value is invented by
   this slice.
 - Realtime audio, interruption, silence, noise, reconnect, transcript, summary,
   Sales Core, Action Gateway, callback, and handover integration.
 - English and Thai quality/latency evaluation with approved pilot thresholds.
-- Runtime monitoring/runbook,
-  migration, retention/erasure, and named merchant acceptance.
+- Migration, retention/erasure, and named merchant acceptance.
 
 This evidence does not authorize a voice pilot or production activation.
+
+## Crash recovery and operational control
+
+Migration `0030_voice_runtime_recovery` keeps Voice admission paused by default.
+Platform Owner and AI Operations users can resume, pause, or emergency-stop the
+runtime through a recently reauthenticated, audited platform control. Pause
+rejects new grants and connections while allowing active sessions to finish;
+emergency stop also causes active and reconnecting sessions to settle and close.
+
+The gateway sends five-second authority heartbeats. The worker-side reaper owns
+eventual cleanup of expired grants, reconnect deadlines, stale gateway
+connections, duration limits, and emergency-stop sessions. Settlement is derived
+from the complete database connection history, excluding reconnect downtime; the
+gateway-reported duration is retained only for reconciliation. Voice activation
+requires `VOICE_REAPER_ENABLED=true`, a 30-second or stricter reviewed stale
+threshold, and confirmed platform runtime mode after the media adapter passes its
+acceptance gate.

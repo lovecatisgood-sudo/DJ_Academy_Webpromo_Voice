@@ -45,6 +45,7 @@ export async function withPlatformTransaction<T>(
       SELECT
         set_config('app.tenant_id', '', true),
         set_config('app.platform_user_id', ${context.platformUserId}, true),
+        set_config('app.platform_role', ${context.role}, true),
         set_config('app.session_id', ${context.sessionId}, true),
         set_config('app.request_id', ${context.requestId}, true)
     `;
@@ -67,4 +68,3 @@ export async function withSystemTransaction<T>(
     return operation(Object.freeze({ context, sql }));
   }) as Promise<T>;
 }
-

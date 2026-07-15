@@ -60,6 +60,16 @@ export class VoiceRuntimeStore {
     return rows[0]?.disconnected ?? false;
   }
 
+  async heartbeat(sessionId: string, connectionId: string) {
+    const rows = await this.client<{
+      alive: boolean; runtimeMode: "running" | "paused" | "emergency_stop";
+    }[]>`
+      SELECT alive, runtime_mode AS "runtimeMode"
+      FROM tenancy.heartbeat_voice_basic_session(${sessionId}::uuid, ${connectionId}::uuid)
+    `;
+    return rows[0] ?? { alive: false as const, runtimeMode: "emergency_stop" as const };
+  }
+
   async finish(input: Readonly<{
     sessionId: string; connectionId: string; elapsedSeconds: number;
     terminalReason: "completed" | "customer_ended" | "time_limit" | "idle_timeout" | "transferred" | "callback_requested" | "unavailable" | "grant_expired";
