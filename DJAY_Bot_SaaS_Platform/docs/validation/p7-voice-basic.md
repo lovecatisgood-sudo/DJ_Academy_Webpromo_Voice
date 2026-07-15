@@ -1,6 +1,6 @@
 # P7 Validation: Voice Agent Basic
 
-- Result: Protocol/lifecycle foundation passed; P7 release gate remains open
+- Result: Browser transport/widget gate passed; P7 release gate remains open
 - Date: 2026-07-15
 - Database migrations: `0029_voice_basic_authority`
 - Production activation: Disabled
@@ -10,14 +10,18 @@
 ```bash
 scripts/use-node24.sh pnpm --filter @djay/voice-runtime test
 scripts/use-node24.sh pnpm --filter @djay/voice-gateway test
+scripts/use-node24.sh pnpm --filter @djay/voice-widget build
+scripts/use-node24.sh pnpm --filter @djay/voice-widget test
 scripts/use-node24.sh pnpm --filter @djay/voice-runtime typecheck
 scripts/use-node24.sh pnpm --filter @djay/voice-gateway typecheck
 scripts/use-node24.sh pnpm run lint:boundaries
 scripts/test-db-integration.sh
 scripts/use-node24.sh pnpm run verify
+scripts/use-node24.sh pnpm run qa:p7-voice
+P7_TENANT_QA_URL=http://127.0.0.1:3111 scripts/use-node24.sh pnpm run qa:p7-voice
 ```
 
-All passed across 29 packages/apps. Coverage proves that:
+All passed across 30 packages/apps. Coverage proves that:
 
 - the Gen1 public grant uses the First-Generation label and contains no routing,
   credential, vendor, model, or cost fields;
@@ -58,6 +62,22 @@ All passed across 29 packages/apps. Coverage proves that:
   with current authority, and revoke is audited and irreversible;
 - operator and analyst roles can read Voice state but cannot deploy; owner and
   tenant admin hold the explicit deployment permission.
+- WebSocket upgrade rejects missing origins and unsupported protocol versions,
+  while process admission never exceeds configured capacity;
+- authorization failure returns only a retryable provider-neutral error, media
+  admission failure settles `unavailable`, and abnormal close records a bounded
+  reconnect instead of falsely settling the session;
+- a normal widget/gateway journey sequences connect, disclosure, assistant
+  speech, customer interruption, media chunks, end, and terminal settlement;
+- the public widget produces strict ESM and classic-script bundles of about
+  25 KB minified / 8 KB gzip, and bundle scans find no routing or credential
+  identifiers;
+- Chromium desktop and mobile journeys pass microphone consent/denial, active
+  call confirmation, mute/end, microphone cleanup, overflow, accessible button
+  names, bilingual-safe rendering, and confidentiality checks.
+- Chromium tenant-workspace journeys reject path-bearing origins before an API
+  call, expose the correct one-time install snippet, require confirmation before
+  irreversible revocation, and remain responsive on desktop and mobile.
 
 The API production build contains 93 route handlers, including the disabled-by-default
 `/public/voice/session` route and the service-authorized voice `authorize`,
@@ -66,7 +86,7 @@ independent Node application.
 
 ## Remaining P7 gates
 
-- Browser voice widget and production media transport.
+- Restricted realtime media adapter and production speech transport.
 - Expired unused-grant/reconnect reaping, crash recovery, emergency stop, and
   concurrent race tests beyond the serialized integration journey.
 - Spend reservation once approved rates exist; no monetary value is invented by
@@ -74,7 +94,7 @@ independent Node application.
 - Realtime audio, interruption, silence, noise, reconnect, transcript, summary,
   Sales Core, Action Gateway, callback, and handover integration.
 - English and Thai quality/latency evaluation with approved pilot thresholds.
-- Browser widget UI, browser bundle confidentiality scan, runtime monitoring/runbook,
+- Runtime monitoring/runbook,
   migration, retention/erasure, and named merchant acceptance.
 
 This evidence does not authorize a voice pilot or production activation.

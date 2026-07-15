@@ -29,6 +29,11 @@ describe("opaque voice protocol", () => {
   });
 
   it("keeps client and server messages on an explicit allow-list", () => {
+    expect(voiceClientMessageSchema.parse({
+      type: "session.connect", messageId: grant.sessionId, sessionId: grant.sessionId,
+      sessionGrant: grant.sessionGrant, connectionId: "10000000-0000-4000-8000-000000000002",
+      protocolVersion: "djay.voice.v1", inputAudioEncoding: "mp4_aac", reconnectAttempt: 0,
+    }).type).toBe("session.connect");
     expect(voiceClientMessageSchema.parse({ type: "speech.started", messageId: grant.sessionId }).type).toBe("speech.started");
     const error = voiceServerMessageSchema.parse({ type: "error", messageId: grant.sessionId, code: "media_unavailable", retryable: true });
     expect(error.type === "error" ? error.code : null).toBe("media_unavailable");
@@ -43,6 +48,8 @@ describe("voice session lifecycle", () => {
     expect(() => lifecycle.apply({ type: "assistant_speech_started", atMs: 1_100 })).toThrowError(new VoiceLifecycleError("disclosure_required"));
     lifecycle.apply({ type: "disclosure_completed", atMs: 1_200 });
     lifecycle.apply({ type: "assistant_speech_started", atMs: 2_000 });
+    lifecycle.apply({ type: "assistant_speech_ended", atMs: 2_100 });
+    lifecycle.apply({ type: "assistant_speech_started", atMs: 2_150 });
     lifecycle.apply({ type: "customer_speech_started", atMs: 2_200 });
     lifecycle.apply({ type: "transport_lost", atMs: 30_000 });
     lifecycle.apply({ type: "reconnected", atMs: 35_000 });

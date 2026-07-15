@@ -1,0 +1,23 @@
+{
+  "name": "@djay/voice-widget",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && esbuild src/browser.ts --bundle --minify --platform=browser --format=esm --target=es2022 --outfile=dist/index.js && esbuild src/browser.ts --bundle --minify --platform=browser --format=iife --global-name=DJAYVoice --target=es2022 --outfile=dist/djay-voice-widget.js && node ../../scripts/check-voice-widget-bundle.mjs",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@djay/voice-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1",
+    "typescript": "5.9.3",
+    "vitest": "3.2.6"
+  }
+}

@@ -27,6 +27,11 @@ The public and gateway-only APIs exist but remain disabled by default. Media,
 actions, and release acceptance remain pending. Tenant Voice operations now
 provide Basic-only exact-origin creation, one-time keys, safe listing,
 disable/enable, irreversible revocation, audit, and a provider-neutral workspace.
+The deployable Voice widget and WebSocket-owned gateway lifecycle now cover
+bilingual consent/call states, strict public decoding, process capacity,
+disconnect/reconnect, and terminal authority calls. The gateway remains
+not-ready and production activation remains off until its restricted realtime
+media adapter and the remaining P7 release gates pass.
 
 P6 AI Chatbot Premium social local engineering is complete on the P1-P5 authority.
 The controlled delivery order is LINE, WhatsApp, then Messenger. All three
@@ -148,7 +153,7 @@ All passed on 2026-07-15. The database gate now applies migrations `0000` throug
 `0029` and includes the complete local LINE, WhatsApp, and Messenger inbound, Sales Core
 commit, outbound retry, partial-progress, service-window, quantity-ledger,
 delivery-status, opt-out, and quota-release journeys. Full verification passes
-across 29 packages/apps, and the API production build contains 93 route handlers,
+across 30 packages/apps, and the API production build contains 93 route handlers,
 including the opaque WhatsApp and Messenger callbacks. Tenant channel analytics
 and restricted aggregate Platform Operations health reconcile the social
 journey. Production Chromium passes AI Chat Basic

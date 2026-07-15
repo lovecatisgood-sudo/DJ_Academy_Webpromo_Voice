@@ -25,6 +25,12 @@ The separate multi-tenant implementation is under:
   one-time keys, forced-RLS listing, disable/enable, irreversible audited
   revocation, and a provider-neutral workspace. The browser media widget itself
   remains pending.
+- The P7 browser Voice widget now builds as strict ESM and classic-script
+  bundles, and the gateway owns the real WebSocket authorization,
+  capacity, disconnect/reconnect, and terminal settlement lifecycle. Browser
+  QA passes desktop/mobile consent, call controls, cleanup, accessibility, and
+  confidentiality. Production remains fail-closed until the restricted media
+  adapter and the remaining P7 gates are complete.
 - The PostgreSQL 16 integration gate applies migrations `0000`-`0028` and passes
   forced RLS, tenant isolation, identity, commerce, shared domain, FlowBot, and
   AI Chat runtime/worker journeys, including local LINE, WhatsApp, and Messenger

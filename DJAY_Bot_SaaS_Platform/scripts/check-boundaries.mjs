@@ -43,6 +43,10 @@ const rules = [
     forbidden: ["@djay/provider-gateway", "@djay/sales-core", "@djay/db"],
   },
   {
+    area: "packages/voice-widget",
+    forbidden: ["@djay/provider-gateway", "@djay/sales-core", "@djay/db"],
+  },
+  {
     area: "packages/voice-runtime",
     forbidden: ["@djay/provider-gateway", "@djay/db"],
   },
@@ -53,7 +57,7 @@ const providerNeutralAreas = [
   "apps/public-site", "apps/tenant-web", "packages/shared",
   "packages/flowbot-domain", "packages/flowbot-engine", "packages/flowbot-widget", "packages/flowbot-migration",
   "packages/ai-chat-widget", "packages/sales-core",
-  "packages/voice-runtime",
+  "packages/voice-runtime", "packages/voice-widget",
 ];
 const failures = [];
 

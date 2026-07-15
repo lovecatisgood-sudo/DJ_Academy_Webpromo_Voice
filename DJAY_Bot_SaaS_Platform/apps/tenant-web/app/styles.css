@@ -84,7 +84,8 @@ a { color: #126149; text-underline-offset: 3px; }
 .secondary-command { width: fit-content; min-width: 118px; height: 38px; justify-self: end; padding: 0 13px; border: 1px solid #aeb8b4; background: #fff; color: #204b40; font-size: 12px; }
 .secondary-command:hover { border-color: #126149; background: #edf7f3; }
 .secondary-link { width: fit-content; min-height: 38px; display: inline-flex; align-items: center; justify-self: end; padding: 0 13px; border: 1px solid #aeb8b4; border-radius: 6px; color: #204b40; font-size: 12px; font-weight: 800; text-decoration: none; }
-.danger-command { color: #8a302c; }
+.danger-command { border-color: #d6b4b0; color: #8a302c; }
+.danger-command:hover { border-color: #b96860; background: #fff1f0; }
 .pending-line { min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid #dde3e0; font-size: 13px; }
 .pending-line span { color: #68706d; text-transform: capitalize; }
 .mfa-command { margin-top: 20px; justify-self: start; }
@@ -139,6 +140,9 @@ a { color: #126149; text-underline-offset: 3px; }
 .flowbot-deploy { grid-template-columns: minmax(180px, .7fr) minmax(260px, 1.3fr) auto; margin-top: 22px; }
 .flowbot-create select, .flowbot-deploy input { height: 46px; }
 .flowbot-create button, .flowbot-deploy button { padding: 0 16px; }
+.voice-deploy { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 12px; margin-top: 22px; }
+.voice-deploy input, .voice-deploy select { width: 100%; height: 46px; }
+.voice-deploy button { width: fit-content; min-width: 180px; padding: 0 16px; }
 .flowbot-tabs { display: flex; justify-content: flex-start; gap: 8px; margin: 0; overflow-x: auto; }
 .flowbot-tabs button { min-width: 190px; height: auto; min-height: 58px; display: grid; gap: 4px; padding: 10px 12px; border: 1px solid #cbd3d0; background: #fff; color: #26302c; text-align: left; }
 .flowbot-tabs button.selected { border-color: #126149; background: #e8f3ef; }
@@ -197,6 +201,9 @@ a { color: #126149; text-underline-offset: 3px; }
 .social-delivery-metrics { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 0; color: #68716e; font-size: 11px; }
 .social-delivery-metrics span { display: inline-flex; gap: 4px; }
 .social-delivery-metrics strong { color: #164c3d; }
+@media (max-width: 1050px) {
+  .voice-deploy { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 760px) {
   .workspace-shell { grid-template-columns: 1fr; }
   .workspace-shell aside { border-right: 0; border-bottom: 1px solid #dce1df; }
@@ -216,6 +223,7 @@ a { color: #126149; text-underline-offset: 3px; }
   .reply-form { grid-template-columns: 1fr; }
   .reply-form button { width: 100%; }
   .flowbot-create, .flowbot-deploy { grid-template-columns: 1fr; }
+  .voice-deploy { grid-template-columns: 1fr; }
   .ai-agent-create, .ai-authoring-grid, .ai-test-form { grid-template-columns: 1fr; }
   .template-control { width: 100%; }
   .template-control button { min-width: 0; flex: 1; }

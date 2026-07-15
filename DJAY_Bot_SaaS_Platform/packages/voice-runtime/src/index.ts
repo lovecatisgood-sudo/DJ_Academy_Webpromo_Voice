@@ -48,7 +48,19 @@ export const voiceSessionGrantSchema = z.object({
 
 export type VoiceSessionGrant = z.infer<typeof voiceSessionGrantSchema>;
 
+export const voiceInputAudioEncodingSchema = z.enum(["webm_opus", "ogg_opus", "mp4_aac"]);
+export const voiceOutputAudioEncodingSchema = z.literal("pcm_s16le_24000");
+export type VoiceInputAudioEncoding = z.infer<typeof voiceInputAudioEncodingSchema>;
+export type VoiceOutputAudioEncoding = z.infer<typeof voiceOutputAudioEncodingSchema>;
+
 export const voiceClientMessageSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("session.connect"), messageId: z.uuid(), sessionId: z.uuid(),
+    sessionGrant: z.string().startsWith("djay_voice_grant_").min(48).max(256),
+    connectionId: z.uuid(), protocolVersion: z.literal(voiceProtocolVersion),
+    inputAudioEncoding: voiceInputAudioEncodingSchema,
+    reconnectAttempt: z.number().int().min(0).max(10),
+  }).strict(),
   z.object({ type: z.literal("session.ready"), messageId: z.uuid() }).strict(),
   z.object({ type: z.literal("audio.chunk"), messageId: z.uuid(), sequence: z.number().int().nonnegative(), audioBase64: z.string().min(1).max(262_144) }).strict(),
   z.object({ type: z.literal("speech.started"), messageId: z.uuid() }).strict(),
@@ -57,9 +69,16 @@ export const voiceClientMessageSchema = z.discriminatedUnion("type", [
 ]);
 
 export const voiceServerMessageSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("session.connected"), messageId: z.uuid(), sessionId: z.uuid(), resumed: z.boolean() }).strict(),
-  z.object({ type: z.literal("audio.chunk"), messageId: z.uuid(), sequence: z.number().int().nonnegative(), audioBase64: z.string().min(1).max(262_144) }).strict(),
+  z.object({
+    type: z.literal("session.connected"), messageId: z.uuid(), sessionId: z.uuid(),
+    resumed: z.boolean(), outputAudioEncoding: voiceOutputAudioEncodingSchema,
+  }).strict(),
+  z.object({
+    type: z.literal("audio.chunk"), messageId: z.uuid(), sequence: z.number().int().nonnegative(),
+    outputAudioEncoding: voiceOutputAudioEncodingSchema, audioBase64: z.string().min(1).max(262_144),
+  }).strict(),
   z.object({ type: z.literal("assistant.speech.started"), messageId: z.uuid() }).strict(),
+  z.object({ type: z.literal("assistant.speech.ended"), messageId: z.uuid() }).strict(),
   z.object({ type: z.literal("assistant.speech.interrupted"), messageId: z.uuid() }).strict(),
   z.object({ type: z.literal("silence.warning"), messageId: z.uuid(), remainingSeconds: z.number().int().nonnegative() }).strict(),
   z.object({ type: z.literal("transcript.delta"), messageId: z.uuid(), speaker: z.enum(["customer", "agent"]), text: z.string().max(5000) }).strict(),
@@ -79,6 +98,7 @@ export type VoiceLifecycleEvent = Readonly<
   | { type: "disclosure_completed"; atMs: number }
   | { type: "customer_speech_started"; atMs: number }
   | { type: "assistant_speech_started"; atMs: number }
+  | { type: "assistant_speech_ended"; atMs: number }
   | { type: "transport_lost"; atMs: number }
   | { type: "reconnected"; atMs: number }
   | { type: "ended"; atMs: number; reason: VoiceTerminalReason }
@@ -135,6 +155,10 @@ export class VoiceSessionLifecycle {
         this.snapshotValue = current.assistantSpeaking
           ? { ...current, assistantSpeaking: false, interruptionCount: current.interruptionCount + 1 }
           : current;
+        break;
+      case "assistant_speech_ended":
+        if (current.state !== "connected" || !current.assistantSpeaking) throw new VoiceLifecycleError("invalid_transition");
+        this.snapshotValue = { ...current, assistantSpeaking: false };
         break;
       case "transport_lost":
         if (current.state !== "connected") throw new VoiceLifecycleError("invalid_transition");

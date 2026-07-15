@@ -18,6 +18,7 @@
     "qa:p4-flowbot": "node scripts/qa-p4-flowbot.mjs",
     "qa:p5-ai-chat": "node scripts/qa-p5-ai-chat.mjs",
     "qa:p6-line": "node scripts/qa-p6-line.mjs",
+    "qa:p7-voice": "node scripts/qa-p7-voice-widget.mjs",
     "verify": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
   },
   "devDependencies": {

@@ -4,8 +4,9 @@
 
 In progress. The provider-neutral browser/gateway protocol, deterministic
 session lifecycle, and restricted database authority are implemented locally.
-Tenant deployment operations are implemented locally. Media transport, Sales
-Core actions, legacy migration, and
+Tenant deployment operations, a deployable browser widget, and the
+WebSocket-owned gateway/session lifecycle are implemented locally. The
+restricted realtime media engine, Sales Core actions, legacy migration, and
 production acceptance remain pending.
 
 ## Requirements
@@ -57,20 +58,29 @@ production acceptance remain pending.
 12. A tenant Voice workspace that shows only the First-Generation label,
     exact-origin deployment settings, one-time keys, safe prefixes, and status
     controls without routing identity.
+13. A 25 KB minified browser widget (about 8 KB gzip) with strict lightweight
+    public DTO decoding, bilingual consent/error copy, call states, mute/end,
+    active-call confirmation, bounded reconnect, transcript display, raw PCM
+    playback, and cross-browser compressed microphone input.
+14. A real WebSocket upgrade boundary that owns authorization, process capacity,
+    protocol sequencing, media admission, maximum-duration termination,
+    disconnect/reconnect, and exactly-once finish calls. The obsolete HTTP
+    authorization placeholder can no longer reserve an orphaned call.
+15. ESM and classic-script widget bundles with a mandatory confidentiality scan,
+    plus an exact-origin tenant install snippet.
 
 ## Non-goals for this foundation
 
 - Provider adapter or restricted routing selection.
-- WebSocket audio transport, codecs, speech generation, or transcript storage.
+- Restricted realtime speech/media adapter, speech generation, or transcript storage.
 - Recording, telephony, outbound calling, or Gen2 behavior.
 - Commercial minute values or pilot latency thresholds not yet approved.
 
 ## Next slice
 
-Add the browser voice widget, connect the gateway transport to
-disconnect/finish commits, add crash/expiry
-reaping, then integrate realtime media, Sales Core actions, transcript policy,
-callback, and handover.
+Add crash/expiry reaping and emergency-stop settlement, then install the
+restricted realtime media adapter and integrate Sales Core actions, transcript
+policy, callback, and handover.
 
 ## Rollback
 
