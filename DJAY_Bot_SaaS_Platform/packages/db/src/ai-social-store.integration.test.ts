@@ -5,6 +5,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { AiChatStore } from "./ai-chat-store";
 import { AiSocialConnectionStore, AiSocialRuntimeStore, AiSocialWorkerStore } from "./ai-social-store";
 import { createDatabaseClient } from "./client";
+import { SharedDomainStore } from "./shared-domain-store";
 
 const runtimeUrl = process.env.AI_DATABASE_URL;
 const tenantUrl = process.env.TENANT_DATABASE_URL;
@@ -80,6 +81,25 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
       ) VALUES (
         ${tenantId}::uuid, ${premiumSubscriptionId}::uuid, 'ai_chat', 'ai_response',
         now() - interval '1 minute', now() + interval '30 days', 100, 120
+      )
+    `;
+    const existingContactId = randomUUID();
+    await adminClient!`
+      INSERT INTO tenancy.contacts (id, tenant_id, display_name, locale, consent_status)
+      VALUES (${existingContactId}::uuid, ${tenantId}::uuid, 'Existing CRM customer', 'en', 'unknown')
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.contact_identities (
+        tenant_id, contact_id, identity_kind, normalized_value, verification_status, verified_at
+      ) VALUES (
+        ${tenantId}::uuid, ${existingContactId}::uuid, 'email', 'line@example.test', 'verified', now()
+      )
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.contact_identities (
+        tenant_id, contact_id, identity_kind, normalized_value, verification_status, verified_at
+      ) VALUES (
+        ${tenantId}::uuid, ${existingContactId}::uuid, 'phone', '+66812345678', 'verified', now()
       )
     `;
 
@@ -202,7 +222,7 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
         schemaVersion: "sales-core.v1", stage: "S8_APPOINTMENT", intent: "request_consultation",
         facts: [], knowledgeCitations: [], responseGoal: "Capture and request consultation",
         proposedActions: [
-          { type: "lead.capture", name: "LINE Customer", email: "line@example.test", need: "Consultation" },
+          { type: "lead.capture", name: "LINE Customer", email: "line@example.test", phone: "+66 81-234-5678", need: "Consultation" },
           { type: "sales_fact.record", factType: "appointment_preference", value: "Weekday" },
           { type: "appointment.request", timezone: "Asia/Bangkok", confirmationClaim: "pending_merchant_confirmation", options: [
             { startAt: firstStart, endAt: new Date(new Date(firstStart).getTime() + 1_800_000).toISOString() },
@@ -239,6 +259,25 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
       leads: 1, facts: 1, appointments: 1, options: 2,
       outbound: 1, ai_messages: 1, settled: 1, reserved: 0, native_usage: 1,
     });
+    const identityReviews = await new SharedDomainStore(tenantClient!).listIdentityReviewCandidates(context);
+    expect(identityReviews).toHaveLength(2);
+    expect(identityReviews).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceContactId: expect.any(String), sourceContactName: "LINE Customer",
+        candidateContactId: existingContactId, candidateContactName: "Existing CRM customer",
+        identityKind: "email", matchValue: "line@example.test",
+      }),
+      expect.objectContaining({
+        sourceContactId: expect.any(String), sourceContactName: "LINE Customer",
+        candidateContactId: existingContactId, candidateContactName: "Existing CRM customer",
+        identityKind: "phone", matchValue: "+66812345678",
+      }),
+    ]));
+    expect(identityReviews[0]?.sourceContactId).not.toBe(existingContactId);
+    await expect(adminClient!<{ merged: number }[]>`
+      SELECT count(*)::int AS merged FROM tenancy.contacts
+      WHERE tenant_id = ${tenantId}::uuid AND status = 'merged'
+    `).resolves.toEqual([{ merged: 0 }]);
     const deliveryClaim = await worker.claimDelivery();
     expect(deliveryClaim).toMatchObject({
       channel: "line", recipient: "line-user-123", replyToken: "opaque-reply",

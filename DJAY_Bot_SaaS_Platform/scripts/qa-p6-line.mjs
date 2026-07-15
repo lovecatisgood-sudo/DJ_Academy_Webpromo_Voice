@@ -7,6 +7,8 @@ const restricted = /\b(openai|anthropic|claude|gemini|gpt-[0-9]|provider[_ -]?(?
 const tenantId = "20000000-0000-4000-8000-000000000006";
 const agentId = "51000000-0000-4000-8000-000000000006";
 const connectionId = "55000000-0000-4000-8000-000000000006";
+const existingContactId = "50000000-0000-4000-8000-000000000061";
+const socialContactId = "50000000-0000-4000-8000-000000000062";
 
 function json(route, value, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(value) });
@@ -39,6 +41,20 @@ async function mockTenant(page, role) {
     });
     if (path === "/tenant/support-access") return json(route, { grants: [] });
     if (path === "/tenant/knowledge") return json(route, { sources: [] });
+    if (path === "/tenant/contacts" && method === "GET") return json(route, {
+      contacts: [
+        { id: existingContactId, displayName: "Existing CRM customer", locale: "en",
+          consentStatus: "unknown", identities: [{ kind: "email", value: "line@example.test", verificationStatus: "verified" }],
+          leadCount: 1, updatedAt: new Date().toISOString() },
+        { id: socialContactId, displayName: "LINE Customer", locale: "en",
+          consentStatus: "unknown", identities: [{ kind: "email", value: "line@example.test", verificationStatus: "unverified" }],
+          leadCount: 1, updatedAt: new Date().toISOString() },
+      ],
+      identityReviewCandidates: [{ id: crypto.randomUUID(), sourceContactId: socialContactId,
+        sourceContactName: "LINE Customer", candidateContactId: existingContactId,
+        candidateContactName: "Existing CRM customer", identityKind: "email",
+        matchValue: "line@example.test", observedAt: new Date().toISOString() }],
+    });
     if (path === "/tenant/ai-chat/notifications") return json(route, { notifications: [] });
     if (path === "/tenant/ai-chat/analytics") return json(route, {
       analytics: { periodDays: 30, level: "core", sessions: 8, completedTurns: 12,
@@ -141,9 +157,24 @@ async function inspectViewer() {
   await context.close();
 }
 
+async function inspectIdentityReview() {
+  const context = await browser.newContext({ viewport: { width: 1365, height: 900 } });
+  const page = await context.newPage(); await mockTenant(page, "tenant_master_admin");
+  await page.goto(`${tenantUrl}/workspace/contacts`, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "Possible contact matches" }).waitFor();
+  await page.getByText("may match Existing CRM customer", { exact: true }).waitFor();
+  await page.getByText("line@example.test", { exact: true }).first().waitFor();
+  if (await page.getByRole("button", { name: /merge/i }).count()) failures.push("identity-review: merge action must not exist");
+  const dimensions = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth }));
+  if (dimensions.width > dimensions.viewport + 1) failures.push(`identity-review: horizontal overflow ${dimensions.width}/${dimensions.viewport}`);
+  await page.screenshot({ path: "/tmp/djay-p6-identity-review-desktop.png", fullPage: true });
+  await context.close();
+}
+
 await inspectOwner({ width: 1365, height: 900 }, "desktop");
 await inspectOwner({ width: 390, height: 844 }, "mobile");
 await inspectViewer();
+await inspectIdentityReview();
 await browser.close();
 if (failures.length) { console.error(failures.join("\n")); process.exit(1); }
 console.info("P6 LINE tenant operations passed desktop/mobile metrics, secrets, actions, viewer permissions, console, overflow, and provider-leak checks.");

@@ -2,7 +2,7 @@
 
 - Result: LINE local runtime and delivery engineering passed
 - Date: 2026-07-15
-- Database migrations: `0020_ai_chat_social_line` through `0024_ai_chat_social_delivery`
+- Database migrations: `0020_ai_chat_social_line` through `0025_contact_identity_review_candidates`
 - P6 phase status: Active; not complete
 - Production activation: Disabled
 
@@ -39,6 +39,8 @@
 - Subject opt-out closes automation and the AI session even if commercial
   authority changes before the control event is processed.
 - Tenant delivery totals plus production-browser owner and viewer operation QA.
+- Forced-RLS identity review suggestions for active cross-contact email or phone
+  matches, with no automatic merge or tenant merge action.
 
 ## Executed gates
 
@@ -49,7 +51,7 @@ scripts/use-node24.sh pnpm run verify
 scripts/use-node24.sh pnpm run qa:p6-line
 ```
 
-All passed. PostgreSQL 16 applied migrations `0000` through `0024`. The P6
+All passed. PostgreSQL 16 applied migrations `0000` through `0025`. The P6
 integration journey proved:
 
 - an active Premium snapshot can create a LINE connection;
@@ -82,6 +84,8 @@ integration journey proved:
   turn and outbox error codes;
 - an opt-out marks the subject opted out, closes the conversation, completes the
   session, and acknowledges the control job.
+- a captured LINE email matching a verified CRM identity creates one review
+  suggestion while both contacts remain active and zero contacts become merged.
 
 Unit coverage also proves changed raw bodies fail LINE signature verification.
 The full production API build contains:
@@ -98,7 +102,6 @@ provider-identity, console, or horizontal-overflow leak.
 
 ## Remaining before LINE production acceptance
 
-- Subject identity review candidates without automatic merge.
 - Approved monetary rate treatment if channel fees become billable.
 - Restricted staging credentials and LINE platform acceptance.
 - Queue-age, delivery-failure, and usage alert verification.

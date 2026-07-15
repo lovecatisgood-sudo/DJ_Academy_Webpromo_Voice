@@ -8,7 +8,11 @@ import { resolveTenantRequest } from "../../../lib/tenant-context";
 export async function GET(request: NextRequest) {
   const resolved = await resolveTenantRequest(request);
   if (!resolved || !tenantRoleAllows(resolved.context.role, "contacts.read")) return safeJson({ status: "not_found" }, 404);
-  return safeJson({ contacts: await resolved.services.sharedDomain.listContacts(resolved.context) });
+  const [contacts, identityReviewCandidates] = await Promise.all([
+    resolved.services.sharedDomain.listContacts(resolved.context),
+    resolved.services.sharedDomain.listIdentityReviewCandidates(resolved.context),
+  ]);
+  return safeJson({ contacts, identityReviewCandidates });
 }
 
 export async function POST(request: NextRequest) {

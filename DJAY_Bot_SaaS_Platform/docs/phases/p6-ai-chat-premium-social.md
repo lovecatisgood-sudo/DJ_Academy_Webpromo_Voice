@@ -52,6 +52,8 @@ This slice delivers:
 14. Delivery-status and opt-out control handling, including opt-out after
     entitlement loss and delayed provider-failure visibility.
 15. Tenant delivery metrics and production-browser owner/viewer operations QA.
+16. Tenant-visible email/phone identity review suggestions with no automatic
+    contact merge or merge action.
 
 ## Non-goals for this slice
 
@@ -63,9 +65,9 @@ This slice delivers:
 
 ## Schema and API impact
 
-- Migrations `0020` through `0024` add social connections, immutable inbound
+- Migrations `0020` through `0025` add social connections, immutable inbound
   receipts, subject/session initialization, atomic response commit, outbound
-  delivery, and immutable channel quantity events.
+  delivery, immutable channel quantity events, and suggest-only identity review.
 - Tenant routes manage LINE connections under `ai_chat.channels.manage`.
 - The public LINE webhook route is opaque-key addressed and uses only the
   restricted AI runtime database role.
@@ -74,13 +76,13 @@ This slice delivers:
 
 - Disable or revoke every social connection.
 - Remove the public LINE webhook route from the deployed application.
-- Application rollback must remain compatible with migrations `0020`-`0024`; tables and
+- Application rollback must remain compatible with migrations `0020`-`0025`; tables and
   receipts are retained for audit and replay safety.
 
 ## Gate for the next slice
 
 - Full workspace verification passes.
-- PostgreSQL 16 applies migrations `0000` through `0024`.
+- PostgreSQL 16 applies migrations `0000` through `0025`.
 - AI Basic cannot create or resolve a LINE connection.
 - Wrong-tenant IDs disclose nothing and mutate nothing.
 - Invalid signatures create no receipt.

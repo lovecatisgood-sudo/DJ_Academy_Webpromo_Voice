@@ -7,17 +7,22 @@ import { useWorkspaceSession } from "../useWorkspaceSession";
 
 type Identity = { kind: string; value: string; verificationStatus: string };
 type Contact = { id: string; displayName: string; locale: string; consentStatus: string; identities: Identity[]; leadCount: number; updatedAt: string };
+type IdentityReview = { id: string; sourceContactId: string; sourceContactName: string; candidateContactId: string; candidateContactName: string; identityKind: "email" | "phone"; matchValue: string; observedAt: string };
 
 export default function ContactsPage() {
   const session = useWorkspaceSession();
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [identityReviews, setIdentityReviews] = useState<IdentityReview[]>([]);
   const [message, setMessage] = useState("");
   const [working, setWorking] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
 
   async function load() {
     const response = await fetch("/tenant/contacts", { cache: "no-store" });
-    if (response.ok) setContacts((await response.json()).contacts || []);
+    if (response.ok) {
+      const result = await response.json(); setContacts(result.contacts || []);
+      setIdentityReviews(result.identityReviewCandidates || []);
+    }
   }
   useEffect(() => { if (session.selectedTenantId) void load(); }, [session.selectedTenantId]);
 
@@ -53,6 +58,17 @@ export default function ContactsPage() {
             <button type="submit" disabled={working}>{working ? "Creating..." : "Create contact"}</button>
           </form>
           {message ? <p className="inline-message" role="status">{message}</p> : null}
+        </section>
+        <section className="tool-band">
+          <div className="band-heading"><div><p>Suggestions only</p><h2>Possible contact matches</h2></div><span>{identityReviews.length}</span></div>
+          <p className="field-help">Matching email or phone values never merge customer records automatically. Review these records before any future audited merge workflow.</p>
+          <div className="data-table">
+            {identityReviews.map((review) => <div className="data-row contact-row" key={review.id}>
+              <div><strong>{review.sourceContactName}</strong><span>may match {review.candidateContactName}</span></div>
+              <span>{review.identityKind}</span><span>{review.matchValue}</span>
+            </div>)}
+            {!identityReviews.length ? <div className="pending-line"><strong>No possible matches</strong><span>New shared email or phone values appear here for review.</span></div> : null}
+          </div>
         </section>
         <section className="tool-band muted-band">
           <div className="band-heading"><div><p>Directory</p><h2>Customer records</h2></div><span>{contacts.length}</span></div>

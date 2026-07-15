@@ -50,6 +50,45 @@ export class SharedDomainStore {
     `);
   }
 
+  async listIdentityReviewCandidates(context: TenantContext) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
+      id: string; sourceContactId: string; sourceContactName: string;
+      candidateContactId: string; candidateContactName: string;
+      identityKind: "email" | "phone"; matchValue: string; observedAt: Date;
+    }[]>`
+      SELECT review.id, source_contact.id AS "sourceContactId",
+             source_contact.display_name AS "sourceContactName",
+             candidate_contact.id AS "candidateContactId",
+             candidate_contact.display_name AS "candidateContactName",
+             source_identity.identity_kind AS "identityKind",
+             source_identity.normalized_value AS "matchValue",
+             review.observed_at AS "observedAt"
+      FROM tenancy.contact_identity_review_candidates review
+      JOIN tenancy.contact_identities source_identity
+        ON source_identity.tenant_id = review.tenant_id
+       AND source_identity.id = review.source_identity_id
+       AND source_identity.contact_id = review.source_contact_id
+       AND source_identity.revoked_at IS NULL
+      JOIN tenancy.contacts source_contact
+        ON source_contact.tenant_id = review.tenant_id
+       AND source_contact.id = review.source_contact_id AND source_contact.status = 'active'
+      JOIN tenancy.contacts candidate_contact
+        ON candidate_contact.tenant_id = review.tenant_id
+       AND candidate_contact.id = review.candidate_contact_id AND candidate_contact.status = 'active'
+      WHERE review.tenant_id = ${context.tenantId}::uuid
+        AND EXISTS (
+          SELECT 1 FROM tenancy.contact_identities candidate_identity
+          WHERE candidate_identity.tenant_id = review.tenant_id
+            AND candidate_identity.contact_id = review.candidate_contact_id
+            AND candidate_identity.identity_kind = source_identity.identity_kind
+            AND candidate_identity.normalized_value = source_identity.normalized_value
+            AND candidate_identity.revoked_at IS NULL
+        )
+      ORDER BY review.observed_at DESC, review.id DESC
+      LIMIT 200
+    `);
+  }
+
   async createContact(context: TenantContext, input: ContactInput) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const emailNormalized = input.email?.trim().toLowerCase() ?? null;

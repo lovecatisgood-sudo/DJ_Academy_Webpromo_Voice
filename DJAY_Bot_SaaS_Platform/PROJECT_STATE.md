@@ -82,10 +82,13 @@ The LINE runtime and delivery slices are implemented locally:
 - Tenant operators can see delivered, pending, failed, and attempted-unit totals.
   Production Chromium covers owner actions, viewer restrictions, secrets,
   desktop/mobile overflow, console errors, and provider-identity leakage.
+- Migration `0025_contact_identity_review_candidates` records active email or
+  phone matches as tenant-visible suggestions. The source and candidate contacts
+  remain separate; no merge action exists in the database, API, or UI.
 
-This does not yet include social identity review candidates, WhatsApp,
-Messenger, approved monetary rate treatment, or omnichannel analytics. LINE
-still requires restricted staging credentials and real platform acceptance.
+This does not yet include WhatsApp, Messenger, approved monetary rate treatment,
+or omnichannel analytics. LINE still requires restricted staging credentials,
+alerts, rollback rehearsal, and real platform acceptance.
 P6 remains active and production social activation remains disabled.
 
 ## Latest verification
@@ -100,10 +103,10 @@ scripts/use-node24.sh pnpm run qa:p6-line
 ```
 
 All passed on 2026-07-15. The database gate now applies migrations `0000` through
-`0024` and includes the complete local LINE inbound, Sales Core commit, outbound
+`0025` and includes the complete local LINE inbound, Sales Core commit, outbound
 retry, quantity-ledger, delivery-status, opt-out, and quota-release journey. Full
 verification passes across 27 packages/apps, and the API production build
 contains 65 dynamic routes. Production Chromium passes AI Chat Basic plus the
-P6 LINE tenant operations surface. These results do not authorize social
+P6 LINE tenant operations and suggest-only identity-review surfaces. These results do not authorize social
 production activation, AI Chat self-service, or paid launch without the
 remaining engineering and external acceptance gates.

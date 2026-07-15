@@ -24,6 +24,7 @@ const aiSocialWorkerMigration = readFileSync(resolve(import.meta.dirname, "../mi
 const aiSocialSessionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0022_ai_chat_social_sessions.sql"), "utf8");
 const aiSocialCommitMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0023_ai_chat_social_commit.sql"), "utf8");
 const aiSocialDeliveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0024_ai_chat_social_delivery.sql"), "utf8");
+const identityReviewMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0025_contact_identity_review_candidates.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -224,6 +225,15 @@ describe("P6 AI Chat Premium social migration invariants", () => {
     expect(aiSocialDeliveryMigration).toContain("IF attempted_quantity > 0 THEN");
     expect(aiSocialDeliveryMigration).not.toMatch(/rate_minor|billable_amount|THB/i);
     expect(aiSocialDeliveryMigration).toContain("REVOKE ALL ON FUNCTION tenancy.claim_ai_social_delivery");
+  });
+
+  it("records cross-contact identity matches for review without merging", () => {
+    expect(identityReviewMigration).toContain("CREATE TABLE tenancy.contact_identity_review_candidates");
+    expect(identityReviewMigration).toContain("FORCE ROW LEVEL SECURITY");
+    expect(identityReviewMigration).toContain("candidate_identity.contact_id <> NEW.contact_id");
+    expect(identityReviewMigration).toContain("AFTER INSERT OR UPDATE OF normalized_value, revoked_at");
+    expect(identityReviewMigration).toContain("GRANT SELECT ON tenancy.contact_identity_review_candidates TO djay_runtime");
+    expect(identityReviewMigration).not.toMatch(/UPDATE tenancy\.contacts[\s\S]*merged_into_contact_id/);
   });
 });
 

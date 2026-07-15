@@ -202,13 +202,26 @@ BEGIN
     END IF;
     IF NULLIF(lower(btrim(lead_action->>'email')), '') IS NOT NULL THEN
       INSERT INTO tenancy.contact_identities (tenant_id, contact_id, identity_kind, normalized_value)
-      VALUES (runtime.tenant_id, runtime.contact_id, 'email', lower(btrim(lead_action->>'email')))
-      ON CONFLICT DO NOTHING;
+      SELECT runtime.tenant_id, runtime.contact_id, 'email', lower(btrim(lead_action->>'email'))
+      WHERE NOT EXISTS (
+        SELECT 1 FROM tenancy.contact_identities identity
+        WHERE identity.tenant_id = runtime.tenant_id AND identity.contact_id = runtime.contact_id
+          AND identity.identity_kind = 'email'
+          AND identity.normalized_value = lower(btrim(lead_action->>'email'))
+          AND identity.revoked_at IS NULL
+      );
     END IF;
-    IF NULLIF(btrim(lead_action->>'phone'), '') IS NOT NULL THEN
+    IF NULLIF(regexp_replace(btrim(lead_action->>'phone'), '[^0-9+]', '', 'g'), '') IS NOT NULL THEN
       INSERT INTO tenancy.contact_identities (tenant_id, contact_id, identity_kind, normalized_value)
-      VALUES (runtime.tenant_id, runtime.contact_id, 'phone', btrim(lead_action->>'phone'))
-      ON CONFLICT DO NOTHING;
+      SELECT runtime.tenant_id, runtime.contact_id, 'phone',
+        regexp_replace(btrim(lead_action->>'phone'), '[^0-9+]', '', 'g')
+      WHERE NOT EXISTS (
+        SELECT 1 FROM tenancy.contact_identities identity
+        WHERE identity.tenant_id = runtime.tenant_id AND identity.contact_id = runtime.contact_id
+          AND identity.identity_kind = 'phone'
+          AND identity.normalized_value = regexp_replace(btrim(lead_action->>'phone'), '[^0-9+]', '', 'g')
+          AND identity.revoked_at IS NULL
+      );
     END IF;
     action_id := gen_random_uuid();
     INSERT INTO tenancy.action_requests (id, tenant_id, conversation_id, entitlement_snapshot_id,
