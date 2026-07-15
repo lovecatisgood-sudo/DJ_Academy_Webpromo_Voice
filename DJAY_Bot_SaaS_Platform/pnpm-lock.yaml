@@ -38,6 +38,9 @@ importers:
       '@djay/authorization':
         specifier: workspace:*
         version: link:../../packages/authorization
+      '@djay/channel-adapters':
+        specifier: workspace:*
+        version: link:../../packages/channel-adapters
       '@djay/db':
         specifier: workspace:*
         version: link:../../packages/db

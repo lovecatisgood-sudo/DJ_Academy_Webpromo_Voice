@@ -13,6 +13,8 @@ import { AiTextRuntime } from "@djay/ai-chat-runtime";
 import {
   AiChatRuntimeStore,
   AiChatStore,
+  AiSocialConnectionStore,
+  AiSocialRuntimeStore,
   createDatabaseClient,
   BillingWebhookStore,
   FlowBotStore,
@@ -61,6 +63,8 @@ const envSchema = z.object({
   AI_TEXT_GATEWAY_ENDPOINT: z.string().url().optional(),
   AI_TEXT_GATEWAY_SERVICE_TOKEN: z.string().min(32).optional(),
   AI_NOTIFICATION_ENVELOPE_KEY: z.string().min(40).optional(),
+  AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY: z.string().min(40).optional(),
+  AI_SOCIAL_SUBJECT_HASH_KEY: z.string().min(40).optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 }).passthrough();
 
@@ -87,6 +91,10 @@ async function buildServices() {
   const aiRuntimeStore = env.AI_DATABASE_URL
     ? new AiChatRuntimeStore(createDatabaseClient(env.AI_DATABASE_URL))
     : null;
+  const aiSocialCredentialKey = env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY
+    ? parse32ByteSecret(env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY, "AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY") : null;
+  const aiSocialSubjectHashKey = env.AI_SOCIAL_SUBJECT_HASH_KEY
+    ? parse32ByteSecret(env.AI_SOCIAL_SUBJECT_HASH_KEY, "AI_SOCIAL_SUBJECT_HASH_KEY") : null;
   const aiGateway = env.AI_TEXT_GATEWAY_ENDPOINT && env.AI_TEXT_GATEWAY_SERVICE_TOKEN
     ? createHttpTextProviderGateway({
       endpoint: env.AI_TEXT_GATEWAY_ENDPOINT,
@@ -101,6 +109,7 @@ async function buildServices() {
     sharedDomain: new SharedDomainStore(tenantClient),
     flowbot: new FlowBotStore(tenantClient),
     aiChat: new AiChatStore(tenantClient),
+    tenantAiSocial: new AiSocialConnectionStore(tenantClient),
     tenantFlowbotNotifications: new TenantFlowbotNotificationStore(tenantClient),
     tenantAiNotifications: new TenantAiNotificationStore(tenantClient),
     tenantFlowbotIntegrations: new TenantFlowbotIntegrationStore(tenantClient),
@@ -111,6 +120,11 @@ async function buildServices() {
         : null,
     ) : null,
     aiChatRuntimeStore: aiRuntimeStore,
+    aiSocialRuntime: env.AI_DATABASE_URL && aiSocialCredentialKey
+      ? new AiSocialRuntimeStore(createDatabaseClient(env.AI_DATABASE_URL), aiSocialCredentialKey)
+      : null,
+    aiSocialCredentialKey,
+    aiSocialSubjectHashKey,
     aiChatRuntime: aiRuntimeStore && aiGateway ? new AiTextRuntime(aiRuntimeStore, aiGateway) : null,
     aiTextGateway: aiGateway,
     privacy: new PrivacyStore(tenantClient),

@@ -16,9 +16,10 @@ Last updated: 2026-07-15
 
 ## Active phase
 
-P5 builds AI Chatbot Basic Web on the shared P1-P4 authority. It must introduce a
-restricted Provider Gateway and Sales Conversation Core without exposing provider
-or model identity to tenant/browser packages. P4 FlowBot stays provider-neutral.
+P6 builds AI Chatbot Premium social channels on the completed P1-P5 authority.
+The controlled delivery order is LINE, WhatsApp, then Messenger. The first active
+slice covers Premium-only LINE connection/revocation plus signed, deduplicated,
+ordered webhook receipt. P5 AI Chatbot Basic remains Web-only and provider-neutral.
 
 ## P4 release checkpoint
 
@@ -44,6 +45,25 @@ merchant sign-off, but the external rollout gate does not block P5 engineering.
   Platform AI Operations controls.
 - Public charging remains disabled while ADR-008 commercial values are unresolved.
 
+## P6 LINE foundation checkpoint
+
+The first P6 slice is implemented locally:
+
+- Premium-only LINE connection creation and revocation.
+- One-time opaque webhook keys and separately encrypted channel credentials.
+- Safe tenant connection listing without credentials or webhook keys.
+- Untouched-body LINE signature verification before parsing or mutation.
+- LINE text, postback, and opt-out normalization.
+- Connection/event deduplication and per-subject timestamp ordering.
+- Accepted events create one durable inbound outbox item; replayed and older
+  events create no additional work.
+- Migration `0020_ai_chat_social_line` uses forced RLS and restricted fixed-path
+  runtime functions without table grants to the public AI runtime role.
+
+This does not yet include outbound LINE delivery, AI response processing,
+credential health/rotation, tenant UI, WhatsApp, Messenger, identity review, or
+omnichannel analytics. P6 remains active.
+
 ## Latest verification
 
 ```bash
@@ -51,11 +71,14 @@ scripts/use-node24.sh pnpm run verify
 scripts/test-db-integration.sh
 scripts/use-node24.sh pnpm run qa:p3-ui
 scripts/use-node24.sh pnpm run qa:p4-flowbot
+scripts/use-node24.sh pnpm run qa:p5-ai-chat
 ```
 
-All passed on 2026-07-15. The production workspace contains 21 packages/apps and
-the API build contains 55 dynamic routes. The database gate applies migrations
-`0000` through `0016` and passes the P0-P4 repository/runtime suites. Production
-Chromium passes Basic/Premium desktop/mobile authoring plus built-widget replay
-and handover. These results complete P4 engineering, not the three-merchant
-self-service expansion gate or paid launch.
+All passed on 2026-07-15. The database gate now applies migrations `0000` through
+`0020` and includes the P6 LINE connection/receipt journey. Full verification
+passes across 27 packages/apps, and the API production build contains 65 dynamic
+routes. Production Chromium passes AI Chat Basic desktop/mobile authoring plus
+built-widget streaming, replay, and handover. These results validate the first
+P6 engineering slice but do not authorize social production activation, AI Chat
+self-service, or paid launch without the remaining engineering and external
+acceptance gates.

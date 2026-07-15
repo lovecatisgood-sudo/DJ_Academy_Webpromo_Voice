@@ -19,6 +19,7 @@ const flowbotNotificationMigration = readFileSync(resolve(import.meta.dirname, "
 const aiChatMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0017_ai_chat_saas.sql"), "utf8");
 const aiRuntimeMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0018_ai_chat_public_runtime.sql"), "utf8");
 const aiNotificationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0019_ai_chat_notifications.sql"), "utf8");
+const aiSocialMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0020_ai_chat_social_line.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -141,6 +142,38 @@ describe("P5 AI Chat database migration invariants", () => {
     expect(aiNotificationMigration).toContain("session_user <> 'djay_worker'");
     expect(aiNotificationMigration).toContain("'ai_chat_notification_worker'");
     expect(aiNotificationMigration).toContain("REVOKE ALL ON FUNCTION tenancy.claim_ai_chat_notification");
+  });
+});
+
+describe("P6 AI Chat Premium social migration invariants", () => {
+  it("forces RLS on connections, subject offsets, and inbound receipts", () => {
+    for (const table of [
+      "ai_social_connections", "ai_social_subject_offsets", "ai_social_inbound_receipts",
+    ]) expect(aiSocialMigration).toContain(`'${table}'`);
+    expect(aiSocialMigration).toContain("ENABLE ROW LEVEL SECURITY");
+    expect(aiSocialMigration).toContain("FORCE ROW LEVEL SECURITY");
+  });
+
+  it("keeps credentials encrypted and webhook keys hashed", () => {
+    expect(aiSocialMigration).toContain("credential_ciphertext text NOT NULL");
+    expect(aiSocialMigration).toContain("webhook_key_hash bytea NOT NULL UNIQUE");
+    expect(aiSocialMigration).not.toMatch(/channel_access_token|channel_secret|webhook_key text/i);
+  });
+
+  it("requires Premium channel authority inside both restricted runtime functions", () => {
+    expect(aiSocialMigration).toContain("plan.plan_key = 'ai_chat_premium'");
+    expect(aiSocialMigration).toContain("snapshot.resolved_json->'entitlements'->>('channel.' || target_channel) = 'true'");
+    expect(aiSocialMigration).toContain("REVOKE ALL ON FUNCTION tenancy.ai_social_runtime_connection");
+    expect(aiSocialMigration).toContain("TO djay_ai_runtime");
+    expect(aiSocialMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+djay_ai_runtime/i);
+  });
+
+  it("deduplicates, orders per subject, and enqueues only accepted events", () => {
+    expect(aiSocialMigration).toContain("pg_advisory_xact_lock");
+    expect(aiSocialMigration).toContain("last_accepted_occurred_at");
+    expect(aiSocialMigration).toContain("'out_of_order'");
+    expect(aiSocialMigration).toContain("IF selected_disposition = 'accepted'");
+    expect(aiSocialMigration).toContain("'ai_chat.social.inbound.received'");
   });
 });
 

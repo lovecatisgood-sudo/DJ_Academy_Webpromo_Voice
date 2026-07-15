@@ -62,6 +62,7 @@ run_sql /workspace/packages/db/migrations/0016_flowbot_lead_notifications.sql
 run_sql /workspace/packages/db/migrations/0017_ai_chat_saas.sql
 run_sql /workspace/packages/db/migrations/0018_ai_chat_public_runtime.sql
 run_sql /workspace/packages/db/migrations/0019_ai_chat_notifications.sql
+run_sql /workspace/packages/db/migrations/0020_ai_chat_social_line.sql
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -c "ALTER ROLE djay_auth_runtime LOGIN PASSWORD 'djay_auth_test'" >/dev/null
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
@@ -144,5 +145,11 @@ TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:55432/
 WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:55432/postgres" \
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/ai-chat-runtime-store.integration.test.ts
+
+echo "Running AI Chat Premium LINE connection and webhook receipt integration test."
+AI_DATABASE_URL="postgresql://djay_ai_runtime:djay_ai_test@127.0.0.1:55432/postgres" \
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:55432/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/ai-social-store.integration.test.ts
 
 echo "PostgreSQL 16 migration, RLS, scoped repositories, same-tenant references, and owner invariants passed."
