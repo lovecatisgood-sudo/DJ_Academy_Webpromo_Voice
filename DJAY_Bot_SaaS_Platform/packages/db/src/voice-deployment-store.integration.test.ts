@@ -61,7 +61,8 @@ describe.runIf(enabled)("P7 Voice Basic tenant deployment operations", () => {
     });
     const store = new VoiceDeploymentStore(tenantClient!);
     const input = {
-      name: "Main browser voice", allowedOrigins: ["https://merchant.example"], defaultLocale: "en" as const,
+      name: "Main browser voice", agentName: "Mali", businessName: "Merchant Store",
+      allowedOrigins: ["https://merchant.example"], defaultLocale: "en" as const,
       greetingTh: "สวัสดีครับ", greetingEn: "Hello, how can I help?",
       automatedDisclosureTh: "นี่คือผู้ช่วยเสียงอัตโนมัติของเรา",
       automatedDisclosureEn: "This is our automated voice assistant.",
@@ -78,6 +79,7 @@ describe.runIf(enabled)("P7 Voice Basic tenant deployment operations", () => {
     expect(listed.deployments).toEqual(expect.arrayContaining([expect.objectContaining({
       id: created.deploymentId, keyPrefix: created.deploymentKey.slice(0, 20),
       allowedOrigins: ["https://merchant.example"], status: "active",
+      agentName: "Mali", businessName: "Merchant Store",
     })]));
     expect(JSON.stringify(listed)).not.toContain(created.deploymentKey);
     const otherList = await store.list(other);

@@ -12,6 +12,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@djay/provider-gateway": "workspace:*",
     "@djay/voice-runtime": "workspace:*",
     "ws": "^8.21.0",
     "zod": "4.4.3"

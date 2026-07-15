@@ -162,7 +162,7 @@ async function inspectTenantWorkspace() {
   const context = await browser.newContext({ viewport: { width: 1365, height: 900 } }); const page = await context.newPage();
   let createCalls = 0; let revokeCalls = 0;
   const workspace = { tenantId: "20000000-0000-4000-8000-000000000001", slug: "voice-studio", businessName: "Voice Studio", role: "tenant_master_admin" };
-  const deployment = { id: "30000000-0000-4000-8000-000000000001", name: "Main website", keyPrefix: "djay_voice_deploy_ab", allowedOrigins: ["https://merchant.example"], defaultLocale: "en", maxCallSeconds: 900, reconnectWindowSeconds: 30, status: "active" };
+  const deployment = { id: "30000000-0000-4000-8000-000000000001", name: "Main website", agentName: "Mali", businessName: "Merchant Store", keyPrefix: "djay_voice_deploy_ab", allowedOrigins: ["https://merchant.example"], defaultLocale: "en", maxCallSeconds: 900, reconnectWindowSeconds: 30, status: "active" };
   await page.route("**/tenant/**", async (route) => {
     const path = new URL(route.request().url()).pathname; const method = route.request().method();
     const respond = (value, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(value) });
@@ -178,7 +178,9 @@ async function inspectTenantWorkspace() {
   });
   await page.goto(`${tenantUrl}/workspace/voice`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Voice Agent Basic" }).waitFor();
-  await page.getByLabel("Name").fill("Storefront voice");
+  await page.getByLabel("Deployment name").fill("Storefront voice");
+  await page.getByLabel("Business name").fill("Merchant Store");
+  await page.getByLabel("Voice agent name").fill("Mali");
   await page.getByLabel("Allowed website origin").fill("https://merchant.example/path");
   await page.getByRole("button", { name: "Create deployment" }).click();
   await page.getByText("Enter an exact HTTPS origin", { exact: false }).waitFor();

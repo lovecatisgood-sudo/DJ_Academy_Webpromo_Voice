@@ -6,6 +6,8 @@ import { resolveTenantRequest } from "../../../../lib/tenant-context";
 
 const schema = z.object({
   name: z.string().trim().min(2).max(160),
+  agentName: z.string().trim().min(2).max(100),
+  businessName: z.string().trim().min(2).max(200),
   allowedOrigins: z.array(z.string().max(2048)).min(1).max(20),
   defaultLocale: z.enum(["th", "en"]),
   greetingTh: z.string().trim().min(1).max(1000), greetingEn: z.string().trim().min(1).max(1000),

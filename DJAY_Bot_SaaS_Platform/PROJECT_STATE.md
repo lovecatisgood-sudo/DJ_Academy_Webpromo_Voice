@@ -20,20 +20,24 @@ P7 Voice Agent Basic is in progress. Its current foundation establishes a strict
 provider-neutral opaque grant/message contract, deterministic disclosure,
 interruption, reconnect, and terminal minute intent lifecycle, plus a separately
 deployable gateway health/capacity and fail-closed authorization boundary.
-Migrations `0029_voice_basic_authority` and `0030_voice_runtime_recovery` add forced-RLS deployment/session state,
+Migrations `0029_voice_basic_authority`, `0030_voice_runtime_recovery`, and
+`0031_voice_sales_core` add forced-RLS deployment/session/turn state,
 Gen1-only exact-origin grant issuance, atomic maximum-minute and concurrency
 reservation, bounded reconnect, database-derived exactly-once settlement,
 gateway heartbeats, durable stale-session reaping, and audited pause/resume/
-emergency-stop authority.
-The public and gateway-only APIs exist but remain disabled by default. Media,
-actions, and release acceptance remain pending. Tenant Voice operations now
+emergency-stop authority. Voice sessions pin immutable Sales Core agents and
+playbooks, persist idempotent turns and transcript messages, execute only
+currently authorized actions, and retain restricted native usage evidence.
+The public and gateway-only APIs exist but remain disabled by default. Live
+quality evaluation and release acceptance remain pending. Tenant Voice operations now
 provide Basic-only exact-origin creation, one-time keys, safe listing,
 disable/enable, irreversible revocation, audit, and a provider-neutral workspace.
 The deployable Voice widget and WebSocket-owned gateway lifecycle now cover
 bilingual consent/call states, strict public decoding, process capacity,
-disconnect/reconnect, and terminal authority calls. The gateway remains
-not-ready and production activation remains off until its restricted realtime
-media adapter and the remaining P7 release gates pass.
+disconnect/reconnect, terminal authority calls, PCM16 16 kHz capture, restricted
+Gen1 realtime media, and the shared grounded Sales Core turn path. Production
+activation remains off until restricted staging quality/latency evaluation and
+the remaining external P7 release gates pass.
 Platform Owner and AI Operations users now have a responsive, recently
 reauthenticated runtime-control panel; admission remains paused by default.
 
@@ -154,7 +158,7 @@ scripts/use-node24.sh pnpm run qa:p6-line
 ```
 
 All passed on 2026-07-15. The database gate now applies migrations `0000` through
-`0029` and includes the complete local LINE, WhatsApp, and Messenger inbound, Sales Core
+`0031` and includes the complete local LINE, WhatsApp, and Messenger inbound, Sales Core
 commit, outbound retry, partial-progress, service-window, quantity-ledger,
 delivery-status, opt-out, and quota-release journeys. Full verification passes
 across 30 packages/apps, and the API production build contains 93 route handlers,
@@ -162,6 +166,9 @@ including the opaque WhatsApp and Messenger callbacks. Tenant channel analytics
 and restricted aggregate Platform Operations health reconcile the social
 journey. Production Chromium passes AI Chat Basic
 plus the P6 LINE, WhatsApp, and Messenger tenant operations and suggest-only identity-review
-surfaces. These results do not authorize social production activation, AI Chat
-self-service, or paid launch without the remaining engineering and external
-acceptance gates.
+surfaces. P7 production Chromium additionally passes the Voice widget and tenant
+deployment workspace on desktop and mobile, while the database gate covers
+immutable Voice playbook pins, idempotent Sales Core turns/actions, transcripts,
+usage, reconnect, settlement, and recovery. These results do not authorize Voice
+or social production activation, AI Chat self-service, or paid launch without
+the remaining engineering and external acceptance gates.

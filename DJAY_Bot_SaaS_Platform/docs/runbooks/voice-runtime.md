@@ -4,32 +4,36 @@
 
 This runbook covers browser Voice Basic admission, gateway authority,
 heartbeats, quota settlement, crash recovery, and operational stop controls.
-Production activation remains prohibited until the restricted realtime media
-adapter, bilingual quality gate, Action Gateway integration, and named merchant
-acceptance are complete.
+The restricted realtime media and Sales Core action path are implemented.
+Production activation remains prohibited until the live bilingual quality and
+latency gate, retention review, and named merchant acceptance are complete.
 
 ## Required services and configuration
 
 - API requires `VOICE_RUNTIME_ENABLED=true`, `VOICE_DATABASE_URL`,
   `VOICE_GATEWAY_URL`, and the independent Voice service token.
-- Gateway requires the authorization, heartbeat, disconnect, and finish
-  endpoints, the same service token, and an approved capacity limit.
+- Gateway requires the authorization, heartbeat, disconnect, finish, restricted
+  media-context, and Sales Core turn endpoints, the same service token, the
+  restricted First-Generation media credential, and an approved capacity limit.
 - Workers require `WORKER_DATABASE_URL`, `VOICE_REAPER_ENABLED=true`, the
   reviewed stale threshold, and the reviewed batch size.
 - Keep deployment and session credentials out of logs, tickets, screenshots,
   analytics, and browser persistence. Only opaque digests are durable.
 - Keep Platform Master, API, worker, gateway, and database clocks synchronized.
   Clock drift can delay recovery and must block activation.
+- Configure `VOICE_SILENCE_WARNING_SECONDS` below
+  `VOICE_IDLE_TIMEOUT_SECONDS`. The reviewed defaults warn at 45 seconds and
+  settle an idle session at 60 seconds.
 
 ## Activation sequence
 
-1. Apply migrations through `0030_voice_runtime_recovery` and confirm the
+1. Apply migrations through `0031_voice_sales_core` and confirm the
    runtime is `paused` with reason `activation_required`.
 2. Start the worker with the Voice reaper enabled. Confirm repeated idle cycles
    complete without errors before starting the gateway.
-3. Start the gateway with runtime media still fail-closed. Verify liveness,
-   readiness, aggregate capacity, and restricted endpoint connectivity.
-4. Install and validate the approved media adapter. Run the complete desktop,
+3. Start the gateway with admission paused. Readiness remains false unless the
+   restricted media credential plus context and Sales Core turn endpoints are configured.
+4. Validate the approved media adapter. Run the complete desktop,
    mobile, Thai, English, interruption, silence, reconnect, and cleanup gate.
 5. In Platform Master, enter the release record identifier as the operational
    reason and select **Resume admission**. This requires a recent MFA-backed

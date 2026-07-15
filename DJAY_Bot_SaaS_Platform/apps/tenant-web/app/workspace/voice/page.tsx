@@ -8,6 +8,7 @@ import { useWorkspaceSession } from "../useWorkspaceSession";
 type Deployment = {
   id: string; name: string; keyPrefix: string; allowedOrigins: string[]; defaultLocale: "th" | "en";
   maxCallSeconds: number; reconnectWindowSeconds: number; status: "active" | "disabled" | "revoked";
+  agentName: string; businessName: string;
 };
 type VoiceResult = {
   capability: { enabled: true; publicLabel: "First-Generation Voice Engine" } | null;
@@ -42,7 +43,8 @@ export default function VoicePage() {
     const response = await fetch("/tenant/voice/deployments", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        name: data.get("name"), allowedOrigins: [origin], defaultLocale: data.get("defaultLocale"),
+        name: data.get("name"), agentName: data.get("agentName"), businessName: data.get("businessName"),
+        allowedOrigins: [origin], defaultLocale: data.get("defaultLocale"),
         greetingTh: data.get("greetingTh"), greetingEn: data.get("greetingEn"),
         automatedDisclosureTh: data.get("automatedDisclosureTh"), automatedDisclosureEn: data.get("automatedDisclosureEn"),
         maxCallSeconds: Number(data.get("maxCallSeconds")), reconnectWindowSeconds: Number(data.get("reconnectWindowSeconds")),
@@ -72,7 +74,9 @@ export default function VoicePage() {
       <section className="tool-band"><div className="band-heading"><div><p>Opaque browser sessions</p><h2>Voice deployments</h2></div><span>{result.deployments.length}</span></div>
         <p className="field-help">Provider routing is managed internally and is never exposed here. Recording remains off. Public Voice runtime activation is still controlled by the release gate.</p>
         {canDeploy && result.capability ? <form className="voice-deploy" onSubmit={create}>
-          <label>Name<input name="name" minLength={2} maxLength={160} required /></label>
+          <label>Deployment name<input name="name" minLength={2} maxLength={160} required /></label>
+          <label>Business name<input name="businessName" minLength={2} maxLength={200} required /></label>
+          <label>Voice agent name<input name="agentName" minLength={2} maxLength={100} required /></label>
           <label>Allowed website origin<input name="origin" type="url" placeholder="https://www.example.com" required /></label>
           <label>Default language<select name="defaultLocale" defaultValue="en"><option value="en">English</option><option value="th">Thai</option></select></label>
           <label>English greeting<input name="greetingEn" defaultValue="Hello, how can I help?" maxLength={1000} required /></label>
@@ -86,7 +90,7 @@ export default function VoicePage() {
         {deploymentKey ? <div className="deployment-secret"><strong>One-time Voice deployment key</strong><code>{deploymentKey}</code><p className="field-help">Add this snippet only to the approved website origin. DJAY stores only the key digest, so this is the only time the full key is shown.</p><pre>{installSnippet}</pre><button type="button" className="secondary-command" onClick={() => { if (!navigator.clipboard) { setMessage("Select the snippet and copy it manually."); return; } void navigator.clipboard.writeText(installSnippet).then(() => setMessage("Install snippet copied."), () => setMessage("Copy was blocked. Select the snippet and copy it manually.")); }}>Copy install snippet</button></div> : null}
         {message ? <p className="inline-message" role="status">{message}</p> : null}
         <div className="data-table">{result.deployments.map((deployment) => <div className="data-row" key={deployment.id}>
-          <div><strong>{deployment.name}</strong><span>{deployment.allowedOrigins.join(", ")} / {deployment.maxCallSeconds}s max / {deployment.reconnectWindowSeconds}s reconnect</span></div>
+          <div><strong>{deployment.name}</strong><span>{deployment.agentName} for {deployment.businessName} · {deployment.allowedOrigins.join(", ")} · {deployment.maxCallSeconds}s max · {deployment.reconnectWindowSeconds}s reconnect</span></div>
           <span>{deployment.status}</span><code>{deployment.keyPrefix}…</code>
           {canDeploy && deployment.status !== "revoked" ? <div className="flowbot-actions">
             <button type="button" className="secondary-command" disabled={working} onClick={() => void changeStatus(deployment.id, deployment.status === "active" ? "disable" : "enable")}>{deployment.status === "active" ? "Disable" : "Enable"}</button>

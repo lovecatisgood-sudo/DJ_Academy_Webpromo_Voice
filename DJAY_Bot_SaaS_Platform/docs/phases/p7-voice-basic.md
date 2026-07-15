@@ -3,11 +3,12 @@
 ## Status
 
 In progress. The provider-neutral browser/gateway protocol, deterministic
-session lifecycle, and restricted database authority are implemented locally.
-Tenant deployment operations, a deployable browser widget, and the
-WebSocket-owned gateway/session lifecycle are implemented locally. The
-restricted realtime media engine, Sales Core actions, legacy migration, and
-production acceptance remain pending.
+session lifecycle, restricted database authority, realtime media engine, and
+Sales Core turn/action path are implemented locally. Tenant deployment
+operations, a deployable browser widget, and the WebSocket-owned gateway/session
+lifecycle are also implemented and pass local production-build acceptance.
+Legacy migration, live English/Thai quality and latency evaluation, production
+activation, and named-merchant acceptance remain pending.
 
 ## Requirements
 
@@ -68,19 +69,36 @@ production acceptance remain pending.
     authorization placeholder can no longer reserve an orphaned call.
 15. ESM and classic-script widget bundles with a mandatory confidentiality scan,
     plus an exact-origin tenant install snippet.
+16. Migration `0031_voice_sales_core` with immutable per-session agent/playbook
+    pins, forced-RLS turn state, durable turn idempotency, transcript persistence,
+    restricted native usage, and function-only Voice service authority.
+17. Voice deployments now own a Voice Sales Core agent and default bilingual
+    playbook, so a Voice-only tenant does not depend on AI Chat subscription
+    authority to create a deployment.
+18. A restricted Gen1 realtime adapter accepts only PCM16 16 kHz microphone
+    frames, owns the automated-agent opening, and permits ordinary assistant
+    audio only after a validated Sales Core turn has returned.
+19. The Voice turn API reuses the shared grounded AI runtime and commits only
+    allow-listed, currently entitled lead, sales-fact, appointment, follow-up,
+    handover, and merchant-email actions atomically with the assistant message.
+20. AudioWorklet-first browser capture with a ScriptProcessor fallback, raw PCM
+    playback, durable failure handling, action-status reporting, and safe
+    provider-neutral terminal behavior.
+21. Gateway-owned silence policy warns after 45 seconds of customer inactivity
+    and settles once at the 60-second idle timeout, with reviewed environment
+    overrides that fail configuration when warning is not lower than timeout.
 
 ## Non-goals for this foundation
 
-- Provider adapter or restricted routing selection.
-- Restricted realtime speech/media adapter, speech generation, or transcript storage.
 - Recording, telephony, outbound calling, or Gen2 behavior.
 - Commercial minute values or pilot latency thresholds not yet approved.
 
 ## Next slice
 
-Add crash/expiry reaping and emergency-stop settlement, then install the
-restricted realtime media adapter and integrate Sales Core actions, transcript
-policy, callback, and handover.
+Complete live English/Thai quality, latency, silence/noise, interruption, and
+reconnect evaluation with restricted staging credentials. Add the reviewed
+legacy migration and retention/erasure treatment, then obtain named-merchant
+acceptance before enabling the paused runtime in production.
 
 ## Rollback
 

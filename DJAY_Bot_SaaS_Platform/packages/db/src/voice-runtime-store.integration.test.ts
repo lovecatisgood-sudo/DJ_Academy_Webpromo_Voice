@@ -28,6 +28,8 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
     const snapshotId = randomUUID();
     const quotaId = randomUUID();
     const deploymentId = randomUUID();
+    const agentId = randomUUID();
+    const playbookVersionId = randomUUID();
     const planVersionId = "62000000-0000-4000-8000-000000000005";
     const deploymentKey = `djay_voice_deploy_${randomUUID().replaceAll("-", "")}`;
     const resolved = {
@@ -82,13 +84,33 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
       )
     `;
     await adminClient!`
+      INSERT INTO tenancy.ai_agents (
+        id, tenant_id, name, status, default_language, created_by_membership_id
+      ) VALUES (
+        ${agentId}::uuid, ${tenantId}::uuid, 'Mali', 'active', 'en', ${membershipId}::uuid
+      )
+    `;
+    const playbook = { schemaVersion: 1, playbookVersionId };
+    await adminClient!`
+      INSERT INTO tenancy.ai_playbook_versions (
+        id, tenant_id, agent_id, version, status, playbook_json, playbook_sha256, published_by_membership_id
+      ) VALUES (
+        ${playbookVersionId}::uuid, ${tenantId}::uuid, ${agentId}::uuid, 1, 'published',
+        ${adminClient!.json(playbook)}, digest(${JSON.stringify(playbook)}, 'sha256'), ${membershipId}::uuid
+      )
+    `;
+    await adminClient!`
+      UPDATE tenancy.ai_agents SET current_published_playbook_version_id = ${playbookVersionId}::uuid
+      WHERE tenant_id = ${tenantId}::uuid AND id = ${agentId}::uuid
+    `;
+    await adminClient!`
       INSERT INTO tenancy.voice_deployments (
-        id, tenant_id, name, deployment_key_hash, key_prefix, allowed_origins,
+        id, tenant_id, agent_id, name, deployment_key_hash, key_prefix, allowed_origins,
         default_locale, greeting_th, greeting_en, automated_disclosure_th,
         automated_disclosure_en, max_call_seconds, reconnect_window_seconds,
         created_by_membership_id
       ) VALUES (
-        ${deploymentId}::uuid, ${tenantId}::uuid, 'Main browser voice',
+        ${deploymentId}::uuid, ${tenantId}::uuid, ${agentId}::uuid, 'Main browser voice',
         ${hashOpaqueToken(deploymentKey)}, ${deploymentKey.slice(0, 20)}, ARRAY['https://merchant.example'],
         'en', 'สวัสดีครับ', 'Hello, how can I help?',
         'นี่คือผู้ช่วยเสียงอัตโนมัติของเรา', 'This is our automated voice assistant.',
@@ -150,6 +172,55 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
       sessionGrant: issued.sessionGrant, sessionId: issued.sessionId, origin: "https://merchant.example",
       protocolVersion: "djay.voice.v1", connectionId: firstConnectionId,
     })).resolves.toMatchObject({ replayed: true });
+    await expect(runtime.mediaContext(issued.sessionId, firstConnectionId)).resolves.toEqual({
+      greeting: "Hello, how can I help?", automatedDisclosure: "This is our automated voice assistant.", agentName: "Mali",
+    });
+    const inputId = randomUUID(); const firstStart = new Date(Date.now() + 86_400_000).toISOString();
+    const secondStart = new Date(Date.now() + 90_000_000).toISOString();
+    const turnContext = await runtime.beginTurn({
+      sessionId: issued.sessionId, connectionId: firstConnectionId, inputId,
+      message: "I am Alex and alex@example.com. Can I request a consultation tomorrow?",
+    });
+    expect(turnContext).toMatchObject({ sessionId: issued.sessionId, language: "en", turnSequence: 1 });
+    const turnOutput = {
+      schemaVersion: "sales-core.v1" as const, stage: "S8_APPOINTMENT" as const,
+      intent: "appointment_request", facts: [], knowledgeCitations: [],
+      responseGoal: "Record a lead and pending appointment request",
+      proposedActions: [
+        { type: "lead.capture" as const, name: "Alex", email: "alex@example.com", need: "Consultation" },
+        { type: "appointment.request" as const, timezone: "Asia/Bangkok", confirmationClaim: "pending_merchant_confirmation" as const,
+          options: [
+            { startAt: firstStart, endAt: new Date(new Date(firstStart).getTime() + 1_800_000).toISOString() },
+            { startAt: secondStart, endAt: new Date(new Date(secondStart).getTime() + 1_800_000).toISOString() },
+          ] },
+      ], handover: null,
+      customerResponse: "I recorded your request with two options. The merchant still needs to confirm it.",
+      channelResponse: { format: "text" as const, quickReplies: [] },
+    };
+    const publicResponse = {
+      status: "completed" as const, inputId, text: turnOutput.customerResponse,
+      quickReplies: [], nextTurnSequence: 2,
+    };
+    const committed = await runtime.commitTurn({
+      sessionId: issued.sessionId, connectionId: firstConnectionId, inputId,
+      output: turnOutput, publicResponse, nativeUsage: { inputUnits: 20, outputUnits: 12 },
+    });
+    expect(committed).toMatchObject({ status: "completed", text: turnOutput.customerResponse, terminalReason: null });
+    expect(committed.actionStatuses).toHaveLength(2);
+    await expect(runtime.beginTurn({
+      sessionId: issued.sessionId, connectionId: firstConnectionId, inputId,
+      message: "I am Alex and alex@example.com. Can I request a consultation tomorrow?",
+    })).resolves.toMatchObject({ replayResponse: expect.objectContaining({ inputId, text: turnOutput.customerResponse }) });
+    const effects = await adminClient!<{ leads: number; appointments: number; nativeUsage: number; turns: number }[]>`
+      SELECT
+        (SELECT count(*)::int FROM tenancy.leads lead WHERE lead.tenant_id = session.tenant_id AND lead.source = 'voice_web') AS leads,
+        (SELECT count(*)::int FROM tenancy.appointment_requests request
+          WHERE request.tenant_id = session.tenant_id AND request.conversation_id = session.conversation_id) AS appointments,
+        (SELECT count(*)::int FROM operations.voice_native_usage usage WHERE usage.tenant_id = session.tenant_id) AS "nativeUsage",
+        (SELECT count(*)::int FROM tenancy.voice_turns turn WHERE turn.tenant_id = session.tenant_id AND turn.session_id = session.id) AS turns
+      FROM tenancy.voice_sessions session WHERE session.id = ${issued.sessionId}::uuid
+    `;
+    expect(effects[0]).toEqual({ leads: 1, appointments: 1, nativeUsage: 1, turns: 1 });
     const afterReserve = await adminClient!<{ reserved: number; settled: number; reservations: number; leases: number }[]>`
       SELECT account.reserved_quantity::int AS reserved, account.settled_quantity::int AS settled,
         (SELECT count(*)::int FROM tenancy.usage_reservations reservation
@@ -305,6 +376,8 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
     const advancedTenantId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb10";
     const advancedSubscriptionId = randomUUID();
     const advancedSnapshotId = randomUUID();
+    const advancedAgentId = randomUUID();
+    const advancedPlaybookVersionId = randomUUID();
     const advancedDeploymentKey = `djay_voice_deploy_${randomUUID().replaceAll("-", "")}`;
     const advancedPlanVersionId = "62000000-0000-4000-8000-000000000006";
     await adminClient!`
@@ -335,12 +408,34 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
       )
     `;
     await adminClient!`
+      INSERT INTO tenancy.ai_agents (
+        id, tenant_id, name, status, default_language, created_by_membership_id
+      ) VALUES (
+        ${advancedAgentId}::uuid, ${advancedTenantId}::uuid, 'Advanced Voice', 'active', 'en',
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb11'::uuid
+      )
+    `;
+    const advancedPlaybook = { schemaVersion: 1, playbookVersionId: advancedPlaybookVersionId };
+    await adminClient!`
+      INSERT INTO tenancy.ai_playbook_versions (
+        id, tenant_id, agent_id, version, status, playbook_json, playbook_sha256, published_by_membership_id
+      ) VALUES (
+        ${advancedPlaybookVersionId}::uuid, ${advancedTenantId}::uuid, ${advancedAgentId}::uuid, 1, 'published',
+        ${adminClient!.json(advancedPlaybook)}, digest(${JSON.stringify(advancedPlaybook)}, 'sha256'),
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb11'::uuid
+      )
+    `;
+    await adminClient!`
+      UPDATE tenancy.ai_agents SET current_published_playbook_version_id = ${advancedPlaybookVersionId}::uuid
+      WHERE tenant_id = ${advancedTenantId}::uuid AND id = ${advancedAgentId}::uuid
+    `;
+    await adminClient!`
       INSERT INTO tenancy.voice_deployments (
-        tenant_id, name, deployment_key_hash, key_prefix, allowed_origins,
+        tenant_id, agent_id, name, deployment_key_hash, key_prefix, allowed_origins,
         greeting_th, greeting_en, automated_disclosure_th, automated_disclosure_en,
         max_call_seconds, reconnect_window_seconds, created_by_membership_id
       ) VALUES (
-        ${advancedTenantId}::uuid, 'Advanced must not enter P7', ${hashOpaqueToken(advancedDeploymentKey)},
+        ${advancedTenantId}::uuid, ${advancedAgentId}::uuid, 'Advanced must not enter P7', ${hashOpaqueToken(advancedDeploymentKey)},
         ${advancedDeploymentKey.slice(0, 20)}, ARRAY['https://advanced.example'],
         'สวัสดีครับ', 'Hello', 'นี่คือผู้ช่วยเสียงอัตโนมัติของเรา',
         'This is our automated voice assistant.', 90, 30,

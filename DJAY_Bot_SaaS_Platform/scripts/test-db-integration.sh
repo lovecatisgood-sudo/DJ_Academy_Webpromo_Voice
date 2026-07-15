@@ -73,6 +73,7 @@ run_sql /workspace/packages/db/migrations/0027_ai_chat_social_delivery_progress.
 run_sql /workspace/packages/db/migrations/0028_ai_chat_social_operations.sql
 run_sql /workspace/packages/db/migrations/0029_voice_basic_authority.sql
 run_sql /workspace/packages/db/migrations/0030_voice_runtime_recovery.sql
+run_sql /workspace/packages/db/migrations/0031_voice_sales_core.sql
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -c "ALTER ROLE djay_auth_runtime LOGIN PASSWORD 'djay_auth_test'" >/dev/null
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \

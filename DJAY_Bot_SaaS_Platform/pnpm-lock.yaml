@@ -210,6 +210,9 @@ importers:
 
   apps/voice-gateway:
     dependencies:
+      '@djay/provider-gateway':
+        specifier: workspace:*
+        version: link:../../packages/provider-gateway
       '@djay/voice-runtime':
         specifier: workspace:*
         version: link:../../packages/voice-runtime

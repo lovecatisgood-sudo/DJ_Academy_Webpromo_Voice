@@ -34,13 +34,18 @@ function authority(): VoiceSessionAuthority & {
   };
 }
 
-async function harness(input: { authority?: VoiceSessionAuthority; mediaFactory: VoiceMediaFactory; maxSessions?: number; heartbeatIntervalMs?: number }) {
+async function harness(input: {
+  authority?: VoiceSessionAuthority; mediaFactory: VoiceMediaFactory; maxSessions?: number;
+  heartbeatIntervalMs?: number; silenceWarningAfterMs?: number; idleTimeoutMs?: number;
+}) {
   const server = createServer((_request, response) => { response.writeHead(404); response.end(); });
   servers.push(server);
   const registry = new VoiceGatewayRegistry(input.maxSessions ?? 2);
   attachVoiceWebSocketGateway({
-    server, authority: input.authority ?? authority(), mediaFactory: input.mediaFactory,
-    registry, ...(input.heartbeatIntervalMs ? { heartbeatIntervalMs: input.heartbeatIntervalMs } : {}),
+    server, authority: input.authority ?? authority(), mediaFactory: input.mediaFactory, registry,
+    ...(input.heartbeatIntervalMs ? { heartbeatIntervalMs: input.heartbeatIntervalMs } : {}),
+    ...(input.silenceWarningAfterMs ? { silenceWarningAfterMs: input.silenceWarningAfterMs } : {}),
+    ...(input.idleTimeoutMs ? { idleTimeoutMs: input.idleTimeoutMs } : {}),
   });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -166,6 +171,24 @@ describe("voice WebSocket transport", () => {
     await vi.waitFor(() => expect(auth.finish).toHaveBeenCalledWith(expect.objectContaining({
       sessionId, connectionId, terminalReason: "unavailable",
     })));
+  });
+
+  it("warns on silence and settles an idle session exactly once", async () => {
+    const auth = authority();
+    const { url } = await harness({
+      authority: auth,
+      mediaFactory: { async open() { return { async accept() {}, async close() {} }; } },
+      silenceWarningAfterMs: 20, idleTimeoutMs: 60,
+    });
+    const websocket = await socket(url);
+    const connected = nextMessage(websocket); connect(websocket); await connected;
+    const warning = nextMessage(websocket);
+    websocket.send(JSON.stringify({ type: "session.ready", messageId: crypto.randomUUID() }));
+    await expect(warning).resolves.toMatchObject({ type: "silence.warning", remainingSeconds: 1 });
+    await expect(nextMessage(websocket)).resolves.toMatchObject({ type: "session.ended", reason: "idle_timeout" });
+    await once(websocket, "close");
+    expect(auth.finish).toHaveBeenCalledTimes(1);
+    expect(auth.finish).toHaveBeenCalledWith(expect.objectContaining({ terminalReason: "idle_timeout" }));
   });
 
   it("maps authority outages to a retryable safe error without leaking capacity", async () => {

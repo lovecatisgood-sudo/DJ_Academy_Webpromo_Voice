@@ -1,5 +1,7 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createOpaqueToken, hashOpaqueToken } from "@djay/auth";
+import type { AiPublicResponse, AiTurnContext } from "@djay/ai-chat-runtime";
+import type { SalesCoreOutput } from "@djay/sales-core";
 import type { VoiceSessionGrant } from "@djay/voice-runtime";
 import type { DatabaseClient } from "./client";
 
@@ -68,6 +70,63 @@ export class VoiceRuntimeStore {
       FROM tenancy.heartbeat_voice_basic_session(${sessionId}::uuid, ${connectionId}::uuid)
     `;
     return rows[0] ?? { alive: false as const, runtimeMode: "emergency_stop" as const };
+  }
+
+  async mediaContext(sessionId: string, connectionId: string) {
+    const rows = await this.client<{ greeting: string; automatedDisclosure: string; agentName: string }[]>`
+      SELECT greeting, automated_disclosure AS "automatedDisclosure", agent_name AS "agentName"
+      FROM tenancy.get_voice_media_context(${sessionId}::uuid, ${connectionId}::uuid)
+    `;
+    return rows[0] ?? null;
+  }
+
+  async beginTurn(input: Readonly<{
+    sessionId: string; connectionId: string; inputId: string; message: string;
+  }>): Promise<AiTurnContext> {
+    const rows = await this.client<{
+      sessionId: string; tenantId: string; conversationId: string; playbook: unknown | null;
+      language: "th" | "en"; authority: unknown | null; turnSequence: number;
+      recentMessages: unknown; knowledgeChunks: unknown; replayResponse: AiPublicResponse | null;
+    }[]>`
+      SELECT session_id AS "sessionId", tenant_id AS "tenantId", conversation_id AS "conversationId",
+             playbook_json AS playbook, language, authority_json AS authority,
+             turn_sequence AS "turnSequence", recent_messages AS "recentMessages",
+             knowledge_chunks AS "knowledgeChunks", replay_response_json AS "replayResponse"
+      FROM tenancy.begin_voice_turn(
+        ${input.sessionId}::uuid, ${input.connectionId}::uuid, ${input.inputId}::uuid,
+        ${randomUUID()}::uuid, ${input.message}, ${createHash("sha256").update(input.message).digest()}
+      )
+    `;
+    if (!rows[0]) throw new Error("voice_turn_not_available");
+    return rows[0];
+  }
+
+  async commitTurn(input: Readonly<{
+    sessionId: string; connectionId: string; inputId: string; output: SalesCoreOutput;
+    publicResponse: AiPublicResponse; nativeUsage: { inputUnits: number; outputUnits: number; cachedUnits?: number };
+  }>) {
+    const rows = await this.client<{ result: AiPublicResponse & {
+      actionStatuses: { actionId: string; status: "succeeded" }[];
+      terminalReason: "transferred" | null;
+    } }[]>`
+      SELECT tenancy.commit_voice_turn(
+        ${input.sessionId}::uuid, ${input.connectionId}::uuid, ${input.inputId}::uuid,
+        ${this.client.json(input.output)}, ${this.client.json(input.publicResponse)},
+        ${input.nativeUsage.inputUnits}, ${input.nativeUsage.outputUnits}, ${input.nativeUsage.cachedUnits ?? 0}
+      ) AS result
+    `;
+    if (!rows[0]) throw new Error("voice_turn_commit_failed");
+    return rows[0].result;
+  }
+
+  async failTurn(input: Readonly<{
+    sessionId: string; connectionId: string; inputId: string; errorCode: string;
+  }>) {
+    await this.client`
+      SELECT tenancy.fail_voice_turn(
+        ${input.sessionId}::uuid, ${input.connectionId}::uuid, ${input.inputId}::uuid, ${input.errorCode}
+      )
+    `;
   }
 
   async finish(input: Readonly<{

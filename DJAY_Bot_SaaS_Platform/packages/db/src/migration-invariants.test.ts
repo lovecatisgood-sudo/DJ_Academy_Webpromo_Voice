@@ -30,6 +30,7 @@ const socialDeliveryProgressMigration = readFileSync(resolve(import.meta.dirname
 const socialOperationsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0028_ai_chat_social_operations.sql"), "utf8");
 const voiceBasicAuthorityMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0029_voice_basic_authority.sql"), "utf8");
 const voiceRecoveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0030_voice_runtime_recovery.sql"), "utf8");
+const voiceSalesCoreMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0031_voice_sales_core.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -467,5 +468,24 @@ describe("P7 Voice Basic database migration invariants", () => {
     expect(voiceRecoveryMigration).toContain("current_setting('app.service', true) IS DISTINCT FROM 'voice_reaper_worker'");
     expect(voiceRecoveryMigration).toContain("GRANT EXECUTE ON FUNCTION tenancy.reap_voice_basic_sessions");
     expect(voiceRecoveryMigration).not.toMatch(/openai|anthropic|gemini|gpt-|claude-/i);
+  });
+
+  it("pins an immutable Sales Core playbook and isolates durable Voice turns", () => {
+    expect(voiceSalesCoreMigration).toContain("playbook_version_id uuid");
+    expect(voiceSalesCoreMigration).toContain("tenancy_voice_session_playbook_fk");
+    expect(voiceSalesCoreMigration).toContain("ALTER TABLE tenancy.voice_turns ENABLE ROW LEVEL SECURITY");
+    expect(voiceSalesCoreMigration).toContain("ALTER TABLE tenancy.voice_turns FORCE ROW LEVEL SECURITY");
+    expect(voiceSalesCoreMigration).toContain("REVOKE ALL ON tenancy.voice_turns, operations.voice_native_usage FROM PUBLIC");
+    expect(voiceSalesCoreMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+djay_voice_runtime/i);
+  });
+
+  it("commits only entitled allow-listed actions through the Voice runtime authority", () => {
+    expect(voiceSalesCoreMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.begin_voice_turn");
+    expect(voiceSalesCoreMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.commit_voice_turn");
+    expect(voiceSalesCoreMigration).toContain("session_user <> 'djay_voice_runtime'");
+    expect(voiceSalesCoreMigration).toContain("voice_action_not_allowed");
+    expect(voiceSalesCoreMigration).toContain("voice_action_not_entitled");
+    expect(voiceSalesCoreMigration).toContain("operations.voice_native_usage");
+    expect(voiceSalesCoreMigration).not.toMatch(/openai|anthropic|gemini|gpt-|claude-/i);
   });
 });

@@ -65,6 +65,7 @@ export interface VoiceMediaSession {
 export interface VoiceMediaFactory {
   open(input: Readonly<{
     session: AuthorizedVoiceSession;
+    connectionId: string;
     inputAudioEncoding: VoiceInputAudioEncoding;
     onEvent: (event: VoiceMediaEvent) => Promise<void>;
   }>): Promise<VoiceMediaSession>;
@@ -115,6 +116,8 @@ export function attachVoiceWebSocketGateway(input: Readonly<{
   path?: string;
   connectTimeoutMs?: number;
   heartbeatIntervalMs?: number;
+  silenceWarningAfterMs?: number;
+  idleTimeoutMs?: number;
 }>) {
   const path = input.path ?? "/v1/connect";
   const websocketServer = new WebSocketServer({ noServer: true, maxPayload: 300_000 });
@@ -148,6 +151,8 @@ export function attachVoiceWebSocketGateway(input: Readonly<{
     let terminal = false;
     let operation = Promise.resolve();
     let durationTimer: ReturnType<typeof setTimeout> | null = null;
+    let silenceWarningTimer: ReturnType<typeof setTimeout> | null = null;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
     let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
     let heartbeatInFlight = false;
     let heartbeatFailures = 0;
@@ -163,11 +168,32 @@ export function attachVoiceWebSocketGateway(input: Readonly<{
       if (admissionHeld) { admissionHeld = false; input.registry.release(); }
     };
     const elapsedSeconds = () => connectedAtMs ? Math.max(0, Math.ceil((Date.now() - connectedAtMs) / 1000)) : 0;
+    const clearIdleTimers = () => {
+      if (silenceWarningTimer) clearTimeout(silenceWarningTimer);
+      if (idleTimer) clearTimeout(idleTimer);
+      silenceWarningTimer = null; idleTimer = null;
+    };
+    const scheduleIdleTimers = () => {
+      clearIdleTimers();
+      if (terminal || !ready) return;
+      const warningAfterMs = input.silenceWarningAfterMs ?? 45_000;
+      const idleTimeoutMs = input.idleTimeoutMs ?? 60_000;
+      if (warningAfterMs > 0 && warningAfterMs < idleTimeoutMs) {
+        silenceWarningTimer = setTimeout(() => {
+          if (!terminal) send({
+            type: "silence.warning", messageId: randomUUID(),
+            remainingSeconds: Math.max(0, Math.ceil((idleTimeoutMs - warningAfterMs) / 1000)),
+          });
+        }, warningAfterMs);
+      }
+      idleTimer = setTimeout(() => { void finish("idle_timeout", "idle_timeout"); }, idleTimeoutMs);
+    };
 
     const finish = async (reason: VoiceTerminalReason, publicReason: Extract<VoiceServerMessage, { type: "session.ended" }>["reason"]) => {
       if (terminal || !authorized || !connectionId) return;
       terminal = true;
       if (durationTimer) clearTimeout(durationTimer);
+      clearIdleTimers();
       if (heartbeatTimer) clearInterval(heartbeatTimer);
       try { lifecycle?.apply({ type: "ended", atMs: Date.now(), reason }); } catch { /* database authority remains terminal source */ }
       try { await media?.close(reason); } catch { /* terminal settlement still runs */ }
@@ -185,6 +211,7 @@ export function attachVoiceWebSocketGateway(input: Readonly<{
         case "disclosure.completed":
           lifecycle.apply({ type: "disclosure_completed", atMs: Date.now() }); break;
         case "customer.speech.started": {
+          clearIdleTimers();
           const interruptions = lifecycle.snapshot.interruptionCount;
           lifecycle.apply({ type: "customer_speech_started", atMs: Date.now() });
           if (lifecycle.snapshot.interruptionCount > interruptions) {
@@ -193,11 +220,12 @@ export function attachVoiceWebSocketGateway(input: Readonly<{
           break;
         }
         case "assistant.speech.started":
+          clearIdleTimers();
           lifecycle.apply({ type: "assistant_speech_started", atMs: Date.now() });
           send({ type: event.type, messageId: randomUUID() }); break;
         case "assistant.speech.ended":
           lifecycle.apply({ type: "assistant_speech_ended", atMs: Date.now() });
-          send({ type: event.type, messageId: randomUUID() }); break;
+          send({ type: event.type, messageId: randomUUID() }); scheduleIdleTimers(); break;
         case "audio.chunk":
           send({ ...event, messageId: randomUUID(), outputAudioEncoding: "pcm_s16le_24000" }); break;
         case "silence.warning": case "transcript.delta": case "action.status":
@@ -242,7 +270,10 @@ export function attachVoiceWebSocketGateway(input: Readonly<{
       lifecycle = new VoiceSessionLifecycle(result.resumeWindowSeconds);
       lifecycle.apply({ type: "connected", atMs: Date.now() });
       try {
-        media = await input.mediaFactory.open({ session: result, inputAudioEncoding: message.inputAudioEncoding, onEvent: onMediaEvent });
+        media = await input.mediaFactory.open({
+          session: result, connectionId: message.connectionId,
+          inputAudioEncoding: message.inputAudioEncoding, onEvent: onMediaEvent,
+        });
       } catch {
         sendError("media_unavailable", true);
         await finish("unavailable", "unavailable"); return;
@@ -285,14 +316,15 @@ export function attachVoiceWebSocketGateway(input: Readonly<{
       }
       if (message.type === "session.ready") {
         if (ready) throw new VoiceLifecycleError("invalid_transition");
-        ready = true; await media.accept(message); return;
+        ready = true; scheduleIdleTimers(); await media.accept(message); return;
       }
       if (!ready) throw new VoiceLifecycleError("invalid_transition");
       if (message.type === "audio.chunk") {
         if (message.sequence !== lastInputSequence + 1) throw new VoiceLifecycleError("invalid_transition");
-        lastInputSequence = message.sequence;
+        lastInputSequence = message.sequence; scheduleIdleTimers();
       }
       if (message.type === "speech.started") {
+        clearIdleTimers();
         const interruptions = lifecycle.snapshot.interruptionCount;
         lifecycle.apply({ type: "customer_speech_started", atMs: Date.now() });
         if (lifecycle.snapshot.interruptionCount > interruptions) {
@@ -314,6 +346,7 @@ export function attachVoiceWebSocketGateway(input: Readonly<{
     socket.on("close", () => {
       sockets.delete(socket); clearTimeout(connectTimer);
       if (durationTimer) clearTimeout(durationTimer);
+      clearIdleTimers();
       if (heartbeatTimer) clearInterval(heartbeatTimer);
       operation = operation.then(async () => {
         if (authorized && connectionId && !terminal) {

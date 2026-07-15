@@ -1,8 +1,8 @@
 # P7 Validation: Voice Agent Basic
 
-- Result: Browser transport/widget gate passed; P7 release gate remains open
+- Result: Local media, Sales Core, database, and browser gates passed; P7 release gate remains open
 - Date: 2026-07-15
-- Database migrations: `0029_voice_basic_authority`, `0030_voice_runtime_recovery`
+- Database migrations: `0029_voice_basic_authority`, `0030_voice_runtime_recovery`, `0031_voice_sales_core`
 - Production activation: Disabled
 
 ## Executed foundation gates
@@ -89,6 +89,23 @@ All passed across 30 packages/apps. Coverage proves that:
 - Chromium tenant-workspace journeys reject path-bearing origins before an API
   call, expose the correct one-time install snippet, require confirmation before
   irreversible revocation, and remain responsive on desktop and mobile.
+- PCM16 16 kHz AudioWorklet capture and its fallback produce strict public
+  media frames, while malformed formats and provider-identifying fields are
+  rejected before the restricted adapter.
+- a Voice deployment creates its own tenant-scoped Sales Core agent, immutable
+  bilingual playbook version, and draft without requiring AI Chat authority;
+- every Voice session pins that deployment agent and published playbook before
+  media begins, and reconnects retain the same immutable pins;
+- repeated turn keys return the durable stored turn instead of generating or
+  committing duplicate work;
+- a committed Voice turn stores the customer and assistant transcript, creates
+  its authorized lead and appointment effects atomically, and records restricted
+  native usage without exposing model, routing, credential, or cost data;
+- the realtime adapter exposes only the Sales Core planning tool, blocks ordinary
+  post-opening audio until an approved turn returns, reports action outcomes,
+  and fails with provider-neutral public errors.
+- gateway-owned activity timers reset on customer/assistant activity, emit a
+  bounded silence warning, and commit exactly one `idle_timeout` settlement.
 
 The API production build includes the disabled-by-default
 `/public/voice/session` route and the service-authorized voice `authorize`,
@@ -98,11 +115,11 @@ independent Node application.
 
 ## Remaining P7 gates
 
-- Restricted realtime media adapter and production speech transport.
 - Spend reservation once approved rates exist; no monetary value is invented by
   this slice.
-- Realtime audio, interruption, silence, noise, reconnect, transcript, summary,
-  Sales Core, Action Gateway, callback, and handover integration.
+- Live realtime audio evaluation for interruption, silence, noise, reconnect,
+  transcript accuracy, callback, and handover behavior using restricted staging
+  credentials.
 - English and Thai quality/latency evaluation with approved pilot thresholds.
 - Migration, retention/erasure, and named merchant acceptance.
 
