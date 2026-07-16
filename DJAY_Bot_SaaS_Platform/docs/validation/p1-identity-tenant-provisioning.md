@@ -6,6 +6,18 @@
 - Database: PostgreSQL 16
 - Runtime: Node 24, pnpm 11.12.0
 
+## Browser mutation hardening checkpoint
+
+On 2026-07-16 the origin/CSRF boundary was re-audited against ADR-004. The
+shared validator now maps every mutation path to exactly one Public, Tenant, or
+Platform application origin rather than trusting every DJAY application origin
+as one set. API, widget, webhook, internal-service, missing, malformed, and
+sibling-realm origins fail closed. Focused unit coverage exercises registration,
+invitation, login, recovery, MFA, Tenant, Platform, and non-browser paths. The
+workspace lint gate also scans all browser route files and currently proves that
+all 66 exported POST, PUT, PATCH, and DELETE handlers invoke
+`hasTrustedOrigin(request)`.
+
 ## Implemented scope
 
 - Public registration, email verification, login, logout, recovery, resend, and

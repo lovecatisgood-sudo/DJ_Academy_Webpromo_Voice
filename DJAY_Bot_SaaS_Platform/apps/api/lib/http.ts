@@ -36,14 +36,58 @@ export function clientAddress(request: Request): string {
   return "direct-client";
 }
 
+type BrowserRealmUrls = Readonly<{
+  publicAppUrl: string;
+  tenantAppUrl: string;
+  platformAppUrl: string;
+}>;
+
+const tenantPublicMutationPaths = new Set([
+  "/public/auth/login",
+  "/public/auth/logout",
+  "/public/auth/mfa/challenge",
+  "/public/auth/recovery/complete",
+  "/public/auth/recovery/request",
+]);
+
+function canonicalOrigin(value: string): string | null {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+export function expectedBrowserMutationOrigin(pathname: string, urls: BrowserRealmUrls): string | null {
+  if (pathname.startsWith("/tenant/")) return canonicalOrigin(urls.tenantAppUrl);
+  if (pathname.startsWith("/platform/")) return canonicalOrigin(urls.platformAppUrl);
+  if (tenantPublicMutationPaths.has(pathname)) return canonicalOrigin(urls.tenantAppUrl);
+  if (pathname.startsWith("/public/auth/") || pathname.startsWith("/public/invitations/")) {
+    return canonicalOrigin(urls.publicAppUrl);
+  }
+  return null;
+}
+
+export function isTrustedBrowserMutationOrigin(
+  origin: string | null,
+  pathname: string,
+  urls: BrowserRealmUrls,
+): boolean {
+  const expected = expectedBrowserMutationOrigin(pathname, urls);
+  return expected !== null && origin === expected;
+}
+
 export async function hasTrustedOrigin(request: Request): Promise<boolean> {
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
   const { env } = await getServices();
-  const allowed = [env.PUBLIC_APP_URL, env.TENANT_APP_URL, env.PLATFORM_APP_URL, env.API_APP_URL]
-    .filter((value): value is string => Boolean(value))
-    .map((value) => new URL(value).origin);
-  return allowed.includes(origin);
+  return isTrustedBrowserMutationOrigin(
+    request.headers.get("origin"),
+    new URL(request.url).pathname,
+    {
+      publicAppUrl: env.PUBLIC_APP_URL,
+      tenantAppUrl: env.TENANT_APP_URL,
+      platformAppUrl: env.PLATFORM_APP_URL,
+    },
+  );
 }
 
 export async function enforceRateLimit(scope: string, identifier: string, limit: number, windowMs: number) {

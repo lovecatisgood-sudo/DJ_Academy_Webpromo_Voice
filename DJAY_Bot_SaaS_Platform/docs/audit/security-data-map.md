@@ -84,6 +84,9 @@ Table owners are not runtime roles. RLS is enabled and forced on every tenant ta
   plugins, restrict device capabilities, suppress framework identity, and send
   HSTS, strict referrer, MIME-sniffing, opener-isolation, and legacy frame
   protections from the application artifact;
+- every Public, Tenant, and Platform mutation validates the exact application
+  origin assigned to that route realm; API, widget, webhook, internal-service,
+  missing, malformed, and sibling-realm origins fail closed;
 - webhook signature verification precedes tenant/domain mutation;
 - external event IDs are unique per provider/binding;
 - OAuth/API credentials are encrypted and never returned after write;

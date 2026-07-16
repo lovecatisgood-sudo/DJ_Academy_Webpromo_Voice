@@ -40,6 +40,16 @@ review messages. Sign-out failures never redirect or claim that the session was
 closed. Do not use this helper to reinterpret a successful response or to retry
 a non-idempotent mutation automatically.
 
+The API's `hasTrustedOrigin` check is route-realm-specific. `/tenant/*`,
+`/platform/*`, public registration/invitation, and tenant login/recovery paths
+accept only their assigned application origin. The API origin, missing or
+malformed origins, sibling DJAY applications, widgets, webhooks, and internal
+services are not interchangeable browser realms. `pnpm run
+lint:browser-origins` scans every state-changing handler in the browser route
+trees and fails when the check is absent. Add a new browser mutation realm to
+`expectedBrowserMutationOrigin` and its tests deliberately; do not broaden the
+shared allow-list.
+
 The support-access banner is a security disclosure, not decorative content. If
 its status read fails, the workspace shows an explicit warning to refresh
 before handling customer data or making changes; it must never silently imply

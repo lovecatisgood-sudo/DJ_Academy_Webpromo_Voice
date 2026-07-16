@@ -58,7 +58,9 @@ navigation, with an automated axe WCAG 2.2 A/AA scan and production-browser
 coverage for every rendered route at desktop and mobile breakpoints and every
 tenant and Platform role. All four web realms also share an enforced browser
 security-header policy, and the resolved dependency graph has no known registry
-advisories. Read-only
+advisories. Every browser mutation is statically required to validate its
+origin, and Public, Tenant, Platform, API, widget, webhook, and internal-service
+realms cannot authorize one another's mutation paths. Read-only
 roles no longer receive misleading mutation controls, and forbidden direct
 routes fail closed with a recovery path. Failed authoritative workspace reads
 now render explicit retryable states instead of empty data or indefinite
