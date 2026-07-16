@@ -46,7 +46,7 @@ are accepted and passed. P9 engineering is active: the tenant-isolated,
 role-aware Usage Center now reconciles customer units, reservations, allowance,
 and safety caps while making the pre-release billing state explicit. Restricted
 Platform Owner/Finance reconciliation and a separate-cluster PostgreSQL 16
-backup/restore gate also pass. Immutable seven-service SLO evidence, eight
+backup/restore gate also pass. Immutable seven-service SLO evidence, nine
 time-limited operational attestations, incident ownership, usage reconciliation,
 and a fail-closed role-aware release gate are now implemented. The branded
 provider-neutral `/status` page reports only evidence-backed customer service
@@ -75,6 +75,8 @@ scripts/use-node24.sh pnpm run qa:p9-operations
 scripts/use-node24.sh pnpm run qa:p9-status
 scripts/use-node24.sh pnpm run qa:p9-resilience
 scripts/use-node24.sh pnpm run qa:p9-restore
+scripts/use-node24.sh pnpm run package:release
+scripts/use-node24.sh pnpm run qa:release-artifacts
 scripts/use-node24.sh pnpm run dev
 ```
 

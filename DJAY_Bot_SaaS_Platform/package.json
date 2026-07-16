@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "turbo run build",
+    "package:release": "pnpm run build && node scripts/package-release.mjs",
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint && pnpm run lint:boundaries",
     "lint:boundaries": "node scripts/check-boundaries.mjs",
@@ -28,6 +29,7 @@
     "qa:p9-recovery": "P9_RECOVERY_ONLY=true scripts/test-db-integration.sh",
     "qa:p9-dependency-outage": "pnpm --filter @djay/provider-gateway exec vitest run src/index.test.ts && pnpm --filter @djay/ai-chat-runtime exec vitest run src/index.test.ts && pnpm --filter @djay/voice-gateway exec vitest run src/media.test.ts && pnpm --filter @djay/notifications exec vitest run src/notifications.test.ts && pnpm --filter @djay/channel-adapters exec vitest run src/index.test.ts",
     "qa:p9-restore": "scripts/test-p9-backup-restore.sh",
+    "qa:release-artifacts": "node scripts/qa-release-artifacts.mjs",
     "verify": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
   },
   "devDependencies": {

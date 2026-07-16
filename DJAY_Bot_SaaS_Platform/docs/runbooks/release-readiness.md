@@ -65,13 +65,15 @@ matrix in `dependency-outage.md`; synthetic UI fixtures do not qualify.
 
 ## Review the gate
 
-1. Open Platform Master and locate **Public release readiness**.
-2. Confirm environment and release version match the intended deployment.
-3. Require 7/7 service objectives and 9/9 current attestations.
-4. Require zero blocking incidents and a healthy usage ledger.
-5. Investigate every red service card. Do not promote while evidence is missing
+1. Build and pass the self-contained six-service artifact gate in
+   `release-artifacts.md`; record the immutable deployment artifact hashes.
+2. Open Platform Master and locate **Public release readiness**.
+3. Confirm environment and release version match the intended deployment.
+4. Require 7/7 service objectives and 9/9 current attestations.
+5. Require zero blocking incidents and a healthy usage ledger.
+6. Investigate every red service card. Do not promote while evidence is missing
    or the API cannot load the gate.
-6. Platform Owner approves deployment only through the reviewed release
+7. Platform Owner approves deployment only through the reviewed release
    workflow. Finance evidence does not confer payment or invoice authority.
 
 `GET /public/status` and `/status` are intentionally provider-neutral. Unknown
@@ -101,6 +103,8 @@ scripts/use-node24.sh pnpm test:db
 scripts/use-node24.sh pnpm run qa:p9-restore
 scripts/use-node24.sh pnpm run qa:p9-resilience
 scripts/use-node24.sh pnpm run qa:p9-dependency-outage
+scripts/use-node24.sh pnpm run package:release
+scripts/use-node24.sh pnpm run qa:release-artifacts
 scripts/use-node24.sh pnpm run qa:p9-status
 scripts/use-node24.sh pnpm run qa:p9-operations
 ```
