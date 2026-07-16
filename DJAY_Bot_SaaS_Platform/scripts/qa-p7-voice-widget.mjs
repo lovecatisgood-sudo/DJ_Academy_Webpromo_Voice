@@ -194,6 +194,24 @@ async function inspectTenantWorkspace() {
     if (path === "/tenant/support-access") return respond({ grants: [] });
     if (path === "/tenant/knowledge") return respond({ sources: [{ id: "60000000-0000-4000-8000-000000000001", revisionId: "70000000-0000-4000-8000-000000000001", name: "Approved services", sourceKind: "text", status: "ready", version: 1 }] });
     if (path === "/tenant/ai-chat/notifications") return respond({ notifications: [{ id: "80000000-0000-4000-8000-000000000001", name: "Sales inbox", allowedTemplateKeys: ["ai_chat.lead_qualified"], status: "active" }] });
+    if (path === "/tenant/voice/analytics") return respond({ analytics: {
+      periodDays: 30, level: advanced ? "advanced" : "core", deploymentId: deployment.id,
+      summary: {
+        sessions: 8, connectedCalls: 8, completedCalls: 7, failedCalls: 1,
+        completedTurns: 22, failedTurns: 1, leads: 4, appointmentRequests: 2,
+        callbackRequests: 1, settledMinutes: 12, reconnectingCalls: 1,
+        averageConnectedSeconds: 84, averageTurnMilliseconds: 760, p95TurnMilliseconds: 1450,
+      },
+      outcomes: advanced ? [{ outcome: "lead_captured", calls: 4 }, { outcome: "appointment_requested", calls: 2 }] : [],
+      languages: advanced ? [{ locale: "en", calls: 5 }, { locale: "th", calls: 3 }] : [],
+      terminalReasons: advanced ? [{ reason: "completed", calls: 7 }, { reason: "unavailable", calls: 1 }] : [],
+      turnFailures: advanced ? [{ errorCode: "temporarily_unavailable", turns: 1 }] : [],
+      daily: advanced ? Array.from({ length: 30 }, (_, index) => ({
+        date: new Date(Date.UTC(2026, 5, index + 1)).toISOString().slice(0, 10),
+        sessions: index > 26 ? 2 : 0, completedCalls: index > 26 ? 1 : 0,
+        failedCalls: index === 28 ? 1 : 0, leads: index === 29 ? 1 : 0,
+      })) : [],
+    } });
     if (path === "/tenant/voice/deployments" && method === "GET") {
       const publicLabel = advanced ? "Second-Generation Voice Engine" : "First-Generation Voice Engine";
       return respond({ capability: { enabled: true, publicLabel }, deployments: [{ ...deployment, publicLabel }] });
@@ -224,6 +242,10 @@ async function inspectTenantWorkspace() {
   await page.getByRole("tab", { name: /Quality Evaluation/ }).click();
   await page.getByRole("heading", { name: "Quality Evaluation" }).waitFor();
   await page.getByText("22", { exact: true }).waitFor();
+  await page.getByText("Core analytics", { exact: true }).waitFor();
+  const exportHref = await page.getByRole("link", { name: "Export CSV" }).getAttribute("href");
+  if (!exportHref?.includes(`deploymentId=${deployment.id}`) || !exportHref.includes("format=csv")) failures.push("tenant: Voice analytics export is not scoped to the selected deployment");
+  await page.screenshot({ path: "/tmp/djay-p7-voice-analytics-core-desktop.png", fullPage: true });
   await page.getByRole("tab", { name: /^Deploy / }).click();
   await page.getByText("Create another Voice Agent deployment").click();
   await page.getByLabel("Deployment name").fill("Storefront voice");
@@ -250,10 +272,23 @@ async function inspectTenantWorkspace() {
   if (dimensions.width > dimensions.viewport + 1) failures.push(`tenant: horizontal overflow ${dimensions.width}/${dimensions.viewport}`);
   if (restricted.test(dimensions.text)) failures.push("tenant: restricted routing identity visible");
   await page.screenshot({ path: "/tmp/djay-p7-voice-tenant.png", fullPage: true });
-  advanced = true; await page.setViewportSize({ width: 390, height: 844 }); await page.reload({ waitUntil: "networkidle" });
+  advanced = true; await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "Mali" }).waitFor();
+  await page.getByRole("tab", { name: /Quality Evaluation/ }).click();
+  await page.getByText("Advanced analytics", { exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Sales outcomes" }).waitFor();
+  const advancedDesktop = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth, text: document.body.innerText }));
+  if (advancedDesktop.width > advancedDesktop.viewport + 1) failures.push(`tenant-advanced: horizontal overflow ${advancedDesktop.width}/${advancedDesktop.viewport}`);
+  if (restricted.test(advancedDesktop.text)) failures.push("tenant-advanced: analytics exposed restricted routing identity");
+  await page.screenshot({ path: "/tmp/djay-p7-voice-analytics-advanced-desktop.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 }); await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Mali" }).waitFor();
   await page.getByText("Second-Generation activation is pending internal route qualification.", { exact: true }).waitFor();
   await page.getByText("It will never fall back to First-Generation.", { exact: false }).waitFor();
+  await page.getByRole("tab", { name: /Quality Evaluation/ }).click();
+  await page.getByText("Advanced analytics", { exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Sales outcomes" }).waitFor();
+  await page.getByText("Lead captured", { exact: true }).waitFor();
   const mobile = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth, text: document.body.innerText }));
   if (mobile.width > mobile.viewport + 1) failures.push(`tenant-mobile: horizontal overflow ${mobile.width}/${mobile.viewport}`);
   if (restricted.test(mobile.text)) failures.push("tenant-mobile: Advanced notice exposed restricted routing identity");

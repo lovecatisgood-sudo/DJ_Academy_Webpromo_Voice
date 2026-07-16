@@ -39,6 +39,21 @@ type Studio = {
     averageConnectedSeconds: number | null; lastCallAt: string | null;
   };
 };
+type Analytics = {
+  periodDays: number; level: "core" | "advanced"; deploymentId: string | null;
+  summary: {
+    sessions: number; connectedCalls: number; completedCalls: number; failedCalls: number;
+    completedTurns: number; failedTurns: number; leads: number; appointmentRequests: number;
+    callbackRequests: number; settledMinutes: number; reconnectingCalls: number;
+    averageConnectedSeconds: number | null; averageTurnMilliseconds: number | null;
+    p95TurnMilliseconds: number | null;
+  };
+  outcomes: { outcome: string; calls: number }[];
+  languages: { locale: "th" | "en"; calls: number }[];
+  terminalReasons: { reason: string; calls: number }[];
+  turnFailures: { errorCode: string; turns: number }[];
+  daily: { date: string; sessions: number; completedCalls: number; failedCalls: number; leads: number }[];
+};
 type VoiceResult = { capability: { enabled: true; publicLabel: "First-Generation Voice Engine" | "Second-Generation Voice Engine" } | null; deployments: Deployment[] };
 type Knowledge = { id: string; revisionId: string; name: string; sourceKind: string; status: string; version: number };
 type Notification = { id: string; name: string; allowedTemplateKeys: string[]; status: string };
@@ -60,6 +75,18 @@ const tabs: { id: Tab; label: string; hint: string }[] = [
 function lineList(value: string) { return value.split("\n").map((item) => item.trim()).filter(Boolean); }
 function listText(value: string[]) { return value.join("\n"); }
 function formatLimit(value: number | null, suffix = "") { return value === null ? "Not configured" : `${value}${suffix}`; }
+function formatDuration(seconds: number | null) {
+  if (seconds === null) return "—";
+  if (seconds < 60) return `${Math.round(seconds)} sec`;
+  const minutes = Math.floor(seconds / 60); const remainder = Math.round(seconds % 60);
+  return `${minutes}m ${remainder}s`;
+}
+function formatLatency(milliseconds: number | null) {
+  if (milliseconds === null) return "—";
+  return milliseconds < 1000 ? `${Math.round(milliseconds)} ms` : `${(milliseconds / 1000).toFixed(1)} sec`;
+}
+function percent(value: number, total: number) { return total ? `${Math.round((value / total) * 100)}%` : "—"; }
+function friendlyMetric(value: string) { return value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase()); }
 
 export default function VoicePage() {
   const session = useWorkspaceSession();
@@ -67,6 +94,7 @@ export default function VoicePage() {
   const [selectedId, setSelectedId] = useState(""); const [studio, setStudio] = useState<Studio | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("voice"); const [knowledge, setKnowledge] = useState<Knowledge[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]); const [deploymentKey, setDeploymentKey] = useState("");
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [message, setMessage] = useState(""); const [working, setWorking] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session.workspaces, session.selectedTenantId]);
   const canDeploy = workspace?.role === "tenant_master_admin" || workspace?.role === "tenant_admin";
@@ -75,16 +103,19 @@ export default function VoicePage() {
   const installSnippet = deploymentKey ? `<script type="module">\n  import { mountVoiceWidget } from "https://cdn.djaybot.com/voice/v1/index.js";\n  mountVoiceWidget({ deploymentKey: "${deploymentKey}", apiBaseUrl: "${apiBaseUrl}" });\n</script>` : "";
 
   async function loadStudio(id: string) {
-    if (!id) { setStudio(null); return; }
-    const [studioResponse, knowledgeResponse, notificationResponse] = await Promise.all([
+    if (!id) { setStudio(null); setAnalytics(null); return; }
+    const [studioResponse, knowledgeResponse, notificationResponse, analyticsResponse] = await Promise.all([
       fetch(`/tenant/voice/deployments/${id}/studio`, { cache: "no-store" }),
       fetch("/tenant/knowledge", { cache: "no-store" }),
       fetch("/tenant/ai-chat/notifications", { cache: "no-store" }),
+      fetch(`/tenant/voice/analytics?deploymentId=${encodeURIComponent(id)}&days=30`, { cache: "no-store" }),
     ]);
     if (studioResponse.ok) setStudio((await studioResponse.json()).studio);
     else setStudio(null);
     if (knowledgeResponse.ok) setKnowledge((await knowledgeResponse.json()).sources || []);
     if (notificationResponse.ok) setNotifications((await notificationResponse.json()).notifications || []);
+    if (analyticsResponse.ok) setAnalytics((await analyticsResponse.json()).analytics || null);
+    else setAnalytics(null);
   }
 
   async function load(preferredId?: string) {
@@ -269,9 +300,20 @@ export default function VoicePage() {
           <div><strong>Runtime policy</strong><span>Disclosure first · recording off · bounded reconnect</span></div>
         </div><p className="control-copy">Run the installed widget on an approved origin. Test sessions consume reserved minutes and create real transcript/action evidence; use staging contact details only.</p></section> : null}
 
-        {activeTab === "quality" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Last 30 days</p><h2>Quality Evaluation</h2></div><span>Core evidence</span></div><div className="quality-grid">
-          <div><strong>{studio.quality.totalCalls}</strong><span>Sessions</span></div><div><strong>{studio.quality.completedCalls}</strong><span>Completed</span></div><div><strong>{studio.quality.failedCalls}</strong><span>Failed / expired</span></div><div><strong>{studio.quality.transcriptTurns}</strong><span>Grounded turns</span></div><div><strong>{studio.quality.averageConnectedSeconds === null ? "—" : Math.round(studio.quality.averageConnectedSeconds)}</strong><span>Avg connected seconds</span></div>
-        </div><div className="policy-callout"><strong>Production quality gate remains separate from these operational counts.</strong><span>English and Thai recognition, latency, interruption, silence, noise, reconnect, callback, and handover require restricted staging evaluation against approved thresholds.</span></div>{studio.quality.lastCallAt ? <p className="control-copy">Last session: {new Date(studio.quality.lastCallAt).toLocaleString()}</p> : null}</section> : null}
+        {activeTab === "quality" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Last {analytics?.periodDays || 30} days</p><h2>Quality Evaluation</h2></div><div className="analytics-heading-actions"><span>{analytics?.level === "advanced" ? "Advanced analytics" : "Core analytics"}</span>{analytics ? <a className="secondary-link" href={`/tenant/voice/analytics?deploymentId=${encodeURIComponent(studio.deployment.id)}&days=${analytics.periodDays}&format=csv`}>Export CSV</a> : null}</div></div>
+          {analytics ? <><div className="quality-grid quality-grid-primary">
+            <div><strong>{analytics.summary.sessions}</strong><span>Sessions</span></div><div><strong>{analytics.summary.completedCalls}</strong><span>Completed</span></div><div><strong>{analytics.summary.failedCalls}</strong><span>Failed / expired</span></div><div><strong>{analytics.summary.completedTurns}</strong><span>Grounded turns</span></div><div><strong>{analytics.summary.leads}</strong><span>Leads captured</span></div><div><strong>{analytics.summary.appointmentRequests}</strong><span>Appointment requests</span></div>
+          </div><div className="quality-grid quality-grid-secondary">
+            <div><strong>{percent(analytics.summary.completedCalls, analytics.summary.connectedCalls)}</strong><span>Completion rate</span></div><div><strong>{formatDuration(analytics.summary.averageConnectedSeconds)}</strong><span>Average connected time</span></div><div><strong>{formatLatency(analytics.summary.averageTurnMilliseconds)}</strong><span>Average turn response</span></div><div><strong>{analytics.level === "advanced" ? formatLatency(analytics.summary.p95TurnMilliseconds) : "Advanced"}</strong><span>95th percentile response</span></div><div><strong>{analytics.summary.reconnectingCalls}</strong><span>Calls reconnected</span></div><div><strong>{analytics.summary.settledMinutes}</strong><span>Settled minutes</span></div>
+          </div></> : <div className="pending-line"><strong>Analytics are temporarily unavailable</strong><span>Call records remain intact. Reload this page to try again.</span></div>}
+          {analytics?.level === "advanced" ? <div className="voice-analytics-breakdowns">
+            <section><h3>Sales outcomes</h3>{analytics.outcomes.length ? analytics.outcomes.map((item) => <div key={item.outcome}><span>{friendlyMetric(item.outcome)}</span><strong>{item.calls}</strong></div>) : <p>No classified outcomes yet.</p>}</section>
+            <section><h3>Language mix</h3>{analytics.languages.length ? analytics.languages.map((item) => <div key={item.locale}><span>{item.locale === "th" ? "Thai" : "English"}</span><strong>{item.calls}</strong></div>) : <p>No sessions yet.</p>}</section>
+            <section><h3>Terminal reasons</h3>{analytics.terminalReasons.length ? analytics.terminalReasons.map((item) => <div key={item.reason}><span>{friendlyMetric(item.reason)}</span><strong>{item.calls}</strong></div>) : <p>No terminal calls yet.</p>}</section>
+            <section><h3>Turn failures</h3>{analytics.turnFailures.length ? analytics.turnFailures.map((item) => <div key={item.errorCode}><span>{friendlyMetric(item.errorCode)}</span><strong>{item.turns}</strong></div>) : <p>No failed turns.</p>}</section>
+          </div> : null}
+          {analytics?.level === "advanced" ? <div className="voice-analytics-trend"><div className="analytics-subheading"><div><p>UTC calendar days</p><h3>Recent call trend</h3></div><span>Last 14 days shown · full period in CSV</span></div><div className="data-table"><div className="data-row voice-trend-heading"><strong>Date</strong><span>Sessions</span><span>Completed / failed</span><span>Leads</span></div>{analytics.daily.slice(-14).map((item) => <div className="data-row voice-trend-row" key={item.date}><strong>{new Date(`${item.date}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" })}</strong><span>{item.sessions}</span><span>{item.completedCalls} / {item.failedCalls}</span><span>{item.leads}</span></div>)}</div></div> : null}
+          <div className="policy-callout"><strong>Operational analytics do not replace the production quality gate.</strong><span>English and Thai recognition, latency, interruption, silence, noise, reconnect, callback, and handover still require restricted staging evaluation against approved thresholds.</span></div>{studio.quality.lastCallAt ? <p className="control-copy">Last session: {new Date(studio.quality.lastCallAt).toLocaleString()}</p> : null}</section> : null}
 
         {activeTab === "deploy" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Immutable release and browser install</p><h2>Deploy</h2></div><span>{studio.deployment.status}</span></div><div className="deploy-command-row"><button type="button" disabled={!canEdit || working} onClick={() => void publish()}>Publish immutable version</button>{canDeploy && studio.deployment.status !== "revoked" ? <><button type="button" className="secondary-command" disabled={working} onClick={() => void changeStatus(studio.deployment.id, studio.deployment.status === "active" ? "disable" : "enable")}>{studio.deployment.status === "active" ? "Disable deployment" : "Enable deployment"}</button><button type="button" className="secondary-command danger-command" disabled={working} onClick={() => void changeStatus(studio.deployment.id, "revoke")}>Revoke permanently</button></> : null}</div><div className="deployment-identity"><strong>Safe deployment key prefix</strong><code>{studio.deployment.keyPrefix}…</code><span>The full key is never stored or displayed again.</span></div>
           {deploymentKey ? <div className="deployment-secret"><strong>One-time Voice deployment key and install snippet</strong><code>{deploymentKey}</code><p className="field-help">Add this snippet only to the approved website origin.</p><pre>{installSnippet}</pre><button type="button" className="secondary-command" onClick={() => { if (!navigator.clipboard) { setMessage("Select the snippet and copy it manually."); return; } void navigator.clipboard.writeText(installSnippet).then(() => setMessage("Install snippet copied."), () => setMessage("Copy was blocked. Select the snippet and copy it manually.")); }}>Copy install snippet</button></div> : null}

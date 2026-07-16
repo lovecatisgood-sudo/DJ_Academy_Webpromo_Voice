@@ -28,7 +28,7 @@ latency gate, retention review, and named merchant acceptance are complete.
 
 ## Activation sequence
 
-1. Apply migrations through `0036_voice_advanced_runtime` and confirm the
+1. Apply migrations through `0037_voice_analytics_indexes` and confirm the
    runtime is `paused` with reason `activation_required`.
 2. Start the worker with the Voice reaper enabled. Confirm repeated idle cycles
    complete without errors before starting the gateway.
@@ -64,6 +64,12 @@ restricted operations channel when:
 
 Never log audio, transcript content, session/deployment credentials, customer
 identifiers, routing identity, internal cost, or unapproved monetary rates.
+
+Tenant Voice analytics are available through `GET /tenant/voice/analytics` for
+a bounded 1–365-day period and optional tenant-owned deployment. Basic returns
+core aggregates; Advanced adds privacy-safe outcome, language, terminal,
+failure, reconnect, latency, and daily trend breakdowns. Use its hardened CSV
+export for merchant review rather than direct database access.
 
 ## Pause and emergency stop
 
@@ -102,7 +108,7 @@ path.
 
 ## Rollback
 
-Application rollback must remain compatible with migrations `0029` through `0036`.
+Application rollback must remain compatible with migrations `0029` through `0037`.
 Pause admission first, allow active sessions to finish or use emergency stop,
 then verify no reservations or leases remain open. Do not drop recovery columns,
 functions, controls, or immutable usage/audit evidence during rollback.

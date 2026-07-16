@@ -17,6 +17,26 @@ function validOrigin(value: string) {
 type VoiceCapabilityProfile = "voice_gen1" | "voice_gen2";
 type VoicePublicLabel = "First-Generation Voice Engine" | "Second-Generation Voice Engine";
 
+export type VoiceAnalytics = Readonly<{
+  periodDays: number;
+  level: "core" | "advanced";
+  deploymentId: string | null;
+  summary: Readonly<{
+    sessions: number; connectedCalls: number; completedCalls: number; failedCalls: number;
+    completedTurns: number; failedTurns: number; leads: number; appointmentRequests: number;
+    callbackRequests: number; settledMinutes: number; reconnectingCalls: number;
+    averageConnectedSeconds: number | null; averageTurnMilliseconds: number | null;
+    p95TurnMilliseconds: number | null;
+  }>;
+  outcomes: readonly Readonly<{ outcome: string; calls: number }>[];
+  languages: readonly Readonly<{ locale: "th" | "en"; calls: number }>[];
+  terminalReasons: readonly Readonly<{ reason: string; calls: number }>[];
+  turnFailures: readonly Readonly<{ errorCode: string; turns: number }>[];
+  daily: readonly Readonly<{
+    date: string; sessions: number; completedCalls: number; failedCalls: number; leads: number;
+  }>[];
+}>;
+
 function publicLabel(profile: VoiceCapabilityProfile): VoicePublicLabel {
   return profile === "voice_gen1" ? "First-Generation Voice Engine" : "Second-Generation Voice Engine";
 }
@@ -222,6 +242,147 @@ export class VoiceDeploymentStore {
           totalCalls: 0, completedCalls: 0, failedCalls: 0, transcriptTurns: 0,
           averageConnectedSeconds: null, lastCallAt: null,
         },
+      };
+    });
+  }
+
+  async analytics(
+    context: TenantContext,
+    input: Readonly<{ deploymentId?: string; periodDays?: number }> = {},
+  ): Promise<VoiceAnalytics | null> {
+    const periodDays = Number.isInteger(input.periodDays)
+      ? Math.min(365, Math.max(1, input.periodDays!)) : 30;
+    const deploymentId = input.deploymentId ?? null;
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const authority = await hasVoiceAuthority(sql, context.tenantId);
+      if (!authority) return null;
+      if (deploymentId) {
+        const deployment = await sql<{ exists: boolean }[]>`
+          SELECT EXISTS(
+            SELECT 1 FROM tenancy.voice_deployments
+            WHERE tenant_id = ${context.tenantId}::uuid AND id = ${deploymentId}::uuid
+          ) AS exists
+        `;
+        if (!deployment[0]?.exists) return null;
+      }
+      const summaryRows = await sql<VoiceAnalytics["summary"][]>`
+        WITH scoped_sessions AS MATERIALIZED (
+          SELECT session.* FROM tenancy.voice_sessions session
+          WHERE session.tenant_id = ${context.tenantId}::uuid
+            AND session.created_at >= now() - make_interval(days => ${periodDays})
+            AND (${deploymentId}::uuid IS NULL OR session.deployment_id = ${deploymentId}::uuid)
+        )
+        SELECT
+          (SELECT count(*)::int FROM scoped_sessions) AS sessions,
+          (SELECT count(*)::int FROM scoped_sessions WHERE connected_at IS NOT NULL) AS "connectedCalls",
+          (SELECT count(*)::int FROM scoped_sessions WHERE status = 'ended') AS "completedCalls",
+          (SELECT count(*)::int FROM scoped_sessions WHERE status IN ('failed', 'expired')) AS "failedCalls",
+          (SELECT count(*)::int FROM tenancy.voice_turns turn
+            JOIN scoped_sessions session ON session.tenant_id = turn.tenant_id AND session.id = turn.session_id
+            WHERE turn.status = 'completed') AS "completedTurns",
+          (SELECT count(*)::int FROM tenancy.voice_turns turn
+            JOIN scoped_sessions session ON session.tenant_id = turn.tenant_id AND session.id = turn.session_id
+            WHERE turn.status = 'failed') AS "failedTurns",
+          (SELECT count(DISTINCT conversation.lead_id)::int FROM scoped_sessions session
+            JOIN tenancy.conversations conversation
+              ON conversation.tenant_id = session.tenant_id AND conversation.id = session.conversation_id
+            WHERE conversation.lead_id IS NOT NULL) AS leads,
+          (SELECT count(DISTINCT request.id)::int FROM scoped_sessions session
+            JOIN tenancy.appointment_requests request
+              ON request.tenant_id = session.tenant_id AND request.conversation_id = session.conversation_id)
+            AS "appointmentRequests",
+          (SELECT count(DISTINCT callback.id)::int FROM scoped_sessions session
+            JOIN tenancy.voice_callback_requests callback
+              ON callback.tenant_id = session.tenant_id AND callback.session_id = session.id)
+            AS "callbackRequests",
+          (SELECT COALESCE(sum(settled_minutes), 0)::int FROM scoped_sessions) AS "settledMinutes",
+          (SELECT count(*)::int FROM (
+            SELECT connection.session_id FROM tenancy.voice_session_connections connection
+            JOIN scoped_sessions session
+              ON session.tenant_id = connection.tenant_id AND session.id = connection.session_id
+            GROUP BY connection.tenant_id, connection.session_id HAVING count(*) > 1
+          ) reconnecting) AS "reconnectingCalls",
+          (SELECT avg(EXTRACT(EPOCH FROM (ended_at - connected_at)))::float8 FROM scoped_sessions
+            WHERE connected_at IS NOT NULL AND ended_at IS NOT NULL) AS "averageConnectedSeconds",
+          (SELECT avg(EXTRACT(EPOCH FROM (turn.completed_at - turn.started_at)) * 1000)::float8
+            FROM tenancy.voice_turns turn JOIN scoped_sessions session
+              ON session.tenant_id = turn.tenant_id AND session.id = turn.session_id
+            WHERE turn.status = 'completed' AND turn.completed_at IS NOT NULL) AS "averageTurnMilliseconds",
+          (SELECT percentile_cont(0.95) WITHIN GROUP (
+              ORDER BY EXTRACT(EPOCH FROM (turn.completed_at - turn.started_at)) * 1000
+            )::float8
+            FROM tenancy.voice_turns turn JOIN scoped_sessions session
+              ON session.tenant_id = turn.tenant_id AND session.id = turn.session_id
+            WHERE turn.status = 'completed' AND turn.completed_at IS NOT NULL) AS "p95TurnMilliseconds"
+      `;
+      const advanced = authority.entitlements["analytics.level"] === "advanced";
+      let outcomes: VoiceAnalytics["outcomes"] = [];
+      let languages: VoiceAnalytics["languages"] = [];
+      let terminalReasons: VoiceAnalytics["terminalReasons"] = [];
+      let turnFailures: VoiceAnalytics["turnFailures"] = [];
+      let daily: VoiceAnalytics["daily"] = [];
+      if (advanced) {
+        outcomes = await sql<{ outcome: string; calls: number }[]>`
+          SELECT outcome.outcome_code AS outcome, count(*)::int AS calls
+          FROM tenancy.voice_call_outcomes outcome
+          JOIN tenancy.voice_sessions session
+            ON session.tenant_id = outcome.tenant_id AND session.id = outcome.session_id
+          WHERE outcome.tenant_id = ${context.tenantId}::uuid
+            AND session.created_at >= now() - make_interval(days => ${periodDays})
+            AND (${deploymentId}::uuid IS NULL OR session.deployment_id = ${deploymentId}::uuid)
+          GROUP BY outcome.outcome_code ORDER BY count(*) DESC, outcome.outcome_code
+        `;
+        languages = await sql<{ locale: "th" | "en"; calls: number }[]>`
+          SELECT session.locale, count(*)::int AS calls FROM tenancy.voice_sessions session
+          WHERE session.tenant_id = ${context.tenantId}::uuid
+            AND session.created_at >= now() - make_interval(days => ${periodDays})
+            AND (${deploymentId}::uuid IS NULL OR session.deployment_id = ${deploymentId}::uuid)
+          GROUP BY session.locale ORDER BY session.locale
+        `;
+        terminalReasons = await sql<{ reason: string; calls: number }[]>`
+          SELECT session.terminal_reason AS reason, count(*)::int AS calls
+          FROM tenancy.voice_sessions session
+          WHERE session.tenant_id = ${context.tenantId}::uuid
+            AND session.created_at >= now() - make_interval(days => ${periodDays})
+            AND (${deploymentId}::uuid IS NULL OR session.deployment_id = ${deploymentId}::uuid)
+            AND session.terminal_reason IS NOT NULL
+          GROUP BY session.terminal_reason ORDER BY count(*) DESC, session.terminal_reason
+        `;
+        turnFailures = await sql<{ errorCode: string; turns: number }[]>`
+          SELECT turn.safe_error_code AS "errorCode", count(*)::int AS turns
+          FROM tenancy.voice_turns turn JOIN tenancy.voice_sessions session
+            ON session.tenant_id = turn.tenant_id AND session.id = turn.session_id
+          WHERE turn.tenant_id = ${context.tenantId}::uuid AND turn.status = 'failed'
+            AND turn.started_at >= now() - make_interval(days => ${periodDays})
+            AND (${deploymentId}::uuid IS NULL OR session.deployment_id = ${deploymentId}::uuid)
+            AND turn.safe_error_code IS NOT NULL
+          GROUP BY turn.safe_error_code ORDER BY count(*) DESC, turn.safe_error_code
+        `;
+        daily = await sql<{
+          date: string; sessions: number; completedCalls: number; failedCalls: number; leads: number;
+        }[]>`
+          WITH days AS (
+            SELECT generate_series(
+              current_date - (${periodDays}::int - 1), current_date, interval '1 day'
+            )::date AS day
+          )
+          SELECT days.day::text AS date, count(session.id)::int AS sessions,
+            count(session.id) FILTER (WHERE session.status = 'ended')::int AS "completedCalls",
+            count(session.id) FILTER (WHERE session.status IN ('failed', 'expired'))::int AS "failedCalls",
+            count(DISTINCT conversation.lead_id) FILTER (WHERE conversation.lead_id IS NOT NULL)::int AS leads
+          FROM days LEFT JOIN tenancy.voice_sessions session
+            ON session.tenant_id = ${context.tenantId}::uuid
+            AND session.created_at >= days.day::timestamptz
+            AND session.created_at < (days.day + 1)::timestamptz
+            AND (${deploymentId}::uuid IS NULL OR session.deployment_id = ${deploymentId}::uuid)
+          LEFT JOIN tenancy.conversations conversation
+            ON conversation.tenant_id = session.tenant_id AND conversation.id = session.conversation_id
+          GROUP BY days.day ORDER BY days.day
+        `;
+      }
+      return {
+        periodDays, level: advanced ? "advanced" : "core", deploymentId,
+        summary: summaryRows[0]!, outcomes, languages, terminalReasons, turnFailures, daily,
       };
     });
   }

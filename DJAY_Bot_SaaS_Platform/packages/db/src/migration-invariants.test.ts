@@ -36,6 +36,7 @@ const voiceTextLegacyMigration = readFileSync(resolve(import.meta.dirname, "../m
 const voiceAdvancedRoutingMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0034_voice_advanced_routing.sql"), "utf8");
 const voiceAdvancedDeploymentMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0035_voice_advanced_deployments.sql"), "utf8");
 const voiceAdvancedRuntimeMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0036_voice_advanced_runtime.sql"), "utf8");
+const voiceAnalyticsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0037_voice_analytics_indexes.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -514,6 +515,18 @@ describe("P7 Voice Basic database migration invariants", () => {
     expect(voiceAdvancedRuntimeMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.heartbeat_voice_session");
     expect(voiceAdvancedRuntimeMigration).toContain("REVOKE ALL ON FUNCTION tenancy.authorize_voice_session");
     expect(voiceAdvancedRuntimeMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+voice_(admission_changes|session_routes)/i);
+  });
+
+  it("indexes only tenant-owned operational facts needed by bounded Voice analytics", () => {
+    for (const index of [
+      "tenancy_voice_sessions_analytics",
+      "tenancy_voice_turns_analytics",
+      "tenancy_voice_connections_analytics",
+      "tenancy_voice_outcomes_analytics",
+      "tenancy_voice_callbacks_analytics",
+      "tenancy_appointment_requests_conversation_analytics",
+    ]) expect(voiceAnalyticsMigration).toContain(`CREATE INDEX ${index}`);
+    expect(voiceAnalyticsMigration).not.toMatch(/provider|model|route|cost|price|margin/i);
   });
 
   it("settles from connection history and reaps grants, stale transports, and emergency stops", () => {

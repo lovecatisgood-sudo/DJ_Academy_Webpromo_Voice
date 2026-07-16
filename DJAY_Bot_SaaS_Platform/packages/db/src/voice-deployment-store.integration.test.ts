@@ -155,6 +155,11 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
     const subscriptionId = randomUUID(); const snapshotId = randomUUID();
     const advancedPlanVersionId = "62000000-0000-4000-8000-000000000006";
     await adminClient!`
+      UPDATE platform.voice_runtime_controls
+      SET mode = 'running', reason_code = 'integration_test', version = version + 1, changed_at = now()
+      WHERE singleton = true
+    `;
+    await adminClient!`
       UPDATE tenancy.product_subscriptions SET status = 'cancelled', cancelled_at = now()
       WHERE tenant_id = ${tenantId}::uuid AND product_key = 'voice' AND status <> 'cancelled'
     `;
@@ -174,6 +179,7 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
           entitlements: {
             "voice.enabled": true, "voice.capability_profile": "voice_gen2",
             "voice.public_label": "Second-Generation Voice Engine", "voice.gen1_fallback": false,
+            "analytics.level": "advanced",
             "lead_capture.enabled": true, "appointment_request.enabled": true,
             "sales_email_action.enabled": true, "human_handover.enabled": true,
           },
@@ -209,6 +215,119 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
       health: "route_unavailable", runtimeAvailability: "unavailable",
       usage: { concurrencyLimit: 2 },
     });
+    const identifiers = {
+      contactId: randomUUID(), conversationId: randomUUID(), leadId: randomUUID(),
+      sessionId: randomUUID(), completedTurnId: randomUUID(), failedTurnId: randomUUID(),
+    };
+    const deploymentAuthority = await adminClient!<{ agentId: string; playbookVersionId: string }[]>`
+      SELECT deployment.agent_id AS "agentId",
+             agent.current_published_playbook_version_id AS "playbookVersionId"
+      FROM tenancy.voice_deployments deployment
+      JOIN tenancy.ai_agents agent
+        ON agent.tenant_id = deployment.tenant_id AND agent.id = deployment.agent_id
+      WHERE deployment.tenant_id = ${tenantId}::uuid AND deployment.id = ${created.deploymentId}::uuid
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.contacts (id, tenant_id, display_name, locale)
+      VALUES (${identifiers.contactId}::uuid, ${tenantId}::uuid, 'Analytics visitor', 'en')
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.leads (id, tenant_id, contact_id, title, source)
+      VALUES (${identifiers.leadId}::uuid, ${tenantId}::uuid, ${identifiers.contactId}::uuid, 'Advanced voice lead', 'voice_web')
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.conversations (
+        id, tenant_id, contact_id, lead_id, product_key, public_plan_key,
+        entitlement_snapshot_id, channel_kind, automation_mode, status, closed_at
+      ) VALUES (
+        ${identifiers.conversationId}::uuid, ${tenantId}::uuid, ${identifiers.contactId}::uuid,
+        ${identifiers.leadId}::uuid, 'voice', 'voice_advanced_gen2', ${snapshotId}::uuid,
+        'voice', 'closed', 'closed', now() - interval '30 seconds'
+      )
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.voice_sessions (
+        id, tenant_id, deployment_id, agent_id, playbook_version_id, contact_id,
+        conversation_id, entitlement_snapshot_id, capability_profile, public_label,
+        locale, grant_hash, grant_expires_at, max_call_seconds, reconnect_window_seconds,
+        status, settled_minutes, connected_at, ended_at, terminal_reason
+      ) VALUES (
+        ${identifiers.sessionId}::uuid, ${tenantId}::uuid, ${created.deploymentId}::uuid,
+        ${deploymentAuthority[0]!.agentId}::uuid, ${deploymentAuthority[0]!.playbookVersionId}::uuid,
+        ${identifiers.contactId}::uuid, ${identifiers.conversationId}::uuid, ${snapshotId}::uuid,
+        'voice_gen2', 'Second-Generation Voice Engine', 'en', digest(${identifiers.sessionId}, 'sha256'),
+        now() + interval '5 minutes', 180, 30, 'ended', 2,
+        now() - interval '120 seconds', now() - interval '30 seconds', 'completed'
+      )
+    `;
+    for (const { connectedSecondsAgo, disconnectedSecondsAgo } of [
+      { connectedSecondsAgo: 120, disconnectedSecondsAgo: 90 },
+      { connectedSecondsAgo: 75, disconnectedSecondsAgo: 30 },
+    ]) {
+      await adminClient!`
+        INSERT INTO tenancy.voice_session_connections (
+          id, tenant_id, session_id, connected_at, disconnected_at, heartbeat_at, status
+        ) VALUES (
+          ${randomUUID()}::uuid, ${tenantId}::uuid, ${identifiers.sessionId}::uuid,
+          now() - make_interval(secs => ${connectedSecondsAgo}),
+          now() - make_interval(secs => ${disconnectedSecondsAgo}),
+          now() - make_interval(secs => ${disconnectedSecondsAgo}), 'ended'
+        )
+      `;
+    }
+    await adminClient!`
+      INSERT INTO tenancy.voice_turns (
+        id, tenant_id, session_id, turn_sequence, input_id, status,
+        customer_message_sha256, structured_output_json, public_response_json,
+        started_at, completed_at
+      ) VALUES (
+        ${identifiers.completedTurnId}::uuid, ${tenantId}::uuid, ${identifiers.sessionId}::uuid,
+        1, ${randomUUID()}::uuid, 'completed', digest(${identifiers.completedTurnId}, 'sha256'),
+        ${adminClient!.json({ stage: "S2_DISCOVERY", intent: "product_interest", proposedActions: [] })},
+        ${adminClient!.json({ status: "completed", text: "Safe response" })},
+        now() - interval '70 seconds', now() - interval '69.2 seconds'
+      )
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.voice_turns (
+        id, tenant_id, session_id, turn_sequence, input_id, status,
+        customer_message_sha256, safe_error_code, started_at, completed_at
+      ) VALUES (
+        ${identifiers.failedTurnId}::uuid, ${tenantId}::uuid, ${identifiers.sessionId}::uuid,
+        2, ${randomUUID()}::uuid, 'failed', digest(${identifiers.failedTurnId}, 'sha256'),
+        'temporarily_unavailable', now() - interval '60 seconds', now() - interval '59 seconds'
+      )
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.appointment_requests (
+        tenant_id, lead_id, conversation_id, status, timezone, idempotency_key
+      ) VALUES (
+        ${tenantId}::uuid, ${identifiers.leadId}::uuid, ${identifiers.conversationId}::uuid,
+        'requested', 'Asia/Bangkok', ${`analytics:${identifiers.sessionId}`}
+      )
+    `;
+    const analytics = await store.analytics(owner, { deploymentId: created.deploymentId, periodDays: 30 });
+    expect(analytics).toMatchObject({
+      periodDays: 30, level: "advanced", deploymentId: created.deploymentId,
+      summary: {
+        sessions: 1, connectedCalls: 1, completedCalls: 1, failedCalls: 0,
+        completedTurns: 1, failedTurns: 1, leads: 1, appointmentRequests: 1,
+        settledMinutes: 2, reconnectingCalls: 1,
+      },
+      outcomes: [{ outcome: "engaged", calls: 1 }],
+      languages: [{ locale: "en", calls: 1 }],
+      terminalReasons: [{ reason: "completed", calls: 1 }],
+      turnFailures: [{ errorCode: "temporarily_unavailable", turns: 1 }],
+    });
+    expect(analytics?.daily).toHaveLength(30);
+    expect(analytics?.summary.averageTurnMilliseconds).toBeGreaterThan(0);
+    expect(JSON.stringify(analytics)).not.toMatch(/provider|model|route|cost|price|margin/i);
+    await expect(store.analytics(createTenantContext({
+      tenantId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10",
+      userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      membershipId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa11", sessionId: randomUUID(),
+      role: "tenant_master_admin", requestId: "p8-cross-tenant-analytics",
+    }), { deploymentId: created.deploymentId })).resolves.toBeNull();
     const runtime = new VoiceRuntimeStore(voiceClient!);
     await expect(runtime.issue({
       deploymentKey: created.deploymentKey, origin: "https://advanced.example", locale: "en",
@@ -240,6 +359,9 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
         })}, digest(${basicSnapshotId}, 'sha256')
       )
     `;
+    await expect(store.analytics(owner, { deploymentId: created.deploymentId })).resolves.toMatchObject({
+      level: "core", outcomes: [], languages: [], terminalReasons: [], turnFailures: [], daily: [],
+    });
     await expect(store.changeStatus(owner, created.deploymentId, "disable"))
       .resolves.toEqual({ status: "updated", deploymentStatus: "disabled" });
     await expect(store.changeStatus(owner, created.deploymentId, "enable"))

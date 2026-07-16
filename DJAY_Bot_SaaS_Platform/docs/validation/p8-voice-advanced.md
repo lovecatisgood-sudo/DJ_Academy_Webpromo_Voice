@@ -2,7 +2,7 @@
 
 - Result: Local restricted runtime and admission foundation passed; P8 live release gate remains open
 - Date: 2026-07-16
-- Database migrations: `0034_voice_advanced_routing`, `0035_voice_advanced_deployments`, `0036_voice_advanced_runtime`
+- Database migrations: `0034_voice_advanced_routing`, `0035_voice_advanced_deployments`, `0036_voice_advanced_runtime`, `0037_voice_analytics_indexes`
 - Production activation: Disabled; Gen2 profile is paused
 
 ## Executed foundation gates
@@ -45,11 +45,20 @@ settlement. Gateway tests prove exact configured route matching, mismatch denial
 without Gen1 fallback, strict internal authorization response parsing, and no
 provider/model/region identity in any browser WebSocket message.
 
+Migration `0037` and the tenant Voice analytics repository prove bounded
+deployment/time queries, Advanced/core entitlement packaging, cross-tenant
+denial, reconnect and settled-minute reconciliation, outcome/language/terminal
+and safe turn-failure breakdowns, average and p95 turn latency, appointment and
+lead conversion counts, and a gap-free daily UTC series. Downgrade returns only
+core metrics immediately while retaining historical records. The CSV export
+neutralizes formula-leading cells and contains no route, provider, model,
+transcript, prompt, credential, native usage, price, cost, or margin identity.
+
 ## Pending P8 gates
 
 - Equivalent Gen2 profile qualification and controlled degradation tests.
-- Advanced analytics, load/capacity, approved cost/margin thresholds, and
-  rollback drills under production-like concurrency.
+- Load/capacity, approved cost/margin thresholds, and rollback drills under
+  production-like concurrency.
 - Live English/Thai audio quality and named-merchant acceptance.
 
 This evidence does not authorize Advanced Voice production traffic.

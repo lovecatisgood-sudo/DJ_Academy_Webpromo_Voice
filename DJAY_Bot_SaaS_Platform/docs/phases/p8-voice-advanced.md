@@ -5,10 +5,10 @@
 In progress. Platform-only Gen2 qualification, two-person routing and admission
 changes, reviewed canary, explicit promotion/rollback, incident pause,
 independent credit review, tenant deployment, restricted session authority, and
-exact gateway route assignment are implemented locally. Equivalent-profile live
-media qualification, advanced analytics, load/margin validation, and named-
-merchant acceptance remain pending. Gen2 therefore remains unavailable and
-paused by default in production.
+exact gateway route assignment and entitlement-aware Advanced analytics are
+implemented locally. Equivalent-profile live media qualification, load/margin
+validation, and named-merchant acceptance remain pending. Gen2 therefore
+remains unavailable and paused by default in production.
 
 ## Requirements
 
@@ -75,6 +75,19 @@ paused by default in production.
     reviewer. Admission automatically disables whenever the Gen2 profile leaves
     `running`; draining sessions retain their assigned Gen2 route, while a
     paused profile ends them through provider-neutral heartbeat authority.
+19. Migration `0037_voice_analytics_indexes` adds bounded tenant/deployment/time
+    query paths for sessions, turns, connections, outcomes, callbacks, and
+    appointment conversions without copying operational facts into a second
+    analytics store.
+20. Voice analytics are current-entitlement aware: Basic receives core call and
+    conversion counts, while Advanced additionally receives outcome, language,
+    terminal-reason, safe turn-failure, reconnect, percentile latency, and daily
+    trend breakdowns. Downgrade immediately removes Advanced breakdowns without
+    deleting historical records.
+21. Tenant analysts can view and export the same privacy-safe aggregates. CSV
+    cells are neutralized against spreadsheet formula execution, and no route,
+    provider, model, raw transcript, prompt, credential, native-unit, price,
+    cost, or margin field enters the tenant response.
 
 ## Schema, API, and event contract
 
@@ -84,7 +97,9 @@ paused by default in production.
 - Operations table: `voice_session_routes`; it has tenant/session composite
   ownership but no tenant, platform, public, or runtime table grant.
 - APIs: `GET/POST /platform/voice/routing` and
-  `GET /platform/voice/incidents`.
+  `GET /platform/voice/incidents`, plus tenant
+  `GET /tenant/voice/analytics` with bounded period/deployment filters and CSV
+  export.
 - Tenant APIs retain their existing deployment/Studio routes; generation is
   resolved server-side and only the approved public label/availability is added
   to their DTOs.
@@ -126,6 +141,10 @@ paused by default in production.
 - Node 24 typechecking covers the database store, API routes, and Platform Master.
 - Platform desktop/mobile browser acceptance covers role-safe rendering,
   responsive layout, and tenant/provider confidentiality.
+- Analytics integration proves Advanced/core packaging, cross-tenant and
+  cross-deployment isolation, bounded daily series, safe operational latency,
+  reconnect, outcome, lead, and appointment reconciliation, and immediate
+  downgrade removal of Advanced breakdowns.
 
 ## Non-goals for this foundation
 
@@ -136,8 +155,8 @@ paused by default in production.
 
 ## Next slice
 
-Add the equivalent-profile evaluation suite, Advanced analytics, production-like
-load/capacity and margin gates, then execute live Thai/English and named-merchant
+Add the equivalent-profile evaluation suite and production-like load/capacity
+and approved margin gates, then execute live Thai/English and named-merchant
 acceptance. Keep admission disabled until those evidence digests are reviewed.
 
 ## Rollback
