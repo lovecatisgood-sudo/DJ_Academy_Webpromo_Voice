@@ -141,9 +141,17 @@ describe.runIf(enabled)("P3 shared domain repositories", () => {
     const privacy = await store.requestPrivacyJob(contextA, {
       jobType: "export", contactId: contactA.contactId, idempotencyKey: privacyKey,
     });
+    expect(privacy.status).toBe("accepted");
+    if (privacy.status !== "accepted") throw new Error("privacy export was not accepted");
     await expect(store.requestPrivacyJob(contextA, {
       jobType: "export", contactId: contactA.contactId, idempotencyKey: privacyKey,
     })).resolves.toEqual(privacy);
+    await expect(store.requestPrivacyJob(contextA, {
+      jobType: "erasure", contactId: contactA.contactId, idempotencyKey: privacyKey,
+    })).resolves.toEqual({ status: "conflict" });
+    await expect(store.requestPrivacyJob(contextB, {
+      jobType: "erasure", contactId: contactA.contactId, idempotencyKey: `privacy-substitution-${randomUUID()}`,
+    })).resolves.toEqual({ status: "not_found" });
     const hidden = await tenantClient!.begin(async (sql) => {
       await sql`SELECT set_config('app.tenant_id', ${contextB.tenantId}, true)`;
       return sql<{ count: number }[]>`SELECT count(*)::int AS count FROM tenancy.privacy_jobs WHERE id = ${privacy.jobId}::uuid`;

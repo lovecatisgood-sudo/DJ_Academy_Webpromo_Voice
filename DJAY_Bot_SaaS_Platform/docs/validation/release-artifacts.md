@@ -22,13 +22,13 @@ document, and fetched every referenced static asset. Accepted static evidence
 was:
 
 - API: 132 files,
-  `2492f863028dd2dc5544e6b2118a1b37415ca115b9a90bb4d500650ffd836665`
+  `8602f6f25c0fbda92eecca0e2c6844d751dd6b196cdea4145a7372faa5495e83`
 - Platform Master: 24 files,
-  `b6b46ed7b3182c7b5281bb7eef259f60c3b632021c58bd494044b9d48640d111`
+  `8a9d4d9193486bd746ddf8e3195758814548158e09bc6cd8b85f97af4068635c`
 - Public site: 31 files,
-  `4d8bc49c625e4e8a4661bba8f741ca8fe542cfb7211a7e7797dba05cf3cad149`
+  `5afe84a1dd519bd774a49a54436f39e86b1cc6f289e1ba1a997a11c606db92b2`
 - Tenant workspace: 43 files,
-  `03a5b4a5eb393489ee45b937085657c7978f8c8acc073c4687650864c9b0d68e`
+  `2f493d0c3d25c20323625cc4d4dad516df8bc1209faf808e2cbce53403048156`
 
 The release audit found that all three Tenant install snippets referenced
 versioned CDN modules, but the release package did not archive those modules.
@@ -80,6 +80,11 @@ The packaged Contact form also requires an email or phone and shares its
 normalized name/phone limits with the domain schema. Invalid identity data is
 announced on the exact field without a request; an accepted form transports one
 trimmed mutation.
+The packaged Data Controls form keeps workspace export separate from
+contact-scoped erasure. Missing erasure scope focuses the Contact field and
+sends no request; the destructive confirmation names the contact, acceptance
+sends one scoped request, and the form returns to safe export defaults.
+Retention success is announced only inside the retention section.
 The two Voice deployment creation journeys now render one shared form contract,
 including exact origin, disclosure, and bilingual greeting limits. Studio uses
 the same limits before transport; a greeting over the immutable Sales Core
@@ -113,7 +118,7 @@ tests did not exercise the emitted bundle. The build now supplies an ESM
 `createRequire` bridge; the isolated bundle starts, reports liveness, and fails
 readiness closed with provider-neutral `503 not_ready` when media authority is
 absent. Its accepted bundle digest is
-`3455044b4e422e0c6b6184b8641847f6ce24c1cbddc47542081444ed110b645c`.
+`04d08864e6a476e3af5b8ea0b2fe445cbfbdfa2d846b944e3d39a5e1a6ce6e92`.
 The artifact is also started with a copied example production authority token;
 it must exit before listening, name only the affected field, and never echo the
 token value.
@@ -124,7 +129,7 @@ before execution, proving it does not resolve those packages from workspace
 `node_modules`. With database authority deliberately absent, startup fails
 closed, names only `WORKER_DATABASE_URL`, and exposes no connection URL. The
 accepted 56-file digest is
-`2f376f55396d658f5f340b77f48c2e77590359f4f8e08aa9f5da0f24833faa0e`.
+`c47feb9b4a8ad4a63c9d1222e4abee10170e96200635bee28703338766ecf888`.
 
 These hashes describe the local generated build and are not target-deployment
 evidence. The immutable deployment system must archive its own package hashes,

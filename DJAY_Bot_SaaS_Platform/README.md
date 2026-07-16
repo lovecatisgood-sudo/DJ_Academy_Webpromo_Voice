@@ -83,6 +83,12 @@ with accessible local correction instead of generic late failures.
 Its visual editor also validates the complete draft schema locally, keeps
 malformed Advanced JSON repairable, and refuses to save stale per-node JSON;
 title/copy errors remain visible and send no draft mutation.
+Data Controls now keeps workspace-wide export separate from irreversible
+contact erasure. Erasure requires one active same-tenant contact in the shared
+browser/API/repository/database contract, names that contact before submission,
+and treats a reused idempotency key with changed scope as a conflict rather than
+silently replacing the original request. Retention feedback remains in its own
+section so unrelated privacy operations cannot appear to have succeeded.
 Read-only roles no longer
 receive misleading mutation controls, and forbidden direct
 routes fail closed with a recovery path. Unexpected URLs and render failures in

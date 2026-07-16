@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0041_dependency_outage_attestation";
+export const currentSchemaVersion = "0042_privacy_job_scope";
 
 export { PostgresAuthStore } from "./auth-store";
 export { BillingWebhookStore } from "./billing-webhook-store";

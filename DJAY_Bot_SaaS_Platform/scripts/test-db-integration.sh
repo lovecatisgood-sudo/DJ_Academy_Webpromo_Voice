@@ -84,6 +84,7 @@ run_sql /workspace/packages/db/migrations/0038_release_readiness.sql
 run_sql /workspace/packages/db/migrations/0039_resilience_drills.sql
 run_sql /workspace/packages/db/migrations/0040_dead_letter_recovery.sql
 run_sql /workspace/packages/db/migrations/0041_dependency_outage_attestation.sql
+run_sql /workspace/packages/db/migrations/0042_privacy_job_scope.sql
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -c "ALTER ROLE djay_auth_runtime LOGIN PASSWORD 'djay_auth_test'" >/dev/null
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \

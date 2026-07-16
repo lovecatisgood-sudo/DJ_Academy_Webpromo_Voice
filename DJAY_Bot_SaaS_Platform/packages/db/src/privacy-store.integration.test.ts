@@ -69,9 +69,23 @@ describe.runIf(enabled)("P3 privacy processing", () => {
     await expect(tenantPrivacy.readExport(contextB, exportJob.id, encryptionKey)).resolves.toBeNull();
 
     const shared = new SharedDomainStore(tenantClient!);
+    await expect(shared.requestPrivacyJob(contextA, {
+      jobType: "erasure", idempotencyKey: `unscoped-${randomUUID()}`,
+    } as never)).rejects.toThrow();
+    await expect(adminClient!`
+      INSERT INTO tenancy.privacy_jobs (
+        id, tenant_id, contact_id, job_type, scope_json, idempotency_key, requested_by_membership_id
+      ) VALUES (
+        ${randomUUID()}::uuid, ${contextA.tenantId}::uuid, NULL, 'erasure',
+        ${adminClient!.json({ contactId: null })}, ${`raw-unscoped-${randomUUID()}`},
+        ${contextA.membershipId}::uuid
+      )
+    `).rejects.toThrow(/privacy_erasure_requires_contact/);
     const erasure = await shared.requestPrivacyJob(contextA, {
       jobType: "erasure", contactId: exportJob.contact_id, idempotencyKey: `erase-${randomUUID()}`,
     });
+    expect(erasure.status).toBe("accepted");
+    if (erasure.status !== "accepted") throw new Error("privacy erasure was not accepted");
     await expect(privacy.processNext(encryptionKey, "privacy-erasure-worker")).resolves.toMatchObject({
       status: "completed", jobId: erasure.jobId, jobType: "erasure",
     });

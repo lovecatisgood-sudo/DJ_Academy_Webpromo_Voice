@@ -28,3 +28,16 @@ Erasure is irreversible. The database function verifies worker session identity,
 service context, tenant context, job type, contact, and processing state before
 redacting. Never grant direct message update permission to the worker and never
 manually disable the immutable-message trigger.
+
+Every actionable erasure must have one non-null `contact_id`; there is no
+workspace-wide erasure mode. Migration `0042_privacy_job_scope` audits and fails
+any legacy requested/processing erasure that lacks contact scope, then enforces
+contact scope and JSON/foreign-key equality. Alert on
+`privacy.erasure.scope_invalidated` and investigate the producer before retrying
+anything. Never repair or clone a privacy job with direct SQL. A repeated
+idempotency key is accepted only when job type and contact match exactly;
+`conflict` means the caller must stop and investigate rather than retry.
+
+Rollback the application if needed, but retain migration `0042` and its audit
+records. An older producer may then fail closed on an invalid unscoped erasure;
+do not weaken the database constraint to restore the old behavior.

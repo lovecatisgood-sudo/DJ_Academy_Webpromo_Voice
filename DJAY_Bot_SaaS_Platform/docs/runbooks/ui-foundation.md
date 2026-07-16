@@ -273,3 +273,12 @@ Do not promote when this gate fails. A passing local gate does not replace
 manual keyboard, screen-reader, zoom/reflow, cognitive, or representative-device
 review. It also does not replace named-merchant acceptance, managed service
 evidence, commercial approval, or the release-readiness gate.
+
+Data Controls must distinguish workspace-wide export from contact-only erasure.
+When erasure is selected, the empty Contact option must become an explicit
+selection prompt, local validation must focus and announce missing scope with
+zero requests, and irreversible confirmation must name the selected contact.
+Privacy job transport uses `privacyJobRequestSchema`; API, repository, and
+PostgreSQL must reject missing, cross-tenant, inactive, mismatched, or
+idempotency-conflicting erasure scope. Retention feedback belongs in the
+retention section, never below the privacy request form.

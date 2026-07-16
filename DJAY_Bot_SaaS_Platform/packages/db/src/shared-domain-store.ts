@@ -8,6 +8,7 @@ import type {
 } from "@djay/domain";
 import { canTransitionMode } from "@djay/domain";
 import { chunkKnowledge } from "@djay/sales-core";
+import { privacyJobRequestSchema, type PrivacyJobRequest } from "@djay/shared";
 import type { TenantContext } from "@djay/tenancy";
 import type { z } from "zod";
 import type { DatabaseClient } from "./client";
@@ -470,24 +471,41 @@ export class SharedDomainStore {
     `);
   }
 
-  async requestPrivacyJob(context: TenantContext, input: Readonly<{
-    jobType: "export" | "erasure"; contactId?: string; idempotencyKey: string;
-  }>) {
+  async requestPrivacyJob(context: TenantContext, input: PrivacyJobRequest) {
+    const parsed = privacyJobRequestSchema.parse(input);
     return withTenantTransaction(this.client, context, async ({ sql }) => {
+      if (parsed.contactId) {
+        const contacts = await sql<{ status: string }[]>`
+          SELECT status FROM tenancy.contacts
+          WHERE tenant_id = ${context.tenantId}::uuid AND id = ${parsed.contactId}::uuid
+        `;
+        if (!contacts[0] || (parsed.jobType === "erasure" && contacts[0].status !== "active")) {
+          return { status: "not_found" as const };
+        }
+      }
       const jobId = randomUUID();
       const rows = await sql<{ id: string; status: string }[]>`
         INSERT INTO tenancy.privacy_jobs (
           id, tenant_id, contact_id, job_type, scope_json, idempotency_key,
           requested_by_membership_id
         ) VALUES (
-          ${jobId}::uuid, ${context.tenantId}::uuid, ${input.contactId ?? null}::uuid,
-          ${input.jobType}, ${sql.json({ contactId: input.contactId ?? null })},
-          ${input.idempotencyKey}, ${context.membershipId}::uuid
+          ${jobId}::uuid, ${context.tenantId}::uuid, ${parsed.contactId ?? null}::uuid,
+          ${parsed.jobType}, ${sql.json({ contactId: parsed.contactId ?? null })},
+          ${parsed.idempotencyKey}, ${context.membershipId}::uuid
         )
-        ON CONFLICT (tenant_id, idempotency_key) DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
+        ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
         RETURNING id, status
       `;
-      return { status: "accepted" as const, jobId: rows[0]!.id, jobStatus: rows[0]!.status };
+      if (rows[0]) return { status: "accepted" as const, jobId: rows[0].id, jobStatus: rows[0].status };
+      const existing = await sql<{ id: string; status: string; jobType: string; contactId: string | null }[]>`
+        SELECT id, status, job_type AS "jobType", contact_id AS "contactId"
+        FROM tenancy.privacy_jobs
+        WHERE tenant_id = ${context.tenantId}::uuid AND idempotency_key = ${parsed.idempotencyKey}
+      `;
+      const replay = existing[0];
+      return replay && replay.jobType === parsed.jobType && replay.contactId === (parsed.contactId ?? null)
+        ? { status: "accepted" as const, jobId: replay.id, jobStatus: replay.status }
+        : { status: "conflict" as const };
     });
   }
 

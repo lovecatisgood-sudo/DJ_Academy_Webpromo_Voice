@@ -44,6 +44,11 @@ The separate multi-tenant implementation is under:
   responsive editor. Invalid playbooks stay local with focused accessible
   correction, malformed Advanced JSON remains repairable, and unsaved visible
   changes cannot publish an older stored draft.
+- Data Controls now keeps workspace-wide export distinct from irreversible
+  erasure. Contact erasure requires one active same-tenant contact across the
+  browser, API, repository, and PostgreSQL constraints; changed-scope
+  idempotency replay fails closed and the confirmation names the affected
+  contact.
 - External gates remain explicit: three named FlowBot pilots; an approved live AI
   text routing profile and live bilingual/adversarial evaluation; named merchant
   acceptance; commercial decisions; and paid-GA authorization.

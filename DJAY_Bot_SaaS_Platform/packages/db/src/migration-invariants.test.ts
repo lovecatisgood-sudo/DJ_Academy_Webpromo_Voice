@@ -41,6 +41,7 @@ const releaseReadinessMigration = readFileSync(resolve(import.meta.dirname, "../
 const resilienceDrillsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0039_resilience_drills.sql"), "utf8");
 const deadLetterRecoveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0040_dead_letter_recovery.sql"), "utf8");
 const dependencyOutageMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0041_dependency_outage_attestation.sql"), "utf8");
+const privacyJobScopeMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0042_privacy_job_scope.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -405,6 +406,13 @@ describe("P3 database migration invariants", () => {
     expect(privacySupportMigration).toContain("plaintext_sha256 bytea NOT NULL");
     expect(privacySupportMigration).toContain("SECURITY DEFINER SET search_path = pg_catalog, tenancy");
     expect(privacySupportMigration).toContain("REVOKE ALL ON FUNCTION tenancy.claim_privacy_job() FROM PUBLIC");
+  });
+
+  it("requires contact-scoped erasure and keeps JSON scope aligned with its foreign key", () => {
+    expect(privacyJobScopeMigration).toContain("privacy_erasure_requires_contact");
+    expect(privacyJobScopeMigration).toContain("privacy_job_scope_matches_contact");
+    expect(privacyJobScopeMigration).toContain("privacy.erasure.scope_invalidated");
+    expect(privacyJobScopeMigration).toContain("status IN ('failed', 'cancelled')");
   });
 
   it("requires a separate support approver and caps access at four hours", () => {

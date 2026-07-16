@@ -72,6 +72,12 @@ responsive merchant fields rather than mandatory raw JSON. The browser shares
 the runtime schema limits and IANA timezone authority, keeps malformed Advanced
 JSON visible for repair, blocks invalid draft transport, and prevents an
 unsaved visible draft from publishing the older stored revision.
+P3 Data Controls now distinguishes workspace export from contact-scoped
+erasure across the shared schema, API, tenant repository, forced-RLS database,
+worker, and browser. Erasure requires one active same-tenant contact, exact
+idempotent replay returns the original job, and changed scope under the same key
+fails with a conflict. The confirmation names the affected contact and retention
+feedback is rendered only in the retention section.
 
 ## P4 release checkpoint
 
@@ -289,7 +295,7 @@ scripts/use-node24.sh pnpm run qa:release-artifacts
 
 The full verification, widget browser matrix, and seven-artifact packaging gate
 passed on 2026-07-16. The database gate applies migrations `0000` through
-`0041` and includes the complete local LINE, WhatsApp, and Messenger inbound, Sales Core
+`0042` and includes the complete local LINE, WhatsApp, and Messenger inbound, Sales Core
 commit, outbound retry, partial-progress, service-window, quantity-ledger,
 delivery-status, opt-out, and quota-release journeys. Full verification passes
 across 31 packages/apps, and the API source contains 110 route handlers,

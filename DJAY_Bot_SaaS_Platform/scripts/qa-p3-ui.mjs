@@ -20,7 +20,7 @@ function json(route, value, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(value) });
 }
 
-async function mockTenant(page) {
+async function mockTenant(page, privacyEvidence) {
   await page.route("**/tenant/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/tenant/session") return json(route, { user: { id: "user", displayName: "Browser Owner" }, workspaces: [workspace], selectedTenantId: workspace.tenantId, mfaVerifiedAt: new Date().toISOString() });
@@ -30,8 +30,15 @@ async function mockTenant(page) {
     if (path === "/tenant/conversations") return json(route, { conversations: [voiceConversation, conversation] });
     if (path.endsWith("/messages")) return json(route, route.request().method() === "GET" ? { messages } : { status: "created", messageId: crypto.randomUUID(), sequence: 3 }, route.request().method() === "GET" ? 200 : 201);
     if (path === "/tenant/knowledge") return json(route, route.request().method() === "GET" ? { sources: [{ id: "80000000-0000-4000-8000-000000000001", name: "Approved service guide", sourceKind: "text", status: "active", version: 2, revisionCreatedAt: new Date().toISOString() }] } : { status: "created" }, route.request().method() === "GET" ? 200 : 201);
-    if (path === "/tenant/privacy-jobs") return json(route, route.request().method() === "GET" ? { jobs: [{ id: "90000000-0000-4000-8000-000000000001", contactId: contact.id, contactName: contact.displayName, jobType: "export", status: "completed", requestedAt: new Date().toISOString(), completedAt: new Date().toISOString() }] } : { status: "accepted" }, route.request().method() === "GET" ? 200 : 202);
-    if (path === "/tenant/retention-policy") return json(route, route.request().method() === "GET" ? { policy: { transcriptDays: 90, recordingDays: 0, voicePlanMaximumDays: 365, updatedAt: new Date().toISOString() } } : { status: "updated", transcriptDays: 90, recordingDays: 0, maximumDays: 365 });
+    if (path === "/tenant/privacy-jobs") {
+      if (route.request().method() === "GET") return json(route, { jobs: [{ id: "90000000-0000-4000-8000-000000000001", contactId: contact.id, contactName: contact.displayName, jobType: "export", status: "completed", requestedAt: new Date().toISOString(), completedAt: new Date().toISOString() }] });
+      if (privacyEvidence) { privacyEvidence.mutations += 1; privacyEvidence.bodies.push(route.request().postDataJSON()); }
+      return json(route, { status: "accepted" }, 202);
+    }
+    if (path === "/tenant/retention-policy") {
+      if (route.request().method() !== "GET" && privacyEvidence) privacyEvidence.retentionMutations += 1;
+      return json(route, route.request().method() === "GET" ? { policy: { transcriptDays: 90, recordingDays: 0, voicePlanMaximumDays: 365, updatedAt: new Date().toISOString() } } : { status: "updated", transcriptDays: 90, recordingDays: 0, maximumDays: 365 });
+    }
     return json(route, { status: "not_found" }, 404);
   });
 }
@@ -59,7 +66,7 @@ async function mockPlatform(page) {
   });
 }
 
-async function inspect(url, name, viewport, mock) {
+async function inspect(url, name, viewport, mock, check) {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   page.on("pageerror", (error) => failures.push(`${name}: page error: ${error.message}`));
@@ -78,6 +85,7 @@ async function inspect(url, name, viewport, mock) {
   if (name.startsWith("inbox-") && !result.bodyText.includes("The customer requested a callback.")) failures.push(`${name}: Voice outcome summary missing`);
   if (name.startsWith("data-") && !result.bodyText.includes("Transcript retention")) failures.push(`${name}: retention controls missing`);
   if (name.startsWith("platform-") && (!result.bodyText.includes("Runtime admission and recovery") || !result.bodyText.includes("Second-Generation route governance") || !result.bodyText.includes("Production admission") || !result.bodyText.includes("there is no fallback"))) failures.push(`${name}: Voice operations control missing`);
+  if (check) await check(page);
   await page.screenshot({ path: `/tmp/djay-p3-${name}.png`, fullPage: true });
   await context.close();
   return result.title;
@@ -90,6 +98,29 @@ for (const pageName of pages) {
   await inspect(`${tenantUrl}/workspace/${pageName}`, `${pageName}-desktop`, desktop, mockTenant);
   await inspect(`${tenantUrl}/workspace/${pageName}`, `${pageName}-mobile`, mobile, mockTenant);
 }
+const privacyEvidence = { mutations: 0, bodies: [], retentionMutations: 0 };
+await inspect(`${tenantUrl}/workspace/data`, "data-privacy-scope", desktop, (page) => mockTenant(page, privacyEvidence), async (page) => {
+  await page.getByLabel("Request").selectOption("erasure");
+  if (await page.getByLabel("Contact").locator("option").first().textContent() !== "Select a contact to erase") failures.push("data-privacy-scope: erasure retained the workspace-wide export option");
+  await page.getByRole("button", { name: "Submit request" }).click();
+  await page.getByRole("alert").getByText("Select the specific contact", { exact: false }).waitFor();
+  if (privacyEvidence.mutations !== 0) failures.push("data-privacy-scope: unscoped erasure reached the API");
+  if (!await page.getByLabel("Contact").evaluate((element) => element === document.activeElement)) failures.push("data-privacy-scope: missing contact scope did not receive focus");
+  await page.getByLabel("Contact").selectOption(contact.id);
+  let dismissedMessage = "";
+  page.once("dialog", async (dialog) => { dismissedMessage = dialog.message(); await dialog.dismiss(); });
+  await page.getByRole("button", { name: "Submit request" }).click();
+  if (!dismissedMessage.includes(contact.displayName) || privacyEvidence.mutations !== 0) failures.push("data-privacy-scope: dismissed named erasure confirmation changed data");
+  page.once("dialog", async (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Submit request" }).click();
+  await page.getByText("Privacy request accepted for processing.", { exact: true }).waitFor();
+  if (privacyEvidence.mutations !== 1 || privacyEvidence.bodies[0]?.jobType !== "erasure" || privacyEvidence.bodies[0]?.contactId !== contact.id) failures.push("data-privacy-scope: scoped erasure did not send one exact request");
+  if (await page.getByLabel("Request").inputValue() !== "export" || await page.getByLabel("Contact").inputValue() !== "") failures.push("data-privacy-scope: accepted request did not reset to safe export defaults");
+  await page.getByRole("button", { name: "Save retention" }).click();
+  const retentionSection = page.locator(".tool-band").filter({ hasText: "Transcript retention" });
+  await retentionSection.getByRole("status").getByText("Retention policy saved", { exact: false }).waitFor();
+  if (privacyEvidence.retentionMutations !== 1) failures.push("data-privacy-scope: retention update did not send exactly one request");
+});
 await inspect(platformUrl, "platform-desktop", desktop, mockPlatform);
 await inspect(platformUrl, "platform-mobile", mobile, mockPlatform);
 await browser.close();

@@ -66,6 +66,9 @@ Finance roles. It verified:
 - AI Chat uses a responsive guided Sales Core editor across desktop and mobile;
   invalid timezone/schema input remains local, malformed Advanced JSON remains
   repairable, and unsaved visible changes cannot publish an older draft;
+- Data Controls clearly separates workspace export from contact-only erasure;
+  missing scope is field-focused and sends zero requests, irreversible
+  confirmation names the contact, and retention feedback stays in its section;
 - a branded registration completion and invalid-link recovery journey with one
   anti-enumerating, retryable verification resend control;
 - correct permission-derived tenant and Platform navigation;

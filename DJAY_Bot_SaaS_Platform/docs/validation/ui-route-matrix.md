@@ -90,6 +90,9 @@ proves that:
   revision;
 - AI Chat multiline lists preserve newline entry, and dismissing the unsaved
   agent-switch warning keeps the current draft intact;
+- Data Controls rejects unscoped erasure locally, names the selected contact in
+  irreversible confirmation, resets accepted requests to safe export defaults,
+  and renders retention status beside the retention form;
 - every exercised UI state passes the automated axe WCAG 2.2 A/AA rule set,
   including document titles, contrast, keyboard-scroll access, and ARIA
   structure;

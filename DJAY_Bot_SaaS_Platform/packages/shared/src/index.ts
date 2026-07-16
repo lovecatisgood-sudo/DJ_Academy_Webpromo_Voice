@@ -7,6 +7,7 @@ export * from "./browser-one-time-state";
 export * from "./passwords";
 export * from "./identity-fields";
 export * from "./contact-fields";
+export * from "./privacy-jobs";
 export * from "./voice-deployment-fields";
 export * from "./website-deployment-fields";
 export * from "./flowbot-operations-fields";

@@ -25,6 +25,10 @@
 - Contact erasure through a restricted worker-only security-definer function.
   Personal content is anonymized while immutable lineage and legally necessary
   relational records remain auditable.
+- Migration `0042_privacy_job_scope` requires every actionable erasure to name
+  one exact contact and keeps the JSON scope equal to the tenant foreign key.
+  Workspace-wide export remains supported; workspace-wide erasure does not.
+  Conflicting reuse of a privacy idempotency key now fails closed.
 - Platform support grants with a distinct requester and approver, recent owner
   assurance, four-hour maximum, full platform audit, revocation, and a persistent
   merchant-visible banner while access is active.
@@ -42,6 +46,9 @@
 - Tenant and public applications expose no provider/model configuration.
 - Support grants do not create tenant memberships or tenant-realm sessions and
   do not confer AI-routing authority.
+- Browser, API, repository, foreign key, and PostgreSQL check constraints all
+  enforce the same export-versus-erasure scope. Cross-tenant or already-erased
+  contact substitution is non-revealing and creates no job.
 
 ## Completion gate
 
