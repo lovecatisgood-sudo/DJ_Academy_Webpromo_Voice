@@ -24,6 +24,9 @@ proves that:
   browser control capable of choosing a readiness stage;
 - Operator write controls remain available for Contacts, Leads, and Inbox but
   Knowledge stays read-only;
+- Platform Owner and AI Operations can resolve an open Voice incident through
+  the shared inline evidence form, while Finance remains incident-read/
+  credit-review only and Support has no incident access;
 - direct Analyst visits to Team and Security receive a branded access-denied
   state instead of an empty or misleading operations page;
 - forbidden pages do not initiate their protected Team, Security, or privacy

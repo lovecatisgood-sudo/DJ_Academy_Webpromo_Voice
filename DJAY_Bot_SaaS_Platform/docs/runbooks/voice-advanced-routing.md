@@ -83,7 +83,12 @@ a new independently reviewed admission change is required.
 3. If credit review is required, a different Platform Owner or Platform Finance
    reviewer approves/rejects only the recommendation. P9 owns actual financial
    policy and application.
-4. Record the resolution. Resolution does not resume or promote a route.
+4. Select **Resolve**, then record 12–2,000 characters describing verified
+   recovery and remaining safeguards. Leading/trailing whitespace is removed.
+   Correct inline validation without leaving the incident; if transport fails,
+   keep and retry the visible draft after confirming authority and service
+   health. Cancel sends nothing. Do not use a browser prompt or direct SQL.
+   Resolution does not resume or promote a route.
 5. Requalification and a new reviewed change are required before future traffic.
 
 ## Evidence and audit checks

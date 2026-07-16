@@ -83,6 +83,11 @@ browser, API/domain schema, and tenant repository. Whitespace-only replies stay
 focused and produce no request or immutable sequence; accepted text is trimmed,
 sent once, cleared after success, and announced separately from retryable
 transport failures.
+P8 Platform Voice incident resolution now uses one trimmed 12–2,000-character
+contract across its inline accessible form, API, repository, and existing
+PostgreSQL function. Cancel/invalid evidence sends no command, accepted evidence
+is normalized once, Support is denied, success is announced politely, and a
+transport failure preserves the exact operator draft for an explicit retry.
 
 ## P4 release checkpoint
 

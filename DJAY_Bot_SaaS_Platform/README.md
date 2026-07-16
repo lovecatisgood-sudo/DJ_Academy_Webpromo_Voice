@@ -93,6 +93,11 @@ Inbox replies likewise use one normalized browser/domain/repository contract:
 space-only text remains correctable and sends no request, while one accepted
 reply is trimmed, persisted once, cleared only after success, and announced
 through the appropriate status channel.
+Platform Voice incident resolution follows the same recoverable boundary: an
+inline role-authorized form validates and focuses locally, sends one normalized
+12–2,000-character record, announces acceptance politely, and retains an exact
+draft after transport failure. The API, repository, and PostgreSQL function
+revalidate the same evidence without exposing route identity.
 Read-only roles no longer
 receive misleading mutation controls, and forbidden direct
 routes fail closed with a recovery path. Unexpected URLs and render failures in

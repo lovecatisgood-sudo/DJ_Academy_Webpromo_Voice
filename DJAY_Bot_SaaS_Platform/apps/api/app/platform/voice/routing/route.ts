@@ -1,4 +1,5 @@
 import { platformRoleAllows } from "@djay/authorization";
+import { voiceIncidentResolutionSchema } from "@djay/shared";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { hasTrustedOrigin, readJson, safeJson } from "../../../../lib/http";
@@ -22,7 +23,7 @@ const commandSchema = z.discriminatedUnion("command", [
   z.object({ command: z.literal("admission.apply"), changeId: z.uuid() }).strict(),
   z.object({ command: z.literal("incident.open"), capabilityProfile: z.literal("voice_gen2"), severity: z.enum(["minor", "major", "critical"]), reason: z.string().trim().min(12).max(1000), routingChangeId: z.uuid().nullable(), creditReviewRequired: z.boolean() }).strict(),
   z.object({ command: z.literal("incident.credit_review"), incidentId: z.uuid(), decision: z.enum(["approve", "reject"]) }).strict(),
-  z.object({ command: z.literal("incident.resolve"), incidentId: z.uuid(), resolution: z.string().trim().min(12).max(2000) }).strict(),
+  z.object({ command: z.literal("incident.resolve"), incidentId: z.uuid(), resolution: voiceIncidentResolutionSchema }).strict(),
 ]);
 
 export async function GET(request: NextRequest) {

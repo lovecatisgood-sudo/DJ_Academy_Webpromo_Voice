@@ -168,8 +168,15 @@ describe.runIf(enabled)("Voice platform operations", () => {
       expect.objectContaining({ id: incident.incidentId, creditReviewStatus: "approved" }),
     ]);
     await expect(store.resolveIncident(reviewer, {
+      incidentId: incident.incidentId, resolution: "   ",
+    })).rejects.toThrow();
+    await expect(store.resolveIncident(support, {
       incidentId: incident.incidentId,
-      resolution: "Route remains paused pending the explicit rollback",
+      resolution: "Support must not resolve an Advanced Voice incident",
+    })).rejects.toThrow(/platform_voice_routing_required/);
+    await expect(store.resolveIncident(reviewer, {
+      incidentId: incident.incidentId,
+      resolution: "  Route remains paused pending the explicit rollback  ",
     })).resolves.toEqual({ status: "resolved" });
     await expect(store.applyRoutingChange(owner, {
       changeId: requested.changeId, action: "rollback",
@@ -185,6 +192,7 @@ describe.runIf(enabled)("Voice platform operations", () => {
     });
     expect(finalOverview.incidents[0]).toMatchObject({
       id: incident.incidentId, status: "resolved", creditReviewStatus: "approved",
+      resolution: "Route remains paused pending the explicit rollback",
     });
     const audits = await adminClient!<{ count: number }[]>`
       SELECT count(*)::int AS count FROM platform.audit_logs

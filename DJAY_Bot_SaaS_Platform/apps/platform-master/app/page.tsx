@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { emailFieldConstraints, safeMutationFetch } from "@djay/shared";
 import { PlatformNavigation } from "./PlatformNavigation";
+import { VoiceIncidentResolutionForm } from "./VoiceIncidentResolutionForm";
 
 type PlatformUser = { id: string; displayName: string; role: string; mfaVerifiedAt: string };
 type SocialHealth = { channel: "line" | "whatsapp" | "messenger"; activeConnections: number; reauthorizationRequired: number; queuedInbound: number; oldestInboundQueueSeconds: number; deadLetterInbound: number; queuedDeliveries: number; oldestDeliveryQueueSeconds: number; deadLetterDeliveries: number; serviceWindowClosed24h: number; attemptedQuantity24h: number; failedAttempts24h: number };
@@ -66,6 +67,7 @@ export default function PlatformMasterPage() {
   const loadGeneration = useRef(0);
   const [stage, setStage] = useState<"loading" | "error" | "password" | "mfa" | "dashboard">("loading");
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"error" | "success">("error");
   const [working, setWorking] = useState(false);
   const [user, setUser] = useState<PlatformUser | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
@@ -84,9 +86,20 @@ export default function PlatformMasterPage() {
   const [voiceControl, setVoiceControl] = useState<VoiceControl | null>(null);
   const [voiceRouting, setVoiceRouting] = useState<VoiceRouting | null>(null);
   const [voiceIncidents, setVoiceIncidents] = useState<VoiceIncident[] | null>(null);
+  const [resolvingIncidentId, setResolvingIncidentId] = useState<string | null>(null);
   const [voiceReason, setVoiceReason] = useState("scheduled_maintenance");
   const [routingActionReason, setRoutingActionReason] = useState("Reviewed Advanced Voice operational change");
   const controlsBusy = working || dashboardLoading;
+
+  function clearMessage() {
+    setMessage("");
+    setMessageTone("error");
+  }
+
+  function showMessage(text: string, tone: "error" | "success" = "error") {
+    setMessageTone(tone);
+    setMessage(text);
+  }
 
   async function loadCurrent() {
     const generation = ++loadGeneration.current;
@@ -111,6 +124,7 @@ export default function PlatformMasterPage() {
       setHealth(null); setCommerce(null); setSubscriptions([]); setTenants([]); setSupportGrants([]);
       setReadiness(null); setReconciliation(null); setRecovery(null);
       setVoiceControl(null); setVoiceRouting(null); setVoiceIncidents(null);
+      setResolvingIncidentId(null);
     }
     setUser(result.user);
     setStage("dashboard");
@@ -189,7 +203,7 @@ export default function PlatformMasterPage() {
   async function passwordLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setWorking(true);
-    setMessage("");
+    clearMessage();
     const data = new FormData(event.currentTarget);
     const response = await safeMutationFetch("/platform/auth/login", {
       method: "POST",
@@ -207,7 +221,7 @@ export default function PlatformMasterPage() {
   async function verifyMfa(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setWorking(true);
-    setMessage("");
+    clearMessage();
     const data = new FormData(event.currentTarget);
     const response = await safeMutationFetch("/platform/auth/mfa/challenge", {
       method: "POST",
@@ -223,6 +237,7 @@ export default function PlatformMasterPage() {
   }
 
   async function logout() {
+    clearMessage();
     const response = await safeMutationFetch("/platform/auth/logout", { method: "POST" });
     if (!response.ok) { setMessage("Sign out could not be confirmed. Your current session remains open."); return; }
     loadGeneration.current += 1;
@@ -241,6 +256,7 @@ export default function PlatformMasterPage() {
     setVoiceControl(null);
     setVoiceRouting(null);
     setVoiceIncidents(null);
+    setResolvingIncidentId(null);
     setDashboardLoading(false);
     setStage("password");
   }
@@ -248,6 +264,7 @@ export default function PlatformMasterPage() {
   async function activate(subscriptionId: string) {
     if (!window.confirm("Activate this subscription for the pilot workspace?")) return;
     setWorking(true);
+    clearMessage();
     const response = await safeMutationFetch(`/platform/subscriptions/${subscriptionId}/activate`, { method: "POST" });
     setWorking(false);
     if (!response.ok) {
@@ -258,20 +275,20 @@ export default function PlatformMasterPage() {
   }
 
   async function requestSupport(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setWorking(true); setMessage(""); const form = event.currentTarget; const data = new FormData(form);
+    event.preventDefault(); setWorking(true); clearMessage(); const form = event.currentTarget; const data = new FormData(form);
     const response = await safeMutationFetch("/platform/support-grants", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: data.get("tenantId"), reason: data.get("reason"), durationMinutes: Number(data.get("durationMinutes")) }) });
     setWorking(false); if (!response.ok) { setMessage("Support access request could not be created."); return; }
     form.reset(); await loadCurrent();
   }
 
   async function decideSupport(grantId: string, command: "approve" | "revoke") {
-    setWorking(true); setMessage(""); const response = await safeMutationFetch(`/platform/support-grants/${grantId}/${command}`, { method: "POST" }); setWorking(false);
+    setWorking(true); clearMessage(); const response = await safeMutationFetch(`/platform/support-grants/${grantId}/${command}`, { method: "POST" }); setWorking(false);
     if (!response.ok) { setMessage(response.status >= 500 ? "Support access controls are temporarily unavailable. No grant state changed." : command === "approve" ? "Approval requires another platform user and recent authentication." : "Grant could not be revoked."); return; }
     await loadCurrent();
   }
 
   async function requestRecovery(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setWorking(true); setMessage("");
+    event.preventDefault(); setWorking(true); clearMessage();
     const form = event.currentTarget; const data = new FormData(form);
     const [queueKind, itemId, attemptCount] = String(data.get("recoveryTarget") || "").split("|");
     const response = await safeMutationFetch("/platform/dead-letter-recovery", {
@@ -287,7 +304,7 @@ export default function PlatformMasterPage() {
 
   async function reviewRecovery(requestId: string, decision: "approve" | "reject") {
     if (decision === "approve" && !window.confirm("Approve one idempotent email delivery attempt? This action is audited and cannot be undone.")) return;
-    setWorking(true); setMessage("");
+    setWorking(true); clearMessage();
     const response = await safeMutationFetch(`/platform/dead-letter-recovery/${requestId}/review`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }),
     });
@@ -310,7 +327,7 @@ export default function PlatformMasterPage() {
         ? "Resume new Voice sessions? Confirm deployment readiness first."
         : "Pause admission of new Voice sessions? Active sessions will continue.";
     if (!window.confirm(warning)) return;
-    setWorking(true); setMessage("");
+    setWorking(true); clearMessage();
     const response = await safeMutationFetch("/platform/voice/runtime-control", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode, reasonCode: voiceReason }),
@@ -326,7 +343,7 @@ export default function PlatformMasterPage() {
   }
 
   async function sendVoiceRoutingCommand(command: Record<string, unknown>, successMessage: string) {
-    setWorking(true); setMessage("");
+    setWorking(true); clearMessage();
     const response = await safeMutationFetch("/platform/voice/routing", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(command),
     });
@@ -339,7 +356,7 @@ export default function PlatformMasterPage() {
         : "Advanced Voice command was rejected. Check review separation, evidence, and current route state.");
       return false;
     }
-    setMessage(successMessage);
+    showMessage(successMessage, "success");
     await loadCurrent();
     return true;
   }
@@ -415,10 +432,10 @@ export default function PlatformMasterPage() {
     await sendVoiceRoutingCommand({ command: "incident.credit_review", incidentId, decision }, `Credit review ${decision}d.`);
   }
 
-  async function resolveVoiceIncident(incidentId: string) {
-    const resolution = window.prompt("Record the incident resolution (at least 12 characters):");
-    if (!resolution) return;
-    await sendVoiceRoutingCommand({ command: "incident.resolve", incidentId, resolution }, "Incident resolved; routing remains explicit and fail-closed.");
+  async function resolveVoiceIncident(incidentId: string, resolution: string) {
+    const succeeded = await sendVoiceRoutingCommand({ command: "incident.resolve", incidentId, resolution }, "Incident resolved; routing remains explicit and fail-closed.");
+    if (succeeded) setResolvingIncidentId(null);
+    return succeeded;
   }
 
   if (stage === "loading") return <main className="platform-loading">Checking platform session...</main>;
@@ -434,7 +451,7 @@ export default function PlatformMasterPage() {
         </aside>
         <section className="platform-content">
           <header><div><p>Internal operations</p><h1>Platform health</h1></div><span>{user.displayName}<small>{user.role.replaceAll("_", " ")}</small></span></header>
-          {message ? <div className="platform-message dashboard-message" role="alert">{message}</div> : null}
+          {message ? <div className={`platform-message dashboard-message ${messageTone}`} role={messageTone === "error" ? "alert" : "status"}>{message}</div> : null}
           {dashboardLoading ? <div className="platform-resource-status loading" aria-live="polite" aria-busy="true"><strong>Refreshing authorized operations data…</strong><span>Current controls remain unavailable until each requested resource responds.</span></div> : null}
           {resourceErrors.length ? <div className="platform-resource-status error" role="alert"><div><strong>Some operations data could not be loaded</strong><span>No operational state was changed. Unavailable areas: {resourceErrors.join(", ")}.</span></div><button type="button" disabled={dashboardLoading} onClick={() => void loadCurrent()}>Try again</button></div> : null}
           <div className="metrics-band" id="overview">
@@ -556,7 +573,7 @@ export default function PlatformMasterPage() {
           </div> : null}
           {voiceIncidents ? <div className="subscription-band incident-band">
             <div><p>Advanced Voice</p><h2>Incident and credit review</h2></div>
-            <div className="platform-table" role="list" aria-label="Advanced Voice incidents">{voiceIncidents.map((incident) => <div className="platform-row incident-row" role="listitem" key={incident.id}><div><strong>{incident.severity} · {incident.status}</strong><span>{incident.reason}</span></div><span>{incident.creditReviewStatus.replaceAll("_", " ")}</span><div className="row-actions">{incident.creditReviewStatus === "required" && ["platform_owner", "platform_finance"].includes(user.role) ? <><button disabled={controlsBusy || incident.openedByPlatformUserId === user.id} onClick={() => void reviewVoiceCredit(incident.id, "approve")}>Approve credit review</button><button className="outline-button" disabled={controlsBusy || incident.openedByPlatformUserId === user.id} onClick={() => void reviewVoiceCredit(incident.id, "reject")}>Reject</button></> : null}{incident.status !== "resolved" && ["platform_owner", "platform_ai_operations"].includes(user.role) ? <button disabled={controlsBusy} onClick={() => void resolveVoiceIncident(incident.id)}>Resolve</button> : null}</div></div>)}{!voiceIncidents.length ? <p className="empty-row" role="listitem">No Advanced Voice incidents</p> : null}</div>
+            <div className="platform-table" role="list" aria-label="Advanced Voice incidents">{voiceIncidents.map((incident) => <div className="platform-row incident-row" role="listitem" key={incident.id}><div><strong>{incident.severity} · {incident.status}</strong><span>{incident.reason}</span></div><span>{incident.creditReviewStatus.replaceAll("_", " ")}</span><div className="row-actions">{incident.creditReviewStatus === "required" && ["platform_owner", "platform_finance"].includes(user.role) ? <><button disabled={controlsBusy || incident.openedByPlatformUserId === user.id} onClick={() => void reviewVoiceCredit(incident.id, "approve")}>Approve credit review</button><button className="outline-button" disabled={controlsBusy || incident.openedByPlatformUserId === user.id} onClick={() => void reviewVoiceCredit(incident.id, "reject")}>Reject</button></> : null}{incident.status !== "resolved" && ["platform_owner", "platform_ai_operations"].includes(user.role) ? <button disabled={controlsBusy} onClick={() => { clearMessage(); setResolvingIncidentId(incident.id); }}>Resolve</button> : null}</div>{resolvingIncidentId === incident.id ? <VoiceIncidentResolutionForm incidentId={incident.id} severity={incident.severity} working={controlsBusy} onResolve={(resolution) => resolveVoiceIncident(incident.id, resolution)} onCancel={() => setResolvingIncidentId(null)} /> : null}</div>)}{!voiceIncidents.length ? <p className="empty-row" role="listitem">No Advanced Voice incidents</p> : null}</div>
           </div> : null}
           {health?.socialChannels?.length ? <div className="subscription-band"><div><p>AI Chat operations</p><h2>Social channel health</h2></div><div className="platform-table" role="list" aria-label="Social channel health">{health.socialChannels.map((channel) => <div className="platform-row" role="listitem" key={channel.channel}><div><strong>{channel.channel === "line" ? "LINE" : channel.channel === "whatsapp" ? "WhatsApp" : "Messenger"}</strong><span>{channel.activeConnections} active / {channel.reauthorizationRequired} reauthorization</span></div><span>{channel.queuedInbound} inbound queued / {channel.oldestInboundQueueSeconds}s oldest</span><span>{channel.queuedDeliveries} delivery queued / {channel.oldestDeliveryQueueSeconds}s oldest</span><span>{channel.deadLetterInbound + channel.deadLetterDeliveries} dead letters / {channel.failedAttempts24h} failed attempts</span></div>)}</div></div> : null}
           {recoveryStage === "loading" && !recovery ? <div className="subscription-band recovery-band" id="queue-recovery" aria-busy="true"><div><p>Queue recovery · restricted</p><h2>Loading reviewed recovery</h2></div><p className="operational-note">Checking replay eligibility and independent-review state.</p></div> : null}
@@ -639,7 +656,7 @@ export default function PlatformMasterPage() {
             <button type="submit" disabled={controlsBusy}>{working ? "Checking..." : "Continue"}</button>
           </form>
         )}
-        {message ? <div className="platform-message" role="alert">{message}</div> : null}
+        {message ? <div className={`platform-message ${messageTone}`} role={messageTone === "error" ? "alert" : "status"}>{message}</div> : null}
         <small>Multi-factor verification is required.</small>
       </section>
     </main>

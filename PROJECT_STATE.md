@@ -686,3 +686,17 @@ export const buildVersion = "voice-behavior-restore-2026-07-14";
 - P2 tests passed for six-plan capability denial, one-live-tier enforcement, multi-product coexistence, A/B RLS isolation, activation, quota reserve/settle replay, cross-tenant substitution, webhook replay/tamper, realm confusion, and provider/model DTO leakage.
 - Full 15-package lint/typecheck/unit/build verification, PostgreSQL integration, production HTTP checks, and desktop/mobile Chromium checks passed.
 - Product code migrated: none. P3 shared customer/conversation domain is authorized; paid checkout remains blocked on ADR-008 and exact commercial/legal decisions.
+
+## DJAY Bot SaaS P8 Incident Resolution Checkpoint - 2026-07-16
+
+- Replaced the Platform Voice browser prompt with an accessible inline,
+  role-authorized incident-resolution form.
+- Shared one trimmed 12–2,000-character evidence contract across browser, API,
+  repository, and the existing PostgreSQL function; no migration or request
+  shape changed.
+- Local invalid/canceled input sends no command, accepted evidence is normalized
+  once, and a transport failure preserves the exact draft for explicit retry.
+- PostgreSQL coverage denies Platform Support, preserves Owner/AI Operations
+  authority and audit behavior, and confirms normalized storage.
+- Gen2 remains paused/admission-disabled until the existing live-provider,
+  capacity, commercial, and named-merchant acceptance gates pass.

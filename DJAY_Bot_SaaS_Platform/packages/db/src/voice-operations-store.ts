@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { voiceIncidentResolutionSchema } from "@djay/shared";
 import type { PlatformContext } from "@djay/tenancy";
 import type { DatabaseClient } from "./client";
 import { withPlatformTransaction } from "./scoped-transaction";
@@ -229,8 +230,9 @@ export class PlatformVoiceOperationsStore {
   }
 
   async resolveIncident(context: PlatformContext, input: Readonly<{ incidentId: string; resolution: string }>) {
+    const resolution = voiceIncidentResolutionSchema.parse(input.resolution);
     await withPlatformTransaction(this.client, context, async ({ sql }) => sql`
-      SELECT platform.resolve_voice_incident(${input.incidentId}::uuid, ${input.resolution})
+      SELECT platform.resolve_voice_incident(${input.incidentId}::uuid, ${resolution})
     `);
     return { status: "resolved" as const };
   }

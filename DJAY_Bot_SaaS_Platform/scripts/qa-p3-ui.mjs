@@ -50,7 +50,7 @@ async function mockTenant(page, mutationEvidence) {
   });
 }
 
-async function mockPlatform(page) {
+async function mockPlatform(page, incidentEvidence) {
   await page.route("**/platform/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/platform/me") return json(route, { user: { id: "platform-owner", displayName: "Platform Owner", role: "platform_owner", mfaVerifiedAt: new Date().toISOString() } });
@@ -60,6 +60,14 @@ async function mockPlatform(page) {
     if (path === "/platform/tenants") return json(route, { tenants: [{ id: workspace.tenantId, businessName: workspace.businessName, slug: workspace.slug, status: "active" }] });
     if (path === "/platform/support-grants") return json(route, { grants: [{ id: "grant", tenantId: workspace.tenantId, businessName: workspace.businessName, requestedByPlatformUserId: "support-user", approvedByPlatformUserId: "platform-owner", reason: "Investigating a merchant-reported message delivery issue.", status: "active", startsAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3_600_000).toISOString() }] });
     if (path === "/platform/voice/runtime-control") return json(route, { control: { mode: "paused", reasonCode: "scheduled_maintenance", version: 4, changedAt: new Date().toISOString(), activeSessions: 2, reconnectingSessions: 1, expiredGrants: 0, staleConnections: 0 } });
+    if (path === "/platform/voice/routing" && route.request().method() === "POST") {
+      if (incidentEvidence) {
+        incidentEvidence.mutations += 1;
+        incidentEvidence.bodies.push(route.request().postDataJSON());
+        if (incidentEvidence.failResolution) return json(route, { status: "temporarily_unavailable" }, 503);
+      }
+      return json(route, { status: "resolved" });
+    }
     if (path === "/platform/voice/routing") return json(route, { routing: {
       admissionEnabled: false,
       admissionChanges: [{ id: "admission", capabilityProfile: "voice_gen2", targetEnabled: true, status: "requested", reason: "Named merchant media acceptance passed", requestedByPlatformUserId: "ai-operator", approvedByPlatformUserId: null, requestedAt: new Date().toISOString(), approvedAt: null, appliedAt: null }],
@@ -78,7 +86,7 @@ async function inspect(url, name, viewport, mock, check) {
   const page = await context.newPage();
   page.on("pageerror", (error) => failures.push(`${name}: page error: ${error.message}`));
   page.on("console", (entry) => {
-    const expectedRetryFailure = name === "inbox-reply-retry"
+    const expectedRetryFailure = ["inbox-reply-retry", "platform-incident-resolution-retry"].includes(name)
       && entry.text().startsWith("Failed to load resource: the server responded with a status of 503");
     if (entry.type() === "error" && !expectedRetryFailure) failures.push(`${name}: console error: ${entry.text()}`);
   });
@@ -161,6 +169,42 @@ await inspect(`${tenantUrl}/workspace/inbox`, "inbox-reply-retry", desktop, (pag
 });
 await inspect(platformUrl, "platform-desktop", desktop, mockPlatform);
 await inspect(platformUrl, "platform-mobile", mobile, mockPlatform);
+const incidentEvidence = { mutations: 0, bodies: [] };
+await inspect(platformUrl, "platform-incident-resolution", desktop, (page) => mockPlatform(page, incidentEvidence), async (page) => {
+  await page.getByRole("button", { name: "Resolve", exact: true }).click();
+  const resolution = page.getByLabel("Resolution for minor incident");
+  await resolution.fill("Draft recovery evidence");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  if (await resolution.count() !== 0 || incidentEvidence.mutations !== 0) failures.push("platform-incident-resolution: cancel changed incident state");
+  await page.getByRole("button", { name: "Resolve", exact: true }).click();
+  const reopenedResolution = page.getByLabel("Resolution for minor incident");
+  await reopenedResolution.fill("   ");
+  await page.getByRole("button", { name: "Save resolution", exact: true }).click();
+  await page.getByRole("alert").getByText("Resolution must be 12–2,000 characters after removing leading and trailing spaces.", { exact: true }).waitFor();
+  if (incidentEvidence.mutations !== 0) failures.push("platform-incident-resolution: invalid resolution reached the API");
+  if (!await reopenedResolution.evaluate((element) => element === document.activeElement)) failures.push("platform-incident-resolution: invalid resolution did not retain field focus");
+  await reopenedResolution.fill("  Route remains paused pending reviewed recovery.  ");
+  await page.getByRole("button", { name: "Save resolution", exact: true }).click();
+  await page.getByRole("status").getByText("Incident resolved; routing remains explicit and fail-closed.", { exact: true }).waitFor();
+  if (incidentEvidence.mutations !== 1
+    || incidentEvidence.bodies[0]?.command !== "incident.resolve"
+    || incidentEvidence.bodies[0]?.incidentId !== "incident"
+    || incidentEvidence.bodies[0]?.resolution !== "Route remains paused pending reviewed recovery.") failures.push("platform-incident-resolution: corrected resolution did not send one normalized command");
+  try {
+    await reopenedResolution.waitFor({ state: "detached" });
+  } catch { failures.push("platform-incident-resolution: accepted resolution form remained open"); }
+});
+const incidentFailureEvidence = { mutations: 0, bodies: [], failResolution: true };
+await inspect(platformUrl, "platform-incident-resolution-retry", mobile, (page) => mockPlatform(page, incidentFailureEvidence), async (page) => {
+  await page.getByRole("button", { name: "Resolve", exact: true }).click();
+  const resolution = page.getByLabel("Resolution for minor incident");
+  const retryableDraft = "Route stays paused while recovery evidence is reviewed.";
+  await resolution.fill(retryableDraft);
+  await page.getByRole("button", { name: "Save resolution", exact: true }).click();
+  await page.getByRole("alert").getByText("Advanced Voice controls are temporarily unavailable. No routing state changed.", { exact: true }).waitFor();
+  if (incidentFailureEvidence.mutations !== 1 || await resolution.inputValue() !== retryableDraft) failures.push("platform-incident-resolution-retry: failed resolution did not preserve one exact retryable draft");
+  if (!await page.getByRole("button", { name: "Save resolution", exact: true }).isEnabled()) failures.push("platform-incident-resolution-retry: failed resolution left the form busy");
+});
 await browser.close();
 
 if (failures.length) {

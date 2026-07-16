@@ -227,6 +227,12 @@ Promote the complete `apps/widget-cdn/dist` artifact and its manifest.
 
 ## Local production-browser acceptance
 
+Platform operational evidence forms must be inline, labeled, keyboard
+reachable, and retry-safe. Advanced Voice incident resolution is the reference:
+validate the shared trimmed boundary locally, focus the invalid field, send
+zero requests on cancel/invalid input, preserve the exact draft after transport
+failure, and announce accepted state with `role="status"` rather than an alert.
+
 Build the four Next.js applications, start their production output on ports
 3110 through 3113, then run:
 

@@ -9,6 +9,7 @@
 
 ```bash
 git diff --check
+scripts/use-node24.sh pnpm run lint:platform-incident-resolution
 scripts/use-node24.sh pnpm --filter @djay/db typecheck
 scripts/use-node24.sh pnpm --filter @djay/api typecheck
 scripts/use-node24.sh pnpm --filter @djay/platform-master typecheck
@@ -26,10 +27,36 @@ is denied, Platform Support and Finance cannot read routing identity, a proposer
 cannot self-qualify, a requester cannot self-approve, direct promotion cannot
 skip canary, an approved canary can be promoted and rolled back, a major
 incident pauses Gen2, a different Finance reviewer can approve the credit-review
-recommendation without provider/model access, and all ten successful transitions
-are audited. The production builds include both restricted Platform routes, and
+recommendation without provider/model access, and every successful transition
+is audited. The production builds include both restricted Platform routes, and
 desktop/mobile browser acceptance proves the Platform workflow is responsive
 while tenant UI remains free of provider/model identity.
+
+The incident-resolution checkpoint additionally proves one shared trimmed
+12–2,000-character boundary across browser, API, repository, and the existing
+database function. PostgreSQL rejects whitespace-only evidence before a
+transaction, denies a valid resolution from Platform Support, stores padded
+authorized evidence without outer whitespace, and preserves the existing audit
+path. Production-rendered Chromium proves cancel and local validation produce
+zero mutations, invalid evidence receives focus, one corrected value sends one
+normalized `incident.resolve` command, success uses a polite status, and a
+controlled `503` leaves the exact draft and enabled retry control in place.
+
+## Change impact and rollback
+
+- Phase: P8 Voice Agent Advanced; no P9 commercial or credit policy was added.
+- Schema/API/events: no migration, request shape, event name, or audit payload
+  change. Validation and normalization are now shared before the existing
+  `platform.resolve_voice_incident` 12–2,000-character constraint.
+- Security/observability: Owner and AI Operations mutation authority, recent
+  reauthentication, audit logging, Finance incident-only visibility, and
+  provider confidentiality are unchanged. Browser-local rejection produces no
+  audit event; accepted and rejected server attempts retain existing telemetry.
+- Non-goals: this does not select a provider, enable admission, resume routing,
+  automate recovery, or authorize live traffic.
+- Rollback: revert the application/UI contract while retaining migrations
+  `0034`–`0037` and all incident/audit evidence. Keep Gen2 paused and admission
+  disabled; do not use direct SQL as an operational substitute.
 
 Migration `0035` additionally proves that Advanced deployment generation comes
 only from the active immutable entitlement, the tenant DTO exposes only the

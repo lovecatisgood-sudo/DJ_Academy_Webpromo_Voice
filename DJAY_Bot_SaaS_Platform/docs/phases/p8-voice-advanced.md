@@ -95,6 +95,11 @@ remains unavailable and paused by default in production.
     timeout cleanup, and upstream outage. It applies only externally approved,
     SHA-256-bound quality and latency thresholds and emits a provider-neutral
     aggregate report without accepting raw audio, transcripts, or route fields.
+23. Incident resolution uses one trimmed 12–2,000-character contract in the
+    Platform form, API, repository, and existing PostgreSQL function. The
+    inline form keeps rejected or transport-failed evidence available for
+    correction, announces errors and success separately, and sends no request
+    for whitespace-only evidence.
 
 ## Schema, API, and event contract
 
@@ -136,7 +141,8 @@ remains unavailable and paused by default in production.
   guards.
 - PostgreSQL 16 integration proves denied direct access, denied self-review,
   qualification, approval, blocked direct promotion, canary, promotion, incident
-  pause, separate finance review, resolution, rollback, and immutable auditing.
+  pause, denied Support resolution, separate finance review, normalized
+  resolution, rollback, and immutable auditing.
 - Deployment integration proves server-resolved Advanced creation, exact-origin
   isolation, public-label-only DTOs, default unavailable admission, entitlement
   mismatch denial, and database-enforced no-Gen1 fallback after downgrade.
@@ -147,7 +153,9 @@ remains unavailable and paused by default in production.
   fallback, and absence of route identity from browser messages.
 - Node 24 typechecking covers the database store, API routes, and Platform Master.
 - Platform desktop/mobile browser acceptance covers role-safe rendering,
-  responsive layout, and tenant/provider confidentiality.
+  responsive layout, tenant/provider confidentiality, canceled and invalid
+  resolution with zero mutations, one normalized accepted command, and a
+  retryable preserved draft after a controlled transport failure.
 - Analytics integration proves Advanced/core packaging, cross-tenant and
   cross-deployment isolation, bounded daily series, safe operational latency,
   reconnect, outcome, lead, and appointment reconciliation, and immediate

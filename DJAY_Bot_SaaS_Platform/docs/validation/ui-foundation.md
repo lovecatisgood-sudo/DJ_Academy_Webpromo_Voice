@@ -55,6 +55,10 @@ Finance roles. It verified:
 - Inbox rejects whitespace-only replies on the focused composer with zero
   mutations; one corrected reply sends one trimmed message, clears after
   acceptance, and announces success politely;
+- Platform Voice incident resolution is an inline labeled form instead of a
+  browser prompt; cancel and whitespace-only evidence send zero commands,
+  corrected evidence is trimmed once, success is polite, and a controlled
+  transport failure preserves the exact draft and retry control;
 - first/additional Voice deployment forms share one component and the API,
   Studio, and immutable playbook share the actual 500-character greeting
   maximum; invalid Studio fields remain local and open the relevant tab;
