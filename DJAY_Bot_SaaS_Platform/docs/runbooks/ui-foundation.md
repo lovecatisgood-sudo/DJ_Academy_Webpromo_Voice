@@ -130,6 +130,36 @@ feature requirement and a production-browser regression test. The deployment
 edge may add stricter transport controls but must not remove these artifact
 headers.
 
+## Customer widget foundation
+
+FlowBot, AI Chat, and Voice import the same browser-safe foundation from
+`@djay/shared/widget-ui`. It owns the canonical green/yellow tokens, responsive
+panel geometry, mobile safe-area placement, 44px controls, focus treatment,
+forced-colors support, reduced-motion behavior, non-modal dialog relationship,
+exact HTTP(S) API-origin validation, and bounded public requests. Product files
+may add only the interaction-specific stream, form, transcript, or Voice-state
+styles after this foundation.
+
+FlowBot and AI Chat use durable database sync, not process-local live fan-out.
+Their polling must remain single-flight, pause while an input or form control is
+being edited, avoid hidden-tab work, preserve a visitor draft across a required
+rerender, and show a saved-conversation failure state. A connection retry must
+never restart or mutate the conversation. Voice must update its elapsed timer
+without rebuilding controls or displacing keyboard focus.
+
+Run the static policy plus the three real-browser product gates:
+
+```bash
+scripts/use-node24.sh pnpm run lint:widget-foundation
+P4_QA_SCOPE=widget scripts/use-node24.sh pnpm run qa:p4-flowbot
+P5_QA_SCOPE=widget scripts/use-node24.sh pnpm run qa:p5-ai-chat
+scripts/use-node24.sh pnpm run qa:p7-voice
+```
+
+The CDN deployment contract and package evidence are governed by
+`release-artifacts.md`. Do not hand-copy a package `dist/index.js` to the CDN.
+Promote the complete `apps/widget-cdn/dist` artifact and its manifest.
+
 ## Local production-browser acceptance
 
 Build the four Next.js applications, start their production output on ports

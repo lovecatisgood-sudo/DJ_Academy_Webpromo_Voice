@@ -48,6 +48,10 @@ function writeManifest(directory, value) {
   writeFileSync(resolve(directory, "release-manifest.json"), `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function sriSha384(file) {
+  return `sha384-${createHash("sha384").update(readFileSync(file)).digest("base64")}`;
+}
+
 function copyRuntimeDependency(source, destination) {
   mkdirSync(dirname(destination), { recursive: true });
   cpSync(realpathSync(source), destination, { recursive: true });
@@ -82,6 +86,40 @@ for (const app of nextApps) {
   });
   console.info(`Packaged ${app}: ${staticEvidence.fileCount} static assets (${staticEvidence.sha256}).`);
 }
+
+const widgetCdnRoot = resolve(root, "apps", "widget-cdn", "dist");
+rmSync(widgetCdnRoot, { recursive: true, force: true });
+const widgetAssets = [
+  ["flowbot", "packages/flowbot-widget/dist/index.js"],
+  ["ai-chat", "packages/ai-chat-widget/dist/index.js"],
+  ["voice", "packages/voice-widget/dist/index.js"],
+].map(([product, source]) => {
+  const publicPath = `${product}/v1/index.js`;
+  const sourcePath = resolve(root, source);
+  if (!existsSync(sourcePath)) fail(`missing ${source}`);
+  const destination = resolve(widgetCdnRoot, publicPath);
+  mkdirSync(dirname(destination), { recursive: true });
+  cpSync(sourcePath, destination);
+  return { product, publicPath: `/${publicPath}`, contentType: "text/javascript; charset=utf-8", integrity: sriSha384(destination) };
+});
+const widgetEvidence = treeEvidence(widgetCdnRoot);
+writeManifest(widgetCdnRoot, {
+  schema: "djay.release-artifact.v1",
+  app: "widget-cdn",
+  runtime: "static",
+  entrypoint: null,
+  healthPath: null,
+  readinessPath: null,
+  cacheControl: "public, max-age=300, must-revalidate",
+  responseHeaders: {
+    "Access-Control-Allow-Origin": "*",
+    "Cross-Origin-Resource-Policy": "cross-origin",
+    "X-Content-Type-Options": "nosniff",
+  },
+  assets: widgetAssets,
+  publicAssets: widgetEvidence,
+});
+console.info(`Packaged widget-cdn: ${widgetEvidence.fileCount} assets (${widgetEvidence.sha256}).`);
 
 for (const [app, entries] of [
   ["voice-gateway", ["index.js"]],

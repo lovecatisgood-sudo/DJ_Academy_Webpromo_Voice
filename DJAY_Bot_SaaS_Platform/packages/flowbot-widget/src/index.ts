@@ -1,3 +1,5 @@
+import { djayWidgetBaseStyles, normalizeWidgetApiOrigin, widgetFetch } from "@djay/shared/widget-ui";
+
 export type FlowbotWidgetOptions = Readonly<{
   deploymentKey: string;
   apiBaseUrl: string;
@@ -30,12 +32,12 @@ type PublicConfig = Readonly<{
 }>;
 
 const copy = {
-  en: { open: "Open chat", close: "Close chat", send: "Send", placeholder: "Type a message...", retry: "Retry", loading: "Connecting...", offline: "Connection unavailable.", submit: "Submit", restart: "Restart", handover: "A team member will continue this conversation.", powered: "Powered by DJAY Bot" },
-  th: { open: "เปิดแชท", close: "ปิดแชท", send: "ส่ง", placeholder: "พิมพ์ข้อความ...", retry: "ลองใหม่", loading: "กำลังเชื่อมต่อ...", offline: "ไม่สามารถเชื่อมต่อได้", submit: "ส่งข้อมูล", restart: "เริ่มใหม่", handover: "ทีมงานจะเข้ามาดูแลการสนทนาต่อ", powered: "ขับเคลื่อนโดย DJAY Bot" },
+  en: { open: "Open chat", close: "Close chat", product: "FlowBot assistant", send: "Send", placeholder: "Type a message…", retry: "Reconnect", loading: "Connecting…", offline: "Connection unavailable. Your conversation is still saved.", submit: "Submit", restart: "Start a new conversation", waiting: "This conversation is waiting for its next step.", completed: "This conversation is complete.", handover: "A team member will continue this conversation.", powered: "Powered by DJAY Bot" },
+  th: { open: "เปิดแชท", close: "ปิดแชท", product: "ผู้ช่วย FlowBot", send: "ส่ง", placeholder: "พิมพ์ข้อความ…", retry: "เชื่อมต่อใหม่", loading: "กำลังเชื่อมต่อ…", offline: "ไม่สามารถเชื่อมต่อได้ การสนทนาของคุณยังถูกบันทึกไว้", submit: "ส่งข้อมูล", restart: "เริ่มการสนทนาใหม่", waiting: "การสนทนานี้กำลังรอขั้นตอนถัดไป", completed: "การสนทนานี้เสร็จสิ้นแล้ว", handover: "ทีมงานจะเข้ามาดูแลการสนทนาต่อ", powered: "ขับเคลื่อนโดย DJAY Bot" },
 } as const;
 
 export function normalizeApiBaseUrl(value: string) {
-  return value.replace(/\/+$/, "");
+  return normalizeWidgetApiOrigin(value);
 }
 
 export function flowbotSessionStorageKey(deploymentKey: string) {
@@ -45,6 +47,8 @@ export function flowbotSessionStorageKey(deploymentKey: string) {
 export function mountFlowbotWidget(options: FlowbotWidgetOptions): HTMLElement {
   return new FlowbotWidget(options).mount();
 }
+
+let flowbotWidgetSequence = 0;
 
 class FlowbotWidget {
   private readonly host = document.createElement("div");
@@ -61,6 +65,9 @@ class FlowbotWidget {
   private messages: RuntimeMessage[] = [];
   private lastMessageSequence = 0;
   private pollTimer: number | null = null;
+  private syncing = false;
+  private announcement = "";
+  private readonly panelId = `djay-flowbot-panel-${++flowbotWidgetSequence}`;
 
   constructor(private readonly options: FlowbotWidgetOptions) {
     this.apiBaseUrl = normalizeApiBaseUrl(options.apiBaseUrl);
@@ -78,6 +85,9 @@ class FlowbotWidget {
   }
 
   private async bootstrap() {
+    this.announcement = copy[this.language].loading;
+    this.loading = true;
+    this.render();
     try {
       const result = await this.request<{ status: "available"; config: PublicConfig }>("/public/flowbot/config");
       this.config = result.config;
@@ -88,9 +98,11 @@ class FlowbotWidget {
       this.offline = false;
     } catch {
       this.offline = true;
+      this.announcement = copy[this.language].offline;
     } finally {
       this.loading = false;
       this.render();
+      if (this.opened) this.focusComposer();
     }
     if (this.opened && !this.sessionToken) await this.startSession();
     this.startPolling();
@@ -98,6 +110,7 @@ class FlowbotWidget {
 
   private async startSession() {
     try {
+      this.announcement = copy[this.language].loading;
       this.loading = true;
       this.render();
       const result = await this.request<{ status: "started"; sessionToken: string; response: RuntimeResponse }>("/public/flowbot/session", {
@@ -112,9 +125,11 @@ class FlowbotWidget {
       this.offline = false;
     } catch {
       this.offline = true;
+      this.announcement = copy[this.language].offline;
     } finally {
       this.loading = false;
       this.render();
+      if (this.opened) this.focusComposer();
     }
   }
 
@@ -122,6 +137,7 @@ class FlowbotWidget {
     if (!this.sessionToken) await this.startSession();
     if (!this.sessionToken) return;
     try {
+      this.announcement = copy[this.language].loading;
       this.loading = true;
       this.render();
       await this.request<{ status: "accepted"; response: RuntimeResponse }>("/public/flowbot/message", {
@@ -133,26 +149,43 @@ class FlowbotWidget {
       this.offline = false;
     } catch {
       this.offline = true;
+      this.announcement = copy[this.language].offline;
     } finally {
       this.loading = false;
       this.render();
+      if (this.opened) this.focusComposer();
     }
   }
 
   private async sync(renderAfter = true) {
-    if (!this.sessionToken) return;
-    const result = await this.request<{ status: "synced"; response: SyncResponse }>("/public/flowbot/sync", {
-      method: "POST",
-      headers: { "x-djay-flowbot-session": this.sessionToken },
-      body: JSON.stringify({ afterSequence: this.lastMessageSequence }),
-    });
-    const additions = [...result.response.messages]
-      .filter((entry) => entry.sequence > this.lastMessageSequence)
-      .sort((left, right) => left.sequence - right.sequence);
-    this.messages.push(...additions.map((entry) => entry.message));
-    this.lastMessageSequence = Math.max(this.lastMessageSequence, result.response.lastMessageSequence);
-    this.status = result.response.status;
-    if (renderAfter) this.render();
+    if (!this.sessionToken || this.syncing) return;
+    this.syncing = true;
+    try {
+      const result = await this.request<{ status: "synced"; response: SyncResponse }>("/public/flowbot/sync", {
+        method: "POST",
+        headers: { "x-djay-flowbot-session": this.sessionToken },
+        body: JSON.stringify({ afterSequence: this.lastMessageSequence }),
+      });
+      const previousStatus = this.status;
+      const additions = [...result.response.messages]
+        .filter((entry) => entry.sequence > this.lastMessageSequence)
+        .sort((left, right) => left.sequence - right.sequence);
+      this.messages.push(...additions.map((entry) => entry.message));
+      this.lastMessageSequence = Math.max(this.lastMessageSequence, result.response.lastMessageSequence);
+      this.status = result.response.status;
+      const wasOffline = this.offline;
+      this.offline = false;
+      const latest = additions.at(-1)?.message;
+      if (latest) this.announcement = String(latest.content.text ?? latest.content.label ?? "");
+      else if (previousStatus !== this.status) {
+        this.announcement = this.status === "waiting" ? copy[this.language].waiting
+          : this.status === "handover" ? copy[this.language].handover
+            : this.status === "completed" ? copy[this.language].completed : "";
+      }
+      if (renderAfter && (additions.length > 0 || previousStatus !== this.status || wasOffline)) this.render();
+    } finally {
+      this.syncing = false;
+    }
   }
 
   private startPolling() {
@@ -163,14 +196,14 @@ class FlowbotWidget {
         this.pollTimer = null;
         return;
       }
-      if (this.opened && this.sessionToken && !this.loading) {
-        void this.sync().then(() => { this.offline = false; }).catch(() => { this.offline = true; this.render(); });
+      if (document.visibilityState !== "hidden" && this.opened && this.sessionToken && !this.loading && !this.hasEditableFocus()) {
+        void this.sync().then(() => { this.offline = false; }).catch(() => { this.offline = true; this.announcement = copy[this.language].offline; this.render(); });
       }
     }, 5_000);
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const response = await fetch(`${this.apiBaseUrl}${path}`, {
+    const response = await widgetFetch(`${this.apiBaseUrl}${path}`, {
       ...init,
       headers: {
         "content-type": "application/json",
@@ -182,8 +215,29 @@ class FlowbotWidget {
     return response.json() as Promise<T>;
   }
 
+  private hasEditableFocus() {
+    return this.shadow.activeElement instanceof HTMLInputElement || this.shadow.activeElement instanceof HTMLTextAreaElement;
+  }
+
+  private focusComposer() {
+    queueMicrotask(() => {
+      const input = this.shadow.querySelector<HTMLInputElement>(".composer input:not(:disabled)");
+      input?.focus();
+    });
+  }
+
+  private setOpened(opened: boolean) {
+    this.opened = opened;
+    this.render();
+    if (opened) this.focusComposer();
+    else queueMicrotask(() => this.shadow.querySelector<HTMLButtonElement>(".launcher")?.focus());
+  }
+
   private render() {
     const text = copy[this.language];
+    const previousInput = this.shadow.querySelector<HTMLInputElement>(".composer input");
+    const draft = previousInput?.value ?? "";
+    const restoreInputFocus = this.shadow.activeElement === previousInput;
     this.shadow.replaceChildren();
     const style = document.createElement("style");
     style.textContent = styles;
@@ -191,26 +245,44 @@ class FlowbotWidget {
     const shell = element("div", "shell");
     if (this.opened) {
       const panel = element("section", "panel");
+      panel.id = this.panelId;
+      panel.setAttribute("role", "dialog");
+      panel.setAttribute("aria-modal", "false");
       panel.setAttribute("aria-label", this.config?.name ?? "DJAY Bot");
+      panel.addEventListener("keydown", (event) => { if (event.key === "Escape") this.setOpened(false); });
       const header = element("header", "header");
-      const title = element("strong", "title", this.config?.name ?? "DJAY Bot");
+      const identity = element("div", "identity");
+      const identityCopy = element("div", "identity-copy");
+      identityCopy.append(element("strong", "title", this.config?.name ?? "DJAY Bot"), element("span", "product-label", text.product));
+      identity.append(element("span", "mark", "DJ"), identityCopy);
       const close = button("×", text.close, "icon");
-      close.addEventListener("click", () => { this.opened = false; this.render(); });
-      header.append(title, close);
+      close.addEventListener("click", () => this.setOpened(false));
+      header.append(identity, close);
       const stream = element("div", "stream");
-      stream.setAttribute("aria-live", "polite");
+      stream.setAttribute("aria-busy", String(this.loading));
       for (const message of this.messages) stream.append(this.renderMessage(message));
       if (this.loading) stream.append(element("div", "notice", text.loading));
       if (this.offline) {
         const notice = element("div", "notice error", text.offline);
         const retry = button(text.retry, text.retry, "small");
-        retry.addEventListener("click", () => void (this.sessionToken ? this.send({ type: "action", payload: { action: "restart" } }) : this.bootstrap()));
+        retry.addEventListener("click", () => void this.bootstrap());
+        notice.setAttribute("role", "alert");
         notice.append(retry); stream.append(notice);
       }
+      if (this.status === "waiting") stream.append(element("div", "notice", text.waiting));
       if (this.status === "handover") stream.append(element("div", "notice", text.handover));
+      if (this.status === "completed") {
+        const notice = element("div", "notice", text.completed);
+        const restart = button(text.restart, text.restart, "small");
+        restart.addEventListener("click", () => void this.send({ type: "action", payload: { action: "restart" } }));
+        notice.append(restart); stream.append(notice);
+      }
+      if (this.announcement && !this.offline) { const live = element("div", "sr-only", this.announcement); live.setAttribute("aria-live", "polite"); live.setAttribute("aria-atomic", "true"); stream.append(live); }
       const composer = element("form", "composer") as HTMLFormElement;
       const input = document.createElement("input");
       input.name = "message"; input.placeholder = text.placeholder; input.maxLength = 4000;
+      input.value = draft;
+      input.autocomplete = "off";
       input.setAttribute("aria-label", text.placeholder);
       input.disabled = this.loading || this.status === "waiting" || this.status === "handover" || this.status === "completed";
       const send = button(text.send, text.send, "send"); send.type = "submit"; send.disabled = input.disabled;
@@ -223,14 +295,20 @@ class FlowbotWidget {
       if (!this.config?.brandingRemoved) panel.append(element("div", "brand", text.powered));
       shell.append(panel);
     }
-    const launcher = button(this.opened ? "×" : "D", this.opened ? text.close : text.open, "launcher");
+    const launcher = button(this.opened ? "×" : "DJ", this.opened ? text.close : text.open, "launcher");
+    launcher.setAttribute("aria-expanded", String(this.opened));
+    launcher.setAttribute("aria-controls", this.panelId);
     launcher.addEventListener("click", () => {
-      this.opened = !this.opened; this.render();
+      this.setOpened(!this.opened);
       if (this.opened && !this.sessionToken) void this.startSession();
     });
     shell.append(launcher);
     this.shadow.append(shell);
     queueMicrotask(() => this.shadow.querySelector(".stream")?.scrollTo({ top: 99_999 }));
+    if (restoreInputFocus) queueMicrotask(() => {
+      const input = this.shadow.querySelector<HTMLInputElement>(".composer input:not(:disabled)");
+      input?.focus(); input?.setSelectionRange(input.value.length, input.value.length);
+    });
   }
 
   private renderMessage(message: RuntimeMessage) {
@@ -291,28 +369,20 @@ function safeStorage() {
 }
 
 const styles = `
-  :host { all: initial; color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
-  * { box-sizing: border-box; letter-spacing: 0; }
-  button, input, textarea { font: inherit; }
-  .shell { position: fixed; z-index: 2147483000; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); display: grid; justify-items: end; gap: 10px; }
-  .launcher { width: 52px; height: 52px; border: 0; border-radius: 50%; background: #126149; color: #fff; font-size: 20px; font-weight: 900; box-shadow: 0 7px 24px #1a2c2738; cursor: pointer; }
-  .panel { width: min(380px, calc(100vw - 24px)); height: min(610px, calc(100vh - 92px)); min-height: 360px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; overflow: hidden; border: 1px solid #cfd8d4; border-radius: 8px; background: #fff; color: #1b211f; box-shadow: 0 18px 50px #1a2c2740; }
-  .header { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #dfe5e2; background: #163f35; color: #fff; }
-  .title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
-  .icon { width: 36px; height: 36px; border: 0; background: transparent; color: inherit; font-size: 24px; cursor: pointer; }
-  .stream { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px; background: #f7f9f8; }
-  .message { max-width: 92%; align-self: flex-start; display: grid; gap: 8px; padding: 10px 12px; border: 1px solid #d7dfdc; border-radius: 7px; background: #fff; }
-  .message p { margin: 0; overflow-wrap: anywhere; color: #202724; font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
-  .choice, .submit, .small { width: 100%; min-height: 38px; padding: 7px 10px; border: 1px solid #8fb8aa; border-radius: 5px; background: #eef7f3; color: #104b3a; font-weight: 700; cursor: pointer; }
-  .notice { display: grid; gap: 8px; padding: 10px; border-left: 3px solid #568f7c; background: #e9f4f0; color: #34554a; font-size: 13px; }
-  .notice.error { border-color: #b34a42; background: #fff1f0; color: #7b302b; }
+  ${djayWidgetBaseStyles}
+  .panel { height: min(640px, calc(100vh - 108px)); height: min(640px, calc(100dvh - 108px)); min-height: 360px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; }
+  .stream { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px; background: var(--djay-widget-canvas); }
+  .message { max-width: 92%; align-self: flex-start; display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--djay-widget-border); border-radius: 12px; background: var(--djay-widget-surface); }
+  .message p { margin: 0; overflow-wrap: anywhere; color: var(--djay-widget-ink); font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
+  .choice, .submit, .small { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--djay-widget-green); border-radius: 6px; background: var(--djay-widget-green-soft); color: var(--djay-widget-green-hover); font-weight: 800; cursor: pointer; }
+  .notice { display: grid; gap: 8px; padding: 10px 12px; border-left: 3px solid var(--djay-widget-green); border-radius: 0 6px 6px 0; background: var(--djay-widget-green-soft); color: var(--djay-widget-green-hover); font-size: 13px; line-height: 1.45; }
+  .notice.error { border-color: var(--djay-widget-danger); background: var(--djay-widget-danger-soft); color: #812e29; }
   .flow-form { display: grid; gap: 10px; }
-  .flow-form label { display: grid; gap: 5px; color: #49534f; font-size: 12px; font-weight: 700; }
-  .flow-form input, .flow-form textarea { width: 100%; min-height: 40px; padding: 8px 9px; border: 1px solid #aebbb6; border-radius: 5px; background: #fff; color: #1b211f; }
-  .composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 10px; border-top: 1px solid #dfe5e2; background: #fff; }
-  .composer input { min-width: 0; height: 42px; padding: 0 10px; border: 1px solid #aebbb6; border-radius: 5px; color: #1b211f; }
-  .send { min-width: 64px; height: 42px; padding: 0 12px; border: 0; border-radius: 5px; background: #126149; color: #fff; font-weight: 800; cursor: pointer; }
-  button:disabled, input:disabled { cursor: not-allowed; opacity: .6; }
-  .brand { min-height: 27px; display: grid; place-items: center; border-top: 1px solid #edf0ef; color: #6b7571; font-size: 10px; }
-  @media (max-width: 480px) { .shell { right: 8px; bottom: 8px; } .panel { width: calc(100vw - 16px); height: calc(100vh - 76px); } }
+  .flow-form label { display: grid; gap: 5px; color: var(--djay-widget-muted); font-size: 12px; font-weight: 800; }
+  .flow-form input, .flow-form textarea { width: 100%; min-height: 44px; padding: 8px 9px; border: 1px solid #aebbb6; border-radius: 6px; background: var(--djay-widget-surface); color: var(--djay-widget-ink); }
+  .composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 10px; border-top: 1px solid var(--djay-widget-border); background: var(--djay-widget-surface); }
+  .composer input { min-width: 0; height: 46px; padding: 0 11px; border: 1px solid #aebbb6; border-radius: 6px; color: var(--djay-widget-ink); }
+  .send { min-width: 68px; height: 46px; padding: 0 14px; border: 0; border-radius: 6px; background: var(--djay-widget-green); color: #fff; font-weight: 800; cursor: pointer; }
+  .send:hover { background: var(--djay-widget-green-hover); }
+  @media (max-width: 520px) { .panel { height: calc(100vh - 82px - env(safe-area-inset-bottom)); height: calc(100dvh - 82px - env(safe-area-inset-bottom)); } }
 `;

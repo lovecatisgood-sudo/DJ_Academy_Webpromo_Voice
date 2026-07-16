@@ -3,6 +3,7 @@ import {
   type VoiceServerMessage,
   type VoiceSessionGrant,
 } from "@djay/voice-runtime";
+import { djayWidgetBaseStyles, normalizeWidgetApiOrigin, widgetFetch } from "@djay/shared/widget-ui";
 import { parseVoiceServerMessage, parseVoiceSessionGrant } from "./protocol";
 
 const voiceProtocolVersion = "djay.voice.v1" as const;
@@ -39,7 +40,7 @@ const copy = {
     keep: "Keep talking", confirm: "End the active voice conversation?",
     permissionDenied: "Microphone permission was not granted.",
     unsupported: "Voice recording is not supported by this browser.",
-    unavailable: "Voice is temporarily unavailable. Please try again.", retry: "Try again",
+    unavailable: "Voice is temporarily unavailable. Please try again.", retry: "Try again", connectionIssue: "Connection interrupted. Reconnecting safely…",
     disclosure: "Automated assistant disclosure", secure: "Your microphone starts only after you press Start. Recording is off.",
     powered: "Powered by DJAY Bot", customer: "You", agent: "Assistant",
   },
@@ -54,13 +55,44 @@ const copy = {
     keep: "สนทนาต่อ", confirm: "ต้องการจบการสนทนาด้วยเสียงที่กำลังดำเนินอยู่หรือไม่?",
     permissionDenied: "ไม่ได้รับอนุญาตให้ใช้ไมโครโฟน",
     unsupported: "เบราว์เซอร์นี้ไม่รองรับการสนทนาด้วยเสียง",
-    unavailable: "ระบบเสียงไม่พร้อมใช้งานชั่วคราว โปรดลองอีกครั้ง", retry: "ลองอีกครั้ง",
+    unavailable: "ระบบเสียงไม่พร้อมใช้งานชั่วคราว โปรดลองอีกครั้ง", retry: "ลองอีกครั้ง", connectionIssue: "การเชื่อมต่อขัดข้อง กำลังเชื่อมต่อใหม่อย่างปลอดภัย…",
     disclosure: "คำชี้แจงผู้ช่วยอัตโนมัติ", secure: "ไมโครโฟนจะเริ่มทำงานหลังจากคุณกดเริ่มเท่านั้น และไม่มีการบันทึกเสียง",
     powered: "ขับเคลื่อนโดย DJAY Bot", customer: "คุณ", agent: "ผู้ช่วย",
   },
 } as const;
 
-export function normalizeVoiceApiBaseUrl(value: string) { return value.replace(/\/+$/, ""); }
+const voiceWidgetOverrides = `
+.panel { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.content { padding: 24px; overflow: auto; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 13px; background: var(--djay-widget-surface); }
+.content h2 { margin: 0; color: var(--djay-widget-ink); font-size: 21px; line-height: 1.25; }
+.intro, .microcopy, .timer { margin: 0; color: var(--djay-widget-muted); font-size: 13px; line-height: 1.5; }
+.orb { width: 92px; height: 92px; border-radius: 50%; background: radial-gradient(circle at 36% 30%, #fff4bf, var(--djay-widget-accent) 45%, var(--djay-widget-green) 100%); box-shadow: 0 0 0 10px var(--djay-widget-green-soft), 0 18px 35px #12614933; }
+.orb.listening { animation: pulse 2.1s ease-in-out infinite; }
+.orb.speaking { animation: pulse 1.05s ease-in-out infinite; }
+.orb.requesting_permission, .orb.connecting, .orb.reconnecting, .orb.ending { filter: saturate(.65); }
+.error-orb { background: var(--djay-widget-danger); box-shadow: 0 0 0 10px var(--djay-widget-danger-soft); }
+.ended-orb { background: #789088; box-shadow: 0 0 0 10px #edf1ef; }
+.disclosure { width: 100%; padding: 12px 14px; border: 1px solid var(--djay-widget-border); border-radius: 12px; background: var(--djay-widget-green-soft); text-align: left; }
+.disclosure strong { display: block; color: var(--djay-widget-green-hover); font-size: 12px; }
+.disclosure p { margin: 4px 0 0; color: var(--djay-widget-muted); font-size: 12px; line-height: 1.45; }
+.disclosure.compact { padding: 9px 11px; }
+.primary, .secondary, .danger { min-height: 46px; border-radius: 6px; padding: 10px 16px; font-weight: 800; cursor: pointer; }
+.primary { width: 100%; border: 0; background: var(--djay-widget-green); color: #fff; }
+.primary:hover { background: var(--djay-widget-green-hover); }
+.secondary { border: 1px solid var(--djay-widget-green); background: var(--djay-widget-surface); color: var(--djay-widget-green-hover); }
+.danger { border: 1px solid #d9a198; background: var(--djay-widget-danger-soft); color: #812e29; }
+.controls, .actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.confirm { width: 100%; display: flex; flex-direction: column; gap: 17px; padding: 18px; border-radius: 12px; background: var(--djay-widget-warning-soft); }
+.transcript { width: 100%; max-height: 160px; overflow: auto; text-align: left; display: flex; flex-direction: column; gap: 7px; }
+.transcript p { margin: 0; padding: 9px 11px; border-radius: 10px; font-size: 12px; line-height: 1.45; }
+.transcript .agent { background: var(--djay-widget-green-soft); }
+.transcript .customer { background: var(--djay-widget-warning-soft); }
+.brand { padding: 0; }
+@keyframes pulse { 50% { transform: scale(1.045); box-shadow: 0 0 0 15px var(--djay-widget-green-soft), 0 18px 35px #12614944; } }
+@media (forced-colors: active) { .orb { border: 2px solid ButtonText; } }
+`;
+
+export function normalizeVoiceApiBaseUrl(value: string) { return normalizeWidgetApiOrigin(value); }
 
 export function selectVoiceInputAudioEncoding(audioContextAvailable: boolean): InputAudioSelection | null {
   return audioContextAvailable ? pcmInputAudio : null;
@@ -82,6 +114,8 @@ export function resampleVoiceInputToPcm16(samples: Float32Array, sourceSampleRat
 }
 
 export function mountVoiceWidget(options: VoiceWidgetOptions) { return new VoiceWidget(options).mount(); }
+
+let voiceWidgetSequence = 0;
 
 class VoiceWidget {
   private readonly host = document.createElement("div");
@@ -110,6 +144,7 @@ class VoiceWidget {
   private errorCode: "permission" | "unsupported" | "unavailable" | null = null;
   private statusDetail = "";
   private transcript: TranscriptLine[] = [];
+  private readonly panelId = `djay-voice-panel-${++voiceWidgetSequence}`;
 
   constructor(private readonly options: VoiceWidgetOptions) {
     this.apiBaseUrl = normalizeVoiceApiBaseUrl(options.apiBaseUrl);
@@ -149,7 +184,7 @@ class VoiceWidget {
     }
     this.callState = "connecting"; this.render();
     try {
-      const response = await fetch(`${this.apiBaseUrl}/public/voice/session`, {
+      const response = await widgetFetch(`${this.apiBaseUrl}/public/voice/session`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-djay-voice-key": this.options.deploymentKey },
         body: JSON.stringify({ locale: this.language }),
@@ -208,7 +243,7 @@ class VoiceWidget {
       case "action.status": break;
       case "session.ended": this.complete(); break;
       case "error":
-        this.statusDetail = message.code;
+        this.statusDetail = copy[this.language].connectionIssue;
         if (!message.retryable) this.fail("unavailable");
         break;
     }
@@ -246,7 +281,7 @@ class VoiceWidget {
       const startAt = Math.max(this.playbackCursor, this.outputAudioContext.currentTime + 0.015);
       this.playbackCursor = startAt + buffer.duration; this.playbackSources.add(source);
       source.onended = () => this.playbackSources.delete(source); source.start(startAt);
-    } catch { this.statusDetail = "media_unavailable"; this.render(); }
+    } catch { this.statusDetail = copy[this.language].connectionIssue; this.render(); }
   }
 
   private stopPlayback() {
@@ -256,9 +291,21 @@ class VoiceWidget {
 
   private appendTranscript(speaker: "customer" | "agent", delta: string) {
     const last = this.transcript.at(-1);
-    if (last?.speaker === speaker) last.text += delta;
+    const continued = last?.speaker === speaker;
+    if (last && continued) last.text += delta;
     else this.transcript.push({ speaker, text: delta });
-    this.transcript = this.transcript.slice(-20); this.render();
+    this.transcript = this.transcript.slice(-20);
+    const transcript = this.shadow.querySelector<HTMLElement>(".transcript");
+    if (!transcript) { this.render(); return; }
+    const line = this.transcript.at(-1);
+    if (!line) return;
+    const text = copy[this.language];
+    const item = continued ? transcript.lastElementChild as HTMLElement | null : element("p", line.speaker);
+    if (!item) { this.render(); return; }
+    item.replaceChildren(element("strong", "", line.speaker === "customer" ? text.customer : text.agent), document.createTextNode(` ${line.text}`));
+    if (!continued) transcript.append(item);
+    while (transcript.childElementCount > 20) transcript.firstElementChild?.remove();
+    transcript.scrollTo({ top: transcript.scrollHeight });
   }
 
   private canReconnect() {
@@ -315,32 +362,53 @@ class VoiceWidget {
     this.muted = !this.muted;
     for (const track of this.stream?.getAudioTracks() ?? []) track.enabled = !this.muted;
     this.render();
+    queueMicrotask(() => this.shadow.querySelector<HTMLButtonElement>(".controls .secondary")?.focus());
+  }
+
+  private focusPrimaryAction() {
+    queueMicrotask(() => this.shadow.querySelector<HTMLButtonElement>(".content button:not(:disabled)")?.focus());
+  }
+
+  private setOpened(opened: boolean) {
+    this.opened = opened; this.render();
+    if (opened) this.focusPrimaryAction();
+    else queueMicrotask(() => this.shadow.querySelector<HTMLButtonElement>(".launcher")?.focus());
+  }
+
+  private requestClose() {
+    if (this.active()) { this.confirmEnd = true; this.render(); this.focusPrimaryAction(); }
+    else this.setOpened(false);
   }
 
   private startCallTimer() {
     if (this.callTimer !== null) return;
     this.callTimer = window.setInterval(() => {
-      if (this.callStartedAt) { this.elapsedSeconds = Math.floor((Date.now() - this.callStartedAt) / 1000); this.render(); }
+      if (this.callStartedAt) {
+        this.elapsedSeconds = Math.floor((Date.now() - this.callStartedAt) / 1000);
+        const timer = this.shadow.querySelector<HTMLElement>(".timer");
+        if (timer) timer.textContent = `${formatDuration(this.elapsedSeconds)}${this.statusDetail ? ` · ${this.statusDetail}` : ""}`;
+      }
     }, 1_000);
   }
 
   private render() {
     const text = copy[this.language];
+    const focusedAction = this.shadow.activeElement instanceof HTMLButtonElement
+      ? this.shadow.activeElement.getAttribute("aria-label") : null;
     this.shadow.replaceChildren();
-    const style = document.createElement("style"); style.textContent = styles; this.shadow.append(style);
+    const style = document.createElement("style"); style.textContent = `${djayWidgetBaseStyles}\n${voiceWidgetOverrides}`; this.shadow.append(style);
     const shell = element("div", "shell");
     if (this.opened) {
-      const panel = element("section", "panel"); panel.setAttribute("aria-label", text.title);
+      const panel = element("section", "panel"); panel.id = this.panelId; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-modal", "false"); panel.setAttribute("aria-label", text.title);
+      panel.addEventListener("keydown", (event) => { if (event.key === "Escape") this.requestClose(); });
       const header = element("header", "header");
       const identity = element("div", "identity"); identity.append(element("span", "mark", "DJ"), element("div", "identity-copy"));
-      identity.lastElementChild?.append(element("strong", "title", text.title), element("span", "generation", this.grant?.publicLabel ?? "First-Generation Voice Engine"));
-      const close = button("×", text.close, "icon"); close.addEventListener("click", () => {
-        if (this.active()) { this.confirmEnd = true; this.render(); } else { this.opened = false; this.render(); }
-      });
+      identity.lastElementChild?.append(element("strong", "title", text.title), element("span", "product-label", this.grant?.publicLabel ?? "First-Generation Voice Engine"));
+      const close = button("×", text.close, "icon"); close.addEventListener("click", () => this.requestClose());
       header.append(identity, close);
-      const content = element("div", "content");
+      const content = element("div", "content"); content.setAttribute("aria-busy", String(["requesting_permission", "connecting", "reconnecting", "ending"].includes(this.callState)));
       if (this.confirmEnd) {
-        const confirm = element("div", "confirm"); confirm.append(element("strong", "", text.confirm));
+        const confirm = element("div", "confirm"); confirm.setAttribute("role", "alertdialog"); confirm.setAttribute("aria-label", text.confirm); confirm.append(element("strong", "", text.confirm));
         const actions = element("div", "actions");
         const keep = button(text.keep, text.keep, "secondary"); keep.addEventListener("click", () => { this.confirmEnd = false; this.render(); });
         const end = button(text.end, text.end, "danger"); end.addEventListener("click", () => this.endCall());
@@ -351,7 +419,8 @@ class VoiceWidget {
         content.append(disclosure);
         const start = button(text.start, text.start, "primary"); start.addEventListener("click", () => void this.startCall()); content.append(start, element("p", "microcopy", text.permission));
       } else if (this.callState === "error") {
-        content.append(element("div", "orb error-orb"), element("h2", "", this.errorCode === "permission" ? text.permissionDenied : this.errorCode === "unsupported" ? text.unsupported : text.unavailable));
+        const error = element("h2", "", this.errorCode === "permission" ? text.permissionDenied : this.errorCode === "unsupported" ? text.unsupported : text.unavailable); error.setAttribute("role", "alert");
+        content.append(element("div", "orb error-orb"), error);
         const retry = button(text.retry, text.retry, "primary"); retry.addEventListener("click", () => void this.startCall()); content.append(retry);
       } else if (this.callState === "ended") {
         content.append(element("div", "orb ended-orb"), element("h2", "", text.ended));
@@ -364,7 +433,7 @@ class VoiceWidget {
         const timer = element("p", "timer", formatDuration(this.elapsedSeconds)); if (this.statusDetail) timer.append(` · ${this.statusDetail}`); content.append(timer);
         if (this.grant) { const disclosure = element("div", "disclosure compact"); disclosure.append(element("strong", "", text.disclosure), element("p", "", this.grant.automatedAgentDisclosure.text)); content.append(disclosure); }
         if (this.transcript.length) {
-          const transcript = element("div", "transcript"); transcript.setAttribute("aria-live", "polite");
+          const transcript = element("div", "transcript"); transcript.setAttribute("aria-live", "polite"); transcript.setAttribute("aria-atomic", "false"); transcript.setAttribute("aria-relevant", "additions text");
           for (const line of this.transcript) { const item = element("p", line.speaker); item.append(element("strong", "", line.speaker === "customer" ? text.customer : text.agent), document.createTextNode(` ${line.text}`)); transcript.append(item); }
           content.append(transcript);
         }
@@ -377,12 +446,17 @@ class VoiceWidget {
       }
       panel.append(header, content, element("div", "brand", text.powered)); shell.append(panel);
     }
-    const launcher = button(this.opened ? "×" : "DJ", this.opened ? text.close : text.open, "launcher");
+    const launcher = button(this.opened ? "×" : "DJ", this.opened ? text.close : text.open, "launcher"); launcher.setAttribute("aria-expanded", String(this.opened)); launcher.setAttribute("aria-controls", this.panelId);
     launcher.addEventListener("click", () => {
-      if (this.opened && this.active()) { this.confirmEnd = true; this.render(); return; }
-      this.opened = !this.opened; this.render();
+      if (this.opened) { this.requestClose(); return; }
+      this.setOpened(true);
     });
     shell.append(launcher); this.shadow.append(shell);
+    if (focusedAction) queueMicrotask(() => {
+      const target = [...this.shadow.querySelectorAll<HTMLButtonElement>("button")]
+        .find((button) => button.getAttribute("aria-label") === focusedAction && !button.disabled);
+      target?.focus();
+    });
   }
 }
 
@@ -474,7 +548,3 @@ function base64ToBytes(value: string) {
   const binary = atob(value); const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index); return bytes;
 }
-
-const styles = `
-:host{all:initial;position:fixed;right:20px;bottom:20px;z-index:2147483000;font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#19231f}.shell{display:flex;align-items:flex-end;flex-direction:column;gap:12px}.launcher{width:60px;height:60px;border:0;border-radius:50%;background:#163c32;color:#fff;font-size:16px;font-weight:850;letter-spacing:-.02em;box-shadow:0 14px 38px #10231d45;cursor:pointer}.panel{width:min(390px,calc(100vw - 32px));max-height:min(680px,calc(100dvh - 108px));display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:#fffdf8;border:1px solid #dfe8e2;border-radius:24px;overflow:hidden;box-shadow:0 24px 75px #10231d38}.header{display:flex;align-items:center;justify-content:space-between;padding:15px 17px;background:#163c32;color:#fff}.identity{display:flex;align-items:center;gap:10px}.mark{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:#ca7b32;color:#fff;font-weight:850}.identity-copy{display:flex;flex-direction:column;gap:2px}.title{font-size:15px}.generation{font-size:10px;color:#d8e6df}.icon{border:0;background:transparent;color:#fff;font-size:25px;cursor:pointer;padding:4px 7px}.content{padding:24px;overflow:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:13px}.content h2{margin:0;font-size:21px;line-height:1.25}.intro,.microcopy,.timer{margin:0;color:#5e6964;font-size:13px;line-height:1.5}.orb{width:92px;height:92px;border-radius:50%;background:radial-gradient(circle at 36% 30%,#f1c48d,#ca7b32 45%,#163c32 100%);box-shadow:0 0 0 10px #eaf1ed,0 18px 35px #163c3233}.orb.listening{animation:pulse 2.1s ease-in-out infinite}.orb.speaking{animation:pulse 1.05s ease-in-out infinite}.orb.requesting_permission,.orb.connecting,.orb.reconnecting,.orb.ending{filter:saturate(.65)}.error-orb{background:#ad4f42;box-shadow:0 0 0 10px #fae9e5}.ended-orb{background:#789088;box-shadow:0 0 0 10px #edf1ef}.disclosure{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:14px;background:#edf3ef;text-align:left;border:1px solid #d9e5de}.disclosure strong{display:block;font-size:12px;color:#345047}.disclosure p{margin:4px 0 0;color:#5e6964;font-size:12px;line-height:1.45}.disclosure.compact{padding:9px 11px}.primary,.secondary,.danger{min-height:44px;border-radius:12px;padding:10px 16px;font:inherit;font-weight:750;cursor:pointer}.primary{width:100%;border:0;background:#ca7b32;color:#fff}.secondary{border:1px solid #cbd9d2;background:#fff;color:#26483e}.danger{border:1px solid #d9a198;background:#fff4f1;color:#8a3428}.controls,.actions{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:9px}.confirm{width:100%;display:flex;flex-direction:column;gap:17px;padding:18px;box-sizing:border-box;border-radius:16px;background:#f7f2e9}.transcript{width:100%;max-height:160px;overflow:auto;text-align:left;display:flex;flex-direction:column;gap:7px}.transcript p{margin:0;padding:9px 11px;border-radius:12px;font-size:12px;line-height:1.45}.transcript .agent{background:#edf3ef}.transcript .customer{background:#faead8}.brand{text-align:center;padding:0 12px 11px;color:#78817d;font-size:10px}@keyframes pulse{50%{transform:scale(1.045);box-shadow:0 0 0 15px #eaf1ed,0 18px 35px #163c3244}}@media(max-width:520px){:host{right:12px;bottom:12px}.panel{width:calc(100vw - 24px);max-height:calc(100dvh - 90px)}}@media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important}}@media(forced-colors:active){.launcher,.primary,.mark{border:1px solid ButtonText}.orb{border:2px solid ButtonText}}
-`;

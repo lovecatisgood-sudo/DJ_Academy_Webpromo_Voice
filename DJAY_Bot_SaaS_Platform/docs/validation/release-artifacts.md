@@ -1,6 +1,6 @@
 # Production release artifact validation
 
-- Result: six-service packaging and isolated runtime smoke gate passed
+- Result: seven-artifact packaging and isolated runtime/static smoke gate passed
 - Date: 2026-07-16
 - Runtime contract: Node 24
 - Deployment state: local artifact accepted; target-environment rollout pending
@@ -22,13 +22,23 @@ document, and fetched every referenced static asset. Accepted static evidence
 was:
 
 - API: 130 files,
-  `8bd28a02e23432f27bee08282ec2ade81119c7ed26c280beb9388d5e6f66e409`
+  `ee076f16979e3312b4642573c69508a36b62e36820b9bdcc4cc3879b677df91a`
 - Platform Master: 24 files,
-  `0ab0ae388e40b3adaeb6fba138fe43282276f9d50e2b5a5cf7961bcb1058cef9`
+  `cde94a5b2a839cb89be10002a0d0ab319eb74f0d0419f3e94c339b341bd99197`
 - Public site: 28 files,
-  `86ba286d6a6927fa88006d83de808a4190e9670de45274c6e475a5c816508fea`
+  `8777023704c3ed0f36608afb1b917c24c81a1759852617264d264702068233fa`
 - Tenant workspace: 41 files,
-  `a4a1392930223474e2f368410633fdcbf646826a355ca3021547685f1da34f23`
+  `b7210d00baf1e9dcddb178ff04631e2d3fccea193875e45d0af588d3cc79f818`
+
+The release audit found that all three Tenant install snippets referenced
+versioned CDN modules, but the release package did not archive those modules.
+The packager now produces `apps/widget-cdn/dist` with exactly three minified
+browser bundles. The accepted tree digest is
+`2f48f44654ec19bb44ffe0ba9599675695b44a0adca786c0a8ad63cc76621eac`.
+Its manifest records each public path and SHA-384 integrity value, plus the
+bounded cache, cross-origin module, resource-policy, and nosniff contracts.
+Artifact QA copies the static root outside the workspace and rejects a missing,
+unbranded, inaccessible, non-integrity-recorded, or restricted-identity bundle.
 
 The previous standalone manifests contained a build-time
 `http://127.0.0.1:3103` rewrite. A separately deployed web service could not

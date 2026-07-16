@@ -17,6 +17,7 @@ const grant = {
 describe("Voice web widget", () => {
   it("normalizes API URLs and chooses the provider-neutral PCM input contract", () => {
     expect(normalizeVoiceApiBaseUrl("https://api.example///")).toBe("https://api.example");
+    expect(() => normalizeVoiceApiBaseUrl("https://api.example/public")).toThrow("widget_api_origin_invalid");
     expect(selectVoiceInputAudioEncoding(true)).toEqual({ encoding: "pcm_s16le_16000", sampleRate: 16_000 });
     expect(selectVoiceInputAudioEncoding(false)).toBeNull();
   });

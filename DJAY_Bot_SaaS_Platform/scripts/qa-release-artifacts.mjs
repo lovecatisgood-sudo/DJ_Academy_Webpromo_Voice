@@ -62,7 +62,7 @@ function assertSecurityHeaders(response, app) {
 function manifest(directory) {
   const value = JSON.parse(readFileSync(resolve(directory, "release-manifest.json"), "utf8"));
   assert(value.schema === "djay.release-artifact.v1", `${value.app ?? directory} manifest schema`);
-  assert(value.runtime === "node24", `${value.app} runtime must be Node 24`);
+  assert(value.runtime === (value.app === "widget-cdn" ? "static" : "node24"), `${value.app} runtime contract`);
   assert(typeof value.readinessPath === "string" || value.readinessPath === null, `${value.app} readiness contract`);
   return value;
 }
@@ -216,6 +216,40 @@ await new Promise((done) => proxyUpstream.close(done));
 
 const isolationRoot = mkdtempSync(resolve(tmpdir(), "djay-release-artifact-"));
 process.once("exit", () => rmSync(isolationRoot, { recursive: true, force: true }));
+const widgetRoot = resolve(isolationRoot, "widget-cdn");
+cpSync(resolve(root, "apps", "widget-cdn", "dist"), widgetRoot, { recursive: true });
+const widgetManifest = manifest(widgetRoot);
+assert(JSON.stringify(evidence(widgetRoot)) === JSON.stringify(widgetManifest.publicAssets), "widget-cdn evidence mismatch");
+assert(widgetManifest.cacheControl === "public, max-age=300, must-revalidate", "widget-cdn cache contract");
+assert(widgetManifest.responseHeaders?.["Access-Control-Allow-Origin"] === "*", "widget-cdn cross-origin module contract");
+assert(widgetManifest.responseHeaders?.["Cross-Origin-Resource-Policy"] === "cross-origin", "widget-cdn resource policy");
+assert(widgetManifest.responseHeaders?.["X-Content-Type-Options"] === "nosniff", "widget-cdn nosniff policy");
+assert(Array.isArray(widgetManifest.assets) && widgetManifest.assets.length === 3, "widget-cdn product asset manifest");
+const widgetRestricted = /\b(openai|anthropic|claude|gemini|gpt-[0-9]|provider[_ -]?(?:key|name|id)|model[_ -]?id|database_url|authorization_service_token)\b/i;
+const widgetSources = {
+  flowbot: "packages/flowbot-widget/dist/index.js",
+  "ai-chat": "packages/ai-chat-widget/dist/index.js",
+  voice: "packages/voice-widget/dist/index.js",
+};
+for (const asset of widgetManifest.assets) {
+  assert(["flowbot", "ai-chat", "voice"].includes(asset.product), `unknown widget product ${asset.product}`);
+  assert(asset.publicPath === `/${asset.product}/v1/index.js`, `${asset.product} public path contract`);
+  assert(asset.contentType === "text/javascript; charset=utf-8", `${asset.product} content type contract`);
+  assert(/^sha384-[A-Za-z0-9+/]{64}$/.test(asset.integrity), `${asset.product} integrity contract`);
+  const bundlePath = resolve(widgetRoot, asset.publicPath.slice(1));
+  const bundleBytes = readFileSync(bundlePath);
+  const bundle = bundleBytes.toString("utf8");
+  const integrity = `sha384-${createHash("sha384").update(bundleBytes).digest("base64")}`;
+  assert(asset.integrity === integrity, `${asset.product} integrity mismatch`);
+  assert(bundleBytes.equals(readFileSync(resolve(root, widgetSources[asset.product]))), `${asset.product} artifact differs from built bundle`);
+  assert(bundle.length > 5_000, `${asset.product} bundle is unexpectedly empty`);
+  assert(bundle.includes("#126149") && bundle.includes("#f2c14e"), `${asset.product} bundle lost canonical DJAY tokens`);
+  assert(!bundle.includes("#163c32") && !bundle.includes("#ca7b32"), `${asset.product} bundle retained legacy widget colors`);
+  assert(bundle.includes("aria-expanded") && bundle.includes("dialog"), `${asset.product} bundle lost accessible shell semantics`);
+  assert(!widgetRestricted.test(bundle), `${asset.product} bundle exposed restricted runtime identity`);
+}
+console.info("Verified widget-cdn: three versioned, integrity-recorded, cross-origin-safe, branded browser bundles.");
+
 const voiceRoot = resolve(isolationRoot, "voice-gateway");
 cpSync(resolve(root, "apps", "voice-gateway", "dist"), voiceRoot, { recursive: true });
 const voiceManifest = manifest(voiceRoot);
@@ -256,4 +290,4 @@ assert(!/postgres(?:ql)?:\/\//i.test(workerOutput), "worker startup output discl
 console.info("Verified workers: bundles present and missing database authority fails closed.");
 
 rmSync(isolationRoot, { recursive: true, force: true });
-console.info("All six production release artifacts passed packaging and runtime smoke acceptance.");
+console.info("All seven production release artifacts passed packaging and runtime smoke acceptance.");

@@ -65,7 +65,7 @@ matrix in `dependency-outage.md`; synthetic UI fixtures do not qualify.
 
 ## Review the gate
 
-1. Build and pass the self-contained six-service artifact gate in
+1. Build and pass the self-contained seven-artifact gate in
    `release-artifacts.md`; record the immutable deployment artifact hashes.
 2. Open Platform Master and locate **Public release readiness**.
 3. Confirm environment and release version match the intended deployment.

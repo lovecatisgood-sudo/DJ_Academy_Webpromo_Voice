@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./widget-ui": "./src/widget-ui.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -20,4 +21,3 @@
     "vitest": "3.2.6"
   }
 }
-

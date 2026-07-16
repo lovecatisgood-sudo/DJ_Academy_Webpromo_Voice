@@ -1,6 +1,6 @@
 # DJAY Bot SaaS Platform State
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 ## Completed phases
 
@@ -13,10 +13,14 @@ Last updated: 2026-07-15
   action gateway, privacy export/erasure, and two-person support grants.
 - P4 engineering: FlowBot Basic/Premium deterministic authoring and runtime,
   widget deployments, Premium operations, migration tooling, and release QA.
+- P5-P8 local engineering: Web AI Chat, Premium social channels, Voice Basic,
+  and Voice Advanced with their restricted rollout controls and validation.
+- P9 local engineering: usage, reconciliation, restore, readiness, public
+  status, resilience, reviewed recovery, and dependency-outage contracts.
 
-## Active phase
+## Production rollout state
 
-P7 Voice Agent Basic is in progress. Its current foundation establishes a strict
+P7 Voice Agent Basic local engineering is complete. Its foundation establishes a strict
 provider-neutral opaque grant/message contract, deterministic disclosure,
 interruption, reconnect, and terminal minute intent lifecycle, plus a separately
 deployable gateway health/capacity and fail-closed authorization boundary.
@@ -171,13 +175,19 @@ scripts/use-node24.sh pnpm run qa:p4-flowbot
 scripts/use-node24.sh pnpm run qa:p5-ai-chat
 scripts/use-node24.sh pnpm run qa:p6-line
 scripts/use-node24.sh pnpm run qa:p7-voice
+scripts/use-node24.sh pnpm run qa:p9-resilience
+scripts/use-node24.sh pnpm run qa:p9-recovery
+scripts/use-node24.sh pnpm run qa:p9-dependency-outage
+scripts/use-node24.sh pnpm run package:release
+scripts/use-node24.sh pnpm run qa:release-artifacts
 ```
 
-All passed on 2026-07-15. The database gate now applies migrations `0000` through
-`0032` and includes the complete local LINE, WhatsApp, and Messenger inbound, Sales Core
+The full verification, widget browser matrix, and seven-artifact packaging gate
+passed on 2026-07-16. The database gate applies migrations `0000` through
+`0041` and includes the complete local LINE, WhatsApp, and Messenger inbound, Sales Core
 commit, outbound retry, partial-progress, service-window, quantity-ledger,
 delivery-status, opt-out, and quota-release journeys. Full verification passes
-across 30 packages/apps, and the API production build contains 93 route handlers,
+across 31 packages/apps, and the API source contains 110 route handlers,
 including the opaque WhatsApp and Messenger callbacks. Tenant channel analytics
 and restricted aggregate Platform Operations health reconcile the social
 journey. Production Chromium passes AI Chat Basic
@@ -189,4 +199,6 @@ immutable Voice playbook pins, idempotent Sales Core turns/actions, transcripts,
 usage, reconnect, settlement, recovery, callback outcomes, retention enforcement,
 privacy erasure, and human-to-Voice release. These results do not authorize Voice
 or social production activation, AI Chat self-service, or paid launch without
-the remaining engineering and external acceptance gates.
+the remaining external acceptance gates. FlowBot, AI Chat, and Voice customer
+widgets now pass one canonical brand/accessibility browser contract and ship
+together in a hashed seventh static release artifact.

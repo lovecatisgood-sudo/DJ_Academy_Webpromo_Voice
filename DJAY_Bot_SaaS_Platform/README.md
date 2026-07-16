@@ -21,7 +21,7 @@ Implementation proceeds through gated phases P0-P9. Product code may only be por
 
 ## Current phase
 
-P0 through P6 local engineering are complete. P7 Voice Basic local engineering
+P0 through P9 local engineering gates now pass. P7 Voice Basic local engineering
 is complete; its
 provider-neutral protocol/lifecycle and separately deployable gateway foundation
 plus restricted Gen1 grant, concurrency, database-derived settlement, crash
@@ -29,7 +29,7 @@ recovery, realtime media, Sales Core actions, durable call outcomes/callbacks,
 plan-capped transcript retention, tenant Studio/Inbox UI, and Platform operations
 controls are implemented. The restartable legacy Voice/Text migration and its
 PostgreSQL rehearsal are also complete; external live quality and merchant
-acceptance remain pending. P8 Voice Advanced is active: its Platform-only Gen2
+acceptance remain pending. P8 Voice Advanced local engineering is complete: its Platform-only Gen2
 qualification, reviewed canary/rollback, incident pause, independent credit
 review, role-aware operations UI, generation-pinned tenant deployments,
 restricted Gen2 session assignment, exact gateway routing, independently
@@ -42,7 +42,7 @@ real isolated tenant acceptances pass. AI Chat Basic also requires an approved
 live routing-profile evaluation and named merchant acceptance before production
 self-service. Social channels remain disabled pending the external acceptance
 worksheet and platform approvals. Paid plans remain disabled until the commercial and paid-GA gates
-are accepted and passed. P9 engineering is active: the tenant-isolated,
+are accepted and passed. P9 local engineering is complete: the tenant-isolated,
 role-aware Usage Center now reconciles customer units, reservations, allowance,
 and safety caps while making the pre-release billing state explicit. Restricted
 Platform Owner/Finance reconciliation and a separate-cluster PostgreSQL 16
@@ -69,7 +69,9 @@ at deployment instead of retaining a build-machine localhost rewrite. Missing
 or malformed production API authority fails closed, while the artifact gate
 proves request, response, streaming-header, and multi-cookie forwarding. Each
 web artifact's readiness endpoint also depends on API readiness, preventing a
-disconnected frontend from receiving traffic. Read-only roles no longer
+disconnected frontend from receiving traffic. FlowBot, AI Chat, and Voice now
+share the same accessible DJAY customer-widget shell and ship as one hashed
+static CDN artifact alongside the six runtime artifacts. Read-only roles no longer
 receive misleading mutation controls, and forbidden direct
 routes fail closed with a recovery path. Unexpected URLs and render failures in
 every web realm now use the same accessible branded recovery system with

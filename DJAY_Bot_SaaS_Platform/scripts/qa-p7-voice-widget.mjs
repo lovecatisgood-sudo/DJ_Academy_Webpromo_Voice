@@ -111,19 +111,27 @@ async function inspectHappyPath(viewport, label) {
   await host.getByText("Listening", { exact: true }).waitFor();
   await host.getByText("Hello, how can I help?", { exact: false }).waitFor();
   await page.screenshot({ path: `/tmp/djay-p7-voice-${label}-active.png`, fullPage: true });
-  await host.locator("button.launcher").click();
+  await host.locator("button.icon").focus(); await page.keyboard.press("Escape");
   await host.getByText("End the active voice conversation?", { exact: true }).waitFor();
   await host.getByRole("button", { name: "Keep talking" }).click();
   await host.getByRole("button", { name: "Mute microphone" }).click();
+  await page.waitForTimeout(1_100);
+  const focusedAfterTimer = await host.evaluate((element) => element.shadowRoot?.activeElement?.getAttribute("aria-label"));
+  if (focusedAfterTimer !== "Unmute microphone") failures.push(`${label}: call timer displaced keyboard focus`);
   await host.getByRole("button", { name: "End conversation" }).click();
   await host.getByText("End the active voice conversation?", { exact: true }).waitFor();
   await host.getByRole("button", { name: "End conversation" }).click();
   await host.getByText("Conversation ended", { exact: true }).waitFor();
   const result = await page.evaluate(() => {
     const host = document.querySelector("[data-djay-voice]"); const root = host?.shadowRoot;
+    const panel = root?.querySelector(".panel"); const launcher = root?.querySelector(".launcher"); const mark = root?.querySelector(".mark"); const panelRect = panel?.getBoundingClientRect();
     return {
       text: root?.textContent ?? "", width: document.documentElement.scrollWidth, viewport: innerWidth,
       unnamedButtons: [...(root?.querySelectorAll("button") ?? [])].filter((button) => !button.getAttribute("aria-label")).length,
+      smallTargets: [...(root?.querySelectorAll("button") ?? [])].filter((button) => { const rect = button.getBoundingClientRect(); return rect.width < 44 || rect.height < 44; }).length,
+      role: panel?.getAttribute("role"), modal: panel?.getAttribute("aria-modal"), expanded: launcher?.getAttribute("aria-expanded"), controls: launcher?.getAttribute("aria-controls"), panelId: panel?.id,
+      launcherColor: launcher ? getComputedStyle(launcher).backgroundColor : "", markColor: mark ? getComputedStyle(mark).backgroundColor : "",
+      panelLeft: panelRect?.left ?? -1, panelRight: panelRect?.right ?? innerWidth + 1,
       trackStopped: Boolean(window.__voiceTrack?.stopped),
       connectEncoding: window.__voiceFrames?.find((frame) => frame.type === "session.connect")?.inputAudioEncoding,
       audioChunks: window.__voiceFrames?.filter((frame) => frame.type === "audio.chunk").length || 0,
@@ -131,11 +139,19 @@ async function inspectHappyPath(viewport, label) {
   });
   if (result.width > result.viewport + 1) failures.push(`${label}: horizontal overflow ${result.width}/${result.viewport}`);
   if (result.unnamedButtons) failures.push(`${label}: ${result.unnamedButtons} unnamed buttons`);
+  if (result.smallTargets) failures.push(`${label}: ${result.smallTargets} controls are smaller than 44px`);
+  if (result.role !== "dialog" || result.modal !== "false") failures.push(`${label}: non-modal dialog semantics missing`);
+  if (result.expanded !== "true" || result.controls !== result.panelId) failures.push(`${label}: launcher expansion relationship missing`);
+  if (result.launcherColor !== "rgb(18, 97, 73)" || result.markColor !== "rgb(242, 193, 78)") failures.push(`${label}: canonical DJAY colors missing`);
+  if (result.panelLeft < 0 || result.panelRight > result.viewport) failures.push(`${label}: panel overflows the viewport`);
   if (!result.trackStopped) failures.push(`${label}: microphone track was not stopped`);
   if (result.connectEncoding !== "pcm_s16le_16000") failures.push(`${label}: unexpected input encoding ${result.connectEncoding}`);
   if (!result.audioChunks) failures.push(`${label}: no PCM microphone frame reached the gateway`);
   if (restricted.test(result.text)) failures.push(`${label}: restricted routing identity visible`);
   await page.screenshot({ path: `/tmp/djay-p7-voice-${label}.png`, fullPage: true });
+  await host.locator("button.icon").focus(); await page.keyboard.press("Escape");
+  const closed = await host.evaluate((element) => ({ expanded: element.shadowRoot?.querySelector(".launcher")?.getAttribute("aria-expanded"), focused: element.shadowRoot?.activeElement?.classList.contains("launcher") ?? false }));
+  if (closed.expanded !== "false" || !closed.focused) failures.push(`${label}: Escape did not close and restore launcher focus`);
   await context.close();
 }
 
@@ -319,4 +335,4 @@ await inspectThai();
 await inspectTenantWorkspace();
 await browser.close();
 if (failures.length) { console.error(failures.join("\n")); process.exit(1); }
-console.info(`P7 Voice widget passed desktop/mobile lifecycle, consent, active-call confirmation, microphone cleanup, Thai rendering, overflow, accessibility-label, and confidentiality checks${tenantUrl ? "; the ten-tab tenant Voice Studio also passed author/viewer permissions, draft, quality, exact-origin, install, revocation-confirmation, and responsive checks" : ""}.`);
+console.info(`P7 Voice widget passed desktop/mobile lifecycle, consent, active-call confirmation, timer focus stability, canonical brand, dialog/keyboard, target-size, microphone cleanup, Thai rendering, overflow, accessibility-label, and confidentiality checks${tenantUrl ? "; the ten-tab tenant Voice Studio also passed author/viewer permissions, draft, quality, exact-origin, install, revocation-confirmation, and responsive checks" : ""}.`);

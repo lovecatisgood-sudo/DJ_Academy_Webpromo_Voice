@@ -333,7 +333,14 @@ importers:
         version: 3.2.6(@types/node@22.20.1)
 
   packages/ai-chat-widget:
+    dependencies:
+      '@djay/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
+      esbuild:
+        specifier: 0.28.1
+        version: 0.28.1
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -571,7 +578,14 @@ importers:
         version: 3.2.6(@types/node@22.20.1)
 
   packages/flowbot-widget:
+    dependencies:
+      '@djay/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
+      esbuild:
+        specifier: 0.28.1
+        version: 0.28.1
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -728,6 +742,9 @@ importers:
 
   packages/voice-widget:
     dependencies:
+      '@djay/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@djay/voice-runtime':
         specifier: workspace:*
         version: link:../voice-runtime

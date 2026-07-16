@@ -79,7 +79,7 @@ if (scope !== "widget") {
 }
 
 async function inspectWidget() {
-  const context = await browser.newContext(); const page = await context.newPage();
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } }); const page = await context.newPage();
   let started = false; let humanReply = false;
   const widgetSource = readFileSync(resolve(import.meta.dirname, "../packages/flowbot-widget/dist/index.js"), "utf8");
   await page.route("https://merchant.example/", (route) => route.fulfill({ status: 200, contentType: "text/html", body: `<!doctype html><body><main>Merchant</main><script type="module">import { mountFlowbotWidget } from "https://widget.example/index.js"; mountFlowbotWidget({ deploymentKey: "djay_flow_abcdefghijklmnopqrstuvwxyzABCDEFG", apiBaseUrl: "https://api.example", openOnLoad: true });</script></body>` }));
@@ -107,14 +107,41 @@ async function inspectWidget() {
   if (!started) failures.push("widget: session did not start");
   await page.reload({ waitUntil: "networkidle" });
   await page.locator("[data-djay-flowbot]").locator(".message", { hasText: "Durable welcome" }).waitFor();
+  const draft = page.locator("[data-djay-flowbot]").locator(".composer input");
+  await draft.fill("Keep this draft"); await draft.evaluate((element) => element.blur());
   humanReply = true;
   await page.waitForTimeout(5_500);
   await page.locator("[data-djay-flowbot]").locator(".message", { hasText: "Human follow-up" }).waitFor();
+  if (await draft.inputValue() !== "Keep this draft") failures.push("widget: background sync erased the visitor draft");
+  const contract = await host.evaluate((element) => {
+    const root = element.shadowRoot; const panel = root?.querySelector(".panel"); const launcher = root?.querySelector(".launcher"); const mark = root?.querySelector(".mark"); const stream = root?.querySelector(".stream");
+    const panelRect = panel?.getBoundingClientRect();
+    return {
+      role: panel?.getAttribute("role"), modal: panel?.getAttribute("aria-modal"), expanded: launcher?.getAttribute("aria-expanded"),
+      controls: launcher?.getAttribute("aria-controls"), panelId: panel?.id,
+      launcherColor: launcher ? getComputedStyle(launcher).backgroundColor : "", markColor: mark ? getComputedStyle(mark).backgroundColor : "",
+      streamLive: stream?.getAttribute("aria-live"), liveRegions: root?.querySelectorAll(".sr-only[aria-live='polite']").length ?? 0,
+      smallTargets: [...(root?.querySelectorAll("button") ?? [])].filter((button) => { const rect = button.getBoundingClientRect(); return rect.width < 44 || rect.height < 44; }).length,
+      panelLeft: panelRect?.left ?? -1, panelRight: panelRect?.right ?? innerWidth + 1,
+    };
+  });
+  if (contract.role !== "dialog" || contract.modal !== "false") failures.push("widget: non-modal dialog semantics missing");
+  if (contract.expanded !== "true" || contract.controls !== contract.panelId) failures.push("widget: launcher expansion relationship missing");
+  if (contract.launcherColor !== "rgb(18, 97, 73)" || contract.markColor !== "rgb(242, 193, 78)") failures.push("widget: canonical DJAY colors missing");
+  if (contract.streamLive !== null || contract.liveRegions !== 1) failures.push("widget: bounded announcement region contract missing");
+  if (contract.smallTargets) failures.push(`widget: ${contract.smallTargets} controls are smaller than 44px`);
+  if (contract.panelLeft < 0 || contract.panelRight > 390) failures.push("widget: panel overflows the mobile viewport");
   await page.screenshot({ path: "/tmp/djay-p4-widget-handover.png", fullPage: true });
+  await host.locator("button.icon").focus(); await page.keyboard.press("Escape");
+  const closed = await host.evaluate((element) => ({
+    expanded: element.shadowRoot?.querySelector(".launcher")?.getAttribute("aria-expanded"),
+    focused: element.shadowRoot?.activeElement?.classList.contains("launcher") ?? false,
+  }));
+  if (closed.expanded !== "false" || !closed.focused) failures.push("widget: Escape did not close and restore launcher focus");
   await context.close();
 }
 
 if (scope !== "plans") await inspectWidget();
 await browser.close();
 if (failures.length) { console.error(failures.join("\n")); process.exit(1); }
-console.info("P4 Basic/Premium authoring and widget replay/handover passed desktop/mobile, entitlement, console, overflow, and provider-leak checks.");
+console.info("P4 Basic/Premium authoring and widget replay/handover passed desktop/mobile, entitlement, canonical brand, dialog/keyboard, draft-preservation, target-size, console, overflow, and provider-leak checks.");

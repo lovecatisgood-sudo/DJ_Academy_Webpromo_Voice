@@ -105,14 +105,39 @@ async function inspectWidget() {
   await host.locator("input").fill("I need more leads"); await host.locator("button.send").click();
   await host.locator(".message", { hasText: "I can help with that." }).waitFor();
   if (messageCalls !== 1) failures.push(`widget: expected one message request, received ${messageCalls}`);
+  const draft = host.locator(".composer input"); await draft.fill("Keep this draft"); await draft.evaluate((element) => element.blur());
   humanReply = true; await page.waitForTimeout(5_500);
   await host.locator(".message", { hasText: "A team member is here." }).waitFor();
+  if (await draft.inputValue() !== "Keep this draft") failures.push("widget: background sync erased the visitor draft");
+  const contract = await host.evaluate((element) => {
+    const root = element.shadowRoot; const panel = root?.querySelector(".panel"); const launcher = root?.querySelector(".launcher"); const mark = root?.querySelector(".mark"); const stream = root?.querySelector(".stream");
+    const panelRect = panel?.getBoundingClientRect();
+    return {
+      role: panel?.getAttribute("role"), modal: panel?.getAttribute("aria-modal"), expanded: launcher?.getAttribute("aria-expanded"),
+      controls: launcher?.getAttribute("aria-controls"), panelId: panel?.id,
+      launcherColor: launcher ? getComputedStyle(launcher).backgroundColor : "", markColor: mark ? getComputedStyle(mark).backgroundColor : "",
+      streamColor: stream ? getComputedStyle(stream).backgroundColor : "",
+      streamLive: stream?.getAttribute("aria-live"), liveRegions: root?.querySelectorAll(".sr-only[aria-live='polite']").length ?? 0,
+      smallTargets: [...(root?.querySelectorAll("button") ?? [])].filter((button) => { const rect = button.getBoundingClientRect(); return rect.width < 44 || rect.height < 44; }).length,
+      panelLeft: panelRect?.left ?? -1, panelRight: panelRect?.right ?? innerWidth + 1,
+    };
+  });
+  if (contract.role !== "dialog" || contract.modal !== "false") failures.push("widget: non-modal dialog semantics missing");
+  if (contract.expanded !== "true" || contract.controls !== contract.panelId) failures.push("widget: launcher expansion relationship missing");
+  if (contract.launcherColor !== "rgb(18, 97, 73)" || contract.markColor !== "rgb(242, 193, 78)") failures.push("widget: canonical DJAY colors missing");
+  if (contract.streamColor !== "rgb(244, 246, 245)") failures.push(`widget: conversation surface color is ${contract.streamColor}`);
+  if (contract.streamLive !== null || contract.liveRegions !== 1) failures.push("widget: bounded announcement region contract missing");
+  if (contract.smallTargets) failures.push(`widget: ${contract.smallTargets} controls are smaller than 44px`);
+  if (contract.panelLeft < 0 || contract.panelRight > 390) failures.push("widget: panel overflows the mobile viewport");
   if (restricted.test(await host.innerText())) failures.push("widget: restricted routing term visible");
   await page.screenshot({ path: "/tmp/djay-p5-ai-widget-handover.png", fullPage: true });
+  await host.locator("button.icon").focus(); await page.keyboard.press("Escape");
+  const closed = await host.evaluate((element) => ({ expanded: element.shadowRoot?.querySelector(".launcher")?.getAttribute("aria-expanded"), focused: element.shadowRoot?.activeElement?.classList.contains("launcher") ?? false }));
+  if (closed.expanded !== "false" || !closed.focused) failures.push("widget: Escape did not close and restore launcher focus");
   await context.close();
 }
 
 if (scope !== "dashboard") await inspectWidget();
 await browser.close();
 if (failures.length) { console.error(failures.join("\n")); process.exit(1); }
-console.info("P5 AI Chat dashboard and widget passed desktop/mobile, streaming, handover, console, overflow, and provider-leak checks.");
+console.info("P5 AI Chat dashboard and widget passed desktop/mobile, streaming, handover, canonical brand, dialog/keyboard, draft-preservation, target-size, console, overflow, and provider-leak checks.");
