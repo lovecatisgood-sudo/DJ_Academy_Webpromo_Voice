@@ -13,6 +13,7 @@ scripts/use-node24.sh pnpm --filter @djay/db typecheck
 scripts/use-node24.sh pnpm --filter @djay/api typecheck
 scripts/use-node24.sh pnpm --filter @djay/platform-master typecheck
 scripts/use-node24.sh pnpm --filter @djay/voice-gateway test
+scripts/use-node24.sh pnpm run qa:p8-voice-load
 scripts/use-node24.sh pnpm test:db
 scripts/use-node24.sh pnpm run verify
 scripts/use-node24.sh pnpm run qa:p3-ui
@@ -54,11 +55,19 @@ core metrics immediately while retaining historical records. The CSV export
 neutralizes formula-leading cells and contains no route, provider, model,
 transcript, prompt, credential, native usage, price, cost, or margin identity.
 
+The production-like local transport drill opened 120 real WebSocket attempts
+against a 40-session limit. It admitted exactly 40, returned neutral
+`capacity_unavailable` errors for 80, recovered all 40 slots after saturation,
+settled 40 injected media-open failures, and drained 10 active sessions during
+shutdown with zero sessions left. Observed p95 connection time was 53 ms and
+the heap delta was 5,466,816 bytes in this run. These values are diagnostic
+evidence from the local fixture, not approved production service thresholds.
+
 ## Pending P8 gates
 
 - Equivalent Gen2 profile qualification and controlled degradation tests.
-- Load/capacity, approved cost/margin thresholds, and rollback drills under
-  production-like concurrency.
+- Live-provider/equivalent-profile capacity and approved cost/margin thresholds.
+- Controlled live-media degradation and named release rollback rehearsal.
 - Live English/Thai audio quality and named-merchant acceptance.
 
 This evidence does not authorize Advanced Voice production traffic.

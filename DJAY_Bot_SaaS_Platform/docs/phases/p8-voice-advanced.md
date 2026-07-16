@@ -6,8 +6,10 @@ In progress. Platform-only Gen2 qualification, two-person routing and admission
 changes, reviewed canary, explicit promotion/rollback, incident pause,
 independent credit review, tenant deployment, restricted session authority, and
 exact gateway route assignment and entitlement-aware Advanced analytics are
-implemented locally. Equivalent-profile live media qualification, load/margin
-validation, and named-merchant acceptance remain pending. Gen2 therefore
+implemented locally, including saturation, recovery, injected media failure,
+and shutdown-drain coverage. Equivalent-profile live media qualification,
+live-provider capacity/margin validation, and named-merchant acceptance remain
+pending. Gen2 therefore
 remains unavailable and paused by default in production.
 
 ## Requirements
@@ -155,15 +157,15 @@ remains unavailable and paused by default in production.
 
 ## Next slice
 
-Add the equivalent-profile evaluation suite and production-like load/capacity
-and approved margin gates, then execute live Thai/English and named-merchant
+Add the equivalent-profile evaluation suite and live-provider capacity and
+approved margin gates, then execute live Thai/English and named-merchant
 acceptance. Keep admission disabled until those evidence digests are reviewed.
 
 ## Rollback
 
 Keep Gen2 paused, stop all Advanced admission, and use the reviewed rollback
 action for any canary/active change. Application rollback must remain compatible
-with migrations `0034` through `0036`; candidate, approval, admission, incident,
+with migrations `0034` through `0037`; candidate, approval, admission, incident,
 deployment, session-route, credit-review, and audit evidence is retained.
 Existing deployments and sessions remain generation-pinned. Do not delete or
 rewrite route history.

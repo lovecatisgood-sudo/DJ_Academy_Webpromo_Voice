@@ -19,6 +19,7 @@
     "qa:p5-ai-chat": "node scripts/qa-p5-ai-chat.mjs",
     "qa:p6-line": "node scripts/qa-p6-line.mjs",
     "qa:p7-voice": "node scripts/qa-p7-voice-widget.mjs",
+    "qa:p8-voice-load": "pnpm --filter @djay/voice-gateway exec vitest run src/load.test.ts --reporter=verbose",
     "verify": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
   },
   "devDependencies": {

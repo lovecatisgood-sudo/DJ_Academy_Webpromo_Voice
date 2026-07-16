@@ -27,6 +27,19 @@ enable calls. Do not treat a created deployment as runtime acceptance.
 
 ## Production admission
 
+Before requesting admission, run the repeatable local transport capacity drill:
+
+```bash
+scripts/use-node24.sh pnpm run qa:p8-voice-load
+```
+
+The default drill verifies a 40-session limit across 120 real local WebSocket
+attempts, saturation rejection, slot recovery, injected media failure, and
+shutdown drain. Override `P8_VOICE_LOAD_CAPACITY` and
+`P8_VOICE_LOAD_ATTEMPTS` only for a recorded test profile. A passing local drill
+does not replace equivalent-profile or live-provider capacity, latency, quality,
+cost/margin, and named-merchant acceptance.
+
 1. Configure the gateway's restricted Gen2 adapter with provider/model/region
    keys that exactly match the qualified active route. Keep the credential out
    of Platform Master and the database.
