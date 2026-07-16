@@ -27,6 +27,9 @@ Finance roles. It verified:
 - one shared yellow DJAY Bot mark across all application realms;
 - zero automated axe violations for the WCAG 2.2 A/AA rule set across every
   exercised route, role, breakpoint, and failure state;
+- the same CSP, HSTS, referrer, permissions, opener-isolation, MIME, frame, DNS,
+  and cross-domain-policy headers on every web realm, with microphone restricted
+  to same-origin Tenant Web and no framework identity header;
 - visible keyboard focus and no horizontal document overflow;
 - no localhost registration link in the Tenant production build;
 - correct permission-derived tenant and Platform navigation;
@@ -40,6 +43,12 @@ FlowBot, and Usage helper text, a keyboard-inaccessible horizontally scrollable
 FlowBot node palette, and incomplete ARIA table structures in empty Platform
 operations collections. The shared markup and color tokens were corrected; the
 full matrix then passed with zero automated violations.
+
+The browser-hardening pass also found that none of the four Next.js realms had
+an artifact-owned response-header policy. A shared configuration now protects
+all document and API paths. The complete production matrix passed without CSP
+resource or behavior failures, and `pnpm audit --audit-level high` reported no
+known vulnerabilities in the resolved dependency graph.
 
 These results describe local production output with mocked API state and cover
 only accessibility rules that axe can automate. Repeat the same gate against

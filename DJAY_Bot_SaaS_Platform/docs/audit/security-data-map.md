@@ -80,6 +80,10 @@ Table owners are not runtime roles. RLS is enabled and forced on every tenant ta
 
 ## External boundary controls
 
+- all browser-facing realms enforce same-origin CSP defaults, deny framing and
+  plugins, restrict device capabilities, suppress framework identity, and send
+  HSTS, strict referrer, MIME-sniffing, opener-isolation, and legacy frame
+  protections from the application artifact;
 - webhook signature verification precedes tenant/domain mutation;
 - external event IDs are unique per provider/binding;
 - OAuth/API credentials are encrypted and never returned after write;
@@ -93,4 +97,3 @@ Table owners are not runtime roles. RLS is enabled and forced on every tenant ta
 Registration, verification, login failure/success, recovery, session revoke, invite, role change, ownership transfer, workspace switch, support impersonation, plan/subscription transition, entitlement override, provider-routing change, export, erase, and security-policy denial.
 
 Audit payloads use allow-listed structured metadata. They do not store passwords, tokens, message bodies, recordings, full prompts, or provider credentials.
-

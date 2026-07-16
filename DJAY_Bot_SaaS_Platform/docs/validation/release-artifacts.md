@@ -17,17 +17,18 @@ scripts/use-node24.sh pnpm run verify
 The packager refreshed every standalone Next.js service with the exact static
 tree from its build ID. The artifact gate started API, Platform Master, public
 site, and tenant workspace from their packaged runtime directories, required
-their liveness contracts, loaded each root document, and fetched every
-referenced static asset. Accepted static evidence was:
+their liveness contracts and browser security headers, loaded each root
+document, and fetched every referenced static asset. Accepted static evidence
+was:
 
 - API: 129 files,
-  `aad62874367a007291607d695a5eb5af8fa6a50cb35d652718471f8ca40e0ca2`
+  `5afc33072618b43a8d77a1d41b43bc692e7322e8a59d63126aef1bced37de8a1`
 - Platform Master: 21 files,
-  `5d1c2baa9b5ff1ae4e9f05e4829b4aa790ce8cf8bd23a78827c85231d009c186`
+  `56d39b871606be74e517d4b860838fa542bf348499ac690171701832e55fee99`
 - Public site: 25 files,
-  `e0a849a14b98b45b33d4b498d18e058a9b37cc4387df4756a6b51b6c69148a89`
+  `bad167f5f7b396685295bef80eaa6d346325b90ba2a1f69c3ff0640c4c0bec0f`
 - Tenant workspace: 37 files,
-  `b0f5dcdd9b4bdb03fb4f7c9c7be213759bb2b1f105a97a5b0a40b42540981f68`
+  `b42ee1d9a98871d6260dace8bf007297b301abcf778bbfc993b0a3951755fa71`
 
 The first Voice artifact run exposed a production-only ESM failure: bundled
 `ws` attempted a dynamic CommonJS require of Node's `events` module. Source

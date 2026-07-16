@@ -54,6 +54,8 @@ proves that:
 - every exercised UI state passes the automated axe WCAG 2.2 A/AA rule set,
   including document titles, contrast, keyboard-scroll access, and ARIA
   structure;
+- every document response carries the reviewed browser security-header policy,
+  exposes no framework identity, and renders without a CSP-blocked resource;
 - every route has the shared DJAY Bot mark, no horizontal overflow, and no page
   or asset failure.
 

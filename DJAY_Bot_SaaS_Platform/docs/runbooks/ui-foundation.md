@@ -71,6 +71,18 @@ safe production fallback is `https://app.djaybot.com`; local development uses
 the explicit value in `.env.example`. Never ship a localhost URL in a public
 artifact.
 
+`config/next-security-headers.ts` is the single application-level browser
+policy for API, Public Site, Tenant Web, and Platform Master. It limits content,
+forms, frames, objects, connections, workers, and media to the minimum origins
+needed by the current product; sends HSTS, strict referrer, MIME-sniffing,
+opener-isolation, frame, DNS-prefetch, and cross-domain-policy protections; and
+denies camera, geolocation, payment, and USB access. Microphone access is denied
+in every realm except same-origin Tenant Web, where Voice testing requires it.
+Do not add an external CSP origin or device capability without a reviewed
+feature requirement and a production-browser regression test. The deployment
+edge may add stricter transport controls but must not remove these artifact
+headers.
+
 ## Local production-browser acceptance
 
 Build the four Next.js applications, start their production output on ports
@@ -85,9 +97,11 @@ For deployed acceptance, set `PUBLIC_QA_URL`, `TENANT_QA_URL`,
 `PLATFORM_QA_URL`, and `API_QA_URL` to the reviewed origins. The foundation gate
 checks desktop and mobile overflow, shared brand color, keyboard focus
 visibility, and an axe scan restricted to automated WCAG 2.2 A/AA rules. It
-also checks safe cross-application links, every public account route, the API
-root, all twelve tenant routes at both breakpoints, every tenant role, every
-platform role, direct-route denial, mutation visibility, public catalog,
+also enforces the complete browser security-header policy, rejects framework
+identity exposure, and detects CSP-blocked runtime resources. It checks safe
+cross-application links, every public account route, the API root, all twelve
+tenant routes at both breakpoints, every tenant role, every platform role,
+direct-route denial, mutation visibility, public catalog,
 workspace-session, authoritative product-read, Platform-session, and
 role-authorized Platform-resource failures, retry actions, and the existence of
 each visible Platform navigation target. It also aborts representative public,

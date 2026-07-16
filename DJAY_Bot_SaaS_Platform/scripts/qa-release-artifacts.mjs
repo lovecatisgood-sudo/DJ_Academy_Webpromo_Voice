@@ -34,6 +34,30 @@ function assert(condition, message) {
   if (!condition) throw new Error(`release_artifact_qa_failed: ${message}`);
 }
 
+function assertSecurityHeaders(response, app) {
+  const csp = response.headers.get("content-security-policy") || "";
+  for (const directive of ["default-src 'self'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'", "object-src 'none'"]) {
+    assert(csp.includes(directive), `${app} CSP missing ${directive}`);
+  }
+  const expected = {
+    "cross-origin-opener-policy": "same-origin",
+    "origin-agent-cluster": "?1",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+    "x-content-type-options": "nosniff",
+    "x-dns-prefetch-control": "off",
+    "x-frame-options": "DENY",
+    "x-permitted-cross-domain-policies": "none",
+  };
+  for (const [key, value] of Object.entries(expected)) assert(response.headers.get(key) === value, `${app} ${key}`);
+  const permissions = response.headers.get("permissions-policy") || "";
+  const microphone = app === "tenant-web" ? "microphone=(self)" : "microphone=()";
+  for (const policy of ["camera=()", "geolocation=()", microphone, "payment=()", "usb=()"]) {
+    assert(permissions.includes(policy), `${app} Permissions-Policy missing ${policy}`);
+  }
+  assert(!response.headers.has("x-powered-by"), `${app} exposed framework identity`);
+}
+
 function manifest(directory) {
   const value = JSON.parse(readFileSync(resolve(directory, "release-manifest.json"), "utf8"));
   assert(value.schema === "djay.release-artifact.v1", `${value.app ?? directory} manifest schema`);
@@ -93,6 +117,7 @@ for (const [index, app] of nextApps.entries()) {
     assert(healthBody.status === "ok" && healthBody.app === app, `${app} liveness contract`);
     const page = await fetch(origin, { signal: AbortSignal.timeout(2_000) });
     assert(page.ok, `${app} root returned ${page.status}`);
+    assertSecurityHeaders(page, app);
     const html = await page.text();
     const assets = [...new Set([...html.matchAll(/(?:src|href)="(\/_next\/static\/[^"?]+)(?:\?[^\"]*)?"/g)].map((match) => match[1]))];
     assert(assets.length > 0, `${app} root references no static assets`);
@@ -100,7 +125,7 @@ for (const [index, app] of nextApps.entries()) {
       const response = await fetch(`${origin}${asset}`, { signal: AbortSignal.timeout(2_000) });
       assert(response.ok, `${app} asset ${asset} returned ${response.status}`);
     }
-    console.info(`Verified ${app}: liveness, root, and ${assets.length} referenced assets.`);
+    console.info(`Verified ${app}: liveness, root security headers, and ${assets.length} referenced assets.`);
   } finally {
     await stop(running.child);
   }

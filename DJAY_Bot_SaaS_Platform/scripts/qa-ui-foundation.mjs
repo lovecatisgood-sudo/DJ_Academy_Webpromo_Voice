@@ -24,6 +24,33 @@ async function auditAccessibility(page, name) {
   }
 }
 
+function auditSecurityHeaders(response, name, url) {
+  const headers = response.headers();
+  const csp = headers["content-security-policy"] || "";
+  for (const directive of ["default-src 'self'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'", "object-src 'none'"]) {
+    if (!csp.includes(directive)) failures.push(`${name}: Content-Security-Policy is missing ${directive}`);
+  }
+  const expected = {
+    "cross-origin-opener-policy": "same-origin",
+    "origin-agent-cluster": "?1",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+    "x-content-type-options": "nosniff",
+    "x-dns-prefetch-control": "off",
+    "x-frame-options": "DENY",
+    "x-permitted-cross-domain-policies": "none",
+  };
+  for (const [key, value] of Object.entries(expected)) {
+    if (headers[key] !== value) failures.push(`${name}: invalid ${key} header (${headers[key] || "missing"})`);
+  }
+  const microphone = url.startsWith(tenantUrl) ? "microphone=(self)" : "microphone=()";
+  const permissions = headers["permissions-policy"] || "";
+  for (const policy of ["camera=()", "geolocation=()", microphone, "payment=()", "usb=()"]) {
+    if (!permissions.includes(policy)) failures.push(`${name}: Permissions-Policy is missing ${policy}`);
+  }
+  if (headers["x-powered-by"]) failures.push(`${name}: framework identity header is exposed`);
+}
+
 async function visit({ name, url, viewport = desktop, mock, ready = "h1", check }) {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
@@ -38,6 +65,7 @@ async function visit({ name, url, viewport = desktop, mock, ready = "h1", check 
   if (mock) await mock(page);
   const response = await page.goto(url, { waitUntil: "networkidle" });
   if (!response?.ok()) failures.push(`${name}: navigation returned ${response?.status()}`);
+  else auditSecurityHeaders(response, name, url);
   await page.locator(ready).first().waitFor();
   const geometry = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
   if (geometry.document > geometry.viewport + 1) failures.push(`${name}: horizontal overflow ${geometry.document}px > ${geometry.viewport}px`);
