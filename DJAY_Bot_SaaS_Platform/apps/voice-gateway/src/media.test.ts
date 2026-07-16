@@ -85,6 +85,13 @@ describe("First-Generation Voice media orchestration", () => {
     expect(state.events.at(-1)).toEqual({ type: "error", code: "session_unavailable", retryable: false });
   });
 
+  it("maps an admitted upstream outage to one provider-neutral retryable failure", async () => {
+    const state = harness(); const { emit } = await state.open();
+    await emit({ type: "error", code: "upstream_unavailable" });
+    expect(state.events).toEqual([{ type: "error", code: "media_unavailable", retryable: true }]);
+    expect(JSON.stringify(state.events)).not.toMatch(/provider|model|credential|restricted/i);
+  });
+
   it("rejects compressed client audio before opening restricted media", async () => {
     const state = harness();
     const factory = createGen1VoiceMediaFactory({

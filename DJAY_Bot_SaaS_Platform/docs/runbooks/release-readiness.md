@@ -49,7 +49,8 @@ Do not send a partial window as a 24-hour result.
 ## Record an operational attestation
 
 Post the same endpoint with `kind: attestation`, one of `on_call`, `restore`,
-`support_runbook`, `security_review`, or `privacy_review`, an explicit
+`support_runbook`, `security_review`, `privacy_review`, or one of the executable
+technical drill kinds, an explicit
 `passed`/`failed` status, a validity interval of no more than 90 days, an
 evidence hash, and a safe opaque source reference. Record failure evidence as a
 new failed attestation; never edit an earlier pass.
@@ -59,13 +60,14 @@ exercise. On-call attestations require a named current primary/secondary rota
 in the restricted evidence system. Security, privacy, and support evidence must
 be approved by the accountable reviewer, not self-asserted by deployment code.
 Event replay, queue recovery, and pool exhaustion require the executable checks
-in `resilience-drills.md`; synthetic UI fixtures do not qualify.
+in `resilience-drills.md`. Dependency outage requires the enabled-dependency
+matrix in `dependency-outage.md`; synthetic UI fixtures do not qualify.
 
 ## Review the gate
 
 1. Open Platform Master and locate **Public release readiness**.
 2. Confirm environment and release version match the intended deployment.
-3. Require 7/7 service objectives and 8/8 current attestations.
+3. Require 7/7 service objectives and 9/9 current attestations.
 4. Require zero blocking incidents and a healthy usage ledger.
 5. Investigate every red service card. Do not promote while evidence is missing
    or the API cannot load the gate.
@@ -89,7 +91,8 @@ unknown with a manual operational claim.
   values. Rotate if exposure is suspected and audit the evidence timeline.
 - For database recovery, run `pnpm run qa:p9-restore` locally and follow
   `backup-restore.md` for managed infrastructure. Preserve migration 0038 and
-  its ACLs, immutable triggers, evidence rows, and incident aggregate function.
+  later additive operations migrations, their ACLs, immutable evidence rows,
+  and incident/recovery functions.
 
 ## Validation
 
@@ -97,6 +100,7 @@ unknown with a manual operational claim.
 scripts/use-node24.sh pnpm test:db
 scripts/use-node24.sh pnpm run qa:p9-restore
 scripts/use-node24.sh pnpm run qa:p9-resilience
+scripts/use-node24.sh pnpm run qa:p9-dependency-outage
 scripts/use-node24.sh pnpm run qa:p9-status
 scripts/use-node24.sh pnpm run qa:p9-operations
 ```

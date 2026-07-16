@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0040_dead_letter_recovery";
+export const currentSchemaVersion = "0041_dependency_outage_attestation";
 
 export { PostgresAuthStore } from "./auth-store";
 export { BillingWebhookStore } from "./billing-webhook-store";

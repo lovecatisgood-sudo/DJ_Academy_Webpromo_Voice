@@ -78,7 +78,7 @@ scripts/use-node24.sh pnpm run qa:p9-recovery
 5. Hash the immutable artifact and submit separate `event_replay`,
    `queue_recovery`, and `pool_exhaustion` attestations. A failed run must be
    submitted as failed; do not leave an older passing result as the latest claim.
-6. Confirm Platform Master shows 8/8 current attestations only after every other
+6. Confirm Platform Master shows 9/9 current attestations only after every other
    operational review also passes.
 
 ## Reviewed dead-letter recovery

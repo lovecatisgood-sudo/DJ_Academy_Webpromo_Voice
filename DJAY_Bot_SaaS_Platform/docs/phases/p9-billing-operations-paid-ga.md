@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. The first four P9 engineering slices deliver tenant-isolated usage
+In progress. The first five P9 engineering slices deliver tenant-isolated usage
 visibility, restricted finance reconciliation, executable backup/restore
 evidence, immutable service/operations evidence, a fail-closed release gate,
 provider-neutral public status, deterministic effect replay, stale-queue
@@ -85,9 +85,10 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
 2. Release evidence is current only when every service has a minimum 24-hour
    window, enough samples, no more than 30 minutes of age, passing availability
    and P95 latency, passing queue age where applicable, and zero dead letters.
-3. Eight separately hashed, time-limited attestations cover on-call, restore,
+3. Nine separately hashed, time-limited attestations cover on-call, restore,
    support runbook, security, privacy, event replay, queue recovery, and pool
-   exhaustion. Missing, failed, or expired evidence blocks release.
+   exhaustion, plus enabled-dependency outage behavior. Missing, failed, or
+   expired evidence blocks release.
 4. `POST /internal/operations/status` is server-to-server, bearer-authenticated,
    constant-time compared, strict, bounded, audited, and idempotent by evidence
    hash. Production refuses configuration without a sufficiently long ingestion
@@ -126,6 +127,12 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
 6. Migration `0040_dead_letter_recovery.sql` and ADR-012 add queue-specific
    request/review evidence and one normal-worker retry for the three email
    queues whose downstream idempotency key is the immutable outbox UUID.
+7. Migration `0041_dependency_outage_attestation.sql` adds a provider-neutral
+   dependency-outage gate. Focused tests prove bounded AI text timeouts and safe
+   turn failure, Voice failure before and after admission, and existing email
+   and social failure contracts. Redis/runtime cache and object storage are not
+   deployed dependencies in this release, so their outage state is explicitly
+   `not_applicable_not_deployed`, never a fabricated pass.
 
 ## Schema, API, and event impact
 
@@ -148,6 +155,9 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
 - Platform migration `0040_dead_letter_recovery.sql` adds request/review state
   and narrow recovery functions. It does not grant the platform role direct
   queue/table access and introduces no tenant or commercial mutation contract.
+- Platform migration `0041_dependency_outage_attestation.sql` additively
+  expands the immutable attestation constraint. It adds no runtime dependency,
+  tenant content, provider identity, or commercial contract.
 - The fresh-cluster role bootstrap is additively completed in
   `0000_roles.sql`; embedded later role guards remain idempotent. Existing
   environments already have these roles and need no destructive change.
@@ -194,9 +204,11 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
 
 ## Next slice
 
-Exercise managed database failover, cache loss, object-store/provider outage, real monitoring,
-production backup/PITR, regional recovery, staffed on-call escalation, and live
-status communication. After ADR-008 is accepted, implement
+Exercise managed database failover and every enabled provider outage, real
+monitoring, production backup/PITR, regional recovery, staffed on-call
+escalation, and live status communication. Cache-loss and object-store drills
+become mandatory only if those dependencies are introduced under a reviewed
+tenant-scoped design. After ADR-008 is accepted, implement
 immutable invoices, provider checkout, signed webhook application, plan
 lifecycle, tax, dunning, cancellation, and customer billing actions against the
 approved fixtures.
@@ -205,7 +217,7 @@ approved fixtures.
 
 Remove the Usage Center, reconciliation, readiness, and status route/UI, then
 deploy the previous application. No tenant schema reversal is required. Retain
-migrations 0038/0039/0040 and their immutable operational evidence; do not delete or rewrite
+migrations 0038/0039/0040/0041 and their immutable operational evidence; do not delete or rewrite
 observations/attestations during application rollback. Public status must remain
 unknown or unavailable rather than claim operational health without evidence. The
 additive no-login/no-bypass role declarations are safe to retain; do not revoke

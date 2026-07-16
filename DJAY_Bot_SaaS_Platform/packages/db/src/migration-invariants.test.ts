@@ -40,6 +40,7 @@ const voiceAnalyticsMigration = readFileSync(resolve(import.meta.dirname, "../mi
 const releaseReadinessMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0038_release_readiness.sql"), "utf8");
 const resilienceDrillsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0039_resilience_drills.sql"), "utf8");
 const deadLetterRecoveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0040_dead_letter_recovery.sql"), "utf8");
+const dependencyOutageMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0041_dependency_outage_attestation.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -132,6 +133,14 @@ describe("P9 reviewed dead-letter recovery invariants", () => {
     expect(deadLetterRecoveryMigration).not.toMatch(/RETURNS TABLE[\s\S]{0,500}(payload|ciphertext|recipient|tenant_id)/i);
     expect(deadLetterRecoveryMigration).not.toMatch(/GRANT (SELECT|UPDATE)[^;]+(operations|tenancy)\.outbox TO djay_platform/i);
     expect(deadLetterRecoveryMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE)[^;]+dead_letter_replay_requests TO djay_platform/i);
+  });
+});
+
+describe("P9 dependency outage evidence invariants", () => {
+  it("requires provider-neutral outage evidence without changing service identity", () => {
+    expect(dependencyOutageMigration).toContain("'dependency_outage'");
+    expect(dependencyOutageMigration).toContain("operational_attestations_attestation_kind_check");
+    expect(dependencyOutageMigration).not.toMatch(/openai|anthropic|gemini|gpt-|claude-|provider_key|model_key/i);
   });
 });
 

@@ -26,6 +26,7 @@
     "qa:p9-status": "node scripts/qa-p9-status.mjs",
     "qa:p9-resilience": "P9_RESILIENCE_ONLY=true scripts/test-db-integration.sh",
     "qa:p9-recovery": "P9_RECOVERY_ONLY=true scripts/test-db-integration.sh",
+    "qa:p9-dependency-outage": "pnpm --filter @djay/provider-gateway exec vitest run src/index.test.ts && pnpm --filter @djay/ai-chat-runtime exec vitest run src/index.test.ts && pnpm --filter @djay/voice-gateway exec vitest run src/media.test.ts && pnpm --filter @djay/notifications exec vitest run src/notifications.test.ts && pnpm --filter @djay/channel-adapters exec vitest run src/index.test.ts",
     "qa:p9-restore": "scripts/test-p9-backup-restore.sh",
     "verify": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
   },

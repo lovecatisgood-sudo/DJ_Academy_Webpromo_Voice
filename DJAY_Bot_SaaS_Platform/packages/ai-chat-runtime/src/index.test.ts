@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AiTextRuntime, AiTextRuntimeError, type AiTurnContext, type AiTurnRepository } from "./index";
+import { ProviderGatewayError } from "@djay/provider-gateway";
 
 const ids = {
   session: "11111111-1111-4111-8111-111111111111", tenant: "22222222-2222-4222-8222-222222222222",
@@ -72,5 +73,19 @@ describe("AI text runtime", () => {
     }, { async generate() { gatewayCalls += 1; throw new Error("unexpected"); } });
     await expect(runtime.turn({ deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test", inputId: ids.input, message: "changed" })).resolves.toEqual(replay);
     expect(gatewayCalls).toBe(0);
+  });
+
+  it("releases reserved authority and returns no upstream detail during an outage", async () => {
+    const events: string[] = [];
+    const runtime = new AiTextRuntime(repository(events), {
+      async generate() { throw new ProviderGatewayError("gateway_unavailable"); },
+    });
+    const result = runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "hello",
+    });
+    await expect(result).rejects.toEqual(expect.objectContaining({ code: "generation_failed" }));
+    expect(events).toEqual(["begin", "fail:gateway_unavailable"]);
+    await expect(result.catch((error: unknown) => String(error))).resolves.not.toMatch(/restricted|upstream body|provider|model/i);
   });
 });

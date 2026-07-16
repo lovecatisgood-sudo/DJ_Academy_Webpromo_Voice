@@ -1,8 +1,8 @@
 # P9 Validation: Billing, operations, and paid GA
 
-- Result: Usage, reconciliation, restore, immutable SLO, release-readiness, public-status, replay, queue/pool resilience, and reviewed email recovery engineering gates passed; paid-GA gate remains open
+- Result: Usage, reconciliation, restore, immutable SLO, release-readiness, public-status, replay, queue/pool resilience, reviewed email recovery, and dependency-outage engineering gates passed; paid-GA gate remains open
 - Date: 2026-07-16
-- Schema migrations: `0038_release_readiness.sql`, `0039_resilience_drills.sql`, `0040_dead_letter_recovery.sql`
+- Schema migrations: `0038_release_readiness.sql`, `0039_resilience_drills.sql`, `0040_dead_letter_recovery.sql`, `0041_dependency_outage_attestation.sql`
 - Public charging: disabled
 - Invoices and commercial mutations: unavailable
 
@@ -18,6 +18,7 @@ scripts/use-node24.sh pnpm --filter @djay/db test
 scripts/use-node24.sh pnpm test:db
 scripts/use-node24.sh pnpm run qa:p9-resilience
 scripts/use-node24.sh pnpm run qa:p9-recovery
+scripts/use-node24.sh pnpm run qa:p9-dependency-outage
 scripts/use-node24.sh pnpm run verify
 scripts/use-node24.sh pnpm --filter @djay/tenant-web build
 scripts/use-node24.sh pnpm --filter @djay/platform-master build
@@ -73,9 +74,9 @@ data/schema/policy fingerprints, complete least-privilege role bootstrap,
 restored ACLs, immutable ledger/catalog triggers, forced commerce RLS, and the
 runtime-role Tenant A/Tenant B substitution suite.
 
-Migrations 0038/0039 and their integration tests prove seven immutable technical
+Migrations 0038/0039/0041 and their integration tests prove seven immutable technical
 objectives, append-only staging/production observations, computed availability,
-eight time-limited attestations, idempotent evidence replay, audit records, and a
+nine time-limited attestations, idempotent evidence replay, audit records, and a
 narrow blocking-incident aggregate. An initial test correctly failed when the
 store tried to read a restricted incident table directly; the implementation
 was corrected to a least-privilege security-definer count/timestamp function.
@@ -94,6 +95,15 @@ audit events are written. FlowBot webhooks and social queues
 are deliberately excluded because their external side effects are not proven
 safe to repeat.
 
+The dependency-outage suite proves bounded and provider-neutral AI text 503 and
+timeout handling, safe AI turn failure without committing assistant usage,
+Realtime Voice setup timeout and pre-admission refusal, and retryable
+post-admission media outage mapping. It also reruns email retry/dead-letter and
+LINE, WhatsApp, and Messenger adapter failure contracts. The deployed runtime
+has no Redis/cache or object-store dependency: PostgreSQL owns rate limits,
+queues, leases, and encrypted privacy exports. Those outage classes are recorded
+as `not_applicable_not_deployed`, not accepted as passing evidence.
+
 The production public-site build includes `/status`. Chromium exercised an
 operational desktop at 1365x900 and a degraded mobile view at 390x844. Both
 rendered exactly seven customer-facing services with correct state, timestamps,
@@ -108,7 +118,7 @@ Visual evidence:
 
 The production Platform Master build exercised Owner desktop, Finance mobile,
 Support desktop, and AI Operations mobile. Every role received the same
-fail-closed 7-service/8-attestation/incident/usage decision with appropriate
+fail-closed 7-service/9-attestation/incident/usage decision with appropriate
 authority guidance. Billing counts remained limited to Owner/Finance. All views
 passed overflow, console, confidentiality, commercial-boundary, and actionable
 failure checks.
@@ -162,6 +172,10 @@ full database suite and focused `qa:p9-resilience` command pass.
 - Managed-environment exercise of the reviewed two-person email recovery;
   direct SQL remains prohibited and a dead letter keeps the release gate blocked
   until normal delivery succeeds and fresh zero-dead-letter evidence is accepted.
+- Managed-environment refusal, timeout, and post-acceptance-loss exercise for
+  every enabled AI text, Realtime Voice, email, and social endpoint. Local
+  fault-injection proves the application contract but is not production
+  dependency evidence.
 - End-to-end unfamiliar-SME register/pay/configure/test/launch acceptance.
 
 This evidence does not authorize payment collection, public prices, invoices,

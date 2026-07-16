@@ -34,6 +34,16 @@ describe("internal text gateway", () => {
     await expect(gateway.generate(request)).rejects.toEqual(new ProviderGatewayError("gateway_unavailable"));
   });
 
+  it("bounds a stalled upstream call and collapses it to a safe timeout", async () => {
+    const gateway = createHttpTextProviderGateway({
+      endpoint: "https://ai-gateway.internal/generate", serviceToken: "secret", timeoutMs: 5,
+      fetchImpl: async (_input, init) => new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
+      }),
+    });
+    await expect(gateway.generate(request)).rejects.toEqual(new ProviderGatewayError("gateway_timeout"));
+  });
+
   it("rejects restricted routing identity in customer text", () => {
     expect(() => assertProviderNeutralCustomerText("This reply names GPT-5.")).toThrow(/gateway_invalid_response/);
   });
@@ -50,6 +60,8 @@ class FakeLiveSocket implements RestrictedLiveSocket {
   close() { this.readyState = 3; }
   open() { this.readyState = 1; this.onopen?.(); }
   message(value: unknown) { this.onmessage?.({ data: JSON.stringify(value) }); }
+  error() { this.onerror?.(); }
+  shutdown() { this.readyState = 3; this.onclose?.(); }
 }
 
 describe("restricted realtime Voice gateway", () => {
@@ -110,5 +122,39 @@ describe("restricted realtime Voice gateway", () => {
     socket.open(); socket.onmessage?.({ data: "not-json" });
     await expect(connecting).rejects.toEqual(new LiveVoiceGatewayError("gateway_invalid_response"));
     expect(socket.readyState).toBe(3);
+  });
+
+  it("bounds setup stalls and normalizes outages before and after admission", async () => {
+    const stalled = new FakeLiveSocket();
+    const stalledGateway = createGen1LiveVoiceProviderGateway({
+      apiKey: "restricted-key-abcdefghijklmnopqrstuvwxyz", model: "restricted-model",
+      voiceName: "restricted-voice", socketFactory: () => stalled, connectTimeoutMs: 5,
+    });
+    await expect(stalledGateway.connect({
+      correlationId: "voice-timeout", locale: "en", systemPolicy: "Restricted system policy",
+    }, () => undefined)).rejects.toEqual(new LiveVoiceGatewayError("gateway_timeout"));
+    expect(stalled.readyState).toBe(3);
+
+    const unavailable = new FakeLiveSocket();
+    const unavailableGateway = createGen1LiveVoiceProviderGateway({
+      apiKey: "restricted-key-abcdefghijklmnopqrstuvwxyz", model: "restricted-model",
+      voiceName: "restricted-voice", socketFactory: () => unavailable,
+    });
+    const connecting = unavailableGateway.connect({
+      correlationId: "voice-unavailable", locale: "en", systemPolicy: "Restricted system policy",
+    }, () => undefined);
+    unavailable.open(); unavailable.error();
+    await expect(connecting).rejects.toEqual(new LiveVoiceGatewayError("gateway_unavailable"));
+
+    const admitted = new FakeLiveSocket(); const events: LiveVoiceEvent[] = [];
+    const admittedGateway = createGen1LiveVoiceProviderGateway({
+      apiKey: "restricted-key-abcdefghijklmnopqrstuvwxyz", model: "restricted-model",
+      voiceName: "restricted-voice", socketFactory: () => admitted,
+    });
+    const admission = admittedGateway.connect({
+      correlationId: "voice-admitted", locale: "en", systemPolicy: "Restricted system policy",
+    }, (event) => { events.push(event); });
+    admitted.open(); admitted.message({ setupComplete: {} }); await admission; admitted.shutdown();
+    expect(events).toEqual([{ type: "error", code: "upstream_unavailable" }]);
   });
 });

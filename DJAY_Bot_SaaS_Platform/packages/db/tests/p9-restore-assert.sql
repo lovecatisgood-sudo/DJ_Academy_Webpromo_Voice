@@ -59,6 +59,7 @@ BEGIN
       AND pg_get_constraintdef(oid) LIKE '%event_replay%'
       AND pg_get_constraintdef(oid) LIKE '%queue_recovery%'
       AND pg_get_constraintdef(oid) LIKE '%pool_exhaustion%'
+      AND pg_get_constraintdef(oid) LIKE '%dependency_outage%'
   ) THEN
     RAISE EXCEPTION 'restored resilience attestation policy missing';
   END IF;
