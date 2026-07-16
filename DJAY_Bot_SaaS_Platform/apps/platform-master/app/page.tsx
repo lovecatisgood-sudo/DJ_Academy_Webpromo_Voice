@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { safeMutationFetch } from "@djay/shared";
 import { PlatformNavigation } from "./PlatformNavigation";
 
@@ -63,6 +63,7 @@ type VoiceAdmissionChange = { id: string; capabilityProfile: "voice_gen2"; targe
 type VoiceRouting = { admissionEnabled: boolean; admissionChanges: VoiceAdmissionChange[]; profiles: { capabilityProfile: "voice_gen2"; mode: "paused" | "canary" | "running" | "degraded"; reasonCode: string; version: number; changedAt: string; primaryCandidateId: string | null; canaryCandidateId: string | null; canaryPercent: number }[]; candidates: VoiceCandidate[]; changes: VoiceChange[]; incidents: VoiceIncident[] };
 
 export default function PlatformMasterPage() {
+  const loadGeneration = useRef(0);
   const [stage, setStage] = useState<"loading" | "error" | "password" | "mfa" | "dashboard">("loading");
   const [message, setMessage] = useState("");
   const [working, setWorking] = useState(false);
@@ -85,26 +86,36 @@ export default function PlatformMasterPage() {
   const [voiceIncidents, setVoiceIncidents] = useState<VoiceIncident[] | null>(null);
   const [voiceReason, setVoiceReason] = useState("scheduled_maintenance");
   const [routingActionReason, setRoutingActionReason] = useState("Reviewed Advanced Voice operational change");
+  const controlsBusy = working || dashboardLoading;
 
   async function loadCurrent() {
+    const generation = ++loadGeneration.current;
     if (!user) setStage("loading");
     let result: { user: PlatformUser };
     try {
       const response = await fetch("/platform/me", { cache: "no-store" });
+      if (generation !== loadGeneration.current) return;
       if ([401, 403].includes(response.status)) { setUser(null); setStage("password"); return; }
       if (!response.ok) throw new Error("platform_session_unavailable");
       result = await response.json();
+      if (generation !== loadGeneration.current) return;
       if (!result.user) throw new Error("platform_session_unavailable");
     } catch {
+      if (generation !== loadGeneration.current) return;
       setUser(null);
       setStage("error");
       return;
+    }
+    const authorityChanged = Boolean(user && (user.id !== result.user.id || user.role !== result.user.role));
+    if (authorityChanged) {
+      setHealth(null); setCommerce(null); setSubscriptions([]); setTenants([]); setSupportGrants([]);
+      setReadiness(null); setReconciliation(null); setRecovery(null);
+      setVoiceControl(null); setVoiceRouting(null); setVoiceIncidents(null);
     }
     setUser(result.user);
     setStage("dashboard");
     setDashboardLoading(true);
     setResourceErrors([]);
-    setHealth(null); setCommerce(null); setSubscriptions([]); setTenants([]); setSupportGrants([]); setVoiceControl(null); setVoiceRouting(null); setVoiceIncidents(null);
     const unavailable: string[] = [];
     async function loadResource<T>(path: string, field: string, label: string): Promise<T | null> {
       try {
@@ -118,77 +129,58 @@ export default function PlatformMasterPage() {
         return null;
       }
     }
-    setHealth(await loadResource<Health>("/platform/health-summary", "health", "Platform health"));
-    setReadiness(null);
-    setReadinessStage("loading");
-    try {
-      const readinessResponse = await fetch("/platform/release-readiness", { cache: "no-store" });
-      if (!readinessResponse.ok) throw new Error("readiness_unavailable");
-      const nextReadiness = (await readinessResponse.json()).readiness;
-      if (!nextReadiness) throw new Error("readiness_unavailable");
-      setReadiness(nextReadiness);
-      setReadinessStage("ready");
-    } catch {
-      setReadinessStage("error");
+    async function loadPanel<T>(path: string, field: string): Promise<{ value: T | null; available: boolean }> {
+      try {
+        const response = await fetch(path, { cache: "no-store" });
+        if (!response.ok) throw new Error("panel_unavailable");
+        const body = await response.json() as Record<string, unknown>;
+        if (!(field in body) || body[field] === null || body[field] === undefined) throw new Error("panel_unavailable");
+        return { value: body[field] as T, available: true };
+      } catch {
+        return { value: null, available: false };
+      }
     }
     const canReadBilling = ["platform_owner", "platform_finance"].includes(result.user.role);
     const canReadTenants = ["platform_owner", "platform_support", "platform_finance"].includes(result.user.role);
     const canReadVoice = ["platform_owner", "platform_ai_operations"].includes(result.user.role);
-    if (canReadBilling) {
-      setCommerce(await loadResource<Commerce>("/platform/commerce-overview", "commerce", "Commerce overview"));
-    } else setCommerce(null);
-    if (canReadBilling) {
-      setReconciliation(null);
-      setReconciliationStage("loading");
-      try {
-        const reconciliationResponse = await fetch("/platform/usage-reconciliation", { cache: "no-store" });
-        if (!reconciliationResponse.ok) throw new Error("reconciliation_unavailable");
-        const nextReconciliation = (await reconciliationResponse.json()).reconciliation;
-        if (!nextReconciliation) throw new Error("reconciliation_unavailable");
-        setReconciliation(nextReconciliation);
-        setReconciliationStage("ready");
-      } catch {
-        setReconciliation(null);
-        setReconciliationStage("error");
-      }
-    } else {
-      setReconciliation(null);
-      setReconciliationStage("hidden");
-    }
-    if (canReadBilling) {
-      setSubscriptions(await loadResource<Subscription[]>("/platform/subscriptions", "subscriptions", "Product subscriptions") || []);
-    } else setSubscriptions([]);
-    if (canReadTenants) {
-      setTenants(await loadResource<Tenant[]>("/platform/tenants", "tenants", "Tenant directory") || []);
-    } else setTenants([]);
-    setSupportGrants(await loadResource<SupportGrant[]>("/platform/support-grants", "grants", "Support access grants") || []);
-    if (["platform_owner", "platform_support", "platform_ai_operations"].includes(result.user.role)) {
-      setRecoveryStage("loading");
-      try {
-        const recoveryResponse = await fetch("/platform/dead-letter-recovery", { cache: "no-store" });
-        if (!recoveryResponse.ok) throw new Error("recovery_unavailable");
-        const nextRecovery = (await recoveryResponse.json()).recovery;
-        if (!nextRecovery) throw new Error("recovery_unavailable");
-        setRecovery(nextRecovery);
-        setRecoveryStage("ready");
-      } catch {
-        setRecovery(null);
-        setRecoveryStage("error");
-      }
-    } else {
-      setRecovery(null);
-      setRecoveryStage("hidden");
-    }
-    if (canReadVoice) {
-      setVoiceControl(await loadResource<VoiceControl>("/platform/voice/runtime-control", "control", "Voice runtime controls"));
-    } else setVoiceControl(null);
-    if (canReadVoice) {
-      setVoiceRouting(await loadResource<VoiceRouting>("/platform/voice/routing", "routing", "Advanced Voice routing"));
-    } else setVoiceRouting(null);
-    if (["platform_owner", "platform_ai_operations", "platform_finance"].includes(result.user.role)) {
-      setVoiceIncidents(await loadResource<VoiceIncident[]>("/platform/voice/incidents", "incidents", "Voice incidents") || []);
-    } else setVoiceIncidents(null);
-    setResourceErrors(unavailable);
+    const canReadRecovery = ["platform_owner", "platform_support", "platform_ai_operations"].includes(result.user.role);
+    const canReadVoiceIncidents = ["platform_owner", "platform_ai_operations", "platform_finance"].includes(result.user.role);
+    setReadinessStage("loading");
+    setReconciliationStage(canReadBilling ? "loading" : "hidden");
+    setRecoveryStage(canReadRecovery ? "loading" : "hidden");
+    const [
+      nextHealth, readinessResult, nextCommerce, reconciliationResult,
+      nextSubscriptions, nextTenants, nextSupportGrants, recoveryResult,
+      nextVoiceControl, nextVoiceRouting, nextVoiceIncidents,
+    ] = await Promise.all([
+      loadResource<Health>("/platform/health-summary", "health", "Platform health"),
+      loadPanel<ReleaseReadiness>("/platform/release-readiness", "readiness"),
+      canReadBilling ? loadResource<Commerce>("/platform/commerce-overview", "commerce", "Commerce overview") : Promise.resolve(null),
+      canReadBilling ? loadPanel<UsageReconciliation>("/platform/usage-reconciliation", "reconciliation") : Promise.resolve({ value: null, available: false }),
+      canReadBilling ? loadResource<Subscription[]>("/platform/subscriptions", "subscriptions", "Product subscriptions") : Promise.resolve(null),
+      canReadTenants ? loadResource<Tenant[]>("/platform/tenants", "tenants", "Tenant directory") : Promise.resolve(null),
+      loadResource<SupportGrant[]>("/platform/support-grants", "grants", "Support access grants"),
+      canReadRecovery ? loadPanel<RecoveryOverview>("/platform/dead-letter-recovery", "recovery") : Promise.resolve({ value: null, available: false }),
+      canReadVoice ? loadResource<VoiceControl>("/platform/voice/runtime-control", "control", "Voice runtime controls") : Promise.resolve(null),
+      canReadVoice ? loadResource<VoiceRouting>("/platform/voice/routing", "routing", "Advanced Voice routing") : Promise.resolve(null),
+      canReadVoiceIncidents ? loadResource<VoiceIncident[]>("/platform/voice/incidents", "incidents", "Voice incidents") : Promise.resolve(null),
+    ]);
+    if (generation !== loadGeneration.current) return;
+    setHealth(nextHealth);
+    setReadiness(readinessResult.value);
+    setReadinessStage(readinessResult.available ? "ready" : "error");
+    setCommerce(nextCommerce);
+    setReconciliation(reconciliationResult.value);
+    setReconciliationStage(canReadBilling ? reconciliationResult.available ? "ready" : "error" : "hidden");
+    setSubscriptions(nextSubscriptions || []);
+    setTenants(nextTenants || []);
+    setSupportGrants(nextSupportGrants || []);
+    setRecovery(recoveryResult.value);
+    setRecoveryStage(canReadRecovery ? recoveryResult.available ? "ready" : "error" : "hidden");
+    setVoiceControl(nextVoiceControl);
+    setVoiceRouting(nextVoiceRouting);
+    setVoiceIncidents(canReadVoiceIncidents ? nextVoiceIncidents || [] : null);
+    setResourceErrors(unavailable.sort());
     setDashboardLoading(false);
   }
 
@@ -233,6 +225,7 @@ export default function PlatformMasterPage() {
   async function logout() {
     const response = await safeMutationFetch("/platform/auth/logout", { method: "POST" });
     if (!response.ok) { setMessage("Sign out could not be confirmed. Your current session remains open."); return; }
+    loadGeneration.current += 1;
     setUser(null);
     setHealth(null);
     setCommerce(null);
@@ -248,6 +241,7 @@ export default function PlatformMasterPage() {
     setVoiceControl(null);
     setVoiceRouting(null);
     setVoiceIncidents(null);
+    setDashboardLoading(false);
     setStage("password");
   }
 
@@ -452,8 +446,8 @@ export default function PlatformMasterPage() {
             <div><span>Pending activation</span><strong>{commerce.pending}</strong></div></> : null}
           </div>
           <div className="operations-band"><p>System evidence</p><h2>Review current identity, release, and role-authorized operations data</h2></div>
-          {readinessStage === "loading" ? <div className="subscription-band release-readiness-band readiness-placeholder" id="release-operations" aria-live="polite"><div><p>Release operations</p><h2>Checking release readiness…</h2></div><p className="operational-note">Loading current SLO, incident, on-call, restore, replay, queue, pool, security, privacy, support, and usage evidence.</p></div> : null}
-          {readinessStage === "error" ? <div className="subscription-band release-readiness-band status-blocked readiness-placeholder" id="release-operations" role="alert"><div><p>Release operations</p><h2>Release evidence unavailable</h2></div><p className="operational-note">The release gate is blocked. No service should be promoted while current evidence cannot be verified.</p><button type="button" disabled={working} onClick={() => void loadCurrent()}>Retry readiness check</button></div> : null}
+          {readinessStage === "loading" && !readiness ? <div className="subscription-band release-readiness-band readiness-placeholder" id="release-operations" aria-live="polite"><div><p>Release operations</p><h2>Checking release readiness…</h2></div><p className="operational-note">Loading current SLO, incident, on-call, restore, replay, queue, pool, security, privacy, support, and usage evidence.</p></div> : null}
+          {readinessStage === "error" ? <div className="subscription-band release-readiness-band status-blocked readiness-placeholder" id="release-operations" role="alert"><div><p>Release operations</p><h2>Release evidence unavailable</h2></div><p className="operational-note">The release gate is blocked. No service should be promoted while current evidence cannot be verified.</p><button type="button" disabled={controlsBusy} onClick={() => void loadCurrent()}>Retry readiness check</button></div> : null}
           {readiness ? <div className={`subscription-band release-readiness-band status-${readiness.status}`} id="release-operations">
             <div className="readiness-heading"><div><p>Release operations</p><h2>Public release readiness</h2></div><span className="readiness-status" role="status">{readiness.status === "ready" ? "Ready for reviewed release" : "Release blocked"}</span></div>
             <p className="operational-note">A release remains fail-closed until all seven service objectives, nine time-limited operational attestations, incident review, usage reconciliation, and live registration authority pass together.</p>
@@ -480,14 +474,14 @@ export default function PlatformMasterPage() {
                 : user.role === "platform_ai_operations" ? "Resolve failing runtime objectives without exposing internal routing to customer surfaces."
                   : "This technical gate does not authorize prices, invoices, tax, or payment collection."}</span><small>Checked {new Date(readiness.asOf).toLocaleString()}</small></div>
           </div> : null}
-          {reconciliationStage === "loading" ? <div className="subscription-band reconciliation-band reconciliation-placeholder" id="usage-reconciliation" aria-live="polite">
+          {reconciliationStage === "loading" && !reconciliation ? <div className="subscription-band reconciliation-band reconciliation-placeholder" id="usage-reconciliation" aria-live="polite">
             <div><p>Billing operations · restricted</p><h2>Checking usage reconciliation…</h2></div>
             <p className="operational-note">Comparing customer-unit balances with reservation and immutable event evidence.</p>
           </div> : null}
           {reconciliationStage === "error" ? <div className="subscription-band reconciliation-band status-attention reconciliation-placeholder" id="usage-reconciliation" role="alert">
             <div><p>Billing operations · restricted</p><h2>Usage reconciliation unavailable</h2></div>
             <p className="operational-note">No balance or billing state was changed. Treat the gate as not reconciled until the evidence can be loaded.</p>
-            <button type="button" disabled={working} onClick={() => void loadCurrent()}>Retry reconciliation</button>
+            <button type="button" disabled={controlsBusy} onClick={() => void loadCurrent()}>Retry reconciliation</button>
           </div> : null}
           {reconciliation ? <div className={`subscription-band reconciliation-band status-${reconciliation.status}`} id="usage-reconciliation">
             <div className="reconciliation-heading">
@@ -529,9 +523,9 @@ export default function PlatformMasterPage() {
             </div>
             <label className="voice-reason">Operational reason<input value={voiceReason} minLength={3} maxLength={200} onChange={(event) => setVoiceReason(event.target.value)} /></label>
             <div className="voice-control-actions">
-              <button type="button" disabled={working || voiceControl.mode === "running"} onClick={() => void changeVoiceMode("running")}>Resume admission</button>
-              <button className="outline-button" type="button" disabled={working || voiceControl.mode === "paused"} onClick={() => void changeVoiceMode("paused")}>Pause new sessions</button>
-              <button className="danger-button" type="button" disabled={working || voiceControl.mode === "emergency_stop"} onClick={() => void changeVoiceMode("emergency_stop")}>Emergency stop</button>
+              <button type="button" disabled={controlsBusy || voiceControl.mode === "running"} onClick={() => void changeVoiceMode("running")}>Resume admission</button>
+              <button className="outline-button" type="button" disabled={controlsBusy || voiceControl.mode === "paused"} onClick={() => void changeVoiceMode("paused")}>Pause new sessions</button>
+              <button className="danger-button" type="button" disabled={controlsBusy || voiceControl.mode === "emergency_stop"} onClick={() => void changeVoiceMode("emergency_stop")}>Emergency stop</button>
             </div>
             <small>Version {voiceControl.version} · changed {new Date(voiceControl.changedAt).toLocaleString()}</small>
           </div> : null}
@@ -545,28 +539,28 @@ export default function PlatformMasterPage() {
               <div><span>Canary</span><strong>{voiceRouting.profiles[0]?.canaryPercent || 0}%</strong><small>Version {voiceRouting.profiles[0]?.version || 1}</small></div>
             </div>
             <div className="voice-governance-grid">
-              <form onSubmit={proposeVoiceCandidate}><h3>1. Propose route</h3><label>Provider key<input name="providerKey" pattern="[a-z0-9][a-z0-9._-]{1,79}" required /></label><label>Model key<input name="modelKey" minLength={2} maxLength={160} required /></label><label>Region key<input name="regionKey" pattern="[a-z0-9][a-z0-9._-]{1,79}" required /></label><button disabled={working} type="submit">Submit candidate</button></form>
-              <form onSubmit={reviewVoiceCandidate}><h3>2. Independent qualification</h3><label>Proposed candidate<select name="candidateId" required defaultValue=""><option value="" disabled>Select candidate</option>{voiceRouting.candidates.filter((candidate) => candidate.status === "proposed").map((candidate) => <option key={candidate.id} value={candidate.id} disabled={candidate.proposedByPlatformUserId === user.id}>{candidate.providerKey} / {candidate.modelKey}{candidate.proposedByPlatformUserId === user.id ? " · another reviewer required" : ""}</option>)}</select></label><label>Decision<select name="decision" defaultValue="qualify"><option value="qualify">Qualify</option><option value="reject">Reject</option></select></label><label>Qualification evidence SHA-256<input name="evidenceSha256" pattern="[a-fA-F0-9]{64}" minLength={64} maxLength={64} required /></label><button disabled={working} type="submit">Record review</button></form>
-              <form onSubmit={requestVoiceChange}><h3>3. Request canary</h3><label>Qualified candidate<select name="candidateId" required defaultValue=""><option value="" disabled>Select candidate</option>{voiceRouting.candidates.filter((candidate) => candidate.status === "qualified").map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.providerKey} / {candidate.modelKey}</option>)}</select></label><label>Canary percent<input name="canaryPercent" type="number" min={1} max={100} defaultValue={10} required /></label><label>Operational reason<input name="reason" minLength={12} maxLength={500} required /></label><label>Evaluation evidence SHA-256<input name="evidenceSha256" pattern="[a-fA-F0-9]{64}" minLength={64} maxLength={64} required /></label><button disabled={working} type="submit">Request change</button></form>
+              <form onSubmit={proposeVoiceCandidate}><h3>1. Propose route</h3><label>Provider key<input name="providerKey" pattern="[a-z0-9][a-z0-9._-]{1,79}" required /></label><label>Model key<input name="modelKey" minLength={2} maxLength={160} required /></label><label>Region key<input name="regionKey" pattern="[a-z0-9][a-z0-9._-]{1,79}" required /></label><button disabled={controlsBusy} type="submit">Submit candidate</button></form>
+              <form onSubmit={reviewVoiceCandidate}><h3>2. Independent qualification</h3><label>Proposed candidate<select name="candidateId" required defaultValue=""><option value="" disabled>Select candidate</option>{voiceRouting.candidates.filter((candidate) => candidate.status === "proposed").map((candidate) => <option key={candidate.id} value={candidate.id} disabled={candidate.proposedByPlatformUserId === user.id}>{candidate.providerKey} / {candidate.modelKey}{candidate.proposedByPlatformUserId === user.id ? " · another reviewer required" : ""}</option>)}</select></label><label>Decision<select name="decision" defaultValue="qualify"><option value="qualify">Qualify</option><option value="reject">Reject</option></select></label><label>Qualification evidence SHA-256<input name="evidenceSha256" pattern="[a-fA-F0-9]{64}" minLength={64} maxLength={64} required /></label><button disabled={controlsBusy} type="submit">Record review</button></form>
+              <form onSubmit={requestVoiceChange}><h3>3. Request canary</h3><label>Qualified candidate<select name="candidateId" required defaultValue=""><option value="" disabled>Select candidate</option>{voiceRouting.candidates.filter((candidate) => candidate.status === "qualified").map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.providerKey} / {candidate.modelKey}</option>)}</select></label><label>Canary percent<input name="canaryPercent" type="number" min={1} max={100} defaultValue={10} required /></label><label>Operational reason<input name="reason" minLength={12} maxLength={500} required /></label><label>Evaluation evidence SHA-256<input name="evidenceSha256" pattern="[a-fA-F0-9]{64}" minLength={64} maxLength={64} required /></label><button disabled={controlsBusy} type="submit">Request change</button></form>
             </div>
             <label className="voice-reason">Action reason<input value={routingActionReason} minLength={12} maxLength={500} onChange={(event) => setRoutingActionReason(event.target.value)} /></label>
             <div className="platform-table" role="list" aria-label="Advanced Voice routing changes">
-              {voiceRouting.changes.map((change) => <div className="platform-row voice-route-row" role="listitem" key={change.id}><div><strong>{voiceRouting.candidates.find((candidate) => candidate.id === change.candidateId)?.modelKey || change.candidateId}</strong><span>{change.reason} · {change.canaryPercent}% canary</span></div><span>{change.status.replaceAll("_", " ")}</span><div className="row-actions">{change.status === "requested" ? <><button disabled={working || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceChange(change.id, "approve")}>Approve</button><button className="outline-button" disabled={working || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceChange(change.id, "reject")}>Reject</button></> : null}{change.status === "approved" ? <button disabled={working} onClick={() => void applyVoiceChange(change.id, "start_canary")}>Start canary</button> : null}{change.status === "canary" ? <><button disabled={working} onClick={() => void applyVoiceChange(change.id, "promote")}>Promote</button><button className="outline-button" disabled={working} onClick={() => void applyVoiceChange(change.id, "rollback")}>Rollback</button></> : null}{change.status === "active" ? <button className="danger-button" disabled={working} onClick={() => void applyVoiceChange(change.id, "rollback")}>Rollback</button> : null}</div></div>)}
+              {voiceRouting.changes.map((change) => <div className="platform-row voice-route-row" role="listitem" key={change.id}><div><strong>{voiceRouting.candidates.find((candidate) => candidate.id === change.candidateId)?.modelKey || change.candidateId}</strong><span>{change.reason} · {change.canaryPercent}% canary</span></div><span>{change.status.replaceAll("_", " ")}</span><div className="row-actions">{change.status === "requested" ? <><button disabled={controlsBusy || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceChange(change.id, "approve")}>Approve</button><button className="outline-button" disabled={controlsBusy || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceChange(change.id, "reject")}>Reject</button></> : null}{change.status === "approved" ? <button disabled={controlsBusy} onClick={() => void applyVoiceChange(change.id, "start_canary")}>Start canary</button> : null}{change.status === "canary" ? <><button disabled={controlsBusy} onClick={() => void applyVoiceChange(change.id, "promote")}>Promote</button><button className="outline-button" disabled={controlsBusy} onClick={() => void applyVoiceChange(change.id, "rollback")}>Rollback</button></> : null}{change.status === "active" ? <button className="danger-button" disabled={controlsBusy} onClick={() => void applyVoiceChange(change.id, "rollback")}>Rollback</button> : null}</div></div>)}
               {!voiceRouting.changes.length ? <p className="empty-row" role="listitem">No routing changes</p> : null}
             </div>
             <div className="voice-governance-grid admission-governance-grid">
-              <form onSubmit={requestVoiceAdmission}><h3>4. Production admission</h3><label>Requested state<select name="enabled" defaultValue={voiceRouting.admissionEnabled ? "false" : "true"}><option value="true">Enable production traffic</option><option value="false">Disable production traffic</option></select></label><label>Acceptance reason<input name="reason" minLength={12} maxLength={500} required /></label><label>Acceptance evidence SHA-256<input name="evidenceSha256" pattern="[a-fA-F0-9]{64}" minLength={64} maxLength={64} required /></label><button disabled={working} type="submit">Request admission change</button></form>
-              <div className="platform-table" role="list" aria-label="Advanced Voice admission changes">{voiceRouting.admissionChanges.map((change) => <div className="platform-row voice-route-row" role="listitem" key={change.id}><div><strong>{change.targetEnabled ? "Enable" : "Disable"} admission</strong><span>{change.reason}</span></div><span>{change.status}</span><div className="row-actions">{change.status === "requested" ? <><button disabled={working || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceAdmission(change.id, "approve")}>Approve</button><button className="outline-button" disabled={working || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceAdmission(change.id, "reject")}>Reject</button></> : null}{change.status === "approved" ? <button className={change.targetEnabled ? "danger-button" : undefined} disabled={working} onClick={() => void applyVoiceAdmission(change.id, change.targetEnabled)}>{change.targetEnabled ? "Enable traffic" : "Disable traffic"}</button> : null}</div></div>)}{!voiceRouting.admissionChanges.length ? <p className="empty-row" role="listitem">No admission changes</p> : null}</div>
+              <form onSubmit={requestVoiceAdmission}><h3>4. Production admission</h3><label>Requested state<select name="enabled" defaultValue={voiceRouting.admissionEnabled ? "false" : "true"}><option value="true">Enable production traffic</option><option value="false">Disable production traffic</option></select></label><label>Acceptance reason<input name="reason" minLength={12} maxLength={500} required /></label><label>Acceptance evidence SHA-256<input name="evidenceSha256" pattern="[a-fA-F0-9]{64}" minLength={64} maxLength={64} required /></label><button disabled={controlsBusy} type="submit">Request admission change</button></form>
+              <div className="platform-table" role="list" aria-label="Advanced Voice admission changes">{voiceRouting.admissionChanges.map((change) => <div className="platform-row voice-route-row" role="listitem" key={change.id}><div><strong>{change.targetEnabled ? "Enable" : "Disable"} admission</strong><span>{change.reason}</span></div><span>{change.status}</span><div className="row-actions">{change.status === "requested" ? <><button disabled={controlsBusy || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceAdmission(change.id, "approve")}>Approve</button><button className="outline-button" disabled={controlsBusy || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceAdmission(change.id, "reject")}>Reject</button></> : null}{change.status === "approved" ? <button className={change.targetEnabled ? "danger-button" : undefined} disabled={controlsBusy} onClick={() => void applyVoiceAdmission(change.id, change.targetEnabled)}>{change.targetEnabled ? "Enable traffic" : "Disable traffic"}</button> : null}</div></div>)}{!voiceRouting.admissionChanges.length ? <p className="empty-row" role="listitem">No admission changes</p> : null}</div>
             </div>
-            <form className="incident-open-form" onSubmit={openVoiceIncident}><h3>Open incident</h3><label>Severity<select name="severity" defaultValue="major"><option value="minor">Minor · degraded</option><option value="major">Major · pause</option><option value="critical">Critical · pause</option></select></label><label>Related change<select name="routingChangeId" defaultValue=""><option value="">No related change</option>{voiceRouting.changes.map((change) => <option key={change.id} value={change.id}>{change.status} · {change.reason}</option>)}</select></label><label>Incident reason<input name="reason" minLength={12} maxLength={1000} required /></label><label className="checkbox-label"><input name="creditReviewRequired" type="checkbox" />Credit review required</label><button disabled={working} type="submit">Open and safeguard</button></form>
+            <form className="incident-open-form" onSubmit={openVoiceIncident}><h3>Open incident</h3><label>Severity<select name="severity" defaultValue="major"><option value="minor">Minor · degraded</option><option value="major">Major · pause</option><option value="critical">Critical · pause</option></select></label><label>Related change<select name="routingChangeId" defaultValue=""><option value="">No related change</option>{voiceRouting.changes.map((change) => <option key={change.id} value={change.id}>{change.status} · {change.reason}</option>)}</select></label><label>Incident reason<input name="reason" minLength={12} maxLength={1000} required /></label><label className="checkbox-label"><input name="creditReviewRequired" type="checkbox" />Credit review required</label><button disabled={controlsBusy} type="submit">Open and safeguard</button></form>
           </div> : null}
           {voiceIncidents ? <div className="subscription-band incident-band">
             <div><p>Advanced Voice</p><h2>Incident and credit review</h2></div>
-            <div className="platform-table" role="list" aria-label="Advanced Voice incidents">{voiceIncidents.map((incident) => <div className="platform-row incident-row" role="listitem" key={incident.id}><div><strong>{incident.severity} · {incident.status}</strong><span>{incident.reason}</span></div><span>{incident.creditReviewStatus.replaceAll("_", " ")}</span><div className="row-actions">{incident.creditReviewStatus === "required" && ["platform_owner", "platform_finance"].includes(user.role) ? <><button disabled={working || incident.openedByPlatformUserId === user.id} onClick={() => void reviewVoiceCredit(incident.id, "approve")}>Approve credit review</button><button className="outline-button" disabled={working || incident.openedByPlatformUserId === user.id} onClick={() => void reviewVoiceCredit(incident.id, "reject")}>Reject</button></> : null}{incident.status !== "resolved" && ["platform_owner", "platform_ai_operations"].includes(user.role) ? <button disabled={working} onClick={() => void resolveVoiceIncident(incident.id)}>Resolve</button> : null}</div></div>)}{!voiceIncidents.length ? <p className="empty-row" role="listitem">No Advanced Voice incidents</p> : null}</div>
+            <div className="platform-table" role="list" aria-label="Advanced Voice incidents">{voiceIncidents.map((incident) => <div className="platform-row incident-row" role="listitem" key={incident.id}><div><strong>{incident.severity} · {incident.status}</strong><span>{incident.reason}</span></div><span>{incident.creditReviewStatus.replaceAll("_", " ")}</span><div className="row-actions">{incident.creditReviewStatus === "required" && ["platform_owner", "platform_finance"].includes(user.role) ? <><button disabled={controlsBusy || incident.openedByPlatformUserId === user.id} onClick={() => void reviewVoiceCredit(incident.id, "approve")}>Approve credit review</button><button className="outline-button" disabled={controlsBusy || incident.openedByPlatformUserId === user.id} onClick={() => void reviewVoiceCredit(incident.id, "reject")}>Reject</button></> : null}{incident.status !== "resolved" && ["platform_owner", "platform_ai_operations"].includes(user.role) ? <button disabled={controlsBusy} onClick={() => void resolveVoiceIncident(incident.id)}>Resolve</button> : null}</div></div>)}{!voiceIncidents.length ? <p className="empty-row" role="listitem">No Advanced Voice incidents</p> : null}</div>
           </div> : null}
           {health?.socialChannels?.length ? <div className="subscription-band"><div><p>AI Chat operations</p><h2>Social channel health</h2></div><div className="platform-table" role="list" aria-label="Social channel health">{health.socialChannels.map((channel) => <div className="platform-row" role="listitem" key={channel.channel}><div><strong>{channel.channel === "line" ? "LINE" : channel.channel === "whatsapp" ? "WhatsApp" : "Messenger"}</strong><span>{channel.activeConnections} active / {channel.reauthorizationRequired} reauthorization</span></div><span>{channel.queuedInbound} inbound queued / {channel.oldestInboundQueueSeconds}s oldest</span><span>{channel.queuedDeliveries} delivery queued / {channel.oldestDeliveryQueueSeconds}s oldest</span><span>{channel.deadLetterInbound + channel.deadLetterDeliveries} dead letters / {channel.failedAttempts24h} failed attempts</span></div>)}</div></div> : null}
-          {recoveryStage === "loading" ? <div className="subscription-band recovery-band" id="queue-recovery" aria-busy="true"><div><p>Queue recovery · restricted</p><h2>Loading reviewed recovery</h2></div><p className="operational-note">Checking replay eligibility and independent-review state.</p></div> : null}
-          {recoveryStage === "error" ? <div className="subscription-band recovery-band" id="queue-recovery"><div><p>Queue recovery · restricted</p><h2>Recovery controls unavailable</h2></div><p className="operational-note" role="alert">Failing closed. Do not use direct SQL; restore the recovery service and retry this read.</p><button type="button" disabled={working} onClick={() => void loadCurrent()}>Retry recovery controls</button></div> : null}
+          {recoveryStage === "loading" && !recovery ? <div className="subscription-band recovery-band" id="queue-recovery" aria-busy="true"><div><p>Queue recovery · restricted</p><h2>Loading reviewed recovery</h2></div><p className="operational-note">Checking replay eligibility and independent-review state.</p></div> : null}
+          {recoveryStage === "error" ? <div className="subscription-band recovery-band" id="queue-recovery"><div><p>Queue recovery · restricted</p><h2>Recovery controls unavailable</h2></div><p className="operational-note" role="alert">Failing closed. Do not use direct SQL; restore the recovery service and retry this read.</p><button type="button" disabled={controlsBusy} onClick={() => void loadCurrent()}>Retry recovery controls</button></div> : null}
           {recoveryStage === "ready" && recovery ? <div className="subscription-band recovery-band" id="queue-recovery">
             <div><p>Queue recovery · restricted</p><h2>Reviewed dead-letter replay</h2></div>
             <p className="operational-note">Only email deliveries with our durable idempotency key are eligible. FlowBot webhooks and social queues remain blocked for root-cause review because an external side effect cannot be proven safe to repeat.</p>
@@ -578,13 +572,13 @@ export default function PlatformMasterPage() {
             {recovery.recoverable.length ? <form className="support-request-form recovery-request-form" onSubmit={requestRecovery}>
               <label>Eligible dead letter<select name="recoveryTarget" required defaultValue=""><option value="" disabled>Select an opaque queue item</option>{recovery.recoverable.map((item) => <option key={`${item.queueKind}:${item.itemId}`} value={`${item.queueKind}|${item.itemId}|${item.attemptCount}`}>{item.queueKind.replaceAll("_", " ")} · …{item.itemId.slice(-8)} · attempt {item.attemptCount}</option>)}</select></label>
               <label>Root-cause and replay reason<input name="reason" minLength={12} maxLength={500} required placeholder="Cause corrected; approve one idempotent retry" /></label>
-              <button type="submit" disabled={working}>Request replay</button>
+              <button type="submit" disabled={controlsBusy}>Request replay</button>
             </form> : <p className="empty-row">No eligible email dead letters</p>}
             <div className="platform-table" role="list" aria-label="Dead-letter recovery requests">
               {recovery.requests.map((request) => <div className="platform-row recovery-row" role="listitem" key={request.recordId}>
                 <div><strong>{request.queueKind.replaceAll("_", " ")} · …{request.itemId.slice(-8)}</strong><span>{request.reason}</span></div>
                 <span>{request.status}</span><span>Attempt {request.attemptCount} · {new Date(request.occurredAt).toLocaleString()}</span>
-                <div className="row-actions">{user.role === "platform_owner" && request.status === "requested" ? <><button type="button" disabled={working || request.requestedByPlatformUserId === user.id} onClick={() => void reviewRecovery(request.recordId, "approve")}>Approve one retry</button><button className="outline-button" type="button" disabled={working || request.requestedByPlatformUserId === user.id} onClick={() => void reviewRecovery(request.recordId, "reject")}>Reject</button></> : null}</div>
+                <div className="row-actions">{user.role === "platform_owner" && request.status === "requested" ? <><button type="button" disabled={controlsBusy || request.requestedByPlatformUserId === user.id} onClick={() => void reviewRecovery(request.recordId, "approve")}>Approve one retry</button><button className="outline-button" type="button" disabled={controlsBusy || request.requestedByPlatformUserId === user.id} onClick={() => void reviewRecovery(request.recordId, "reject")}>Reject</button></> : null}</div>
               </div>)}
               {!recovery.requests.length ? <p className="empty-row" role="listitem">No recovery requests</p> : null}
             </div>
@@ -598,7 +592,7 @@ export default function PlatformMasterPage() {
                   <div><strong>{subscription.businessName}</strong><span>{subscription.publicName}</span></div>
                   <span>{subscription.status.replaceAll("_", " ")}</span>
                   {user.role === "platform_owner" && subscription.status === "pending" ? (
-                    <button type="button" disabled={working} onClick={() => void activate(subscription.id)}>Activate pilot</button>
+                    <button type="button" disabled={controlsBusy} onClick={() => void activate(subscription.id)}>Activate pilot</button>
                   ) : <span />}
                 </div>
               ))}
@@ -611,12 +605,12 @@ export default function PlatformMasterPage() {
               <label>Tenant<select name="tenantId" required defaultValue=""><option value="" disabled>Select tenant</option>{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.businessName}</option>)}</select></label>
               <label>Reason<input name="reason" minLength={12} maxLength={500} required /></label>
               <label>Duration<select name="durationMinutes" defaultValue="60"><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></label>
-              <button type="submit" disabled={working}>Request</button>
+              <button type="submit" disabled={controlsBusy}>Request</button>
             </form> : null}
             <div className="platform-table" role="list" aria-label="Support access grants">
               {supportGrants.map((grant) => <div className="platform-row support-row" role="listitem" key={grant.id}>
                 <div><strong>{grant.businessName}</strong><span>{grant.reason}</span></div><span>{grant.status}</span><span>{new Date(grant.expiresAt).toLocaleString()}</span>
-                <div className="row-actions">{user.role === "platform_owner" && grant.status === "requested" ? <button type="button" disabled={working || grant.requestedByPlatformUserId === user.id} onClick={() => void decideSupport(grant.id, "approve")}>Approve</button> : null}{user.role === "platform_owner" && ["requested", "approved", "active"].includes(grant.status) ? <button className="outline-button" type="button" disabled={working} onClick={() => void decideSupport(grant.id, "revoke")}>Revoke</button> : null}</div>
+                <div className="row-actions">{user.role === "platform_owner" && grant.status === "requested" ? <button type="button" disabled={controlsBusy || grant.requestedByPlatformUserId === user.id} onClick={() => void decideSupport(grant.id, "approve")}>Approve</button> : null}{user.role === "platform_owner" && ["requested", "approved", "active"].includes(grant.status) ? <button className="outline-button" type="button" disabled={controlsBusy} onClick={() => void decideSupport(grant.id, "revoke")}>Revoke</button> : null}</div>
               </div>)}
               {!supportGrants.length && !resourceErrors.includes("Support access grants") ? <p className="empty-row" role="listitem">No support access grants</p> : null}
             </div>
@@ -636,13 +630,13 @@ export default function PlatformMasterPage() {
         {stage === "mfa" ? (
           <form onSubmit={verifyMfa}>
             <label>Authenticator code<input inputMode="numeric" pattern="[0-9]{6}" maxLength={6} name="code" autoComplete="one-time-code" required /></label>
-            <button type="submit" disabled={working}>{working ? "Verifying..." : "Verify"}</button>
+            <button type="submit" disabled={controlsBusy}>{working ? "Verifying..." : "Verify"}</button>
           </form>
         ) : (
           <form onSubmit={passwordLogin}>
             <label>Platform email<input type="email" name="email" autoComplete="email" required /></label>
             <label>Password<input type="password" name="password" autoComplete="current-password" required /></label>
-            <button type="submit" disabled={working}>{working ? "Checking..." : "Continue"}</button>
+            <button type="submit" disabled={controlsBusy}>{working ? "Checking..." : "Continue"}</button>
           </form>
         )}
         {message ? <div className="platform-message" role="alert">{message}</div> : null}

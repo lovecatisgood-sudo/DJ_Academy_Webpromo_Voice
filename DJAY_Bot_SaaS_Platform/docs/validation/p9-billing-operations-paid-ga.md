@@ -130,6 +130,16 @@ remained limited to Owner/Finance. All views
 passed overflow, console, confidentiality, commercial-boundary, and actionable
 failure checks.
 
+The Platform snapshot loader now starts every independent role-authorized read
+concurrently after session authority resolves, then commits the result only if
+it is still the newest refresh generation. The Owner browser fixture adds 80 ms
+to each operations read and requires at least four requests in flight together;
+the accepted production build exceeded that threshold while preserving every
+role, error, recovery, confidentiality, and responsive-layout assertion. A
+second delayed journey changes the resolved identity from Owner to Support
+during refresh and proves usage, Voice runtime, and route-governance evidence
+disappear before the Support snapshot requests finish.
+
 Owner, Support, and AI Operations also received the reviewed recovery surface
 with safe opaque item data, root-cause input, explicit independent review, and
 the excluded-queue boundary. Finance received no recovery data or controls. The

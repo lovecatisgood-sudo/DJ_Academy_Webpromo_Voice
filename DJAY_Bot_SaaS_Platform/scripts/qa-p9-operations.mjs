@@ -83,19 +83,26 @@ function json(route, value, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(value) });
 }
 
-async function mockPlatform(page, role, recoveryMode) {
-  const calls = { recoveryRequests: 0, recoveryReviews: 0 };
+async function mockPlatform(page, role, recoveryMode, delayedReadMs = 0, roleAfterReview = null) {
+  const calls = { recoveryRequests: 0, recoveryReviews: 0, activeReads: 0, maxConcurrentReads: 0 };
   await page.route("**/platform/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    const currentRole = roleAfterReview && calls.recoveryReviews ? roleAfterReview : role;
     if (path === "/platform/me") return json(route, { user: {
-      id: role,
-      displayName: role.replace("platform_", "").replaceAll("_", " "),
-      role, mfaVerifiedAt: now.toISOString(),
+      id: currentRole,
+      displayName: currentRole.replace("platform_", "").replaceAll("_", " "),
+      role: currentRole, mfaVerifiedAt: now.toISOString(),
     } });
+    if (delayedReadMs && route.request().method() === "GET") {
+      calls.activeReads += 1;
+      calls.maxConcurrentReads = Math.max(calls.maxConcurrentReads, calls.activeReads);
+      await new Promise((resolve) => setTimeout(resolve, delayedReadMs));
+      calls.activeReads -= 1;
+    }
     if (path === "/platform/health-summary") return json(route, { health: { platformUsers: 4, activeSessions: 2 } });
     if (path === "/platform/release-readiness") {
       const roleReadiness = structuredClone(readiness);
-      if (!["platform_owner", "platform_finance"].includes(role)) {
+      if (!["platform_owner", "platform_finance"].includes(currentRole)) {
         roleReadiness.usage = { passing: false, status: "attention" };
       }
       return json(route, { readiness: roleReadiness });
@@ -146,7 +153,7 @@ async function mockPlatform(page, role, recoveryMode) {
   return calls;
 }
 
-async function inspect(name, role, viewport, recoveryMode = "ready") {
+async function inspect(name, role, viewport, recoveryMode = "ready", delayedReadMs = 0, roleAfterReview = null) {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   page.on("pageerror", (error) => failures.push(`${name}: page error ${error.message}`));
@@ -155,7 +162,7 @@ async function inspect(name, role, viewport, recoveryMode = "ready") {
       failures.push(`${name}: console ${entry.text()}`);
     }
   });
-  const calls = await mockPlatform(page, role, recoveryMode);
+  const calls = await mockPlatform(page, role, recoveryMode, delayedReadMs, roleAfterReview);
   const response = await page.goto(platformUrl, { waitUntil: "networkidle" });
   if (!response?.ok()) failures.push(`${name}: navigation ${response?.status()}`);
   if (["platform_owner", "platform_finance"].includes(role)) {
@@ -163,6 +170,7 @@ async function inspect(name, role, viewport, recoveryMode = "ready") {
   }
   await page.getByRole("heading", { name: "Public release readiness" }).waitFor();
   await page.getByText("Release blocked", { exact: true }).waitFor();
+  if (delayedReadMs && calls.maxConcurrentReads < 4) failures.push(`${name}: operations snapshot loaded serially (${calls.maxConcurrentReads} concurrent reads)`);
   if (role === "platform_support" && recoveryMode === "ready") {
     await page.getByLabel("Eligible dead letter").selectOption({ index: 1 });
     await page.getByLabel("Root-cause and replay reason").fill("Root cause corrected; approve one idempotent retry.");
@@ -173,9 +181,17 @@ async function inspect(name, role, viewport, recoveryMode = "ready") {
   if (role === "platform_owner" && recoveryMode === "ready") {
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Approve one retry" }).click();
-    await page.waitForLoadState("networkidle");
+    await page.locator(".platform-resource-status.loading").waitFor({ state: "visible" });
+    if (roleAfterReview) {
+      await page.getByText(roleAfterReview.replaceAll("_", " "), { exact: true }).waitFor();
+      for (const heading of ["Usage reconciliation", "Runtime admission and recovery", "Second-Generation route governance"]) {
+        if (await page.getByRole("heading", { name: heading }).count()) failures.push(`${name}: retained restricted ${heading} after authority changed`);
+      }
+    } else if (!await page.getByRole("button", { name: "Resume admission" }).isDisabled()) failures.push(`${name}: operations mutation remained enabled during snapshot refresh`);
+    await page.locator(".platform-resource-status.loading").waitFor({ state: "detached" });
     if (calls.recoveryReviews !== 1) failures.push(`${name}: recovery approval was not submitted once`);
   }
+  const effectiveRole = roleAfterReview || role;
   const snapshot = await page.evaluate(() => ({
     body: document.body.innerText,
     reconciliation: document.querySelector(".reconciliation-band")?.textContent || "",
@@ -184,29 +200,31 @@ async function inspect(name, role, viewport, recoveryMode = "ready") {
     viewport: window.innerWidth,
   }));
   if (snapshot.width > snapshot.viewport + 1) failures.push(`${name}: horizontal overflow ${snapshot.width}/${snapshot.viewport}`);
+  if (snapshot.body.includes("Checking release readiness…") || snapshot.body.includes("Checking usage reconciliation…") || snapshot.body.includes("Loading reviewed recovery")) failures.push(`${name}: settled snapshot retained duplicate loading panels`);
   if (restricted.test(snapshot.reconciliation)) failures.push(`${name}: restricted cost or routing identity visible in reconciliation`);
   if (restricted.test(snapshot.readiness)) failures.push(`${name}: restricted cost or routing identity visible in release readiness`);
   if (!snapshot.readiness.includes("6/7") || !snapshot.readiness.includes("AI conversations") || !snapshot.readiness.toLowerCase().includes("fail-closed")) failures.push(`${name}: actionable release evidence missing`);
   if (!snapshot.readiness.includes("9/9") || !snapshot.readiness.includes("nine time-limited operational attestations") || !snapshot.readiness.toLowerCase().includes("event replay") || !snapshot.readiness.toLowerCase().includes("pool exhaustion") || !snapshot.readiness.toLowerCase().includes("dependency outage")) failures.push(`${name}: resilience drill evidence missing`);
   if (!snapshot.readiness.includes("Registration authority") || !snapshot.readiness.includes("Approved bundle required") || !snapshot.readiness.includes("live registration authority")) failures.push(`${name}: runtime registration blocker missing`);
-  if (["platform_owner", "platform_finance"].includes(role) && (!snapshot.body.toLowerCase().includes("attention required") || !snapshot.body.includes("Siam Growth Studio"))) failures.push(`${name}: actionable variance evidence missing`);
-  if (["platform_owner", "platform_finance"].includes(role) && !snapshot.body.includes("does not enable charging")) failures.push(`${name}: commercial boundary missing`);
-  if (role === "platform_owner" && !snapshot.body.includes("Platform Owner review")) failures.push(`${name}: owner authority guidance missing`);
-  if (role === "platform_finance" && (!snapshot.body.includes("Finance review") || !snapshot.body.includes("Read-only evidence"))) failures.push(`${name}: finance authority guidance missing`);
-  if (role === "platform_support" && !snapshot.body.includes("Keep on-call and support-runbook evidence current")) failures.push(`${name}: support release guidance missing`);
-  if (role === "platform_ai_operations" && !snapshot.body.includes("Resolve failing runtime objectives")) failures.push(`${name}: AI Operations release guidance missing`);
+  if (["platform_owner", "platform_finance"].includes(effectiveRole) && (!snapshot.body.toLowerCase().includes("attention required") || !snapshot.body.includes("Siam Growth Studio"))) failures.push(`${name}: actionable variance evidence missing`);
+  if (["platform_owner", "platform_finance"].includes(effectiveRole) && !snapshot.body.includes("does not enable charging")) failures.push(`${name}: commercial boundary missing`);
+  if (effectiveRole === "platform_owner" && !snapshot.body.includes("Platform Owner review")) failures.push(`${name}: owner authority guidance missing`);
+  if (effectiveRole === "platform_finance" && (!snapshot.body.includes("Finance review") || !snapshot.body.includes("Read-only evidence"))) failures.push(`${name}: finance authority guidance missing`);
+  if (effectiveRole === "platform_support" && !snapshot.body.includes("Keep on-call and support-runbook evidence current")) failures.push(`${name}: support release guidance missing`);
+  if (effectiveRole === "platform_ai_operations" && !snapshot.body.includes("Resolve failing runtime objectives")) failures.push(`${name}: AI Operations release guidance missing`);
   const recoveryVisible = snapshot.body.includes("Reviewed dead-letter replay");
-  if (["platform_owner", "platform_support", "platform_ai_operations"].includes(role) && recoveryMode === "ready" && !recoveryVisible) failures.push(`${name}: reviewed recovery workflow missing`);
+  if (["platform_owner", "platform_support", "platform_ai_operations"].includes(effectiveRole) && recoveryMode === "ready" && !recoveryVisible) failures.push(`${name}: reviewed recovery workflow missing`);
   if (recoveryMode === "error" && (!snapshot.body.includes("Recovery controls unavailable") || !snapshot.body.includes("Do not use direct SQL"))) failures.push(`${name}: fail-closed recovery error guidance missing`);
-  if (role === "platform_finance" && recoveryVisible) failures.push(`${name}: Finance received recovery authority`);
+  if (effectiveRole === "platform_finance" && recoveryVisible) failures.push(`${name}: Finance received recovery authority`);
   if (recoveryVisible && (!snapshot.body.includes("durable idempotency key") || !snapshot.body.includes("cannot be proven safe to repeat"))) failures.push(`${name}: recovery safety boundary missing`);
   if (recoveryVisible && /secret-recipient|payload_ciphertext|tenant_id/i.test(snapshot.body)) failures.push(`${name}: recovery confidentiality leak`);
-  if (recoveryMode === "ready" && ["platform_support", "platform_ai_operations"].includes(role) && !(await page.getByRole("button", { name: "Request replay" }).isVisible())) failures.push(`${name}: recovery request authority missing`);
+  if (recoveryMode === "ready" && ["platform_support", "platform_ai_operations"].includes(effectiveRole) && !(await page.getByRole("button", { name: "Request replay" }).isVisible())) failures.push(`${name}: recovery request authority missing`);
   await page.screenshot({ path: `/tmp/djay-p9-operations-${name}.png`, fullPage: true });
   await context.close();
 }
 
-await inspect("owner-desktop", "platform_owner", { width: 1365, height: 900 });
+await inspect("owner-desktop", "platform_owner", { width: 1365, height: 900 }, "ready", 80);
+await inspect("owner-to-support-authority-change", "platform_owner", { width: 1280, height: 800 }, "ready", 120, "platform_support");
 await inspect("finance-mobile", "platform_finance", { width: 390, height: 844 });
 await inspect("support-desktop", "platform_support", { width: 1280, height: 800 });
 await inspect("ai-operations-mobile", "platform_ai_operations", { width: 390, height: 844 });

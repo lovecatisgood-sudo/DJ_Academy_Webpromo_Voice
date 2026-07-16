@@ -111,6 +111,12 @@ Workspace Overview derives a six-step guided checklist from tenant profile,
 subscription/access, published product configuration, active deployment, and
 current-version completed journey evidence. Only administrators may request a
 refresh; analysts and operators receive the same facts without mutation.
+Platform Master now loads each role's independent operations resources as one
+concurrent snapshot instead of serial requests. A generation guard discards an
+obsolete refresh before it can overwrite newer evidence, and delayed production
+browser QA proves at least four authorized reads overlap. A mid-session role or
+identity change immediately purges the older authority snapshot before the new
+role's delayed reads begin.
 
 ## P6 LINE, WhatsApp, and Messenger runtime checkpoint
 
