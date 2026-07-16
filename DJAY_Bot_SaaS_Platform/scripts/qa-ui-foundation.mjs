@@ -38,9 +38,10 @@ async function visit({ name, url, viewport = desktop, mock, ready = "h1", check 
   await context.close();
 }
 
-async function mockPublic(page) {
+async function mockPublic(page, failedPaths) {
   await page.route("**/public/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (failedPaths?.has(path)) return json(route, { status: "temporarily_unavailable" }, 503);
     if (path === "/public/catalog") return json(route, { plans: [
       { planKey: "flowbot_basic", productKey: "flowbot", publicName: "FlowBot Basic", tierName: "Basic", summary: "Guided automation", sellable: true, publicHighlights: ["Visual conversation flows"] },
       { planKey: "ai_chat_premium", productKey: "ai_chat", publicName: "AI Chatbot Premium", tierName: "Premium", summary: "AI sales assistance", sellable: true, publicHighlights: ["Knowledge-grounded responses"] },
@@ -84,9 +85,10 @@ async function mockTenantRole(page, role, requestedPaths, failedPaths) {
   });
 }
 
-async function mockPlatformRole(page, role) {
+async function mockPlatformRole(page, role, failedPaths) {
   await page.route("**/platform/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (failedPaths?.has(path)) return json(route, { status: "temporarily_unavailable" }, 503);
     if (path === "/platform/me") return json(route, { user: { id: "platform-user", displayName: "QA operator", role, mfaVerifiedAt: new Date().toISOString() } });
     if (path === "/platform/health-summary") return json(route, { health: { platformUsers: 4, activeSessions: 2, socialChannels: [] } });
     if (path === "/platform/commerce-overview") return json(route, { commerce: { tenants: 3, subscriptions: 5, pending: 1, active: 4 } });
@@ -120,6 +122,10 @@ for (const [name, viewport] of [["desktop", desktop], ["mobile", mobile]]) {
 
 await visit({ name: "public-status", url: `${publicUrl}/status`, mock: mockPublic, ready: "#status-title", check: async (page) => {
   await page.getByText("All systems operational").waitFor();
+} });
+await visit({ name: "public-catalog-failure", url: publicUrl, mock: (page) => mockPublic(page, new Set(["/public/catalog"])), ready: ".plan-load-state.error", check: async (page) => {
+  if (!await page.getByRole("button", { name: "Try again" }).count()) failures.push("public-catalog-failure: retry action missing");
+  if (!await page.getByRole("button", { name: "Create workspace" }).isEnabled()) failures.push("public-catalog-failure: owner registration was unnecessarily blocked");
 } });
 await visit({ name: "public-verification", url: `${publicUrl}/verify-email?token=qa-token`, mock: mockPublic, ready: "#verification-title", check: async (page) => {
   const link = page.getByRole("link", { name: "Continue to sign in" });
@@ -239,6 +245,16 @@ for (const [role, expected] of Object.entries(platformExpectations)) {
   } });
 }
 
+const platformFailedResources = new Set(["/platform/health-summary", "/platform/commerce-overview", "/platform/subscriptions", "/platform/tenants", "/platform/support-grants", "/platform/voice/runtime-control", "/platform/voice/routing", "/platform/voice/incidents"]);
+await visit({ name: "platform-resource-failure", url: platformUrl, mock: (page) => mockPlatformRole(page, "platform_owner", platformFailedResources), ready: ".platform-resource-status.error", check: async (page) => {
+  const alert = await page.locator(".platform-resource-status.error").innerText();
+  for (const label of ["Platform health", "Commerce overview", "Product subscriptions", "Tenant directory", "Support access grants", "Voice runtime controls", "Advanced Voice routing", "Voice incidents"]) if (!alert.includes(label)) failures.push(`platform-resource-failure: ${label} was not disclosed`);
+  if (await page.getByText("No product subscriptions", { exact: true }).count()) failures.push("platform-resource-failure: failed subscriptions were presented as empty");
+  if (await page.getByText("No support access grants", { exact: true }).count()) failures.push("platform-resource-failure: failed support grants were presented as empty");
+} });
+await visit({ name: "platform-session-failure", url: platformUrl, mock: (page) => mockPlatformRole(page, "platform_owner", new Set(["/platform/me"])), ready: ".platform-session-error", check: async (page) => {
+  if (!await page.getByRole("button", { name: "Try again" }).count()) failures.push("platform-session-failure: retry action missing");
+} });
 await visit({ name: "platform-login", url: platformUrl, mock: (page) => page.route("**/platform/me", (route) => json(route, { status: "unauthenticated" }, 401)), ready: "#platform-login-title" });
 await browser.close();
 
@@ -247,4 +263,4 @@ if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
-console.info("Shared brand, responsive overflow, keyboard focus, safe cross-app links, authentication shells, role navigation, and workspace dependency-failure recovery passed.");
+console.info("Shared brand, responsive overflow, keyboard focus, safe cross-app links, authentication shells, role navigation, and cross-application dependency-failure recovery passed.");

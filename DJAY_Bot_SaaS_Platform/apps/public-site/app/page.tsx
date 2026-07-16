@@ -14,13 +14,25 @@ export default function RegistrationPage() {
   const [message, setMessage] = useState("");
   const [plans, setPlans] = useState<CatalogPlan[]>([]);
   const [selectedPlanKey, setSelectedPlanKey] = useState("");
+  const [catalogStage, setCatalogStage] = useState<"loading" | "ready" | "error">("loading");
 
-  useEffect(() => {
-    void fetch("/public/catalog").then(async (response) => {
-      if (!response.ok) return;
-      setPlans((await response.json()).plans || []);
-    });
-  }, []);
+  async function loadCatalog() {
+    setCatalogStage("loading");
+    try {
+      const response = await fetch("/public/catalog", { cache: "no-store" });
+      if (!response.ok) throw new Error("catalog_unavailable");
+      const nextPlans = (await response.json()).plans;
+      if (!Array.isArray(nextPlans)) throw new Error("catalog_unavailable");
+      setPlans(nextPlans);
+      setCatalogStage("ready");
+    } catch {
+      setPlans([]);
+      setSelectedPlanKey("");
+      setCatalogStage("error");
+    }
+  }
+
+  useEffect(() => { void loadCatalog(); }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -94,6 +106,7 @@ export default function RegistrationPage() {
             <fieldset className="plan-selection">
               <legend>Start with a product</legend>
               <div className="plan-options">
+                {catalogStage === "loading" ? <div className="plan-load-state" aria-live="polite" aria-busy="true">Loading available products…</div> : null}
                 {plans.map((plan) => (
                   <label className={selectedPlanKey === plan.planKey ? "plan-option selected" : "plan-option"} key={plan.planKey}>
                     <input
@@ -106,6 +119,8 @@ export default function RegistrationPage() {
                     <span><strong>{plan.publicName}</strong><small>{plan.publicHighlights[0]}</small></span>
                   </label>
                 ))}
+                {catalogStage === "ready" && !plans.length ? <div className="plan-load-state" role="status">New product selection is temporarily closed. You can still create your owner account.</div> : null}
+                {catalogStage === "error" ? <div className="plan-load-state error" role="alert"><span>Products could not be loaded. You can continue without selecting one.</span><button type="button" onClick={() => void loadCatalog()}>Try again</button></div> : null}
               </div>
               <p>Your selected plan is confirmed after email verification.</p>
             </fieldset>

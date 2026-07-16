@@ -59,7 +59,9 @@ desktop and mobile breakpoints and every tenant and Platform role. Read-only
 roles no longer receive misleading mutation controls, and forbidden direct
 routes fail closed with a recovery path. Failed authoritative workspace reads
 now render explicit retryable states instead of empty data or indefinite
-loading. Real managed
+loading. Public catalog and restricted Platform dependency failures follow the
+same non-destructive contract without masking service errors as empty data or
+signed-out sessions. Real managed
 production observations, on-call staffing, PITR/regional exercises, legal and
 commercial approval remain external launch gates. Checkout, invoices, tax,
 dunning, and public charging remain disabled.

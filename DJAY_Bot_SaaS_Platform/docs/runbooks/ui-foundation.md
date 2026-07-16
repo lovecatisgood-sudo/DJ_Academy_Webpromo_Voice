@@ -22,6 +22,15 @@ state. Both states must say that saved data is unchanged and expose a **Try
 again** action. Secondary-panel failures may remain inline when the surrounding
 authoritative page data is valid.
 
+The public catalog follows the same rule while keeping owner registration
+available without a product choice. A catalog outage must be disclosed beside
+the selector and must not look like an empty catalog. Platform `/me` failures
+must be distinguished from `401`/`403`: authentication failures return to sign
+in, while service or network failures render the branded Platform retry state.
+Authorized Platform resource failures are named in the dashboard alert and
+must not render a false “no records” message. Existing release-readiness,
+reconciliation, and recovery sections retain their stricter fail-closed states.
+
 `NEXT_PUBLIC_PUBLIC_APP_URL` is the tenant sign-in link back to public
 registration. Set it to the deployed public origin before building Tenant Web.
 Next.js embeds this public value at build time, so changing only the runtime
@@ -46,9 +55,10 @@ For deployed acceptance, set `PUBLIC_QA_URL`, `TENANT_QA_URL`,
 checks desktop and mobile overflow, shared brand color, keyboard focus
 visibility, safe cross-application links, every public account route, the API
 root, all twelve tenant routes at both breakpoints, every tenant role, every
-platform role, direct-route denial, mutation visibility, workspace-session and
-authoritative product-read failures, retry actions, and the existence of each
-visible Platform navigation target.
+platform role, direct-route denial, mutation visibility, public catalog,
+workspace-session, authoritative product-read, Platform-session, and
+role-authorized Platform-resource failures, retry actions, and the existence of
+each visible Platform navigation target.
 
 Do not promote when this gate fails. A passing local gate does not replace
 real-device accessibility review, named-merchant acceptance, managed service

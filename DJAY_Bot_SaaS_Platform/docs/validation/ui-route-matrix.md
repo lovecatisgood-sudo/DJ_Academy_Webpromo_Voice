@@ -28,6 +28,11 @@ proves that:
 - a failed workspace session load and every authoritative product-data failure
   render an explicit branded error with a retry action instead of empty data,
   stale success, or an indefinite loading state;
+- a public catalog outage remains retryable without blocking owner
+  registration or appearing to mean that the catalog is empty;
+- Platform authentication failure is distinct from Platform service failure,
+  and failed role-authorized operations resources are named without false
+  “no records” claims;
 - public login, verification, and invitation destinations never fall back to
   localhost in production output;
 - every route has the shared DJAY Bot mark, no horizontal overflow, and no page
@@ -57,6 +62,10 @@ Contacts, Leads, Inbox, Knowledge, Data Controls, Team, Security, FlowBot, AI
 Chat, Voice, and Usage, plus the shared workspace-session read. Each route must
 preserve the correct shell, disclose that data could not be loaded, and offer a
 retry without implying that saved data was lost.
+The same gate forces the public catalog, Platform session, health, commerce,
+subscription, tenant-directory, support-grant, Voice-control, Voice-routing,
+and Voice-incident reads to fail. It proves each failure remains explicit,
+role-aware, non-destructive, and retryable.
 Target-environment acceptance must repeat it against the deployed artifacts and
 does not replace managed-service, live-provider, named-merchant, legal,
 commercial, or assistive-technology acceptance.

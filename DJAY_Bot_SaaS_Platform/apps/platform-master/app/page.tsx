@@ -61,10 +61,12 @@ type VoiceAdmissionChange = { id: string; capabilityProfile: "voice_gen2"; targe
 type VoiceRouting = { admissionEnabled: boolean; admissionChanges: VoiceAdmissionChange[]; profiles: { capabilityProfile: "voice_gen2"; mode: "paused" | "canary" | "running" | "degraded"; reasonCode: string; version: number; changedAt: string; primaryCandidateId: string | null; canaryCandidateId: string | null; canaryPercent: number }[]; candidates: VoiceCandidate[]; changes: VoiceChange[]; incidents: VoiceIncident[] };
 
 export default function PlatformMasterPage() {
-  const [stage, setStage] = useState<"loading" | "password" | "mfa" | "dashboard">("loading");
+  const [stage, setStage] = useState<"loading" | "error" | "password" | "mfa" | "dashboard">("loading");
   const [message, setMessage] = useState("");
   const [working, setWorking] = useState(false);
   const [user, setUser] = useState<PlatformUser | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [resourceErrors, setResourceErrors] = useState<string[]>([]);
   const [health, setHealth] = useState<Health | null>(null);
   const [commerce, setCommerce] = useState<Commerce | null>(null);
   const [reconciliation, setReconciliation] = useState<UsageReconciliation | null>(null);
@@ -83,16 +85,38 @@ export default function PlatformMasterPage() {
   const [routingActionReason, setRoutingActionReason] = useState("Reviewed Advanced Voice operational change");
 
   async function loadCurrent() {
-    const response = await fetch("/platform/me", { cache: "no-store" });
-    if (!response.ok) {
-      setStage("password");
+    if (!user) setStage("loading");
+    let result: { user: PlatformUser };
+    try {
+      const response = await fetch("/platform/me", { cache: "no-store" });
+      if ([401, 403].includes(response.status)) { setUser(null); setStage("password"); return; }
+      if (!response.ok) throw new Error("platform_session_unavailable");
+      result = await response.json();
+      if (!result.user) throw new Error("platform_session_unavailable");
+    } catch {
+      setUser(null);
+      setStage("error");
       return;
     }
-    const result = await response.json();
     setUser(result.user);
     setStage("dashboard");
-    const healthResponse = await fetch("/platform/health-summary", { cache: "no-store" });
-    if (healthResponse.ok) setHealth((await healthResponse.json()).health);
+    setDashboardLoading(true);
+    setResourceErrors([]);
+    setHealth(null); setCommerce(null); setSubscriptions([]); setTenants([]); setSupportGrants([]); setVoiceControl(null); setVoiceRouting(null); setVoiceIncidents(null);
+    const unavailable: string[] = [];
+    async function loadResource<T>(path: string, field: string, label: string): Promise<T | null> {
+      try {
+        const response = await fetch(path, { cache: "no-store" });
+        if (!response.ok) throw new Error("resource_unavailable");
+        const body = await response.json() as Record<string, unknown>;
+        if (!(field in body) || body[field] === null || body[field] === undefined) throw new Error("resource_unavailable");
+        return body[field] as T;
+      } catch {
+        unavailable.push(label);
+        return null;
+      }
+    }
+    setHealth(await loadResource<Health>("/platform/health-summary", "health", "Platform health"));
     setReadiness(null);
     setReadinessStage("loading");
     try {
@@ -109,8 +133,7 @@ export default function PlatformMasterPage() {
     const canReadTenants = ["platform_owner", "platform_support", "platform_finance"].includes(result.user.role);
     const canReadVoice = ["platform_owner", "platform_ai_operations"].includes(result.user.role);
     if (canReadBilling) {
-      const commerceResponse = await fetch("/platform/commerce-overview", { cache: "no-store" });
-      if (commerceResponse.ok) setCommerce((await commerceResponse.json()).commerce);
+      setCommerce(await loadResource<Commerce>("/platform/commerce-overview", "commerce", "Commerce overview"));
     } else setCommerce(null);
     if (canReadBilling) {
       setReconciliation(null);
@@ -118,7 +141,9 @@ export default function PlatformMasterPage() {
       try {
         const reconciliationResponse = await fetch("/platform/usage-reconciliation", { cache: "no-store" });
         if (!reconciliationResponse.ok) throw new Error("reconciliation_unavailable");
-        setReconciliation((await reconciliationResponse.json()).reconciliation);
+        const nextReconciliation = (await reconciliationResponse.json()).reconciliation;
+        if (!nextReconciliation) throw new Error("reconciliation_unavailable");
+        setReconciliation(nextReconciliation);
         setReconciliationStage("ready");
       } catch {
         setReconciliation(null);
@@ -129,21 +154,20 @@ export default function PlatformMasterPage() {
       setReconciliationStage("hidden");
     }
     if (canReadBilling) {
-      const subscriptionsResponse = await fetch("/platform/subscriptions", { cache: "no-store" });
-      if (subscriptionsResponse.ok) setSubscriptions((await subscriptionsResponse.json()).subscriptions || []);
+      setSubscriptions(await loadResource<Subscription[]>("/platform/subscriptions", "subscriptions", "Product subscriptions") || []);
     } else setSubscriptions([]);
     if (canReadTenants) {
-      const tenantResponse = await fetch("/platform/tenants", { cache: "no-store" });
-      if (tenantResponse.ok) setTenants((await tenantResponse.json()).tenants || []);
+      setTenants(await loadResource<Tenant[]>("/platform/tenants", "tenants", "Tenant directory") || []);
     } else setTenants([]);
-    const grantResponse = await fetch("/platform/support-grants", { cache: "no-store" });
-    if (grantResponse.ok) setSupportGrants((await grantResponse.json()).grants || []);
+    setSupportGrants(await loadResource<SupportGrant[]>("/platform/support-grants", "grants", "Support access grants") || []);
     if (["platform_owner", "platform_support", "platform_ai_operations"].includes(result.user.role)) {
       setRecoveryStage("loading");
       try {
         const recoveryResponse = await fetch("/platform/dead-letter-recovery", { cache: "no-store" });
         if (!recoveryResponse.ok) throw new Error("recovery_unavailable");
-        setRecovery((await recoveryResponse.json()).recovery);
+        const nextRecovery = (await recoveryResponse.json()).recovery;
+        if (!nextRecovery) throw new Error("recovery_unavailable");
+        setRecovery(nextRecovery);
         setRecoveryStage("ready");
       } catch {
         setRecovery(null);
@@ -154,17 +178,16 @@ export default function PlatformMasterPage() {
       setRecoveryStage("hidden");
     }
     if (canReadVoice) {
-      const voiceResponse = await fetch("/platform/voice/runtime-control", { cache: "no-store" });
-      if (voiceResponse.ok) setVoiceControl((await voiceResponse.json()).control);
+      setVoiceControl(await loadResource<VoiceControl>("/platform/voice/runtime-control", "control", "Voice runtime controls"));
     } else setVoiceControl(null);
     if (canReadVoice) {
-      const routingResponse = await fetch("/platform/voice/routing", { cache: "no-store" });
-      if (routingResponse.ok) setVoiceRouting((await routingResponse.json()).routing);
+      setVoiceRouting(await loadResource<VoiceRouting>("/platform/voice/routing", "routing", "Advanced Voice routing"));
     } else setVoiceRouting(null);
     if (["platform_owner", "platform_ai_operations", "platform_finance"].includes(result.user.role)) {
-      const incidentResponse = await fetch("/platform/voice/incidents", { cache: "no-store" });
-      if (incidentResponse.ok) setVoiceIncidents((await incidentResponse.json()).incidents || []);
+      setVoiceIncidents(await loadResource<VoiceIncident[]>("/platform/voice/incidents", "incidents", "Voice incidents") || []);
     } else setVoiceIncidents(null);
+    setResourceErrors(unavailable);
+    setDashboardLoading(false);
   }
 
   useEffect(() => { void loadCurrent(); }, []);
@@ -398,6 +421,7 @@ export default function PlatformMasterPage() {
   }
 
   if (stage === "loading") return <main className="platform-loading">Checking platform session...</main>;
+  if (stage === "error") return <main><div className="topline" /><header><span className="mark">D</span><strong>DJAY BOT</strong><span>Platform operations</span></header><section className="platform-session-error" aria-labelledby="platform-session-error-title" role="alert"><p>Temporarily unavailable</p><h1 id="platform-session-error-title">Platform operations could not be loaded</h1><span>Your access and operational data have not changed. Check the internal service connection and try again.</span><button type="button" onClick={() => void loadCurrent()}>Try again</button></section></main>;
   if (stage === "dashboard" && user) {
     return (
       <main className="platform-shell">
@@ -410,6 +434,8 @@ export default function PlatformMasterPage() {
         <section className="platform-content">
           <header><div><p>Internal operations</p><h1>Platform health</h1></div><span>{user.displayName}<small>{user.role.replaceAll("_", " ")}</small></span></header>
           {message ? <div className="platform-message dashboard-message" role="alert">{message}</div> : null}
+          {dashboardLoading ? <div className="platform-resource-status loading" aria-live="polite" aria-busy="true"><strong>Refreshing authorized operations data…</strong><span>Current controls remain unavailable until each requested resource responds.</span></div> : null}
+          {resourceErrors.length ? <div className="platform-resource-status error" role="alert"><div><strong>Some operations data could not be loaded</strong><span>No operational state was changed. Unavailable areas: {resourceErrors.join(", ")}.</span></div><button type="button" disabled={dashboardLoading} onClick={() => void loadCurrent()}>Try again</button></div> : null}
           <div className="metrics-band" id="overview">
             <div><span>Platform users</span><strong>{health?.platformUsers ?? "-"}</strong></div>
             <div><span>Active sessions</span><strong>{health?.activeSessions ?? "-"}</strong></div>
@@ -532,7 +558,7 @@ export default function PlatformMasterPage() {
           </div> : null}
           {health?.socialChannels?.length ? <div className="subscription-band"><div><p>AI Chat operations</p><h2>Social channel health</h2></div><div className="platform-table" role="table" aria-label="Social channel health">{health.socialChannels.map((channel) => <div className="platform-row" role="row" key={channel.channel}><div><strong>{channel.channel === "line" ? "LINE" : channel.channel === "whatsapp" ? "WhatsApp" : "Messenger"}</strong><span>{channel.activeConnections} active / {channel.reauthorizationRequired} reauthorization</span></div><span>{channel.queuedInbound} inbound queued / {channel.oldestInboundQueueSeconds}s oldest</span><span>{channel.queuedDeliveries} delivery queued / {channel.oldestDeliveryQueueSeconds}s oldest</span><span>{channel.deadLetterInbound + channel.deadLetterDeliveries} dead letters / {channel.failedAttempts24h} failed attempts</span></div>)}</div></div> : null}
           {recoveryStage === "loading" ? <div className="subscription-band recovery-band" id="queue-recovery" aria-busy="true"><div><p>Queue recovery · restricted</p><h2>Loading reviewed recovery</h2></div><p className="operational-note">Checking replay eligibility and independent-review state.</p></div> : null}
-          {recoveryStage === "error" ? <div className="subscription-band recovery-band" id="queue-recovery"><div><p>Queue recovery · restricted</p><h2>Recovery controls unavailable</h2></div><p className="operational-note" role="alert">Failing closed. Do not use direct SQL; restore the recovery service and refresh this page.</p></div> : null}
+          {recoveryStage === "error" ? <div className="subscription-band recovery-band" id="queue-recovery"><div><p>Queue recovery · restricted</p><h2>Recovery controls unavailable</h2></div><p className="operational-note" role="alert">Failing closed. Do not use direct SQL; restore the recovery service and retry this read.</p><button type="button" disabled={working} onClick={() => void loadCurrent()}>Retry recovery controls</button></div> : null}
           {recoveryStage === "ready" && recovery ? <div className="subscription-band recovery-band" id="queue-recovery">
             <div><p>Queue recovery · restricted</p><h2>Reviewed dead-letter replay</h2></div>
             <p className="operational-note">Only email deliveries with our durable idempotency key are eligible. FlowBot webhooks and social queues remain blocked for root-cause review because an external side effect cannot be proven safe to repeat.</p>
@@ -568,7 +594,7 @@ export default function PlatformMasterPage() {
                   ) : <span />}
                 </div>
               ))}
-              {!subscriptions.length ? <p className="empty-row">No product subscriptions</p> : null}
+              {!subscriptions.length && !resourceErrors.includes("Product subscriptions") ? <p className="empty-row">No product subscriptions</p> : null}
             </div>
           </div> : null}
           <div className="subscription-band support-band" id="support-access">
@@ -584,7 +610,7 @@ export default function PlatformMasterPage() {
                 <div><strong>{grant.businessName}</strong><span>{grant.reason}</span></div><span>{grant.status}</span><span>{new Date(grant.expiresAt).toLocaleString()}</span>
                 <div className="row-actions">{user.role === "platform_owner" && grant.status === "requested" ? <button type="button" disabled={working || grant.requestedByPlatformUserId === user.id} onClick={() => void decideSupport(grant.id, "approve")}>Approve</button> : null}{user.role === "platform_owner" && ["requested", "approved", "active"].includes(grant.status) ? <button className="outline-button" type="button" disabled={working} onClick={() => void decideSupport(grant.id, "revoke")}>Revoke</button> : null}</div>
               </div>)}
-              {!supportGrants.length ? <p className="empty-row">No support access grants</p> : null}
+              {!supportGrants.length && !resourceErrors.includes("Support access grants") ? <p className="empty-row">No support access grants</p> : null}
             </div>
           </div>
         </section>
