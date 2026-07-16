@@ -35,6 +35,7 @@ const voiceOutcomesRetentionMigration = readFileSync(resolve(import.meta.dirname
 const voiceTextLegacyMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0033_voice_text_legacy_migration.sql"), "utf8");
 const voiceAdvancedRoutingMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0034_voice_advanced_routing.sql"), "utf8");
 const voiceAdvancedDeploymentMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0035_voice_advanced_deployments.sql"), "utf8");
+const voiceAdvancedRuntimeMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0036_voice_advanced_runtime.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -499,6 +500,20 @@ describe("P7 Voice Basic database migration invariants", () => {
     expect(voiceAdvancedDeploymentMigration).toContain("ADD COLUMN admission_enabled boolean NOT NULL DEFAULT false");
     expect(voiceAdvancedDeploymentMigration).toContain("control.admission_enabled = true");
     expect(voiceAdvancedDeploymentMigration).not.toMatch(/RETURNS[^;]+provider|RETURNS[^;]+model/i);
+  });
+
+  it("admits Advanced Voice only through reviewed routing and an immutable restricted assignment", () => {
+    expect(voiceAdvancedRuntimeMigration).toContain("CREATE TABLE platform.voice_admission_changes");
+    expect(voiceAdvancedRuntimeMigration).toContain("approved_by_platform_user_id <> requested_by_platform_user_id");
+    expect(voiceAdvancedRuntimeMigration).toContain("CREATE TRIGGER platform_voice_profile_fail_closed_admission");
+    expect(voiceAdvancedRuntimeMigration).toContain("candidate.status = 'qualified'");
+    expect(voiceAdvancedRuntimeMigration).toContain("control.admission_enabled = true");
+    expect(voiceAdvancedRuntimeMigration).toContain("INSERT INTO operations.voice_session_routes");
+    expect(voiceAdvancedRuntimeMigration).toContain("latest ON latest.id = snapshot.id");
+    expect(voiceAdvancedRuntimeMigration).toContain("deployment.capability_profile = session.capability_profile");
+    expect(voiceAdvancedRuntimeMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.heartbeat_voice_session");
+    expect(voiceAdvancedRuntimeMigration).toContain("REVOKE ALL ON FUNCTION tenancy.authorize_voice_session");
+    expect(voiceAdvancedRuntimeMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+voice_(admission_changes|session_routes)/i);
   });
 
   it("settles from connection history and reaps grants, stale transports, and emergency stops", () => {

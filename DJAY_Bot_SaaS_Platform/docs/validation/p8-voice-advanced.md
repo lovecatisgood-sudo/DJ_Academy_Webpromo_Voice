@@ -1,8 +1,8 @@
 # P8 Validation: Voice Agent Advanced
 
-- Result: Local routing-governance foundation passed; P8 release gate remains open
-- Date: 2026-07-15
-- Database migrations: `0034_voice_advanced_routing`, `0035_voice_advanced_deployments`
+- Result: Local restricted runtime and admission foundation passed; P8 live release gate remains open
+- Date: 2026-07-16
+- Database migrations: `0034_voice_advanced_routing`, `0035_voice_advanced_deployments`, `0036_voice_advanced_runtime`
 - Production activation: Disabled; Gen2 profile is paused
 
 ## Executed foundation gates
@@ -12,6 +12,7 @@ git diff --check
 scripts/use-node24.sh pnpm --filter @djay/db typecheck
 scripts/use-node24.sh pnpm --filter @djay/api typecheck
 scripts/use-node24.sh pnpm --filter @djay/platform-master typecheck
+scripts/use-node24.sh pnpm --filter @djay/voice-gateway test
 scripts/use-node24.sh pnpm test:db
 scripts/use-node24.sh pnpm run verify
 scripts/use-node24.sh pnpm run qa:p3-ui
@@ -36,9 +37,16 @@ issuing a Gen1 session after downgrade. Desktop Basic and mobile Advanced Studio
 acceptance pass with no overflow or provider/model leakage; Advanced displays the
 explicit pending-activation and no-First-Generation-fallback notice.
 
+Migration `0036` proves latest-snapshot entitlement authority, independently
+reviewed admission, automatic fail-closed admission on non-running profile
+states, exact immutable Gen2 session-route assignment after quota/concurrency
+reservation, drain-safe reconnect, incident heartbeat stop, and terminal usage
+settlement. Gateway tests prove exact configured route matching, mismatch denial
+without Gen1 fallback, strict internal authorization response parsing, and no
+provider/model/region identity in any browser WebSocket message.
+
 ## Pending P8 gates
 
-- Gen2 session issuance, runtime route assignment, and controlled admission.
 - Equivalent Gen2 profile qualification and controlled degradation tests.
 - Advanced analytics, load/capacity, approved cost/margin thresholds, and
   rollback drills under production-like concurrency.

@@ -58,6 +58,7 @@ small { display: block; margin-top: 18px; color: #666d6a; }
 .advanced-voice-band.mode-paused, .advanced-voice-band.mode-degraded { box-shadow: inset 4px 0 #a22d28; }
 .operational-note { max-width: 880px; margin: 14px 0 0; color: #555e5a; font-size: 13px; line-height: 1.55; }
 .voice-governance-grid { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 16px; margin-top: 22px; }
+.admission-governance-grid { grid-template-columns: minmax(260px, .7fr) minmax(420px, 1.3fr); align-items: start; }
 .voice-governance-grid form { align-content: start; padding: 18px; border: 1px solid #dce1df; border-radius: 7px; background: #fff; }
 .voice-governance-grid h3, .incident-open-form h3 { margin: 0; font-size: 15px; }
 .voice-governance-grid label, .incident-open-form label { font-size: 12px; }
@@ -96,7 +97,7 @@ small { display: block; margin-top: 18px; color: #666d6a; }
   .platform-row button { justify-self: start; }
   .support-request-form, .support-row { grid-template-columns: 1fr; }
   .voice-control-summary { grid-template-columns: 1fr; }
-  .voice-governance-grid, .incident-open-form, .voice-route-row, .incident-row { grid-template-columns: 1fr; }
+  .voice-governance-grid, .admission-governance-grid, .incident-open-form, .voice-route-row, .incident-row { grid-template-columns: 1fr; }
   .incident-open-form h3 { grid-column: auto; }
   .row-actions { justify-content: flex-start; }
 }

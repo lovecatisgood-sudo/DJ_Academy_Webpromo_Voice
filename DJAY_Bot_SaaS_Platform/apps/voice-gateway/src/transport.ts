@@ -21,6 +21,7 @@ export type AuthorizedVoiceSession = Readonly<{
   maxCallSeconds: number;
   resumeWindowSeconds: number;
   replayed: boolean;
+  route: Readonly<{ providerKey: string; modelKey: string; regionKey: string }> | null;
 }>;
 
 export interface VoiceSessionAuthority {

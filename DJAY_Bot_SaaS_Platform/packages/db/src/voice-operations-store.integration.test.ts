@@ -133,6 +133,26 @@ describe.runIf(enabled)("Voice platform operations", () => {
       changeId: requested.changeId, action: "promote", reason: "Promote after reviewed canary evidence",
     })).resolves.toEqual({ status: "active" });
 
+    const admission = await store.requestAdmissionChange(owner, {
+      enabled: true, reason: "Named merchant media acceptance passed",
+      evidenceSha256: "c".repeat(64),
+    });
+    await expect(store.reviewAdmissionChange(owner, {
+      changeId: admission.changeId, decision: "approve",
+    })).rejects.toThrow(/voice_admission_independent_review_required/);
+    await expect(store.reviewAdmissionChange(reviewer, {
+      changeId: admission.changeId, decision: "approve",
+    })).resolves.toEqual({ status: "approved" });
+    await expect(store.applyAdmissionChange(owner, {
+      changeId: admission.changeId,
+    })).resolves.toEqual({ status: "applied", enabled: true });
+    await expect(store.getRoutingOverview(owner)).resolves.toMatchObject({
+      admissionEnabled: true,
+      admissionChanges: [expect.objectContaining({
+        id: admission.changeId, targetEnabled: true, status: "applied",
+      })],
+    });
+
     const incident = await store.openIncident(owner, {
       capabilityProfile: "voice_gen2", severity: "major",
       reason: "Integration route exceeded the quality guardrail",
@@ -157,6 +177,7 @@ describe.runIf(enabled)("Voice platform operations", () => {
     })).resolves.toEqual({ status: "rolled_back" });
 
     const finalOverview = await store.getRoutingOverview(owner);
+    expect(finalOverview.admissionEnabled).toBe(false);
     expect(finalOverview.profiles[0]).toMatchObject({
       capabilityProfile: "voice_gen2", mode: "paused",
       reasonCode: "routing_change_rolled_back", primaryCandidateId: null,
@@ -170,7 +191,7 @@ describe.runIf(enabled)("Voice platform operations", () => {
       WHERE actor_platform_user_id IN (${ownerId}::uuid, ${aiOperationsId}::uuid, ${financeId}::uuid)
         AND action LIKE 'voice.%'
     `;
-    expect(audits[0]?.count).toBe(10);
+    expect(audits[0]?.count).toBe(13);
     const leakedAuditRouting = await adminClient!<{ count: number }[]>`
       SELECT count(*)::int AS count FROM platform.audit_logs
       WHERE actor_platform_user_id IN (${ownerId}::uuid, ${aiOperationsId}::uuid, ${financeId}::uuid)

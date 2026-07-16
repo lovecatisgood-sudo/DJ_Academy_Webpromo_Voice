@@ -16,7 +16,8 @@ type VoiceControl = { mode: "running" | "paused" | "emergency_stop"; reasonCode:
 type VoiceIncident = { id: string; capabilityProfile: "voice_gen2"; severity: "minor" | "major" | "critical"; status: "open" | "monitoring" | "resolved"; reason: string; resolution: string | null; routingChangeId: string | null; creditReviewStatus: "not_required" | "required" | "approved" | "rejected"; openedByPlatformUserId: string; openedAt: string; resolvedAt: string | null };
 type VoiceCandidate = { id: string; capabilityProfile: "voice_gen2"; providerKey: string; modelKey: string; regionKey: string; status: "proposed" | "qualified" | "rejected" | "paused"; proposedByPlatformUserId: string; reviewedByPlatformUserId: string | null; proposedAt: string; reviewedAt: string | null };
 type VoiceChange = { id: string; capabilityProfile: "voice_gen2"; candidateId: string; previousCandidateId: string | null; canaryPercent: number; status: "requested" | "approved" | "rejected" | "canary" | "active" | "rolled_back"; reason: string; requestedByPlatformUserId: string; approvedByPlatformUserId: string | null; requestedAt: string; approvedAt: string | null; canaryStartedAt: string | null; activatedAt: string | null; rolledBackAt: string | null; rollbackReason: string | null };
-type VoiceRouting = { profiles: { capabilityProfile: "voice_gen2"; mode: "paused" | "canary" | "running" | "degraded"; reasonCode: string; version: number; changedAt: string; primaryCandidateId: string | null; canaryCandidateId: string | null; canaryPercent: number }[]; candidates: VoiceCandidate[]; changes: VoiceChange[]; incidents: VoiceIncident[] };
+type VoiceAdmissionChange = { id: string; capabilityProfile: "voice_gen2"; targetEnabled: boolean; status: "requested" | "approved" | "rejected" | "applied"; reason: string; requestedByPlatformUserId: string; approvedByPlatformUserId: string | null; requestedAt: string; approvedAt: string | null; appliedAt: string | null };
+type VoiceRouting = { admissionEnabled: boolean; admissionChanges: VoiceAdmissionChange[]; profiles: { capabilityProfile: "voice_gen2"; mode: "paused" | "canary" | "running" | "degraded"; reasonCode: string; version: number; changedAt: string; primaryCandidateId: string | null; canaryCandidateId: string | null; canaryPercent: number }[]; candidates: VoiceCandidate[]; changes: VoiceChange[]; incidents: VoiceIncident[] };
 
 export default function PlatformMasterPage() {
   const [stage, setStage] = useState<"loading" | "password" | "mfa" | "dashboard">("loading");
@@ -217,6 +218,26 @@ export default function PlatformMasterPage() {
     await sendVoiceRoutingCommand({ command: "change.apply", changeId, action, reason: routingActionReason }, `Routing action ${action.replaceAll("_", " ")} completed.`);
   }
 
+  async function requestVoiceAdmission(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
+    const enabled = data.get("enabled") === "true";
+    const succeeded = await sendVoiceRoutingCommand({
+      command: "admission.request", enabled, reason: data.get("reason"),
+      evidenceSha256: String(data.get("evidenceSha256") || "").toLowerCase(),
+    }, `${enabled ? "Activation" : "Deactivation"} submitted for independent approval.`);
+    if (succeeded) form.reset();
+  }
+
+  async function reviewVoiceAdmission(changeId: string, decision: "approve" | "reject") {
+    if (!window.confirm(`${decision === "approve" ? "Approve" : "Reject"} this Advanced Voice admission change?`)) return;
+    await sendVoiceRoutingCommand({ command: "admission.review", changeId, decision }, `Admission change ${decision}d.`);
+  }
+
+  async function applyVoiceAdmission(changeId: string, enabled: boolean) {
+    if (!window.confirm(`${enabled ? "Enable" : "Disable"} Advanced Voice production admission now?`)) return;
+    await sendVoiceRoutingCommand({ command: "admission.apply", changeId }, `Advanced Voice admission ${enabled ? "enabled" : "disabled"}.`);
+  }
+
   async function openVoiceIncident(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
     const succeeded = await sendVoiceRoutingCommand({
@@ -281,6 +302,7 @@ export default function PlatformMasterPage() {
             <div className="voice-control-summary">
               <div><span>Profile</span><strong>Second-Generation</strong><small>voice_gen2</small></div>
               <div><span>Mode</span><strong>{voiceRouting.profiles[0]?.mode || "paused"}</strong><small>{voiceRouting.profiles[0]?.reasonCode.replaceAll("_", " ") || "qualification required"}</small></div>
+              <div><span>Admission</span><strong>{voiceRouting.admissionEnabled ? "enabled" : "disabled"}</strong><small>{voiceRouting.admissionEnabled ? "reviewed production traffic" : "fail-closed"}</small></div>
               <div><span>Canary</span><strong>{voiceRouting.profiles[0]?.canaryPercent || 0}%</strong><small>Version {voiceRouting.profiles[0]?.version || 1}</small></div>
             </div>
             <div className="voice-governance-grid">
@@ -292,6 +314,10 @@ export default function PlatformMasterPage() {
             <div className="platform-table" role="table" aria-label="Advanced Voice routing changes">
               {voiceRouting.changes.map((change) => <div className="platform-row voice-route-row" role="row" key={change.id}><div><strong>{voiceRouting.candidates.find((candidate) => candidate.id === change.candidateId)?.modelKey || change.candidateId}</strong><span>{change.reason} · {change.canaryPercent}% canary</span></div><span>{change.status.replaceAll("_", " ")}</span><div className="row-actions">{change.status === "requested" ? <><button disabled={working || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceChange(change.id, "approve")}>Approve</button><button className="outline-button" disabled={working || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceChange(change.id, "reject")}>Reject</button></> : null}{change.status === "approved" ? <button disabled={working} onClick={() => void applyVoiceChange(change.id, "start_canary")}>Start canary</button> : null}{change.status === "canary" ? <><button disabled={working} onClick={() => void applyVoiceChange(change.id, "promote")}>Promote</button><button className="outline-button" disabled={working} onClick={() => void applyVoiceChange(change.id, "rollback")}>Rollback</button></> : null}{change.status === "active" ? <button className="danger-button" disabled={working} onClick={() => void applyVoiceChange(change.id, "rollback")}>Rollback</button> : null}</div></div>)}
               {!voiceRouting.changes.length ? <p className="empty-row">No routing changes</p> : null}
+            </div>
+            <div className="voice-governance-grid admission-governance-grid">
+              <form onSubmit={requestVoiceAdmission}><h3>4. Production admission</h3><label>Requested state<select name="enabled" defaultValue={voiceRouting.admissionEnabled ? "false" : "true"}><option value="true">Enable production traffic</option><option value="false">Disable production traffic</option></select></label><label>Acceptance reason<input name="reason" minLength={12} maxLength={500} required /></label><label>Acceptance evidence SHA-256<input name="evidenceSha256" pattern="[a-fA-F0-9]{64}" minLength={64} maxLength={64} required /></label><button disabled={working} type="submit">Request admission change</button></form>
+              <div className="platform-table" role="table" aria-label="Advanced Voice admission changes">{voiceRouting.admissionChanges.map((change) => <div className="platform-row voice-route-row" role="row" key={change.id}><div><strong>{change.targetEnabled ? "Enable" : "Disable"} admission</strong><span>{change.reason}</span></div><span>{change.status}</span><div className="row-actions">{change.status === "requested" ? <><button disabled={working || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceAdmission(change.id, "approve")}>Approve</button><button className="outline-button" disabled={working || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceAdmission(change.id, "reject")}>Reject</button></> : null}{change.status === "approved" ? <button className={change.targetEnabled ? "danger-button" : undefined} disabled={working} onClick={() => void applyVoiceAdmission(change.id, change.targetEnabled)}>{change.targetEnabled ? "Enable traffic" : "Disable traffic"}</button> : null}</div></div>)}{!voiceRouting.admissionChanges.length ? <p className="empty-row">No admission changes</p> : null}</div>
             </div>
             <form className="incident-open-form" onSubmit={openVoiceIncident}><h3>Open incident</h3><label>Severity<select name="severity" defaultValue="major"><option value="minor">Minor · degraded</option><option value="major">Major · pause</option><option value="critical">Critical · pause</option></select></label><label>Related change<select name="routingChangeId" defaultValue=""><option value="">No related change</option>{voiceRouting.changes.map((change) => <option key={change.id} value={change.id}>{change.status} · {change.reason}</option>)}</select></label><label>Incident reason<input name="reason" minLength={12} maxLength={1000} required /></label><label className="checkbox-label"><input name="creditReviewRequired" type="checkbox" />Credit review required</label><button disabled={working} type="submit">Open and safeguard</button></form>
           </div> : null}

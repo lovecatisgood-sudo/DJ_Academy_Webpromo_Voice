@@ -40,13 +40,21 @@ async function voiceAuthority(sql: postgres.TransactionSql, tenantId: string) {
       AND subscription.status IN ('active', 'trialing', 'scheduled_change')
     JOIN catalog.plan_versions version ON version.id = snapshot.plan_version_id
     JOIN catalog.plans plan ON plan.id = version.plan_id AND plan.product_key = 'voice'
-    WHERE snapshot.tenant_id = ${tenantId}::uuid AND snapshot.product_key = 'voice'
+    WHERE snapshot.id = (
+      SELECT candidate.id FROM tenancy.entitlement_snapshots candidate
+      JOIN tenancy.product_subscriptions current_subscription
+        ON current_subscription.tenant_id = candidate.tenant_id
+        AND current_subscription.id = candidate.subscription_id
+        AND current_subscription.status IN ('active', 'trialing', 'scheduled_change')
+      WHERE candidate.tenant_id = ${tenantId}::uuid AND candidate.product_key = 'voice'
+      ORDER BY candidate.created_at DESC, candidate.id DESC LIMIT 1
+    ) AND snapshot.access_mode = 'active'
       AND snapshot.resolved_json->'entitlements'->>'voice.enabled' = 'true'
       AND ((plan.plan_key = 'voice_basic_gen1'
           AND snapshot.resolved_json->'entitlements'->>'voice.capability_profile' = 'voice_gen1')
         OR (plan.plan_key = 'voice_advanced_gen2'
           AND snapshot.resolved_json->'entitlements'->>'voice.capability_profile' = 'voice_gen2'))
-    ORDER BY snapshot.created_at DESC, snapshot.id DESC LIMIT 1
+    LIMIT 1
   `;
   return rows[0] ?? null;
 }

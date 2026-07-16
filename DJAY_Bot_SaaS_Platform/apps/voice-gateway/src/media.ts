@@ -53,20 +53,34 @@ function mediaSystemPolicy(input: Readonly<{ locale: "th" | "en"; agentName: str
   ].join("\n");
 }
 
-export function createGen1VoiceMediaFactory(config: Readonly<{
-  apiKey: string; model: string; voiceName: string;
+type VoiceMediaCommonConfig = Readonly<{
   contextEndpoint: string; turnEndpoint: string; serviceToken: string;
-  liveGateway?: LiveVoiceProviderGateway; fetchImpl?: typeof fetch;
+  fetchImpl?: typeof fetch;
+}>;
+
+type RestrictedRouteGateway = Readonly<{
+  providerKey: string;
+  modelKey: string;
+  regionKey: string;
+  gateway: LiveVoiceProviderGateway;
+}>;
+
+export function createVoiceMediaFactory(config: VoiceMediaCommonConfig & Readonly<{
+  gen1Gateway?: LiveVoiceProviderGateway;
+  gen2Routes?: readonly RestrictedRouteGateway[];
 }>): VoiceMediaFactory {
-  const upstream = config.liveGateway ?? createGen1LiveVoiceProviderGateway({
-    apiKey: config.apiKey, model: config.model, voiceName: config.voiceName,
-    socketFactory: (url) => new WebSocket(url) as unknown as RestrictedLiveSocket,
-  });
   return {
     async open(input) {
-      if (input.session.capabilityProfile !== "voice_gen1" || input.inputAudioEncoding !== "pcm_s16le_16000") {
+      if (input.inputAudioEncoding !== "pcm_s16le_16000") {
         throw new Error("voice_media_contract_unsupported");
       }
+      const upstream = input.session.capabilityProfile === "voice_gen1"
+        ? input.session.route === null ? config.gen1Gateway : undefined
+        : config.gen2Routes?.find((route) => input.session.route
+          && route.providerKey === input.session.route.providerKey
+          && route.modelKey === input.session.route.modelKey
+          && route.regionKey === input.session.route.regionKey)?.gateway;
+      if (!upstream) throw new Error("voice_media_route_unavailable");
       const context = await postInternal({
         endpoint: config.contextEndpoint, serviceToken: config.serviceToken,
         idempotencyKey: `${input.connectionId}:context`,
@@ -173,4 +187,45 @@ export function createGen1VoiceMediaFactory(config: Readonly<{
       return media;
     },
   };
+}
+
+export function createGen1VoiceMediaFactory(config: VoiceMediaCommonConfig & Readonly<{
+  apiKey: string; model: string; voiceName: string;
+  liveGateway?: LiveVoiceProviderGateway;
+}>): VoiceMediaFactory {
+  const gateway = config.liveGateway ?? createGen1LiveVoiceProviderGateway({
+    apiKey: config.apiKey, model: config.model, voiceName: config.voiceName,
+    socketFactory: (url) => new WebSocket(url) as unknown as RestrictedLiveSocket,
+  });
+  return createVoiceMediaFactory({
+    contextEndpoint: config.contextEndpoint, turnEndpoint: config.turnEndpoint,
+    serviceToken: config.serviceToken, gen1Gateway: gateway,
+    ...(config.fetchImpl ? { fetchImpl: config.fetchImpl } : {}),
+  });
+}
+
+export function createConfiguredVoiceMediaFactory(config: VoiceMediaCommonConfig & Readonly<{
+  gen1?: Readonly<{ apiKey: string; model: string; voiceName: string }>;
+  gen2?: Readonly<{
+    providerKey: "google_live"; modelKey: string; regionKey: string;
+    apiKey: string; voiceName: string;
+  }>;
+}>): VoiceMediaFactory {
+  const socketFactory = (url: string) => new WebSocket(url) as unknown as RestrictedLiveSocket;
+  return createVoiceMediaFactory({
+    contextEndpoint: config.contextEndpoint, turnEndpoint: config.turnEndpoint,
+    serviceToken: config.serviceToken,
+    ...(config.fetchImpl ? { fetchImpl: config.fetchImpl } : {}),
+    ...(config.gen1 ? { gen1Gateway: createGen1LiveVoiceProviderGateway({
+      ...config.gen1, socketFactory,
+    }) } : {}),
+    ...(config.gen2 ? { gen2Routes: [{
+      providerKey: config.gen2.providerKey, modelKey: config.gen2.modelKey,
+      regionKey: config.gen2.regionKey,
+      gateway: createGen1LiveVoiceProviderGateway({
+        apiKey: config.gen2.apiKey, model: config.gen2.modelKey,
+        voiceName: config.gen2.voiceName, socketFactory,
+      }),
+    }] } : {}),
+  });
 }

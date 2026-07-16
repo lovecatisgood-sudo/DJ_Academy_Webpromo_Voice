@@ -11,13 +11,20 @@ type IssuedVoiceGrant = Omit<VoiceSessionGrant, "sessionGrant" | "gatewayUrl" | 
   automatedDisclosure: string;
 };
 
+export type RestrictedVoiceRoute = Readonly<{
+  providerKey: string;
+  modelKey: string;
+  regionKey: string;
+}>;
+
 export class VoiceRuntimeStore {
   constructor(private readonly client: DatabaseClient) {}
 
   async issue(input: Readonly<{ deploymentKey: string; origin: string; locale: "th" | "en"; expiresAt: Date }>): Promise<IssuedVoiceGrant> {
     const sessionGrant = `djay_voice_grant_${createOpaqueToken()}`;
     const rows = await this.client<{
-      sessionId: string; capabilityProfile: "voice_gen1"; publicLabel: "First-Generation Voice Engine";
+      sessionId: string; capabilityProfile: "voice_gen1" | "voice_gen2";
+      publicLabel: "First-Generation Voice Engine" | "Second-Generation Voice Engine";
       locale: "th" | "en"; greeting: string; automatedDisclosure: string;
       maxCallSeconds: number; reconnectWindowSeconds: number; expiresAt: Date;
     }[]>`
@@ -26,7 +33,7 @@ export class VoiceRuntimeStore {
              automated_disclosure AS "automatedDisclosure",
              max_call_seconds AS "maxCallSeconds",
              reconnect_window_seconds AS "reconnectWindowSeconds", expires_at AS "expiresAt"
-      FROM tenancy.issue_voice_basic_grant(
+      FROM tenancy.issue_voice_session_grant(
         ${hashOpaqueToken(input.deploymentKey)}, ${hashOpaqueToken(sessionGrant)}, ${input.origin},
         ${randomUUID()}::uuid, ${randomUUID()}::uuid, ${randomUUID()}::uuid,
         ${input.expiresAt}, ${input.locale}
@@ -41,23 +48,41 @@ export class VoiceRuntimeStore {
     protocolVersion: "djay.voice.v1"; connectionId: string;
   }>) {
     const rows = await this.client<{
-      sessionId: string; capabilityProfile: "voice_gen1"; locale: "th" | "en";
+      sessionId: string; capabilityProfile: "voice_gen1" | "voice_gen2"; locale: "th" | "en";
       maxCallSeconds: number; reconnectWindowSeconds: number; replayed: boolean;
+      routeProviderKey: string | null; routeModelKey: string | null; routeRegionKey: string | null;
     }[]>`
       SELECT session_id AS "sessionId", capability_profile AS "capabilityProfile", locale,
              max_call_seconds AS "maxCallSeconds",
-             reconnect_window_seconds AS "reconnectWindowSeconds", replayed
-      FROM tenancy.authorize_voice_basic_session(
+             reconnect_window_seconds AS "reconnectWindowSeconds", replayed,
+             route_provider_key AS "routeProviderKey", route_model_key AS "routeModelKey",
+             route_region_key AS "routeRegionKey"
+      FROM tenancy.authorize_voice_session(
         ${hashOpaqueToken(input.sessionGrant)}, ${input.sessionId}::uuid, ${input.origin},
         ${input.protocolVersion}, ${input.connectionId}::uuid, ${randomUUID()}::uuid, ${randomUUID()}::uuid
       )
     `;
-    return rows[0] ?? null;
+    const authorized = rows[0];
+    if (!authorized) return null;
+    const {
+      routeProviderKey, routeModelKey, routeRegionKey,
+      reconnectWindowSeconds, ...session
+    } = authorized;
+    if (session.capabilityProfile === "voice_gen1") {
+      if (routeProviderKey || routeModelKey || routeRegionKey) throw new Error("voice_route_contract_invalid");
+      return { ...session, resumeWindowSeconds: reconnectWindowSeconds, route: null };
+    }
+    if (!routeProviderKey || !routeModelKey || !routeRegionKey) throw new Error("voice_route_contract_invalid");
+    return {
+      ...session,
+      resumeWindowSeconds: reconnectWindowSeconds,
+      route: { providerKey: routeProviderKey, modelKey: routeModelKey, regionKey: routeRegionKey },
+    };
   }
 
   async disconnect(sessionId: string, connectionId: string) {
     const rows = await this.client<{ disconnected: boolean }[]>`
-      SELECT tenancy.disconnect_voice_basic_session(${sessionId}::uuid, ${connectionId}::uuid) AS disconnected
+      SELECT tenancy.disconnect_voice_session(${sessionId}::uuid, ${connectionId}::uuid) AS disconnected
     `;
     return rows[0]?.disconnected ?? false;
   }
@@ -67,7 +92,7 @@ export class VoiceRuntimeStore {
       alive: boolean; runtimeMode: "running" | "paused" | "emergency_stop";
     }[]>`
       SELECT alive, runtime_mode AS "runtimeMode"
-      FROM tenancy.heartbeat_voice_basic_session(${sessionId}::uuid, ${connectionId}::uuid)
+      FROM tenancy.heartbeat_voice_session(${sessionId}::uuid, ${connectionId}::uuid)
     `;
     return rows[0] ?? { alive: false as const, runtimeMode: "emergency_stop" as const };
   }
@@ -135,7 +160,7 @@ export class VoiceRuntimeStore {
   }>) {
     const rows = await this.client<{ status: "ended" | "failed" | "expired"; customerMinutes: number; replayed: boolean }[]>`
       SELECT status, customer_minutes AS "customerMinutes", replayed
-      FROM tenancy.finish_voice_basic_session(
+      FROM tenancy.finish_voice_session(
         ${input.sessionId}::uuid, ${input.connectionId}::uuid,
         ${input.elapsedSeconds}, ${input.terminalReason}
       )

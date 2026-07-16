@@ -2,7 +2,7 @@
 
 ## Scope and release state
 
-This runbook covers browser Voice Basic admission, gateway authority,
+This runbook covers browser Voice Basic and Advanced admission, gateway authority,
 heartbeats, quota settlement, crash recovery, and operational stop controls.
 The restricted realtime media and Sales Core action path are implemented.
 Production activation remains prohibited until the live bilingual quality and
@@ -14,7 +14,8 @@ latency gate, retention review, and named merchant acceptance are complete.
   `VOICE_GATEWAY_URL`, and the independent Voice service token.
 - Gateway requires the authorization, heartbeat, disconnect, finish, restricted
   media-context, and Sales Core turn endpoints, the same service token, the
-  restricted First-Generation media credential, and an approved capacity limit.
+  restricted media credentials, exact approved Advanced route keys, and an
+  approved capacity limit.
 - Workers require `WORKER_DATABASE_URL`, `VOICE_REAPER_ENABLED=true`, the
   reviewed stale threshold, and the reviewed batch size.
 - Keep deployment and session credentials out of logs, tickets, screenshots,
@@ -27,7 +28,7 @@ latency gate, retention review, and named merchant acceptance are complete.
 
 ## Activation sequence
 
-1. Apply migrations through `0032_voice_outcomes_retention` and confirm the
+1. Apply migrations through `0036_voice_advanced_runtime` and confirm the
    runtime is `paused` with reason `activation_required`.
 2. Start the worker with the Voice reaper enabled. Confirm repeated idle cycles
    complete without errors before starting the gateway.
@@ -101,7 +102,7 @@ path.
 
 ## Rollback
 
-Application rollback must remain compatible with migrations `0029` through `0032`.
+Application rollback must remain compatible with migrations `0029` through `0036`.
 Pause admission first, allow active sessions to finish or use emergency stop,
 then verify no reservations or leases remain open. Do not drop recovery columns,
 functions, controls, or immutable usage/audit evidence during rollback.

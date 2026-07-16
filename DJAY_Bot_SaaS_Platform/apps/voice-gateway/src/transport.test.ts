@@ -26,7 +26,7 @@ function authority(): VoiceSessionAuthority & {
   return {
     authorize: vi.fn().mockResolvedValue({
       sessionId, capabilityProfile: "voice_gen1", locale: "en", maxCallSeconds: 900,
-      resumeWindowSeconds: 30, replayed: false,
+      resumeWindowSeconds: 30, replayed: false, route: null,
     }),
     heartbeat: vi.fn().mockResolvedValue({ alive: true, runtimeMode: "running" }),
     disconnect: vi.fn().mockResolvedValue(true),
@@ -125,6 +125,27 @@ describe("voice WebSocket transport", () => {
     expect(auth.finish).toHaveBeenCalledWith(expect.objectContaining({ sessionId, connectionId, terminalReason: "customer_ended" }));
     expect(auth.disconnect).not.toHaveBeenCalled();
     expect(registry.snapshot().activeSessions).toBe(0);
+  });
+
+  it("keeps a restricted Second-Generation route out of every browser message", async () => {
+    const auth = authority();
+    auth.authorize.mockResolvedValue({
+      sessionId, capabilityProfile: "voice_gen2", locale: "en", maxCallSeconds: 900,
+      resumeWindowSeconds: 30, replayed: false,
+      route: { providerKey: "restricted_provider", modelKey: "restricted_model", regionKey: "restricted_region" },
+    });
+    const { url } = await harness({
+      authority: auth,
+      mediaFactory: { async open() { return { async accept() {}, async close() {} }; } },
+    });
+    const websocket = await socket(url);
+    const connected = nextMessage(websocket); connect(websocket);
+    const message = await connected;
+    expect(message).toMatchObject({ type: "session.connected", sessionId });
+    expect(JSON.stringify(message)).not.toMatch(/restricted_provider|restricted_model|restricted_region|route/i);
+    const ended = nextMessage(websocket);
+    websocket.send(JSON.stringify({ type: "session.end", messageId: crypto.randomUUID(), reason: "customer_ended" }));
+    await ended; await once(websocket, "close");
   });
 
   it("disconnects abnormal transport loss for bounded reconnect", async () => {

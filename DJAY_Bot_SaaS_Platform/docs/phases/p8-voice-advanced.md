@@ -2,12 +2,13 @@
 
 ## Status
 
-In progress. The Platform-only Gen2 qualification, two-person routing change,
-reviewed canary, explicit promotion/rollback, incident pause, and independent
-credit-review foundation and prepare-only Second-Generation tenant deployment
-path are implemented locally. The Gen2 session/runtime path, equivalent-profile media qualification,
-advanced analytics, load/margin validation, and live acceptance remain pending.
-Gen2 therefore remains unavailable and paused by default.
+In progress. Platform-only Gen2 qualification, two-person routing and admission
+changes, reviewed canary, explicit promotion/rollback, incident pause,
+independent credit review, tenant deployment, restricted session authority, and
+exact gateway route assignment are implemented locally. Equivalent-profile live
+media qualification, advanced analytics, load/margin validation, and named-
+merchant acceptance remain pending. Gen2 therefore remains unavailable and
+paused by default in production.
 
 ## Requirements
 
@@ -60,11 +61,26 @@ Gen2 therefore remains unavailable and paused by default.
 14. Downgrading an Advanced tenant cannot reinterpret its existing deployment as
     Basic: editing/enabling loses authority and the database rejects any Gen1
     session bound to that Gen2 deployment.
+15. Migration `0036_voice_advanced_runtime` resolves only the latest active Voice
+    entitlement, issues Gen2 grants only when global and profile admission are
+    running, and assigns the reviewed primary route after quota/concurrency
+    reservation.
+16. Restricted provider/model/region identity is returned only to the
+    service-authenticated gateway. It is never serialized in the public grant,
+    browser WebSocket messages, tenant DTOs, or shared audit stream.
+17. The gateway opens Gen2 media only when the immutable session assignment
+    exactly matches a separately configured restricted adapter. A missing or
+    mismatched route fails closed and never selects the Gen1 adapter.
+18. A separate admission request requires an evidence digest and independent
+    reviewer. Admission automatically disables whenever the Gen2 profile leaves
+    `running`; draining sessions retain their assigned Gen2 route, while a
+    paused profile ends them through provider-neutral heartbeat authority.
 
 ## Schema, API, and event contract
 
 - Platform tables: `voice_route_candidates`, `voice_routing_changes`,
-  `voice_active_routes`, `voice_profile_controls`, and `voice_incidents`.
+  `voice_active_routes`, `voice_profile_controls`, `voice_admission_changes`,
+  and `voice_incidents`.
 - Operations table: `voice_session_routes`; it has tenant/session composite
   ownership but no tenant, platform, public, or runtime table grant.
 - APIs: `GET/POST /platform/voice/routing` and
@@ -72,8 +88,8 @@ Gen2 therefore remains unavailable and paused by default.
 - Tenant APIs retain their existing deployment/Studio routes; generation is
   resolved server-side and only the approved public label/availability is added
   to their DTOs.
-- Audit actions: `voice.route_candidate.*`, `voice.routing_change.*`, and
-  `voice.incident.*`.
+- Audit actions: `voice.route_candidate.*`, `voice.routing_change.*`,
+  `voice.admission.*`, and `voice.incident.*`.
 - Provider/model/region identifiers are never returned by public or tenant APIs.
 
 ## Security, observability, and confidentiality
@@ -88,6 +104,8 @@ Gen2 therefore remains unavailable and paused by default.
   storing credentials, prompts, raw audio, transcript content, prices, or cost.
 - Tenants cannot choose a generation in request payloads. Generation comes from
   the latest active immutable entitlement snapshot and is pinned on deployment.
+- Session assignment is immutable per tenant/session. Disabling new admission
+  does not reroute an active call, and profile pause never falls back to Gen1.
 
 ## Tests and migration
 
@@ -100,28 +118,33 @@ Gen2 therefore remains unavailable and paused by default.
 - Deployment integration proves server-resolved Advanced creation, exact-origin
   isolation, public-label-only DTOs, default unavailable admission, entitlement
   mismatch denial, and database-enforced no-Gen1 fallback after downgrade.
+- Runtime integration proves provider-neutral issuance, exact restricted route
+  assignment, one assignment per session, drain-safe reconnect, incident stop,
+  quota settlement, and no new issuance after admission is disabled.
+- Gateway tests prove exact adapter matching, rejected mismatches with no Gen1
+  fallback, and absence of route identity from browser messages.
 - Node 24 typechecking covers the database store, API routes, and Platform Master.
 - Platform desktop/mobile browser acceptance covers role-safe rendering,
   responsive layout, and tenant/provider confidentiality.
 
 ## Non-goals for this foundation
 
-- Activating Gen2 session issuance, media transport, or production traffic.
+- Authorizing production traffic before live acceptance evidence is approved.
 - Choosing a provider/model, alternative Gen2 route, commercial rate, credit
   amount, quality threshold, or margin policy without approved evidence.
 - Gen1 routing changes or any Gen2-to-Gen1 fallback.
 
 ## Next slice
 
-Implement restricted Gen2 session issuance and runtime route assignment against
-this authority, then add the equivalent-profile evaluation
-suite and Advanced analytics. The runtime must return provider-neutral
-unavailability until an active reviewed route exists.
+Add the equivalent-profile evaluation suite, Advanced analytics, production-like
+load/capacity and margin gates, then execute live Thai/English and named-merchant
+acceptance. Keep admission disabled until those evidence digests are reviewed.
 
 ## Rollback
 
 Keep Gen2 paused, stop all Advanced admission, and use the reviewed rollback
 action for any canary/active change. Application rollback must remain compatible
-with migrations `0034` and `0035`; candidate, approval, incident, deployment,
-credit-review, and audit evidence is retained. Existing deployments remain
-generation-pinned. Do not delete or rewrite route history.
+with migrations `0034` through `0036`; candidate, approval, admission, incident,
+deployment, session-route, credit-review, and audit evidence is retained.
+Existing deployments and sessions remain generation-pinned. Do not delete or
+rewrite route history.

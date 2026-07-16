@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { hashOpaqueToken } from "@djay/auth";
 import { createTenantContext } from "@djay/tenancy";
 import { afterAll, describe, expect, it } from "vitest";
 import { createDatabaseClient } from "./client";
@@ -149,7 +150,7 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
     ]);
   });
 
-  it("creates a tenant-safe Advanced deployment but keeps admission unavailable without the future runtime gate", async () => {
+  it("creates a tenant-safe Advanced deployment and keeps it fail-closed without reviewed admission", async () => {
     const tenantId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb10";
     const subscriptionId = randomUUID(); const snapshotId = randomUUID();
     const advancedPlanVersionId = "62000000-0000-4000-8000-000000000006";
@@ -212,7 +213,7 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
     await expect(runtime.issue({
       deploymentKey: created.deploymentKey, origin: "https://advanced.example", locale: "en",
       expiresAt: new Date(Date.now() + 60_000),
-    })).rejects.toThrow(/voice_deployment_not_available/);
+    })).rejects.toThrow(/voice_profile_not_available/);
 
     const basicSubscriptionId = randomUUID(); const basicSnapshotId = randomUUID();
     const basicPlanVersionId = "62000000-0000-4000-8000-000000000005";
@@ -250,6 +251,14 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
     await expect(runtime.issue({
       deploymentKey: created.deploymentKey, origin: "https://advanced.example", locale: "en",
       expiresAt: new Date(Date.now() + 60_000),
-    })).rejects.toThrow(/tenancy_voice_session_deployment_capability_fk/);
+    })).rejects.toThrow(/voice_deployment_not_available/);
+    await expect(voiceClient!`
+      SELECT * FROM tenancy.issue_voice_basic_grant(
+        ${hashOpaqueToken(created.deploymentKey)},
+        ${hashOpaqueToken(`djay_voice_grant_${randomUUID().replaceAll("-", "")}`)},
+        'https://advanced.example', ${randomUUID()}::uuid, ${randomUUID()}::uuid,
+        ${randomUUID()}::uuid, now() + interval '1 minute', 'en'
+      )
+    `).rejects.toThrow(/tenancy_voice_session_deployment_capability_fk/);
   });
 });

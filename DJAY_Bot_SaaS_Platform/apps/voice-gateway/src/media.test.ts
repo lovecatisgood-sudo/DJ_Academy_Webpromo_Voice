@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   LiveVoiceConnectRequest, LiveVoiceEvent, LiveVoiceProviderGateway, LiveVoiceSession,
 } from "@djay/provider-gateway";
-import { createGen1VoiceMediaFactory } from "./media";
+import { createGen1VoiceMediaFactory, createVoiceMediaFactory } from "./media";
 import type { VoiceMediaEvent } from "./transport";
 
 const sessionId = "10000000-0000-4000-8000-000000000001";
@@ -45,7 +45,7 @@ function harness(turnTerminal: "transferred" | null = null) {
     events, sent, fetchImpl,
     async open() {
       const media = await factory.open({
-        session: { sessionId, capabilityProfile: "voice_gen1", locale: "en", maxCallSeconds: 900, resumeWindowSeconds: 30, replayed: false },
+        session: { sessionId, capabilityProfile: "voice_gen1", locale: "en", maxCallSeconds: 900, resumeWindowSeconds: 30, replayed: false, route: null },
         connectionId, inputAudioEncoding: "pcm_s16le_16000", async onEvent(event) { events.push(event); },
       });
       return { media, emit: (event: LiveVoiceEvent) => emit!(event), connectRequest: () => connectRequest! };
@@ -94,8 +94,42 @@ describe("First-Generation Voice media orchestration", () => {
       liveGateway: { async connect() { throw new Error("must_not_connect"); } }, fetchImpl: state.fetchImpl,
     });
     await expect(factory.open({
-      session: { sessionId, capabilityProfile: "voice_gen1", locale: "en", maxCallSeconds: 900, resumeWindowSeconds: 30, replayed: false },
+      session: { sessionId, capabilityProfile: "voice_gen1", locale: "en", maxCallSeconds: 900, resumeWindowSeconds: 30, replayed: false, route: null },
       connectionId, inputAudioEncoding: "webm_opus", async onEvent() {},
     })).rejects.toThrow("voice_media_contract_unsupported");
+  });
+});
+
+describe("Second-Generation Voice media routing", () => {
+  it("opens only the exact restricted assignment and never falls back to First-Generation", async () => {
+    const state = harness();
+    const calls: string[] = [];
+    const liveSession: LiveVoiceSession = {
+      sendAudio() {}, sendText() {}, sendActivity() {}, sendToolResponse() {}, close() {},
+    };
+    const factory = createVoiceMediaFactory({
+      contextEndpoint: "http://api.test/context", turnEndpoint: "http://api.test/turn",
+      serviceToken: "service-token-abcdefghijklmnopqrstuvwxyz", fetchImpl: state.fetchImpl,
+      gen1Gateway: { async connect() { calls.push("gen1"); return liveSession; } },
+      gen2Routes: [{
+        providerKey: "google_live", modelKey: "qualified-model", regionKey: "global",
+        gateway: { async connect() { calls.push("gen2"); return liveSession; } },
+      }],
+    });
+    const session = {
+      sessionId, capabilityProfile: "voice_gen2" as const, locale: "en" as const,
+      maxCallSeconds: 900, resumeWindowSeconds: 30, replayed: false,
+      route: { providerKey: "google_live", modelKey: "qualified-model", regionKey: "global" },
+    };
+    await expect(factory.open({
+      session, connectionId, inputAudioEncoding: "pcm_s16le_16000", async onEvent() {},
+    })).resolves.toBeDefined();
+    expect(calls).toEqual(["gen2"]);
+
+    await expect(factory.open({
+      session: { ...session, route: { ...session.route, modelKey: "unqualified-model" } },
+      connectionId, inputAudioEncoding: "pcm_s16le_16000", async onEvent() {},
+    })).rejects.toThrow("voice_media_route_unavailable");
+    expect(calls).toEqual(["gen2"]);
   });
 });

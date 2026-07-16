@@ -13,6 +13,13 @@ export type VoiceIncident = Readonly<{
 }>;
 
 export type VoiceRoutingOverview = Readonly<{
+  admissionEnabled: boolean;
+  admissionChanges: readonly Readonly<{
+    id: string; capabilityProfile: "voice_gen2"; targetEnabled: boolean;
+    status: "requested" | "approved" | "rejected" | "applied"; reason: string;
+    requestedByPlatformUserId: string; approvedByPlatformUserId: string | null;
+    requestedAt: string; approvedAt: string | null; appliedAt: string | null;
+  }>[];
   profiles: readonly Readonly<{
     capabilityProfile: "voice_gen2"; mode: "paused" | "canary" | "running" | "degraded";
     reasonCode: string; version: number; changedAt: string;
@@ -87,11 +94,19 @@ export class PlatformVoiceOperationsStore {
   }
 
   async getRoutingOverview(context: PlatformContext) {
-    const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{ result: VoiceRoutingOverview }[]>`
-      SELECT platform.get_voice_routing_overview() AS result
+    const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{
+      routing: Omit<VoiceRoutingOverview, "admissionEnabled" | "admissionChanges">;
+      admission: { admissionEnabled: boolean; changes: VoiceRoutingOverview["admissionChanges"] };
+    }[]>`
+      SELECT platform.get_voice_routing_overview() AS routing,
+             platform.get_voice_admission_overview() AS admission
     `);
     if (!rows[0]) throw new Error("voice_routing_overview_unavailable");
-    return rows[0].result;
+    return {
+      ...rows[0].routing,
+      admissionEnabled: rows[0].admission.admissionEnabled,
+      admissionChanges: rows[0].admission.changes,
+    };
   }
 
   async getIncidents(context: PlatformContext) {
@@ -157,6 +172,38 @@ export class PlatformVoiceOperationsStore {
       ) AS status
     `);
     return { status: rows[0]!.status };
+  }
+
+  async requestAdmissionChange(context: PlatformContext, input: Readonly<{
+    enabled: boolean; reason: string; evidenceSha256: string;
+  }>) {
+    const evidence = Buffer.from(input.evidenceSha256, "hex");
+    const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{ id: string }[]>`
+      SELECT platform.request_voice_admission_change(
+        ${input.enabled}, ${input.reason}, ${evidence}
+      ) AS id
+    `);
+    return { status: "requested" as const, changeId: rows[0]!.id };
+  }
+
+  async reviewAdmissionChange(context: PlatformContext, input: Readonly<{
+    changeId: string; decision: "approve" | "reject";
+  }>) {
+    const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{
+      status: "approved" | "rejected";
+    }[]>`
+      SELECT platform.review_voice_admission_change(
+        ${input.changeId}::uuid, ${input.decision}
+      ) AS status
+    `);
+    return { status: rows[0]!.status };
+  }
+
+  async applyAdmissionChange(context: PlatformContext, input: Readonly<{ changeId: string }>) {
+    const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{ enabled: boolean }[]>`
+      SELECT platform.apply_voice_admission_change(${input.changeId}::uuid) AS enabled
+    `);
+    return { status: "applied" as const, enabled: rows[0]!.enabled };
   }
 
   async openIncident(context: PlatformContext, input: Readonly<{

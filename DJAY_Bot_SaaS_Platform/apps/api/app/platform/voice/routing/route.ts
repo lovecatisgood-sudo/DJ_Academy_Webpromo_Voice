@@ -17,6 +17,9 @@ const commandSchema = z.discriminatedUnion("command", [
   z.object({ command: z.literal("change.request"), capabilityProfile: z.literal("voice_gen2"), candidateId: z.uuid(), canaryPercent: z.number().int().min(1).max(100), reason: z.string().trim().min(12).max(500), evidenceSha256: digest }).strict(),
   z.object({ command: z.literal("change.review"), changeId: z.uuid(), decision: z.enum(["approve", "reject"]) }).strict(),
   z.object({ command: z.literal("change.apply"), changeId: z.uuid(), action: z.enum(["start_canary", "promote", "rollback"]), reason: z.string().trim().min(12).max(500) }).strict(),
+  z.object({ command: z.literal("admission.request"), enabled: z.boolean(), reason: z.string().trim().min(12).max(500), evidenceSha256: digest }).strict(),
+  z.object({ command: z.literal("admission.review"), changeId: z.uuid(), decision: z.enum(["approve", "reject"]) }).strict(),
+  z.object({ command: z.literal("admission.apply"), changeId: z.uuid() }).strict(),
   z.object({ command: z.literal("incident.open"), capabilityProfile: z.literal("voice_gen2"), severity: z.enum(["minor", "major", "critical"]), reason: z.string().trim().min(12).max(1000), routingChangeId: z.uuid().nullable(), creditReviewRequired: z.boolean() }).strict(),
   z.object({ command: z.literal("incident.credit_review"), incidentId: z.uuid(), decision: z.enum(["approve", "reject"]) }).strict(),
   z.object({ command: z.literal("incident.resolve"), incidentId: z.uuid(), resolution: z.string().trim().min(12).max(2000) }).strict(),
@@ -58,9 +61,12 @@ export async function POST(request: NextRequest) {
         : input.command === "change.request" ? await store.requestRoutingChange(resolved.context, input)
           : input.command === "change.review" ? await store.reviewRoutingChange(resolved.context, input)
             : input.command === "change.apply" ? await store.applyRoutingChange(resolved.context, input)
-              : input.command === "incident.open" ? await store.openIncident(resolved.context, input)
-                : input.command === "incident.credit_review" ? await store.reviewIncidentCredit(resolved.context, input)
-                  : await store.resolveIncident(resolved.context, input);
+              : input.command === "admission.request" ? await store.requestAdmissionChange(resolved.context, input)
+                : input.command === "admission.review" ? await store.reviewAdmissionChange(resolved.context, input)
+                  : input.command === "admission.apply" ? await store.applyAdmissionChange(resolved.context, input)
+                    : input.command === "incident.open" ? await store.openIncident(resolved.context, input)
+                      : input.command === "incident.credit_review" ? await store.reviewIncidentCredit(resolved.context, input)
+                        : await store.resolveIncident(resolved.context, input);
     return safeJson(result);
   } catch (error) {
     return error instanceof z.ZodError || error instanceof SyntaxError

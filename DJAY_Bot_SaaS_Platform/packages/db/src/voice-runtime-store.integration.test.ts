@@ -431,6 +431,7 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
     const advancedTenantId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb10";
     const advancedSubscriptionId = randomUUID();
     const advancedSnapshotId = randomUUID();
+    const advancedQuotaId = randomUUID();
     const advancedAgentId = randomUUID();
     const advancedPlaybookVersionId = randomUUID();
     const advancedDeploymentKey = `djay_voice_deploy_${randomUUID().replaceAll("-", "")}`;
@@ -463,6 +464,15 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
       )
     `;
     await adminClient!`
+      INSERT INTO tenancy.quota_accounts (
+        id, tenant_id, subscription_id, product_key, customer_unit, period_start, period_end,
+        included_quantity, safety_cap_quantity
+      ) VALUES (
+        ${advancedQuotaId}::uuid, ${advancedTenantId}::uuid, ${advancedSubscriptionId}::uuid,
+        'voice', 'voice_minute', now() - interval '1 minute', now() + interval '30 days', 100, 10
+      )
+    `;
+    await adminClient!`
       INSERT INTO tenancy.ai_agents (
         id, tenant_id, name, status, default_language, created_by_membership_id
       ) VALUES (
@@ -490,7 +500,7 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
         greeting_th, greeting_en, automated_disclosure_th, automated_disclosure_en,
         max_call_seconds, reconnect_window_seconds, created_by_membership_id
       ) VALUES (
-        ${advancedTenantId}::uuid, ${advancedAgentId}::uuid, 'Advanced must not enter P7', 'voice_gen2',
+        ${advancedTenantId}::uuid, ${advancedAgentId}::uuid, 'Advanced restricted runtime', 'voice_gen2',
         ${hashOpaqueToken(advancedDeploymentKey)},
         ${advancedDeploymentKey.slice(0, 20)}, ARRAY['https://advanced.example'],
         'สวัสดีครับ', 'Hello', 'นี่คือผู้ช่วยเสียงอัตโนมัติของเรา',
@@ -501,6 +511,115 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
     await expect(runtime.issue({
       deploymentKey: advancedDeploymentKey, origin: "https://advanced.example", locale: "en",
       expiresAt: new Date(Date.now() + 60_000),
-    })).rejects.toThrow(/voice_deployment_not_available/);
+    })).rejects.toThrow(/voice_profile_not_available/);
+
+    const routeCandidateId = randomUUID();
+    const routeProposerId = randomUUID();
+    const routeReviewerId = randomUUID();
+    await adminClient!`
+      INSERT INTO platform.users (id, email_normalized, display_name, password_hash, status)
+      VALUES
+        (${routeProposerId}::uuid, ${`${routeProposerId}@example.test`}, 'Runtime route proposer', 'test-hash', 'active'),
+        (${routeReviewerId}::uuid, ${`${routeReviewerId}@example.test`}, 'Runtime route reviewer', 'test-hash', 'active')
+    `;
+    await adminClient!`
+      INSERT INTO platform.voice_route_candidates (
+        id, capability_profile, provider_key, model_key, region_key, status,
+        proposed_by_platform_user_id, reviewed_by_platform_user_id,
+        qualification_evidence_sha256, reviewed_at
+      ) VALUES (
+        ${routeCandidateId}::uuid, 'voice_gen2', 'google_live', 'qualified-runtime-model',
+        'global', 'qualified', ${routeProposerId}::uuid, ${routeReviewerId}::uuid,
+        digest('qualified-runtime-evidence', 'sha256'), now()
+      )
+    `;
+    await adminClient!`
+      UPDATE platform.voice_active_routes
+      SET primary_candidate_id = ${routeCandidateId}::uuid, canary_candidate_id = NULL,
+          canary_percent = 0, routing_change_id = NULL, version = version + 1,
+          updated_by_platform_user_id = ${routeReviewerId}::uuid, updated_at = now()
+      WHERE capability_profile = 'voice_gen2'
+    `;
+    await adminClient!`
+      UPDATE platform.voice_profile_controls
+      SET mode = 'running', admission_enabled = true, reason_code = 'runtime_integration_admitted',
+          version = version + 1, changed_by_platform_user_id = ${routeReviewerId}::uuid,
+          changed_at = now()
+      WHERE capability_profile = 'voice_gen2'
+    `;
+
+    const advancedIssued = await runtime.issue({
+      deploymentKey: advancedDeploymentKey, origin: "https://advanced.example", locale: "en",
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    expect(advancedIssued).toMatchObject({
+      capabilityProfile: "voice_gen2", publicLabel: "Second-Generation Voice Engine",
+    });
+    expect(JSON.stringify(advancedIssued)).not.toMatch(/google_live|qualified-runtime-model|provider|model|region/i);
+    const advancedConnectionId = randomUUID();
+    const advancedAuthorized = await runtime.authorize({
+      sessionGrant: advancedIssued.sessionGrant, sessionId: advancedIssued.sessionId,
+      origin: "https://advanced.example", protocolVersion: "djay.voice.v1",
+      connectionId: advancedConnectionId,
+    });
+    expect(advancedAuthorized).toEqual(expect.objectContaining({
+      sessionId: advancedIssued.sessionId, capabilityProfile: "voice_gen2",
+      resumeWindowSeconds: 30, replayed: false,
+      route: {
+        providerKey: "google_live", modelKey: "qualified-runtime-model", regionKey: "global",
+      },
+    }));
+    const assignment = await adminClient!<{ count: number; candidateId: string }[]>`
+      SELECT count(*)::int AS count, (array_agg(candidate_id))[1]::text AS "candidateId"
+      FROM operations.voice_session_routes
+      WHERE tenant_id = ${advancedTenantId}::uuid AND session_id = ${advancedIssued.sessionId}::uuid
+    `;
+    expect(assignment[0]).toEqual({ count: 1, candidateId: routeCandidateId });
+
+    await adminClient!`
+      UPDATE platform.voice_profile_controls SET admission_enabled = false,
+        reason_code = 'runtime_integration_draining', version = version + 1, changed_at = now()
+      WHERE capability_profile = 'voice_gen2'
+    `;
+    await expect(runtime.issue({
+      deploymentKey: advancedDeploymentKey, origin: "https://advanced.example", locale: "en",
+      expiresAt: new Date(Date.now() + 60_000),
+    })).rejects.toThrow(/voice_profile_not_available/);
+    await expect(runtime.disconnect(advancedIssued.sessionId, advancedConnectionId)).resolves.toBe(true);
+    const advancedReconnectId = randomUUID();
+    await expect(runtime.authorize({
+      sessionGrant: advancedIssued.sessionGrant, sessionId: advancedIssued.sessionId,
+      origin: "https://advanced.example", protocolVersion: "djay.voice.v1",
+      connectionId: advancedReconnectId,
+    })).resolves.toMatchObject({
+      capabilityProfile: "voice_gen2", replayed: false,
+      route: { providerKey: "google_live", modelKey: "qualified-runtime-model", regionKey: "global" },
+    });
+    await expect(runtime.heartbeat(advancedIssued.sessionId, advancedReconnectId))
+      .resolves.toEqual({ alive: true, runtimeMode: "running" });
+    await adminClient!`
+      UPDATE platform.voice_profile_controls SET mode = 'paused',
+        reason_code = 'runtime_integration_incident', version = version + 1, changed_at = now()
+      WHERE capability_profile = 'voice_gen2'
+    `;
+    await expect(runtime.heartbeat(advancedIssued.sessionId, advancedReconnectId))
+      .resolves.toEqual({ alive: false, runtimeMode: "emergency_stop" });
+    await adminClient!`
+      UPDATE platform.voice_profile_controls SET mode = 'running',
+        reason_code = 'runtime_integration_recovered', version = version + 1, changed_at = now()
+      WHERE capability_profile = 'voice_gen2'
+    `;
+    await expect(runtime.heartbeat(advancedIssued.sessionId, advancedReconnectId))
+      .resolves.toEqual({ alive: true, runtimeMode: "running" });
+    await adminClient!`
+      UPDATE tenancy.product_subscriptions SET status = 'cancelled', cancelled_at = now()
+      WHERE tenant_id = ${advancedTenantId}::uuid AND id = ${advancedSubscriptionId}::uuid
+    `;
+    await expect(runtime.heartbeat(advancedIssued.sessionId, advancedReconnectId))
+      .resolves.toEqual({ alive: false, runtimeMode: "running" });
+    await expect(runtime.finish({
+      sessionId: advancedIssued.sessionId, connectionId: advancedReconnectId,
+      elapsedSeconds: 1, terminalReason: "unavailable",
+    })).resolves.toMatchObject({ status: "failed", replayed: false });
   });
 });
