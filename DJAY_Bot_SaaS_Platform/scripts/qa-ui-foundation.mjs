@@ -89,9 +89,10 @@ async function visit({ name, url, viewport = desktop, mock, ready = "h1", expect
   await context.close();
 }
 
-async function mockPublic(page, failedPaths, abortedMutationPaths, changedLegalPaths) {
+async function mockPublic(page, failedPaths, abortedMutationPaths, changedLegalPaths, requestCounts) {
   await page.route("**/public/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (route.request().method() !== "GET") requestCounts?.set(path, (requestCounts.get(path) || 0) + 1);
     if (abortedMutationPaths?.has(path) && route.request().method() !== "GET") return route.abort("connectionfailed");
     if (changedLegalPaths?.has(path) && route.request().method() !== "GET") return json(route, {
       accepted: false,
@@ -111,7 +112,9 @@ async function mockPublic(page, failedPaths, abortedMutationPaths, changedLegalP
     if (path === "/public/legal/terms") return json(route, { status: "available", document: legalDocuments.terms });
     if (path === "/public/legal/privacy") return json(route, { status: "available", document: legalDocuments.privacy });
     if (path === "/public/status") return json(route, { status: { asOf: new Date().toISOString(), overall: "operational", services: [] } });
+    if (path === "/public/auth/register") return json(route, { accepted: true, message: "Check your email to continue. If an account already exists, use sign in or recovery." }, 202);
     if (path === "/public/auth/verify-email") return json(route, { status: "verified" });
+    if (path === "/public/auth/resend-verification") return json(route, { accepted: true }, 202);
     if (path === "/public/invitations/accept") return json(route, { status: "accepted" });
     return json(route, { status: "not_found" }, 404);
   });
@@ -265,12 +268,65 @@ await visit({ name: "public-legal-version-change", url: publicUrl, mock: (page) 
   if (await page.getByRole("checkbox").isChecked()) failures.push("public-legal-version-change: stale acceptance remained checked");
   if (await page.getByLabel("Your name").inputValue() !== "Preserved Owner") failures.push("public-legal-version-change: account fields were erased");
 } });
+const registrationRequests = new Map();
+await visit({ name: "public-registration-complete", url: publicUrl, mock: (page) => mockPublic(page, undefined, undefined, undefined, registrationRequests), ready: "#register-title", check: async (page) => {
+  await page.getByLabel("Your name").fill("Completed Owner");
+  await page.getByLabel("Work email").fill("completed@example.test");
+  await page.getByLabel("Business name").fill("Completed Studio");
+  await page.getByLabel("Password").fill("correct-horse-battery-staple");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Create workspace" }).click();
+  await page.getByRole("heading", { name: "Check your email" }).waitFor();
+  if (await page.getByRole("button", { name: "Create workspace" }).count()) failures.push("public-registration-complete: live registration form remained after acceptance");
+  if (await page.getByLabel("Work email").inputValue() !== "completed@example.test") failures.push("public-registration-complete: resend email was not preserved");
+  await page.getByRole("button", { name: "Send new link" }).click();
+  await page.getByText("If a pending account matches that email, a new verification link has been sent.", { exact: true }).waitFor();
+  if (registrationRequests.get("/public/auth/register") !== 1 || registrationRequests.get("/public/auth/resend-verification") !== 1) failures.push("public-registration-complete: registration or resend mutation was duplicated");
+  await page.screenshot({ path: "/tmp/djay-registration-complete-desktop.png", fullPage: true });
+} });
+await visit({ name: "public-registration-complete-mobile", url: publicUrl, viewport: mobile, mock: mockPublic, ready: "#register-title", check: async (page) => {
+  await page.getByLabel("Your name").fill("Mobile Owner");
+  await page.getByLabel("Work email").fill("mobile@example.test");
+  await page.getByLabel("Business name").fill("Mobile Studio");
+  await page.getByLabel("Password").fill("correct-horse-battery-staple");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Create workspace" }).click();
+  await page.getByRole("heading", { name: "Check your email" }).waitFor();
+  await page.screenshot({ path: "/tmp/djay-registration-complete-mobile.png", fullPage: true });
+} });
 await visit({ name: "public-verification", url: `${publicUrl}/verify-email?token=qa-token`, mock: mockPublic, ready: "#verification-title", check: async (page) => {
   const link = page.getByRole("link", { name: "Continue to sign in" });
   await page.getByRole("button", { name: "Confirm email" }).click();
   await link.waitFor({ timeout: 5_000 }).catch(() => undefined);
   if (!await link.isVisible()) failures.push(`public-verification: verified continuation missing (${(await page.locator(".form-message").textContent().catch(() => "no status"))?.trim()})`);
   else if (await link.getAttribute("href") !== "https://app.djaybot.com") failures.push("public-verification: unsafe tenant sign-in URL");
+} });
+await visit({ name: "public-verification-missing-token", url: `${publicUrl}/verify-email`, mock: mockPublic, ready: "#verification-title", check: async (page) => {
+  if (await page.getByRole("button", { name: "Confirm email" }).count()) failures.push("public-verification-missing-token: dead confirmation control remained visible");
+  await page.getByLabel("Work email").fill("owner@example.test");
+  await page.getByRole("button", { name: "Send new link" }).click();
+  await page.getByText("If a pending account matches that email, a new verification link has been sent.", { exact: true }).waitFor();
+  if (!await page.getByText("whether or not an account exists", { exact: false }).count()) failures.push("public-verification-missing-token: anti-enumeration explanation missing");
+  await page.screenshot({ path: "/tmp/djay-verification-recovery-desktop.png", fullPage: true });
+} });
+await visit({ name: "public-verification-missing-token-mobile", url: `${publicUrl}/verify-email`, viewport: mobile, mock: mockPublic, ready: "#verification-title", check: async (page) => {
+  if (await page.getByRole("button", { name: "Confirm email" }).count()) failures.push("public-verification-missing-token-mobile: dead confirmation control remained visible");
+  await page.getByLabel("Work email").fill("mobile@example.test");
+  await page.getByRole("button", { name: "Send new link" }).click();
+  await page.getByText("If a pending account matches that email, a new verification link has been sent.", { exact: true }).waitFor();
+  await page.screenshot({ path: "/tmp/djay-verification-recovery-mobile.png", fullPage: true });
+} });
+await visit({ name: "public-verification-network-failure", url: `${publicUrl}/verify-email?token=qa-token`, mock: (page) => mockPublic(page, undefined, new Set(["/public/auth/verify-email"])), ready: "#verification-title", check: async (page) => {
+  await page.getByRole("button", { name: "Confirm email" }).click();
+  await page.getByText("Email verification is temporarily unavailable. Try again.", { exact: true }).waitFor();
+  if (!await page.getByRole("button", { name: "Confirm email" }).isEnabled()) failures.push("public-verification-network-failure: retryable confirmation remained disabled");
+  if (!await page.getByRole("button", { name: "Send new link" }).count()) failures.push("public-verification-network-failure: resend alternative missing");
+} });
+await visit({ name: "public-verification-resend-network-failure", url: `${publicUrl}/verify-email`, mock: (page) => mockPublic(page, undefined, new Set(["/public/auth/resend-verification"])), ready: "#verification-title", check: async (page) => {
+  await page.getByLabel("Work email").fill("owner@example.test");
+  await page.getByRole("button", { name: "Send new link" }).click();
+  await page.getByText("Verification email delivery is temporarily unavailable. Try again shortly.", { exact: true }).waitFor();
+  if (!await page.getByRole("button", { name: "Send new link" }).isEnabled()) failures.push("public-verification-resend-network-failure: resend remained busy");
 } });
 await visit({ name: "public-invitation", url: `${publicUrl}/invitations/accept?token=qa-token`, mock: mockPublic, ready: "#invitation-title", check: async (page) => {
   if (await page.getByRole("link", { name: "Sign in first" }).getAttribute("href") !== "https://app.djaybot.com") failures.push("public-invitation: unsafe tenant sign-in URL");

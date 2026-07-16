@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { safeMutationFetch } from "@djay/shared";
+import { VerificationResendForm } from "./VerificationResendForm";
 
 const fieldClass = "field";
 type CatalogPlan = {
@@ -23,6 +24,7 @@ export default function RegistrationPage() {
   const [legalStage, setLegalStage] = useState<"loading" | "ready" | "error">("loading");
   const [legal, setLegal] = useState<LegalMetadata | null>(null);
   const [acceptedLegal, setAcceptedLegal] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState("");
 
   async function loadCatalog() {
     setCatalogStage("loading");
@@ -95,6 +97,7 @@ export default function RegistrationPage() {
         void loadLegal();
       }
       if (!response.ok) throw new Error(result.message || "Registration could not be completed.");
+      setRegisteredEmail(String(data.get("email") || ""));
       setStatus("accepted");
       setMessage(result.message || "Check your email to continue.");
     } catch (error) {
@@ -121,8 +124,14 @@ export default function RegistrationPage() {
       <section className="form-panel" aria-labelledby="register-title">
         <div className="form-wrap">
           <p className="step-label">Workspace registration</p>
-          <h2 id="register-title">Create your account</h2>
-          <form onSubmit={submit}>
+          <h2 id="register-title">{status === "accepted" ? "Check your email" : "Create your account"}</h2>
+          {status === "accepted" ? (
+            <div className="registration-complete">
+              <p className="form-message accepted" role="status">{message}</p>
+              <p>Open the verification link to create the workspace and owner access. You can safely request another link below if the first email does not arrive.</p>
+              <VerificationResendForm initialEmail={registeredEmail} />
+            </div>
+          ) : <form onSubmit={submit}>
             <label>
               Your name
               <input className={fieldClass} name="name" autoComplete="name" minLength={2} required />
@@ -169,8 +178,8 @@ export default function RegistrationPage() {
             <button type="submit" disabled={status === "submitting" || legalStage !== "ready"}>
               {status === "submitting" ? "Creating..." : "Create workspace"}
             </button>
-          </form>
-          {message ? <p className={`form-message ${status}`} role="status">{message}</p> : null}
+          </form>}
+          {message && status !== "accepted" ? <p className={`form-message ${status}`} role={status === "error" ? "alert" : "status"}>{message}</p> : null}
           <p className="sign-in">Already registered? <a href="/login">Sign in</a></p>
         </div>
       </section>

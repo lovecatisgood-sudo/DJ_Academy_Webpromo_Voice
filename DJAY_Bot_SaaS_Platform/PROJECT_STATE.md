@@ -117,6 +117,10 @@ obsolete refresh before it can overwrite newer evidence, and delayed production
 browser QA proves at least four authorized reads overlap. A mid-session role or
 identity change immediately purges the older authority snapshot before the new
 role's delayed reads begin.
+Public registration now ends in a dedicated confirmation state instead of
+leaving a live duplicate-submit form. Successful registration and invalid or
+expired verification links share a rate-limited, anti-enumerating resend flow
+with explicit transport recovery.
 
 ## P6 LINE, WhatsApp, and Messenger runtime checkpoint
 

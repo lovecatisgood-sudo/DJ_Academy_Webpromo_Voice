@@ -34,6 +34,21 @@ an evidence refresh action. Focused unit coverage proves product selection
 cannot become `ready` without launch evidence, while PostgreSQL integration
 proves an isolated tenant with no product remains below product selection.
 
+The first-time account audit also closed the expired-verification dead end.
+Accepted registration now becomes a dedicated completion state with the entered
+email preserved only in the local resend field. Successful registration and an
+invalid or expired link expose the same generic resend result so the browser
+cannot enumerate accounts. Production Chromium proves one registration and one
+resend request, missing-token recovery, a retryable dropped resend transport,
+responsive layout, and automated WCAG 2.2 A/AA acceptance.
+
+Visual evidence:
+
+- `/tmp/djay-registration-complete-desktop.png`
+- `/tmp/djay-registration-complete-mobile.png`
+- `/tmp/djay-verification-recovery-desktop.png`
+- `/tmp/djay-verification-recovery-mobile.png`
+
 ## Implemented scope
 
 - Public registration, email verification, login, logout, recovery, resend, and

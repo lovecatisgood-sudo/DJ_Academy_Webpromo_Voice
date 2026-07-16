@@ -20,6 +20,10 @@ loading, retry, and safe unavailable states. Registration links both documents,
 shows both accepted versions, disables submission without current evidence, and
 preserves the user-entered account fields when a version rotation requires
 renewed acceptance.
+After acceptance, the editable registration form is replaced by a confirmation
+state with the shared verification resend control. The same generic control is
+available when a verification token is absent, invalid, or expired; it does not
+disclose whether an account or pending intent exists.
 
 Executed engineering gates:
 

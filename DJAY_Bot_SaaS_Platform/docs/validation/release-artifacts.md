@@ -26,7 +26,7 @@ was:
 - Platform Master: 24 files,
   `c6e5f56559f8fe14a624cb1efdc3f67ac7b5aa1a4d3812bca365c825b17c538d`
 - Public site: 30 files,
-  `b8e5abacbf8f9436f0d9cb182b81a8c27a40f908d604e9c2ec4d7bfdf3f6bbb6`
+  `f031a15ea4bbd502123eb34630972f975e0eacb5ff71e37579c0df61774b28c2`
 - Tenant workspace: 41 files,
   `2cadd4957e4801692b48b139bff160a275321ac066dee4eed8a65e8f2d350aaa`
 

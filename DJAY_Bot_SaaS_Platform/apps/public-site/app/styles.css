@@ -54,6 +54,16 @@ button:hover { background: var(--djay-green-800); }
 button:disabled { cursor: wait; opacity: 0.7; }
 .form-message { margin: 18px 0 0; padding: 12px 14px; border-left: 3px solid #126149; background: #eef8f4; color: #164a3b; font-size: 14px; line-height: 1.45; }
 .form-message.error { border-color: #b43832; background: #fff1f0; color: #7d2824; }
+.registration-complete { display: grid; gap: 20px; }
+.registration-complete > p { margin: 0; color: #535f5b; font-size: 14px; line-height: 1.55; }
+.registration-complete .form-message { color: #164a3b; }
+.verification-resend { display: grid; gap: 14px; padding: 18px; border: 1px solid #cbd8d3; border-radius: var(--djay-radius-panel); background: #f7faf9; }
+.verification-resend > div { display: grid; gap: 4px; }
+.verification-resend > div span { color: #5d6864; font-size: 12px; line-height: 1.45; }
+.verification-resend form { grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; }
+.verification-resend button { min-width: 140px; }
+.resend-message { margin: 0; color: #174f3f; font-size: 13px; line-height: 1.45; }
+.resend-message.error { color: #7d2824; }
 .sign-in { margin: 24px 0 0; color: #535a58; font-size: 14px; }
 @media (max-width: 820px) {
   .auth-layout { grid-template-columns: 1fr; }
@@ -62,6 +72,10 @@ button:disabled { cursor: wait; opacity: 0.7; }
   h1 { font-size: 40px; }
 }
 @media (max-width: 520px) { .plan-options { grid-template-columns: 1fr; } }
+@media (max-width: 520px) {
+  .verification-resend form { grid-template-columns: 1fr; }
+  .verification-resend button { width: 100%; }
+}
 .legal-page { min-height: 100vh; display: flex; flex-direction: column; background: #f4f6f5; }
 .legal-header { min-height: 74px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px clamp(20px, 5vw, 72px); border-bottom: 1px solid #dce3e0; background: #fff; }
 .legal-header nav { display: flex; align-items: center; gap: 18px; font-size: 13px; font-weight: 700; }

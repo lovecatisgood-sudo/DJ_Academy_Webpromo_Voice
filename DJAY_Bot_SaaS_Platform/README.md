@@ -109,6 +109,10 @@ Workspace Overview now presents a guided, role-aware launch checklist derived
 from tenant-scoped active access, current published configuration, active
 deployment, and current-version end-to-end evidence. Browser users cannot select
 or invent a “Ready” stage; see `docs/runbooks/onboarding-launch-readiness.md`.
+Registration completion and invalid/expired verification links now expose the
+same privacy-preserving verification resend flow. The accepted registration
+form is removed after success so repeated clicks cannot create confusing extra
+requests.
 
 ## Local commands
 
