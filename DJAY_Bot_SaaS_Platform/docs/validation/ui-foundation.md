@@ -36,6 +36,10 @@ Finance roles. It verified:
 - visible keyboard focus and no horizontal document overflow;
 - no localhost registration link in the Tenant production build;
 - correct permission-derived tenant and Platform navigation;
+- a responsive six-step launch checklist whose status comes from server evidence,
+  with administrator refresh and read-only Analyst behavior instead of
+  browser-selected readiness stages, plus distinct green success and red error
+  announcement treatments for the refresh mutation;
 - a real rendered target for every visible Platform operation link;
 - handled unauthenticated and unavailable-evidence states without page errors;
 - the existing P3 provider-boundary and desktop/mobile operations suite remains
@@ -68,3 +72,7 @@ only accessibility rules that axe can automate. Repeat the same gate against
 deployed origins, complete manual keyboard, screen-reader, zoom/reflow,
 cognitive, and representative-device review, and obtain the existing external
 acceptance evidence before general availability.
+
+The accepted onboarding views are captured at
+`/tmp/djay-onboarding-owner-desktop.png` and
+`/tmp/djay-onboarding-owner-mobile.png`.

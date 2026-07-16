@@ -100,7 +100,13 @@ GET  /tenant/security/sessions
 DELETE /tenant/security/sessions/:id
 ```
 
-The tenant app includes a compact authenticated shell, workspace switcher, onboarding checklist, account/security screen, and logout. Workspace selection verifies active membership server-side and rotates/saves selected context. Tenant ID in URL/form is only a selector candidate, never authority.
+The tenant app includes a compact authenticated shell, workspace switcher,
+server-derived launch checklist, account/security screen, and logout. The
+checklist advances only from current tenant profile, subscription/access,
+published configuration, active deployment, and current-version test evidence;
+the browser may request a refresh but cannot submit a stage. Workspace selection
+verifies active membership server-side and rotates/saves selected context.
+Tenant ID in URL/form is only a selector candidate, never authority.
 
 Gate: a multi-membership user can switch only to authorized tenants; copied resource/workspace IDs do not reveal tenant existence.
 

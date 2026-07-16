@@ -26,6 +26,14 @@ bounded TTLs, and deletion with the matching issuance attributes. A workspace
 lint gate reports zero direct cookie writes in API route files, preventing a new
 handler from bypassing the reviewed policy.
 
+The 2026-07-16 onboarding audit removed browser-selected readiness stages.
+`GET /tenant/onboarding` now derives technical progress from the selected
+tenant's profile, subscription/access, published configuration, active
+deployment, and current-version completed journey evidence. PATCH accepts only
+an evidence refresh action. Focused unit coverage proves product selection
+cannot become `ready` without launch evidence, while PostgreSQL integration
+proves an isolated tenant with no product remains below product selection.
+
 ## Implemented scope
 
 - Public registration, email verification, login, logout, recovery, resend, and

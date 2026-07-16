@@ -35,18 +35,23 @@ describe.runIf(enabled)("tenant workspace repository", () => {
       tenant_id: tenantA.tenantId,
       business_name: "Tenant A",
       stage: "business_profile",
+      readiness: {
+        businessProfile: true, productSelected: false, activeAccess: false,
+        selectedProducts: [], configuredProducts: [], testedProducts: [], launchReadyProducts: [],
+      },
     });
     await expect(store.getOnboarding(tenantB)).resolves.toMatchObject({
       tenant_id: tenantB.tenantId,
       business_name: "Tenant B",
-      stage: "account_created",
+      stage: "business_profile",
     });
 
-    await expect(store.updateOnboarding(tenantA, "product_selection")).resolves.toEqual({
-      stage: "product_selection",
+    await expect(store.refreshOnboarding(tenantA)).resolves.toMatchObject({
+      stage: "business_profile",
+      readiness: { productSelected: false, launchReadyProducts: [] },
     });
-    await expect(store.getOnboarding(tenantA)).resolves.toMatchObject({ stage: "product_selection" });
-    await expect(store.getOnboarding(tenantB)).resolves.toMatchObject({ stage: "account_created" });
+    await expect(store.getOnboarding(tenantA)).resolves.toMatchObject({ stage: "business_profile" });
+    await expect(store.getOnboarding(tenantB)).resolves.toMatchObject({ stage: "business_profile" });
 
     const teamA = await store.getTeamOverview(tenantA);
     const teamB = await store.getTeamOverview(tenantB);

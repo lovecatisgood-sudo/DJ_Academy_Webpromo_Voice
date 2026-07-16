@@ -5,7 +5,7 @@ import { hasTrustedOrigin, readJson, safeJson } from "../../../lib/http";
 import { resolveTenantRequest } from "../../../lib/tenant-context";
 
 const updateSchema = z.object({
-  stage: z.enum(["account_created", "business_profile", "product_selection", "ready"]),
+  action: z.literal("refresh"),
 }).strict();
 
 export async function GET(request: NextRequest) {
@@ -24,11 +24,8 @@ export async function PATCH(request: NextRequest) {
     return safeJson({ status: "not_found" }, 404);
   }
   try {
-    const input = updateSchema.parse(await readJson(request));
-    const onboarding = await resolved.services.tenantWorkspace.updateOnboarding(
-      resolved.context,
-      input.stage,
-    );
+    updateSchema.parse(await readJson(request));
+    const onboarding = await resolved.services.tenantWorkspace.refreshOnboarding(resolved.context);
     return onboarding ? safeJson({ onboarding }) : safeJson({ status: "not_found" }, 404);
   } catch (error) {
     return error instanceof ZodError || error instanceof SyntaxError

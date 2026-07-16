@@ -124,7 +124,15 @@ async function mockTenantRole(page, role, requestedPaths, failedPaths, abortedMu
     if (abortedMutationPaths?.has(path) && route.request().method() !== "GET") return route.abort("connectionfailed");
     if (failedPaths?.has(path)) return json(route, { status: "temporarily_unavailable" }, 503);
     if (path === "/tenant/session") return json(route, { user: { id: "user", displayName: "QA user" }, workspaces: [{ tenantId, slug: "qa-workspace", businessName: "Bangkok Service Studio", role }], selectedTenantId: tenantId, mfaVerifiedAt: new Date().toISOString() });
-    if (path === "/tenant/onboarding") return json(route, { onboarding: { tenant_id: tenantId, business_name: "Bangkok Service Studio", slug: "qa-workspace", locale: "en", timezone: "Asia/Bangkok", stage: "ready" } });
+    if (path === "/tenant/onboarding") return json(route, { onboarding: {
+      tenant_id: tenantId, business_name: "Bangkok Service Studio", slug: "qa-workspace",
+      locale: "en", timezone: "Asia/Bangkok", stage: "ready",
+      readiness: {
+        businessProfile: true, productSelected: true, activeAccess: true,
+        selectedProducts: ["ai_chat"], configuredProducts: ["ai_chat"],
+        testedProducts: ["ai_chat"], launchReadyProducts: ["ai_chat"],
+      },
+    } });
     if (path === "/tenant/subscriptions") return json(route, { subscriptions: [{ id: "subscription", productKey: "ai_chat", planKey: "ai_chat_premium", publicName: "AI Chatbot Premium", tierName: "Premium", status: "active", accessMode: "active", snapshotId: "snapshot", periodStart: new Date().toISOString(), periodEnd: new Date(Date.now() + 30 * 86400_000).toISOString() }] });
     if (path === "/tenant/support-access") return json(route, { grants: [] });
     if (path === "/tenant/contacts") return json(route, { contacts: [], identityReviewCandidates: [] });
@@ -282,6 +290,10 @@ await visit({ name: "tenant-ownership-session-failure", url: `${tenantUrl}/owner
 await visit({ name: "workspace-subscription-summary", url: `${tenantUrl}/workspace`, mock: (page) => mockTenantRole(page, "tenant_analyst"), ready: ".product-overview-grid", check: async (page) => {
   if (!await page.getByRole("link", { name: /AI Chatbot Premium/ }).count()) failures.push("workspace-subscription-summary: product route missing");
   if (await page.getByText("No products are configured yet", { exact: true }).count()) failures.push("workspace-subscription-summary: active subscription presented as empty");
+  for (const step of ["Account secured", "Business profile", "Product access", "Configure", "Test end to end", "Technical launch readiness"]) {
+    if (!await page.getByText(step, { exact: true }).count()) failures.push(`workspace-subscription-summary: launch step missing ${step}`);
+  }
+  if (await page.locator(".onboarding-checklist button").count()) failures.push("workspace-subscription-summary: browser stage controls remain exposed");
 } });
 
 const tenantExpectations = {
@@ -309,8 +321,19 @@ for (const [viewportName, viewport] of [["desktop", desktop], ["mobile", mobile]
   }
 }
 
-await visit({ name: "analyst-overview", url: `${tenantUrl}/workspace`, mock: (page) => mockTenantRole(page, "tenant_analyst"), ready: ".stage-control", check: async (page) => {
-  if (await page.locator(".stage-control button:enabled").count()) failures.push("analyst-overview: onboarding mutations exposed");
+await visit({ name: "analyst-overview", url: `${tenantUrl}/workspace`, mock: (page) => mockTenantRole(page, "tenant_analyst"), ready: ".onboarding-checklist", check: async (page) => {
+  if (await page.getByRole("button", { name: "Refresh checklist" }).count()) failures.push("analyst-overview: onboarding refresh exposed");
+} });
+await visit({ name: "owner-guided-onboarding", url: `${tenantUrl}/workspace`, mock: (page) => mockTenantRole(page, "tenant_master_admin"), ready: ".onboarding-checklist", check: async (page) => {
+  if (!await page.getByRole("button", { name: "Refresh checklist" }).count()) failures.push("owner-guided-onboarding: evidence refresh missing");
+  if (!await page.getByText("Progress comes from server-verified workspace and product evidence.", { exact: false }).count()) failures.push("owner-guided-onboarding: evidence authority explanation missing");
+  await page.getByRole("button", { name: "Refresh checklist" }).click();
+  await page.getByText("Launch checklist refreshed from current product evidence.", { exact: true }).waitFor();
+  await page.screenshot({ path: "/tmp/djay-onboarding-owner-desktop.png", fullPage: true });
+} });
+await visit({ name: "owner-guided-onboarding-mobile", url: `${tenantUrl}/workspace`, viewport: mobile, mock: (page) => mockTenantRole(page, "tenant_master_admin"), ready: ".onboarding-checklist", check: async (page) => {
+  if (!await page.getByRole("button", { name: "Refresh checklist" }).count()) failures.push("owner-guided-onboarding-mobile: evidence refresh missing");
+  await page.screenshot({ path: "/tmp/djay-onboarding-owner-mobile.png", fullPage: true });
 } });
 for (const [route, forbiddenHeading] of [["contacts", "Create contact"], ["leads", "Create lead"], ["knowledge", "Add source"]]) {
   await visit({ name: `analyst-${route}`, url: `${tenantUrl}/workspace/${route}`, mock: (page) => mockTenantRole(page, "tenant_analyst"), ready: "h1", check: async (page) => {

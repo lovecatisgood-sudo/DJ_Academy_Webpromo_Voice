@@ -15,18 +15,25 @@ type Onboarding = {
   locale: string;
   timezone: string;
   stage: "account_created" | "business_profile" | "product_selection" | "ready";
+  readiness: {
+    businessProfile: boolean;
+    productSelected: boolean;
+    activeAccess: boolean;
+    selectedProducts: Subscription["productKey"][];
+    configuredProducts: Subscription["productKey"][];
+    testedProducts: Subscription["productKey"][];
+    launchReadyProducts: Subscription["productKey"][];
+  };
 };
 type Subscription = {
   id: string; productKey: "flowbot" | "ai_chat" | "voice"; publicName: string;
   tierName: string; status: string; accessMode: "none" | "read_only" | "active";
 };
 
-const stages: Onboarding["stage"][] = ["account_created", "business_profile", "product_selection", "ready"];
-const stageLabels: Record<Onboarding["stage"], string> = {
-  account_created: "Account",
-  business_profile: "Business",
-  product_selection: "Products",
-  ready: "Ready",
+const productRoutes: Record<Subscription["productKey"], string> = {
+  flowbot: "/workspace/flowbot",
+  ai_chat: "/workspace/ai-chat",
+  voice: "/workspace/voice",
 };
 
 export default function WorkspacePage() {
@@ -36,7 +43,9 @@ export default function WorkspacePage() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [mutationMessage, setMutationMessage] = useState("");
+  const [mutationTone, setMutationTone] = useState<"success" | "error" | null>(null);
   const activeWorkspace = workspaces.find((workspace) => workspace.tenantId === selectedTenantId);
   const canUpdateOnboarding = activeWorkspace
     ? tenantRoleAllows(activeWorkspace.role as TenantRole, "onboarding.update")
@@ -68,6 +77,7 @@ export default function WorkspacePage() {
 
   async function selectWorkspace(tenantId: string) {
     setMutationMessage("");
+    setMutationTone(null);
     const response = await safeMutationFetch("/tenant/workspace/select", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -78,26 +88,42 @@ export default function WorkspacePage() {
       setOnboarding(null);
       setSubscriptions([]);
       await load();
-    } else setMutationMessage("Workspace selection is temporarily unavailable. Your current workspace has not changed.");
+    } else {
+      setMutationTone("error");
+      setMutationMessage("Workspace selection is temporarily unavailable. Your current workspace has not changed.");
+    }
   }
 
-  async function updateStage(stage: Onboarding["stage"]) {
+  async function refreshOnboarding() {
     if (!canUpdateOnboarding) return;
     setMutationMessage("");
+    setMutationTone(null);
+    setRefreshing(true);
     const response = await safeMutationFetch("/tenant/onboarding", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stage }),
+      body: JSON.stringify({ action: "refresh" }),
     });
-    if (response.ok) setOnboarding((current) => current ? { ...current, stage } : current);
-    else setMutationMessage("The onboarding stage could not be changed. Your saved setup is unchanged.");
+    if (response.ok) {
+      setOnboarding((await response.json()).onboarding);
+      setMutationTone("success");
+      setMutationMessage("Launch checklist refreshed from current product evidence.");
+    } else {
+      setMutationTone("error");
+      setMutationMessage("The launch checklist could not be refreshed. Your product setup is unchanged.");
+    }
+    setRefreshing(false);
   }
 
   async function logout() {
     setMutationMessage("");
+    setMutationTone(null);
     const response = await safeMutationFetch("/tenant/auth/logout", { method: "POST" });
     if (response.ok) window.location.replace("/");
-    else setMutationMessage("Sign out could not be confirmed. Your current session remains open.");
+    else {
+      setMutationTone("error");
+      setMutationMessage("Sign out could not be confirmed. Your current session remains open.");
+    }
   }
 
   if (loading) return <main className="workspace-loading">Loading workspace...</main>;
@@ -126,6 +152,18 @@ export default function WorkspacePage() {
 
   if (loadError) return <WorkspacePageLoadError active="overview" title={activeWorkspace?.businessName || "Workspace"} resource="workspace setup" workspaces={workspaces} selectedTenantId={selectedTenantId} onSelect={(tenantId) => void selectWorkspace(tenantId)} onLogout={() => void logout()} onRetry={() => void load()} />;
 
+  const readiness = onboarding?.readiness;
+  const primaryProduct = readiness?.selectedProducts[0];
+  const productHref = primaryProduct ? productRoutes[primaryProduct] : null;
+  const checklist = [
+    { key: "account", label: "Account secured", detail: "Email verification and workspace ownership are complete.", complete: true },
+    { key: "business", label: "Business profile", detail: readiness?.businessProfile ? "Business name, language, and timezone are available." : "Complete the required business details.", complete: readiness?.businessProfile ?? false },
+    { key: "product", label: "Product access", detail: readiness?.productSelected ? readiness.activeAccess ? "A selected product has active access." : "Product selected; reviewed activation is still pending." : "No product has been selected for this workspace.", complete: readiness?.activeAccess ?? false },
+    { key: "configure", label: "Configure", detail: readiness?.configuredProducts.length ? "A current product version is published." : "Publish the product behavior customers should receive.", complete: Boolean(readiness?.configuredProducts.length), href: productHref },
+    { key: "test", label: "Test end to end", detail: readiness?.testedProducts.length ? "Current-version customer journey evidence is available." : "Complete a real safe test of the current published version.", complete: Boolean(readiness?.testedProducts.length), href: productHref },
+    { key: "launch", label: "Technical launch readiness", detail: readiness?.launchReadyProducts.length ? "Active access, configuration, deployment, and current-version test evidence agree." : "Launch stays blocked until access, configuration, deployment, and test evidence agree.", complete: Boolean(readiness?.launchReadyProducts.length) },
+  ];
+
   return (
     <main className="workspace-shell">
       <WorkspaceSidebar
@@ -140,20 +178,21 @@ export default function WorkspacePage() {
           <div><p>Workspace</p><h1>{activeWorkspace?.businessName || onboarding?.business_name}</h1></div>
           <span className="role-label">{activeWorkspace?.role.replaceAll("_", " ")}</span>
         </header>
-        {mutationMessage ? <p className="inline-message dashboard-inline-message" role="alert">{mutationMessage}</p> : null}
-        {!canUpdateOnboarding ? <WorkspaceViewOnly>You can review workspace setup. A workspace administrator can change onboarding stages.</WorkspaceViewOnly> : null}
+        {mutationMessage ? <p className={`inline-message dashboard-inline-message ${mutationTone || "error"}`} role={mutationTone === "success" ? "status" : "alert"}>{mutationMessage}</p> : null}
+        {!canUpdateOnboarding ? <WorkspaceViewOnly>You can review launch progress. A workspace administrator can refresh the evidence after setup or testing.</WorkspaceViewOnly> : null}
         <section className="onboarding-band" aria-labelledby="onboarding-title">
-          <div className="band-heading"><div><p>Setup</p><h2 id="onboarding-title">Workspace onboarding</h2></div><span>{onboarding?.timezone || "Asia/Bangkok"}</span></div>
-          <div className="stage-control" aria-label="Onboarding stage">
-            {stages.map((stage) => (
-              <button
-                key={stage}
-                type="button"
-                className={onboarding?.stage === stage ? "current" : ""}
-                disabled={!canUpdateOnboarding}
-                onClick={() => void updateStage(stage)}
-              >{stageLabels[stage]}</button>
-            ))}
+          <div className="band-heading"><div><p>Guided setup</p><h2 id="onboarding-title">Launch checklist</h2></div><span>{onboarding?.stage.replaceAll("_", " ") || "account created"}</span></div>
+          <p className="control-copy">Progress comes from server-verified workspace and product evidence. A browser cannot mark setup ready by choosing a stage.</p>
+          <ol className="onboarding-checklist">
+            {checklist.map((step, index) => <li className={step.complete ? "complete" : "pending"} key={step.key}>
+              <span className="onboarding-step-number" aria-hidden="true">{step.complete ? "✓" : index + 1}</span>
+              <div><strong>{step.label}</strong><p>{step.detail}</p>{step.href && !step.complete ? <a href={step.href}>Continue setup</a> : null}</div>
+              <small>{step.complete ? "Complete" : "Action needed"}</small>
+            </li>)}
+          </ol>
+          <div className="onboarding-refresh">
+            <p>Public rollout still requires the applicable product, legal, commercial, and operational release gates.</p>
+            {canUpdateOnboarding ? <button type="button" disabled={refreshing} onClick={() => void refreshOnboarding()}>{refreshing ? "Checking evidence…" : "Refresh checklist"}</button> : null}
           </div>
         </section>
         <section className="empty-band product-overview-band">

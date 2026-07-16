@@ -105,6 +105,10 @@ a privacy attestation cannot make an unconfigured deployment appear releasable.
 API, workers, and Voice gateway also share a production startup admission rule:
 copied `.env.example` markers are rejected without echoing their values. See
 `docs/runbooks/production-configuration.md` before preparing deployment secrets.
+Workspace Overview now presents a guided, role-aware launch checklist derived
+from tenant-scoped active access, current published configuration, active
+deployment, and current-version end-to-end evidence. Browser users cannot select
+or invent a “Ready” stage; see `docs/runbooks/onboarding-launch-readiness.md`.
 
 ## Local commands
 

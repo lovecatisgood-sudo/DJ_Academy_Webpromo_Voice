@@ -19,6 +19,9 @@ proves that:
 
 - Analyst mutation controls are absent from onboarding, Contacts, Leads,
   Knowledge, and Inbox while useful read-only content remains;
+- Workspace Overview renders the same evidence-backed six-step onboarding
+  checklist for every role, exposes refresh only to administrators, and has no
+  browser control capable of choosing a readiness stage;
 - Operator write controls remain available for Contacts, Leads, and Inbox but
   Knowledge stays read-only;
 - direct Analyst visits to Team and Security receive a branded access-denied

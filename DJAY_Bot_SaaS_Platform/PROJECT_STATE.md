@@ -106,6 +106,11 @@ Production startup now also rejects copied example values across API, workers,
 and Voice gateway. The shared admission rule names only the affected field and
 never repeats credential material; isolated artifact QA proves the Voice bundle
 exits before listening when its example authority token is supplied.
+Tenant onboarding no longer trusts four browser-selected stage buttons.
+Workspace Overview derives a six-step guided checklist from tenant profile,
+subscription/access, published product configuration, active deployment, and
+current-version completed journey evidence. Only administrators may request a
+refresh; analysts and operators receive the same facts without mutation.
 
 ## P6 LINE, WhatsApp, and Messenger runtime checkpoint
 
