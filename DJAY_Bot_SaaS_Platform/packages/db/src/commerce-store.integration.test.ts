@@ -123,6 +123,38 @@ describe.runIf(enabled)("P2 commerce repositories", () => {
     expect(usageB.subscriptions.every((item) => item.productKey === "voice")).toBe(true);
     expect(JSON.stringify({ usageA, usageB })).not.toMatch(/provider|model|adapter|nativeUsage|cost/i);
 
+    const healthyReconciliation = await platform.reconciliationOverview(platformContext, now);
+    expect(healthyReconciliation).toMatchObject({
+      status: "healthy",
+      summary: {
+        attentionAccounts: 0, activeWithoutCurrentAccount: 0,
+        orphanUsageEvents: 0, expiredOpenReservations: 0,
+      },
+    });
+    expect(healthyReconciliation.accounts.find((item) => item.tenantId === contextA.tenantId
+      && item.productKey === "ai_chat")).toMatchObject({
+      accountReserved: 0, reservationReserved: 0, accountSettled: 1,
+      reservationSettled: 1, settledEvents: 1, netSettledEvents: 1,
+      reservedVariance: 0, settledVariance: 0, eventVariance: 0, status: "healthy",
+    });
+    expect(JSON.stringify(healthyReconciliation)).not.toMatch(/provider|model|adapter|nativeUsage|cost|margin/i);
+
+    await adminClient!`
+      UPDATE tenancy.quota_accounts SET settled_quantity = settled_quantity + 1
+      WHERE tenant_id = ${contextA.tenantId}::uuid AND subscription_id = ${subscriptionA}::uuid
+    `;
+    const mismatchedReconciliation = await platform.reconciliationOverview(platformContext, now);
+    expect(mismatchedReconciliation).toMatchObject({ status: "attention" });
+    expect(mismatchedReconciliation.summary.attentionAccounts).toBe(1);
+    expect(mismatchedReconciliation.accounts.find((item) => item.tenantId === contextA.tenantId
+      && item.productKey === "ai_chat")).toMatchObject({
+      accountSettled: 2, netSettledEvents: 1, settledVariance: 1, status: "attention",
+    });
+    await adminClient!`
+      UPDATE tenancy.quota_accounts SET settled_quantity = settled_quantity - 1
+      WHERE tenant_id = ${contextA.tenantId}::uuid AND subscription_id = ${subscriptionA}::uuid
+    `;
+
     const webhookStore = new BillingWebhookStore(workerClient!);
     const event: VerifiedWebhook = {
       externalEventId: `event-${randomUUID()}`, eventType: "subscription.active",

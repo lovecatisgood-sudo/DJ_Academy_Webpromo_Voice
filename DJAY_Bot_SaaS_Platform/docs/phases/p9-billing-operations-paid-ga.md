@@ -2,8 +2,9 @@
 
 ## Status
 
-In progress. The first P9 engineering slice delivers tenant-isolated usage and
-billing-readiness visibility. Paid checkout, invoices, tax, proration, dunning,
+In progress. The first two P9 engineering slices deliver tenant-isolated usage
+visibility, restricted finance reconciliation, and executable backup/restore
+evidence. Paid checkout, invoices, tax, proration, dunning,
 cancellation, overage charging, and broad self-service remain disabled because
 ADR-008 has not been accepted with exact commercial and legal decisions.
 
@@ -44,12 +45,45 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
    copy, and explicit pilot-metering disclosure pass production-browser desktop
    and mobile acceptance.
 
+## Reconciliation and recovery foundation delivered
+
+1. `GET /platform/usage-reconciliation` requires a Platform Owner or Platform
+   Finance session with `platform.billing.read`; Support and AI Operations are
+   denied by default.
+2. `PlatformCommerceStore.reconciliationOverview` checks every quota account
+   against open reservation balances, terminal reservation settlements, and
+   immutable settled/credited/waived customer-unit events. It also identifies
+   active subscriptions without a current account, unmapped usage events, and
+   open reservations left in an expired period.
+3. Aggregate counts cover the full dataset while the response is bounded to 500
+   highest-priority account rows. Variances sort first and expose only tenant,
+   public plan, customer unit, period, and numeric evidence—not provider-native
+   units, cost, margin, content, or credentials.
+4. The branded Platform Master view gives the Owner rollout-pause guidance and
+   Finance read-only escalation guidance. It never offers direct-SQL repair or
+   represents reconciliation as invoice/payment authority. Loading is explicit;
+   failure is fail-visible, treated as not reconciled, and offers a safe retry.
+5. `qa:p9-restore` creates separate PostgreSQL 16 source and recovery clusters,
+   applies every migration, creates a custom-format backup, verifies its archive
+   and SHA-256, bootstraps all least-privilege roles, restores ACLs and data,
+   compares a critical data/schema/policy fingerprint, asserts immutable usage
+   and catalog triggers plus forced RLS, and reruns tenant-substitution probes.
+6. The drill exposed and corrected two recovery defects: dropping ACLs made the
+   restored runtime unusable, and the base role bootstrap omitted later product
+   runtimes. The recovery procedure now preserves grants and `0000_roles.sql`
+   idempotently defines every application, worker, migration, and operations
+   role before restore.
+
 ## Schema, API, and event impact
 
-- No migration is required for this slice. It reads existing immutable plan
+- No tenant-schema or data migration is required for these slices. They read existing immutable plan
   versions, subscriptions, entitlement snapshots, quota accounts, reservations,
   and usage totals established in P2.
-- New API: `GET /tenant/usage`.
+- New APIs: `GET /tenant/usage` and restricted
+  `GET /platform/usage-reconciliation`.
+- The fresh-cluster role bootstrap is additively completed in
+  `0000_roles.sql`; embedded later role guards remain idempotent. Existing
+  environments already have these roles and need no destructive change.
 - No event, invoice, payment, price, tax, or cancellation contract is introduced.
 - The existing quota-account uniqueness and tenant indexes support the bounded
   current-account query; no cross-tenant identifier is accepted from the client.
@@ -66,6 +100,11 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
   database errors or imply that plans changed when reading fails.
 - Reconciliation operators use aggregate identifiers and quantities; they must
   not copy customer content or restricted provider evidence into tenant UI.
+- Platform Finance receives read-only reconciliation evidence. Platform Support
+  and AI Operations cannot call the endpoint, and the report has no mutation.
+- A variance is fail-visible and instructs operators to stop rollout expansion;
+  immutable events must never be rewritten and quota totals must not be repaired
+  with direct SQL.
 
 ## Non-goals for this slice
 
@@ -77,15 +116,19 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
 
 ## Next slice
 
-Add production backup/restore and usage-reconciliation drills plus safe Platform
-Finance reporting that does not require unresolved commercial values. After
-ADR-008 is accepted, implement immutable invoices, provider checkout, signed
-webhook application, plan lifecycle, tax, dunning, cancellation, and customer
-billing actions against the approved fixtures.
+Add environment-aware status/SLO evidence, incident ownership and an on-call
+release gate, then exercise replay, queue recovery, pool exhaustion, and managed
+production backup/PITR procedures. After ADR-008 is accepted, implement
+immutable invoices, provider checkout, signed webhook application, plan
+lifecycle, tax, dunning, cancellation, and customer billing actions against the
+approved fixtures.
 
 ## Rollback
 
-Remove the Usage Center route/UI and deploy the previous application. No schema
-or immutable data reversal is required. Existing metering, subscriptions,
-entitlements, quota accounts, and usage events remain authoritative and must not
-be deleted or rewritten.
+Remove the Usage Center and reconciliation route/UI, then deploy the previous
+application. No tenant schema or immutable data reversal is required. The
+additive no-login/no-bypass role declarations are safe to retain; do not revoke
+roles during application rollback because restored and prior releases may still
+depend on their grants. Existing metering, subscriptions, entitlements, quota
+accounts, and usage events remain authoritative and must not be deleted or
+rewritten.

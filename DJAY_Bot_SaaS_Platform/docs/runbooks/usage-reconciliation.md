@@ -9,6 +9,11 @@ exports, tickets, screenshots, or general logs.
 
 ## Normal checks
 
+Platform Owner and Platform Finance open the restricted Usage reconciliation
+surface or call `GET /platform/usage-reconciliation`. Platform Support, AI
+Operations, tenant sessions, and public clients have no access. Finance review
+is read-only.
+
 1. Confirm the subscription, latest entitlement snapshot, and quota account have
    the same tenant, product, and pinned plan version.
 2. Confirm reserved quantity equals the total still-open reservations for the
@@ -20,6 +25,16 @@ exports, tickets, screenshots, or general logs.
    configured—not zero, free, unlimited, or billable.
 5. Confirm every cross-tenant context sees only its own subscriptions and quota
    accounts under forced RLS.
+6. Confirm `activeWithoutCurrentAccount`, `orphanUsageEvents`, and
+   `expiredOpenReservations` are all zero. A nonzero value or any account marked
+   `attention` stops rollout expansion.
+
+Settled-event semantics are additive for `settled` and subtractive for
+`credited` and `waived`. The report separately verifies that terminal
+reservation settlement totals equal immutable `settled` events. Events without
+a reservation are mapped only to the same tenant, subscription, product, public
+unit, and half-open quota period; an event with no exact period is unmapped and
+fail-visible.
 
 ## Mismatch response
 
@@ -32,6 +47,8 @@ exports, tickets, screenshots, or general logs.
 4. Release or settle only through the idempotent supported lifecycle command.
 5. Rerun the tenant-scoped overview and the PostgreSQL integration gate. Escalate
    any cross-tenant result or negative quantity as a security incident.
+6. Require the restricted platform report to return `healthy` before resuming
+   rollout. Reconciliation evidence does not authorize invoices or payment.
 
 ## Pre-release commercial rule
 

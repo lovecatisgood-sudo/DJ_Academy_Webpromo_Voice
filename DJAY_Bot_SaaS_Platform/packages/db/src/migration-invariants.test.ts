@@ -58,7 +58,11 @@ describe("P1 database migration invariants", () => {
 
   it("keeps runtime roles without bypass-RLS capability", () => {
     const roles = readFileSync(resolve(import.meta.dirname, "../migrations/0000_roles.sql"), "utf8");
-    for (const role of ["djay_auth_runtime", "djay_runtime", "djay_worker"]) {
+    for (const role of [
+      "djay_migrator", "djay_auth_runtime", "djay_runtime", "djay_worker",
+      "djay_platform", "djay_readonly_ops", "djay_flowbot_runtime",
+      "djay_ai_runtime", "djay_voice_runtime",
+    ]) {
       expect(roles).toMatch(new RegExp(`CREATE ROLE ${role}[^;]+NOBYPASSRLS`));
     }
   });

@@ -488,6 +488,190 @@ export class TenantCommerceStore {
 export class PlatformCommerceStore {
   constructor(private readonly client: DatabaseClient) {}
 
+  async reconciliationOverview(context: PlatformContext, now = new Date()) {
+    return withPlatformTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{
+        quota_account_id: string; tenant_id: string; business_name: string;
+        product_key: ProductKey; public_name: string; customer_unit: CustomerUnit;
+        period_start: Date; period_end: Date; account_reserved: string;
+        account_settled: string; reservation_reserved: string;
+        reservation_settled: string; open_reservations: number;
+        settled_events: string; credited_events: string; waived_events: string;
+        total_accounts: number; attention_accounts: number;
+        total_expired_open_reservations: number;
+      }[]>`
+        WITH reservation_totals AS (
+          SELECT reservation.quota_account_id,
+                 COALESCE(sum(reservation.reserved_quantity)
+                   FILTER (WHERE reservation.status = 'reserved'), 0) AS reservation_reserved,
+                 COALESCE(sum(reservation.settled_quantity)
+                   FILTER (WHERE reservation.status = 'settled'), 0) AS reservation_settled,
+                 count(*) FILTER (WHERE reservation.status = 'reserved')::int AS open_reservations
+          FROM tenancy.usage_reservations reservation
+          GROUP BY reservation.quota_account_id
+        ), event_accounts AS (
+          SELECT event.event_type, event.customer_quantity,
+                 COALESCE(reservation.quota_account_id, period_account.id) AS quota_account_id
+          FROM tenancy.usage_events event
+          LEFT JOIN tenancy.usage_reservations reservation
+            ON reservation.tenant_id = event.tenant_id
+           AND reservation.id = event.reservation_id
+          LEFT JOIN LATERAL (
+            SELECT account.id
+            FROM tenancy.quota_accounts account
+            WHERE event.reservation_id IS NULL
+              AND account.tenant_id = event.tenant_id
+              AND account.subscription_id = event.subscription_id
+              AND account.product_key = event.product_key
+              AND account.customer_unit = event.customer_unit
+              AND event.occurred_at >= account.period_start
+              AND event.occurred_at < account.period_end
+            ORDER BY account.period_start DESC, account.id DESC
+            LIMIT 1
+          ) period_account ON true
+        ), event_totals AS (
+          SELECT event.quota_account_id,
+                 COALESCE(sum(event.customer_quantity)
+                   FILTER (WHERE event.event_type = 'settled'), 0) AS settled_events,
+                 COALESCE(sum(event.customer_quantity)
+                   FILTER (WHERE event.event_type = 'credited'), 0) AS credited_events,
+                 COALESCE(sum(event.customer_quantity)
+                   FILTER (WHERE event.event_type = 'waived'), 0) AS waived_events
+          FROM event_accounts event
+          WHERE event.quota_account_id IS NOT NULL
+          GROUP BY event.quota_account_id
+        ), account_facts AS (
+          SELECT account.id AS quota_account_id, account.tenant_id,
+                 tenant.business_name, account.product_key, plan.public_name,
+                 account.customer_unit, account.period_start, account.period_end,
+                 account.reserved_quantity AS account_reserved,
+                 account.settled_quantity AS account_settled,
+                 COALESCE(reservation.reservation_reserved, 0) AS reservation_reserved,
+                 COALESCE(reservation.reservation_settled, 0) AS reservation_settled,
+                 COALESCE(reservation.open_reservations, 0)::int AS open_reservations,
+                 COALESCE(event.settled_events, 0) AS settled_events,
+                 COALESCE(event.credited_events, 0) AS credited_events,
+                 COALESCE(event.waived_events, 0) AS waived_events
+          FROM tenancy.quota_accounts account
+          JOIN tenancy.tenants tenant ON tenant.id = account.tenant_id
+          JOIN tenancy.product_subscriptions subscription
+            ON subscription.tenant_id = account.tenant_id
+           AND subscription.id = account.subscription_id
+          JOIN catalog.plan_versions version ON version.id = subscription.plan_version_id
+          JOIN catalog.plans plan ON plan.id = version.plan_id
+          LEFT JOIN reservation_totals reservation ON reservation.quota_account_id = account.id
+          LEFT JOIN event_totals event ON event.quota_account_id = account.id
+        ), evaluated AS (
+          SELECT account.*,
+                 (account.account_reserved <> account.reservation_reserved
+                   OR account.account_settled <> account.settled_events
+                     - account.credited_events - account.waived_events
+                   OR account.reservation_settled <> account.settled_events
+                   OR (account.period_end <= ${now} AND account.open_reservations > 0)) AS needs_attention,
+                 CASE WHEN account.period_end <= ${now}
+                   THEN account.open_reservations ELSE 0 END AS expired_open_reservations
+          FROM account_facts account
+        )
+        SELECT account.*,
+               count(*) OVER ()::int AS total_accounts,
+               count(*) FILTER (WHERE account.needs_attention) OVER ()::int AS attention_accounts,
+               COALESCE(sum(account.expired_open_reservations) OVER (), 0)::int
+                 AS total_expired_open_reservations
+        FROM evaluated account
+        ORDER BY account.needs_attention DESC, account.period_end DESC,
+                 account.business_name, account.product_key, account.quota_account_id
+        LIMIT 500
+      `;
+      const gaps = await sql<{
+        active_without_current_account: number; orphan_usage_events: number;
+      }[]>`
+        SELECT
+          (SELECT count(*)::int
+           FROM tenancy.product_subscriptions subscription
+           WHERE subscription.status IN ('trialing', 'active', 'past_due', 'grace_period', 'restricted')
+             AND NOT EXISTS (
+               SELECT 1 FROM tenancy.quota_accounts account
+               WHERE account.tenant_id = subscription.tenant_id
+                 AND account.subscription_id = subscription.id
+                 AND ${now} >= account.period_start AND ${now} < account.period_end
+             )) AS active_without_current_account,
+          (SELECT count(*)::int
+           FROM tenancy.usage_events event
+           LEFT JOIN tenancy.usage_reservations reservation
+             ON reservation.tenant_id = event.tenant_id AND reservation.id = event.reservation_id
+           WHERE reservation.id IS NULL
+             AND NOT EXISTS (
+               SELECT 1 FROM tenancy.quota_accounts account
+               WHERE account.tenant_id = event.tenant_id
+                 AND account.subscription_id = event.subscription_id
+                 AND account.product_key = event.product_key
+                 AND account.customer_unit = event.customer_unit
+                 AND event.occurred_at >= account.period_start
+                 AND event.occurred_at < account.period_end
+             )) AS orphan_usage_events
+      `;
+      const accounts = rows.map((row) => {
+        const accountReserved = Number(row.account_reserved);
+        const accountSettled = Number(row.account_settled);
+        const reservationReserved = Number(row.reservation_reserved);
+        const reservationSettled = Number(row.reservation_settled);
+        const settledEvents = Number(row.settled_events);
+        const creditedEvents = Number(row.credited_events);
+        const waivedEvents = Number(row.waived_events);
+        const netSettledEvents = settledEvents - creditedEvents - waivedEvents;
+        const reservedVariance = accountReserved - reservationReserved;
+        const settledVariance = accountSettled - netSettledEvents;
+        const eventVariance = reservationSettled - settledEvents;
+        const expiredOpenReservations = row.period_end <= now ? row.open_reservations : 0;
+        const status = reservedVariance === 0 && settledVariance === 0
+          && eventVariance === 0 && expiredOpenReservations === 0 ? "healthy" as const : "attention" as const;
+        return Object.freeze({
+          quotaAccountId: row.quota_account_id,
+          tenantId: row.tenant_id,
+          businessName: row.business_name,
+          productKey: row.product_key,
+          publicName: row.public_name,
+          customerUnit: row.customer_unit,
+          periodStart: row.period_start,
+          periodEnd: row.period_end,
+          accountReserved,
+          reservationReserved,
+          accountSettled,
+          reservationSettled,
+          settledEvents,
+          creditedEvents,
+          waivedEvents,
+          netSettledEvents,
+          openReservations: row.open_reservations,
+          expiredOpenReservations,
+          reservedVariance,
+          settledVariance,
+          eventVariance,
+          status,
+        });
+      });
+      const gap = gaps[0] ?? { active_without_current_account: 0, orphan_usage_events: 0 };
+      const totalAccounts = rows[0]?.total_accounts ?? 0;
+      const attentionAccounts = rows[0]?.attention_accounts ?? 0;
+      const status = attentionAccounts === 0 && gap.active_without_current_account === 0
+        && gap.orphan_usage_events === 0 ? "healthy" as const : "attention" as const;
+      return Object.freeze({
+        asOf: now,
+        status,
+        summary: Object.freeze({
+          quotaAccounts: totalAccounts,
+          displayedAccounts: accounts.length,
+          healthyAccounts: totalAccounts - attentionAccounts,
+          attentionAccounts,
+          activeWithoutCurrentAccount: gap.active_without_current_account,
+          orphanUsageEvents: gap.orphan_usage_events,
+          expiredOpenReservations: rows[0]?.total_expired_open_reservations ?? 0,
+        }),
+        accounts: Object.freeze(accounts),
+      });
+    });
+  }
+
   async overview(context: PlatformContext) {
     return withPlatformTransaction(this.client, context, async ({ sql }) => {
       const counts = await sql<{ tenants: number; subscriptions: number; pending: number; active: number }[]>`

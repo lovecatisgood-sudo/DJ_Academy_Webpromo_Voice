@@ -44,8 +44,10 @@ self-service. Social channels remain disabled pending the external acceptance
 worksheet and platform approvals. Paid plans remain disabled until the commercial and paid-GA gates
 are accepted and passed. P9 engineering is active: the tenant-isolated,
 role-aware Usage Center now reconciles customer units, reservations, allowance,
-and safety caps while making the pre-release billing state explicit; checkout,
-invoices, tax, dunning, and public charging remain disabled.
+and safety caps while making the pre-release billing state explicit. Restricted
+Platform Owner/Finance reconciliation and a separate-cluster PostgreSQL 16
+backup/restore gate also pass. Checkout, invoices, tax, dunning, and public
+charging remain disabled.
 
 ## Local commands
 
@@ -60,6 +62,9 @@ scripts/use-node24.sh pnpm run qa:p4-flowbot
 scripts/use-node24.sh pnpm run qa:p5-ai-chat
 scripts/use-node24.sh pnpm run qa:p6-line
 scripts/use-node24.sh pnpm run qa:p7-voice
+scripts/use-node24.sh pnpm run qa:p9-usage
+scripts/use-node24.sh pnpm run qa:p9-operations
+scripts/use-node24.sh pnpm run qa:p9-restore
 scripts/use-node24.sh pnpm run dev
 ```
 

@@ -6,6 +6,26 @@ type PlatformUser = { id: string; displayName: string; role: string; mfaVerified
 type SocialHealth = { channel: "line" | "whatsapp" | "messenger"; activeConnections: number; reauthorizationRequired: number; queuedInbound: number; oldestInboundQueueSeconds: number; deadLetterInbound: number; queuedDeliveries: number; oldestDeliveryQueueSeconds: number; deadLetterDeliveries: number; serviceWindowClosed24h: number; attemptedQuantity24h: number; failedAttempts24h: number };
 type Health = { platformUsers: number; activeSessions: number; socialChannels?: SocialHealth[] };
 type Commerce = { tenants: number; subscriptions: number; pending: number; active: number };
+type UsageReconciliation = {
+  asOf: string;
+  status: "healthy" | "attention";
+  summary: {
+    quotaAccounts: number; displayedAccounts: number; healthyAccounts: number;
+    attentionAccounts: number; activeWithoutCurrentAccount: number;
+    orphanUsageEvents: number; expiredOpenReservations: number;
+  };
+  accounts: Array<{
+    quotaAccountId: string; tenantId: string; businessName: string;
+    productKey: "flowbot" | "ai_chat" | "voice"; publicName: string;
+    customerUnit: "flow_execution" | "ai_response" | "voice_minute";
+    periodStart: string; periodEnd: string; accountReserved: number;
+    reservationReserved: number; accountSettled: number; reservationSettled: number;
+    settledEvents: number; creditedEvents: number; waivedEvents: number;
+    netSettledEvents: number; openReservations: number; expiredOpenReservations: number;
+    reservedVariance: number; settledVariance: number; eventVariance: number;
+    status: "healthy" | "attention";
+  }>;
+};
 type Subscription = {
   id: string; tenantId: string; businessName: string; productKey: string;
   planKey: string; publicName: string; status: string; createdAt: string;
@@ -26,6 +46,8 @@ export default function PlatformMasterPage() {
   const [user, setUser] = useState<PlatformUser | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
   const [commerce, setCommerce] = useState<Commerce | null>(null);
+  const [reconciliation, setReconciliation] = useState<UsageReconciliation | null>(null);
+  const [reconciliationStage, setReconciliationStage] = useState<"hidden" | "loading" | "ready" | "error">("hidden");
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [supportGrants, setSupportGrants] = useState<SupportGrant[]>([]);
@@ -48,6 +70,22 @@ export default function PlatformMasterPage() {
     if (healthResponse.ok) setHealth((await healthResponse.json()).health);
     const commerceResponse = await fetch("/platform/commerce-overview", { cache: "no-store" });
     if (commerceResponse.ok) setCommerce((await commerceResponse.json()).commerce);
+    if (["platform_owner", "platform_finance"].includes(result.user.role)) {
+      setReconciliation(null);
+      setReconciliationStage("loading");
+      try {
+        const reconciliationResponse = await fetch("/platform/usage-reconciliation", { cache: "no-store" });
+        if (!reconciliationResponse.ok) throw new Error("reconciliation_unavailable");
+        setReconciliation((await reconciliationResponse.json()).reconciliation);
+        setReconciliationStage("ready");
+      } catch {
+        setReconciliation(null);
+        setReconciliationStage("error");
+      }
+    } else {
+      setReconciliation(null);
+      setReconciliationStage("hidden");
+    }
     const subscriptionsResponse = await fetch("/platform/subscriptions", { cache: "no-store" });
     if (subscriptionsResponse.ok) setSubscriptions((await subscriptionsResponse.json()).subscriptions || []);
     const tenantResponse = await fetch("/platform/tenants", { cache: "no-store" });
@@ -109,6 +147,8 @@ export default function PlatformMasterPage() {
     setUser(null);
     setHealth(null);
     setCommerce(null);
+    setReconciliation(null);
+    setReconciliationStage("hidden");
     setSubscriptions([]);
     setTenants([]);
     setSupportGrants([]);
@@ -281,6 +321,46 @@ export default function PlatformMasterPage() {
             <div><span>Pending activation</span><strong>{commerce?.pending ?? "-"}</strong></div>
           </div>
           <div className="operations-band"><p>System</p><h2>Identity and commerce foundations operational</h2></div>
+          {reconciliationStage === "loading" ? <div className="subscription-band reconciliation-band reconciliation-placeholder" aria-live="polite">
+            <div><p>Billing operations · restricted</p><h2>Checking usage reconciliation…</h2></div>
+            <p className="operational-note">Comparing customer-unit balances with reservation and immutable event evidence.</p>
+          </div> : null}
+          {reconciliationStage === "error" ? <div className="subscription-band reconciliation-band status-attention reconciliation-placeholder" role="alert">
+            <div><p>Billing operations · restricted</p><h2>Usage reconciliation unavailable</h2></div>
+            <p className="operational-note">No balance or billing state was changed. Treat the gate as not reconciled until the evidence can be loaded.</p>
+            <button type="button" disabled={working} onClick={() => void loadCurrent()}>Retry reconciliation</button>
+          </div> : null}
+          {reconciliation ? <div className={`subscription-band reconciliation-band status-${reconciliation.status}`}>
+            <div className="reconciliation-heading">
+              <div><p>Billing operations · restricted</p><h2>Usage reconciliation</h2></div>
+              <span className="reconciliation-status" role="status">{reconciliation.status === "healthy" ? "Reconciled" : "Attention required"}</span>
+            </div>
+            <p className="operational-note">Customer-unit balances are checked against open reservations and immutable settlement events. This is operational evidence only; it does not enable charging or create invoice authority.</p>
+            <div className="reconciliation-summary">
+              <div><span>Accounts checked</span><strong>{reconciliation.summary.quotaAccounts}</strong><small>{reconciliation.summary.healthyAccounts} reconciled</small></div>
+              <div><span>Needs attention</span><strong>{reconciliation.summary.attentionAccounts}</strong><small>balance or event variance</small></div>
+              <div><span>Missing current account</span><strong>{reconciliation.summary.activeWithoutCurrentAccount}</strong><small>active subscriptions</small></div>
+              <div><span>Unmapped events</span><strong>{reconciliation.summary.orphanUsageEvents}</strong><small>period mapping required</small></div>
+              <div><span>Expired reservations</span><strong>{reconciliation.summary.expiredOpenReservations}</strong><small>past-period open records</small></div>
+            </div>
+            <div className="reconciliation-authority">
+              <strong>{user.role === "platform_finance" ? "Finance review" : "Platform Owner review"}</strong>
+              <span>{user.role === "platform_finance"
+                ? "Read-only evidence. Escalate a variance; never repair immutable usage or quota totals with direct SQL."
+                : "Pause rollout expansion when a variance appears and use the documented idempotent recovery workflow."}</span>
+              <small>As of {new Date(reconciliation.asOf).toLocaleString()}</small>
+            </div>
+            <div className="platform-table reconciliation-table" role="table" aria-label="Usage reconciliation accounts">
+              {reconciliation.accounts.map((account) => <div className={`platform-row reconciliation-row ${account.status}`} role="row" key={account.quotaAccountId}>
+                <div><strong>{account.businessName}</strong><span>{account.publicName} · {account.customerUnit.replaceAll("_", " ")}</span></div>
+                <div><strong>{account.accountSettled}</strong><span>settled · {account.accountReserved} reserved</span></div>
+                <div><strong>{account.status === "healthy" ? "Reconciled" : "Review"}</strong><span>{account.status === "healthy" ? "No variance" : `Settled ${account.settledVariance} · reserved ${account.reservedVariance} · event ${account.eventVariance}`}</span></div>
+                <span>{new Date(account.periodStart).toLocaleDateString()} – {new Date(account.periodEnd).toLocaleDateString()}</span>
+              </div>)}
+              {!reconciliation.accounts.length ? <p className="empty-row">No quota accounts to reconcile</p> : null}
+            </div>
+            {reconciliation.summary.quotaAccounts > reconciliation.summary.displayedAccounts ? <small className="reconciliation-limit">Showing the {reconciliation.summary.displayedAccounts} highest-priority accounts. Aggregate checks cover all {reconciliation.summary.quotaAccounts} accounts.</small> : null}
+          </div> : null}
           {voiceControl ? <div className={`subscription-band voice-control-band mode-${voiceControl.mode}`}>
             <div><p>Voice operations</p><h2>Runtime admission and recovery</h2></div>
             <div className="voice-control-summary">

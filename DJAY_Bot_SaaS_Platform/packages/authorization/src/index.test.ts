@@ -32,6 +32,13 @@ describe("authorization policy", () => {
     expect(tenantRoleAllows("tenant_operator", "subscriptions.manage")).toBe(false);
   });
 
+  it("keeps billing reconciliation restricted to Platform Owner and Finance", () => {
+    expect(platformRoleAllows("platform_owner", "platform.billing.read")).toBe(true);
+    expect(platformRoleAllows("platform_finance", "platform.billing.read")).toBe(true);
+    expect(platformRoleAllows("platform_support", "platform.billing.read")).toBe(false);
+    expect(platformRoleAllows("platform_ai_operations", "platform.billing.read")).toBe(false);
+  });
+
   it("covers every declared permission in the owner sets", () => {
     expect(platformPermissions.every((permission) => platformRoleAllows("platform_owner", permission))).toBe(true);
   });
