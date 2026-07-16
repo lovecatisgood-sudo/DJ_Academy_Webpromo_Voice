@@ -11,10 +11,6 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: workspaceRoot,
   turbopack: { root: workspaceRoot },
   headers: () => Promise.resolve(nextSecurityHeaders("platform")),
-  async rewrites() {
-    const api = process.env.API_APP_URL || "http://127.0.0.1:3103";
-    return [{ source: "/platform/:path*", destination: `${api}/platform/:path*` }];
-  },
 };
 
 export default nextConfig;

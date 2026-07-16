@@ -76,6 +76,7 @@ for (const app of nextApps) {
     runtime: "node24",
     entrypoint: "server.js",
     healthPath: "/api/health/live",
+    readinessPath: "/api/health/ready",
     buildId: readFileSync(buildIdPath, "utf8").trim(),
     staticAssets: staticEvidence,
   });
@@ -115,6 +116,7 @@ for (const [app, entries] of [
     runtime: "node24",
     entrypoint: "index.js",
     healthPath: app === "voice-gateway" ? "/health/live" : null,
+    readinessPath: app === "voice-gateway" ? "/health/ready" : null,
     bundles: evidence,
   });
   console.info(`Packaged ${app}: ${evidence.fileCount} bundles (${evidence.sha256}).`);

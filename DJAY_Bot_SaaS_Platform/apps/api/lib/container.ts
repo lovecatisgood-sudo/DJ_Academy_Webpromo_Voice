@@ -43,6 +43,7 @@ import {
 import { createPlatformAuthService } from "@djay/platform-auth";
 import { createHttpTextProviderGateway } from "@djay/provider-gateway";
 import { z } from "zod";
+import { assertApiProductionUrlPolicy } from "./environment-policy";
 
 const envSchema = z.object({
   AUTH_DATABASE_URL: z.string().url(),
@@ -92,6 +93,7 @@ let servicesPromise: Promise<Services> | undefined;
 
 async function buildServices() {
   const env = envSchema.parse(process.env);
+  assertApiProductionUrlPolicy(env);
   const client = createDatabaseClient(env.AUTH_DATABASE_URL);
   const tenantClient = createDatabaseClient(env.TENANT_DATABASE_URL);
   const platformClient = createDatabaseClient(env.PLATFORM_DATABASE_URL);

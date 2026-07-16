@@ -63,8 +63,14 @@ origin, and Public, Tenant, Platform, API, widget, webhook, and internal-service
 realms cannot authorize one another's mutation paths. Tenant and Platform
 sessions and MFA challenges also use one tested host-only cookie policy with
 secure issuance, matching secure deletion, and narrowly scoped challenge paths.
-Read-only
-roles no longer receive misleading mutation controls, and forbidden direct
+Public, Tenant, and Platform API traffic is routed by request-time standalone
+handlers, so one immutable web artifact can receive its reviewed `API_APP_URL`
+at deployment instead of retaining a build-machine localhost rewrite. Missing
+or malformed production API authority fails closed, while the artifact gate
+proves request, response, streaming-header, and multi-cookie forwarding. Each
+web artifact's readiness endpoint also depends on API readiness, preventing a
+disconnected frontend from receiving traffic. Read-only roles no longer
+receive misleading mutation controls, and forbidden direct
 routes fail closed with a recovery path. Unexpected URLs and render failures in
 every web realm now use the same accessible branded recovery system with
 realm-appropriate safe next actions. Failed authoritative workspace reads

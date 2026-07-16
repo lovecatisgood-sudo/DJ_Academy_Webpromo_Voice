@@ -53,6 +53,16 @@ all document and API paths. The complete production matrix passed without CSP
 resource or behavior failures, and `pnpm audit --audit-level high` reported no
 known vulnerabilities in the resolved dependency graph.
 
+The release-artifact audit later found that the three web services serialized a
+localhost API rewrite at build time. They now use shared request-time proxy
+handlers for Public, Tenant, and Platform API paths. Focused tests and the
+standalone artifact gate prove runtime authority selection, exact request
+forwarding, multi-cookie response forwarding, safe body limits, and fail-closed
+production behavior when `API_APP_URL` is absent. Web readiness now reflects
+API readiness rather than process liveness alone. API service initialization
+and readiness also reject non-HTTPS/path-bearing browser realms and hostname
+reuse that would collapse host-only Tenant/Platform cookie isolation.
+
 These results describe local production output with mocked API state and cover
 only accessibility rules that axe can automate. Repeat the same gate against
 deployed origins, complete manual keyboard, screen-reader, zoom/reflow,

@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -62,6 +63,7 @@ function manifest(directory) {
   const value = JSON.parse(readFileSync(resolve(directory, "release-manifest.json"), "utf8"));
   assert(value.schema === "djay.release-artifact.v1", `${value.app ?? directory} manifest schema`);
   assert(value.runtime === "node24", `${value.app} runtime must be Node 24`);
+  assert(typeof value.readinessPath === "string" || value.readinessPath === null, `${value.app} readiness contract`);
   return value;
 }
 
@@ -100,6 +102,39 @@ function start(entrypoint, cwd, environment) {
   return { child, output };
 }
 
+const proxyPort = 3119;
+const proxyOrigin = `http://127.0.0.1:${proxyPort}`;
+const proxyUpstream = createServer(async (request, response) => {
+  const chunks = [];
+  for await (const chunk of request) chunks.push(chunk);
+  if (request.url === "/api/health/ready") {
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ status: "ready", app: "api" }));
+    return;
+  }
+  response.writeHead(207, {
+    "Content-Type": "application/json",
+    "Set-Cookie": [
+      "djay_proxy_smoke=accepted; Path=/; HttpOnly; SameSite=Lax",
+      "djay_proxy_rotation=accepted; Path=/public/auth/mfa/challenge; HttpOnly; SameSite=Lax",
+    ],
+    "X-Proxy-Upstream": "accepted",
+  });
+  response.end(JSON.stringify({
+    method: request.method,
+    url: request.url,
+    body: Buffer.concat(chunks).toString("utf8"),
+    cookie: request.headers.cookie,
+    origin: request.headers.origin,
+  }));
+});
+await new Promise((done) => proxyUpstream.listen(proxyPort, "127.0.0.1", done));
+
+const proxyPaths = {
+  "platform-master": ["/platform/release-proxy-smoke"],
+  "public-site": ["/public/release-proxy-smoke"],
+  "tenant-web": ["/public/release-proxy-smoke", "/tenant/release-proxy-smoke"],
+};
 const nextApps = ["api", "platform-master", "public-site", "tenant-web"];
 for (const [index, app] of nextApps.entries()) {
   const runtimeRoot = resolve(root, "apps", app, ".next", "standalone", "apps", app);
@@ -108,13 +143,20 @@ for (const [index, app] of nextApps.entries()) {
   assert(JSON.stringify(actual) === JSON.stringify(value.staticAssets), `${app} static evidence mismatch`);
   const port = 3120 + index;
   const running = start("server.js", runtimeRoot, {
-    PORT: String(port), HOSTNAME: "127.0.0.1", API_APP_URL: "http://127.0.0.1:9",
+    PORT: String(port), HOSTNAME: "127.0.0.1", API_APP_URL: proxyOrigin,
   });
   try {
     const origin = `http://127.0.0.1:${port}`;
     const health = await waitFor(`${origin}${value.healthPath}`, running.child, running.output);
     const healthBody = await health.json();
     assert(healthBody.status === "ok" && healthBody.app === app, `${app} liveness contract`);
+    const readiness = await fetch(`${origin}${value.readinessPath}`, { signal: AbortSignal.timeout(2_500) });
+    const readinessBody = await readiness.json();
+    if (app === "api") {
+      assert(readiness.status === 503 && readinessBody.status === "unavailable", "API without database authority must fail readiness");
+    } else {
+      assert(readiness.ok && readinessBody.status === "ready" && readinessBody.app === app, `${app} API dependency readiness contract`);
+    }
     const page = await fetch(origin, { signal: AbortSignal.timeout(2_000) });
     assert(page.ok, `${app} root returned ${page.status}`);
     assertSecurityHeaders(page, app);
@@ -125,11 +167,52 @@ for (const [index, app] of nextApps.entries()) {
       const response = await fetch(`${origin}${asset}`, { signal: AbortSignal.timeout(2_000) });
       assert(response.ok, `${app} asset ${asset} returned ${response.status}`);
     }
-    console.info(`Verified ${app}: liveness, root security headers, and ${assets.length} referenced assets.`);
+    for (const path of proxyPaths[app] ?? []) {
+      const payload = JSON.stringify({ artifact: app, path });
+      const response = await fetch(`${origin}${path}?runtime=configured`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Cookie": "browser_session=opaque",
+          "Origin": origin,
+        },
+        body: payload,
+        signal: AbortSignal.timeout(2_000),
+      });
+      assert(response.status === 207, `${app} runtime proxy returned ${response.status}`);
+      assert(response.headers.get("x-proxy-upstream") === "accepted", `${app} runtime proxy lost upstream headers`);
+      const cookies = response.headers.getSetCookie();
+      assert(cookies.length === 2, `${app} runtime proxy did not preserve both Set-Cookie values`);
+      assert(cookies.some((value) => value.includes("djay_proxy_smoke=accepted")), `${app} runtime proxy lost session Set-Cookie`);
+      assert(cookies.some((value) => value.includes("djay_proxy_rotation=accepted")), `${app} runtime proxy lost rotation Set-Cookie`);
+      const echoed = await response.json();
+      assert(echoed.method === "POST" && echoed.url === `${path}?runtime=configured`, `${app} runtime proxy path or method mismatch`);
+      assert(echoed.body === payload, `${app} runtime proxy body mismatch`);
+      assert(echoed.cookie === "browser_session=opaque" && echoed.origin === origin, `${app} runtime proxy lost browser authority headers`);
+    }
+    console.info(`Verified ${app}: liveness, root security headers, ${assets.length} referenced assets, and ${proxyPaths[app]?.length ?? 0} runtime proxy path(s).`);
   } finally {
     await stop(running.child);
   }
 }
+
+const failClosedRoot = resolve(root, "apps", "public-site", ".next", "standalone", "apps", "public-site");
+const failClosed = start("server.js", failClosedRoot, {
+  PORT: "3125", HOSTNAME: "127.0.0.1", API_APP_URL: "",
+});
+try {
+  await waitFor("http://127.0.0.1:3125/api/health/live", failClosed.child, failClosed.output);
+  const response = await fetch("http://127.0.0.1:3125/public/release-proxy-smoke");
+  assert(response.status === 503, `missing production API authority returned ${response.status}`);
+  assert(JSON.stringify(await response.json()) === JSON.stringify({ status: "api_route_unavailable" }), "missing production API authority did not fail safely");
+  const readiness = await fetch("http://127.0.0.1:3125/api/health/ready");
+  assert(readiness.status === 503, `missing production API authority readiness returned ${readiness.status}`);
+  assert(JSON.stringify(await readiness.json()) === JSON.stringify({ status: "unavailable", app: "public-site" }), "missing production API authority readiness did not fail safely");
+  console.info("Verified web runtime: missing production API authority fails closed without a localhost fallback.");
+} finally {
+  await stop(failClosed.child);
+}
+await new Promise((done) => proxyUpstream.close(done));
 
 const isolationRoot = mkdtempSync(resolve(tmpdir(), "djay-release-artifact-"));
 process.once("exit", () => rmSync(isolationRoot, { recursive: true, force: true }));

@@ -61,6 +61,21 @@ headers, TTL, absence of `Domain`, and explicit secure deletion. Change cookie
 names, paths, or cross-site behavior only through a reviewed identity ADR and a
 session migration plan.
 
+Public Site, Tenant Web, and Platform Master route their same-origin API paths
+through `proxyApiRequest` at request time. `API_APP_URL` must be an exact HTTP
+or HTTPS API origin; it is required in production and may use the localhost
+fallback only during development. The proxy preserves method, encoded path,
+query, browser cookies, exact `Origin`, request body, upstream status, streaming
+body, and every `Set-Cookie` value while removing hop-by-hop headers. It caps
+browser request bodies at 256 KiB and returns a provider-neutral, non-cacheable
+`503 api_route_unavailable` when authority is missing, invalid, or unreachable.
+Each web service exposes `/api/health/ready`, which reports ready only when the
+API's own readiness contract succeeds; use liveness for process restarts and
+readiness for traffic admission.
+Never restore Next.js build-time rewrites for API traffic: they bake the build
+machine address into the standalone artifact. `pnpm run lint:runtime-proxies`
+protects all four realm routes and all seven supported HTTP methods.
+
 Public Site, Tenant Web, Platform Master, and API must each keep an app-level
 `not-found.tsx` and client `error.tsx`. Both use the shared structure in
 `packages/shared/recovery.css`: an unexpected URL explains that no state was
