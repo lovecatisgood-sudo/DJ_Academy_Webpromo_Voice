@@ -30,6 +30,9 @@ Finance roles. It verified:
 - the same CSP, HSTS, referrer, permissions, opener-isolation, MIME, frame, DNS,
   and cross-domain-policy headers on every web realm, with microphone restricted
   to same-origin Tenant Web and no framework identity header;
+- branded, realm-appropriate 404 and render-error recovery boundaries in Public,
+  Tenant, Platform, and API, with all eight desktop/mobile 404 surfaces returning
+  404 and passing the same accessibility, header, focus, and overflow gates;
 - visible keyboard focus and no horizontal document overflow;
 - no localhost registration link in the Tenant production build;
 - correct permission-derived tenant and Platform navigation;

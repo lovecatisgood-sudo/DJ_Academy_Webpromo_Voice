@@ -1,4 +1,5 @@
 @import "../../../packages/shared/brand.css";
+@import "../../../packages/shared/recovery.css";
 
 :root { font-family: var(--djay-font-sans); color: var(--djay-ink); background: var(--djay-canvas); }
 * { box-sizing: border-box; }

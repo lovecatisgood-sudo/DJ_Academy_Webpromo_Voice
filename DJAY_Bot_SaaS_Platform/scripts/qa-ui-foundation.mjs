@@ -51,7 +51,7 @@ function auditSecurityHeaders(response, name, url) {
   if (headers["x-powered-by"]) failures.push(`${name}: framework identity header is exposed`);
 }
 
-async function visit({ name, url, viewport = desktop, mock, ready = "h1", check }) {
+async function visit({ name, url, viewport = desktop, mock, ready = "h1", expectedStatus = 200, check }) {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   page.on("pageerror", (error) => failures.push(`${name}: page error: ${error.message}`));
@@ -60,16 +60,17 @@ async function visit({ name, url, viewport = desktop, mock, ready = "h1", check 
   });
   page.on("response", (entry) => {
     const resourceType = entry.request().resourceType();
-    if (entry.status() >= 400 && ["document", "script", "stylesheet", "image", "font"].includes(resourceType)) failures.push(`${name}: ${resourceType} returned ${entry.status()} at ${entry.url()}`);
+    const expectedDocument = resourceType === "document" && entry.request().isNavigationRequest() && entry.status() === expectedStatus;
+    if (entry.status() >= 400 && !expectedDocument && ["document", "script", "stylesheet", "image", "font"].includes(resourceType)) failures.push(`${name}: ${resourceType} returned ${entry.status()} at ${entry.url()}`);
   });
   if (mock) await mock(page);
   const response = await page.goto(url, { waitUntil: "networkidle" });
-  if (!response?.ok()) failures.push(`${name}: navigation returned ${response?.status()}`);
+  if (response?.status() !== expectedStatus) failures.push(`${name}: navigation returned ${response?.status()} instead of ${expectedStatus}`);
   else auditSecurityHeaders(response, name, url);
   await page.locator(ready).first().waitFor();
   const geometry = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
   if (geometry.document > geometry.viewport + 1) failures.push(`${name}: horizontal overflow ${geometry.document}px > ${geometry.viewport}px`);
-  const mark = page.locator(".brand-mark, .mark, .api-mark").first();
+  const mark = page.locator(".brand-mark, .mark, .api-mark, .recovery-mark").first();
   if (await mark.count()) brandColors.add(await mark.evaluate((element) => getComputedStyle(element).backgroundColor));
   await check?.(page);
   await auditAccessibility(page, name);
@@ -167,6 +168,22 @@ for (const [name, viewport] of [["desktop", desktop], ["mobile", mobile]]) {
   await visit({ name: `api-root-${name}`, url: apiUrl, viewport, ready: "#api-title", check: async (page) => {
     if (await page.getByRole("link", { name: "Go to DJAY Bot" }).getAttribute("href") !== "https://djaybot.com") failures.push(`api-root-${name}: unsafe public site URL`);
   } });
+  for (const [realm, origin, heading, recoveryLink] of [
+    ["public", publicUrl, "This page is not here.", "Create or view an account"],
+    ["tenant", tenantUrl, "This workspace page does not exist.", "Return to workspace"],
+    ["platform", platformUrl, "This Platform page does not exist.", "Return to Platform Master"],
+    ["api", apiUrl, "This API page does not exist.", "Return to API information"],
+  ]) {
+    await visit({ name: `${realm}-not-found-${name}`, url: `${origin}/qa-route-that-does-not-exist`, viewport, expectedStatus: 404, ready: "#not-found-title", check: async (page) => {
+      if (!await page.getByRole("heading", { name: heading }).count()) failures.push(`${realm}-not-found-${name}: safe heading missing`);
+      const link = page.getByRole("link", { name: recoveryLink });
+      if (!await link.count()) failures.push(`${realm}-not-found-${name}: recovery link missing`);
+      else {
+        await link.focus();
+        if (await link.evaluate((element) => getComputedStyle(element).outlineStyle) === "none") failures.push(`${realm}-not-found-${name}: recovery focus is not visible`);
+      }
+    } });
+  }
 }
 
 await visit({ name: "public-status", url: `${publicUrl}/status`, mock: mockPublic, ready: "#status-title", check: async (page) => {
@@ -368,4 +385,4 @@ if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
-console.info("Shared brand, WCAG 2.2 AA automation, responsive overflow, keyboard focus, safe cross-app links, authentication shells, role navigation, dependency failures, and mutation transport recovery passed.");
+console.info("Shared brand, WCAG 2.2 AA automation, responsive overflow, keyboard focus, safe cross-app links, branded 404 recovery, authentication shells, role navigation, dependency failures, and mutation transport recovery passed.");

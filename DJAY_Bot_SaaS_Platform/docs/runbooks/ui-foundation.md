@@ -50,6 +50,17 @@ trees and fails when the check is absent. Add a new browser mutation realm to
 `expectedBrowserMutationOrigin` and its tests deliberately; do not broaden the
 shared allow-list.
 
+Public Site, Tenant Web, Platform Master, and API must each keep an app-level
+`not-found.tsx` and client `error.tsx`. Both use the shared structure in
+`packages/shared/recovery.css`: an unexpected URL explains that no state was
+changed and links to the safest realm home, while a render error offers an
+explicit retry and warns Tenant/Platform operators to verify state before
+repeating a mutation. `pnpm run lint:ui-recovery` prevents a realm from losing
+these boundaries or diverging from the shared visual system. The production
+browser gate exercises every 404 at desktop and mobile breakpoints, including
+the response status, security headers, focus, overflow, recovery link, brand,
+and automated accessibility rules.
+
 The support-access banner is a security disclosure, not decorative content. If
 its status read fails, the workspace shows an explicit warning to refresh
 before handling customer data or making changes; it must never silently imply

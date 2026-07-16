@@ -56,6 +56,8 @@ proves that:
   structure;
 - every document response carries the reviewed browser security-header policy,
   exposes no framework identity, and renders without a CSP-blocked resource;
+- Public, Tenant, Platform, and API unknown routes return a branded 404 with a
+  safe realm-specific recovery action at both desktop and mobile breakpoints;
 - every route has the shared DJAY Bot mark, no horizontal overflow, and no page
   or asset failure.
 

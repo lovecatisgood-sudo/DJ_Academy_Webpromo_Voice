@@ -62,7 +62,9 @@ advisories. Every browser mutation is statically required to validate its
 origin, and Public, Tenant, Platform, API, widget, webhook, and internal-service
 realms cannot authorize one another's mutation paths. Read-only
 roles no longer receive misleading mutation controls, and forbidden direct
-routes fail closed with a recovery path. Failed authoritative workspace reads
+routes fail closed with a recovery path. Unexpected URLs and render failures in
+every web realm now use the same accessible branded recovery system with
+realm-appropriate safe next actions. Failed authoritative workspace reads
 now render explicit retryable states instead of empty data or indefinite
 loading. Public catalog and restricted Platform dependency failures follow the
 same non-destructive contract without masking service errors as empty data or
