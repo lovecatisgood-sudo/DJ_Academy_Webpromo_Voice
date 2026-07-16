@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { tenantRoleAllows, tenantRoles, type TenantPermission, type TenantRole } from "@djay/authorization";
+import { safeMutationFetch } from "@djay/shared";
 import type { WorkspaceSummary } from "./WorkspaceSidebar";
 
 export function useWorkspaceSession() {
@@ -28,17 +29,19 @@ export function useWorkspaceSession() {
   }, []);
 
   async function selectWorkspace(tenantId: string) {
-    const response = await fetch("/tenant/workspace/select", {
+    const response = await safeMutationFetch("/tenant/workspace/select", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tenantId }),
     });
     if (response.ok) window.location.reload();
+    else setError(true);
   }
 
   async function logout() {
-    await fetch("/tenant/auth/logout", { method: "POST" });
-    window.location.replace("/");
+    const response = await safeMutationFetch("/tenant/auth/logout", { method: "POST" });
+    if (response.ok) window.location.replace("/");
+    else setError(true);
   }
 
   const activeWorkspace = workspaces.find((workspace) => workspace.tenantId === selectedTenantId) || null;

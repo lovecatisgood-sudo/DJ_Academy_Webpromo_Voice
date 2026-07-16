@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { safeMutationFetch } from "@djay/shared";
 import { PlatformNavigation } from "./PlatformNavigation";
 
 type PlatformUser = { id: string; displayName: string; role: string; mfaVerifiedAt: string };
@@ -197,14 +198,14 @@ export default function PlatformMasterPage() {
     setWorking(true);
     setMessage("");
     const data = new FormData(event.currentTarget);
-    const response = await fetch("/platform/auth/login", {
+    const response = await safeMutationFetch("/platform/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: data.get("email"), password: data.get("password") }),
     });
     setWorking(false);
     if (!response.ok) {
-      setMessage("Platform credentials are invalid.");
+      setMessage(response.status >= 500 ? "Platform sign-in is temporarily unavailable. Try again." : "Platform credentials are invalid.");
       return;
     }
     setStage("mfa");
@@ -215,21 +216,22 @@ export default function PlatformMasterPage() {
     setWorking(true);
     setMessage("");
     const data = new FormData(event.currentTarget);
-    const response = await fetch("/platform/auth/mfa/challenge", {
+    const response = await safeMutationFetch("/platform/auth/mfa/challenge", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: data.get("code") }),
     });
     setWorking(false);
     if (!response.ok) {
-      setMessage("The verification code is invalid or expired.");
+      setMessage(response.status >= 500 ? "Identity verification is temporarily unavailable. Try again." : "The verification code is invalid or expired.");
       return;
     }
     await loadCurrent();
   }
 
   async function logout() {
-    await fetch("/platform/auth/logout", { method: "POST" });
+    const response = await safeMutationFetch("/platform/auth/logout", { method: "POST" });
+    if (!response.ok) { setMessage("Sign out could not be confirmed. Your current session remains open."); return; }
     setUser(null);
     setHealth(null);
     setCommerce(null);
@@ -251,10 +253,10 @@ export default function PlatformMasterPage() {
   async function activate(subscriptionId: string) {
     if (!window.confirm("Activate this subscription for the pilot workspace?")) return;
     setWorking(true);
-    const response = await fetch(`/platform/subscriptions/${subscriptionId}/activate`, { method: "POST" });
+    const response = await safeMutationFetch(`/platform/subscriptions/${subscriptionId}/activate`, { method: "POST" });
     setWorking(false);
     if (!response.ok) {
-      setMessage("Subscription activation requires a recent Platform Owner sign-in.");
+      setMessage(response.status >= 500 ? "Subscription activation is temporarily unavailable. No subscription state changed." : "Subscription activation requires a recent Platform Owner sign-in.");
       return;
     }
     await loadCurrent();
@@ -262,14 +264,14 @@ export default function PlatformMasterPage() {
 
   async function requestSupport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setWorking(true); setMessage(""); const form = event.currentTarget; const data = new FormData(form);
-    const response = await fetch("/platform/support-grants", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: data.get("tenantId"), reason: data.get("reason"), durationMinutes: Number(data.get("durationMinutes")) }) });
+    const response = await safeMutationFetch("/platform/support-grants", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: data.get("tenantId"), reason: data.get("reason"), durationMinutes: Number(data.get("durationMinutes")) }) });
     setWorking(false); if (!response.ok) { setMessage("Support access request could not be created."); return; }
     form.reset(); await loadCurrent();
   }
 
   async function decideSupport(grantId: string, command: "approve" | "revoke") {
-    setWorking(true); setMessage(""); const response = await fetch(`/platform/support-grants/${grantId}/${command}`, { method: "POST" }); setWorking(false);
-    if (!response.ok) { setMessage(command === "approve" ? "Approval requires another platform user and recent authentication." : "Grant could not be revoked."); return; }
+    setWorking(true); setMessage(""); const response = await safeMutationFetch(`/platform/support-grants/${grantId}/${command}`, { method: "POST" }); setWorking(false);
+    if (!response.ok) { setMessage(response.status >= 500 ? "Support access controls are temporarily unavailable. No grant state changed." : command === "approve" ? "Approval requires another platform user and recent authentication." : "Grant could not be revoked."); return; }
     await loadCurrent();
   }
 
@@ -277,26 +279,28 @@ export default function PlatformMasterPage() {
     event.preventDefault(); setWorking(true); setMessage("");
     const form = event.currentTarget; const data = new FormData(form);
     const [queueKind, itemId, attemptCount] = String(data.get("recoveryTarget") || "").split("|");
-    const response = await fetch("/platform/dead-letter-recovery", {
+    const response = await safeMutationFetch("/platform/dead-letter-recovery", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         queueKind, itemId, attemptCount: Number(attemptCount), reason: data.get("reason"),
       }),
     });
     setWorking(false);
-    if (!response.ok) { setMessage("Recovery request is stale, duplicated, or no longer safe to replay."); return; }
+    if (!response.ok) { setMessage(response.status >= 500 ? "Recovery controls are temporarily unavailable. No replay was requested." : "Recovery request is stale, duplicated, or no longer safe to replay."); return; }
     form.reset(); await loadCurrent();
   }
 
   async function reviewRecovery(requestId: string, decision: "approve" | "reject") {
     if (decision === "approve" && !window.confirm("Approve one idempotent email delivery attempt? This action is audited and cannot be undone.")) return;
     setWorking(true); setMessage("");
-    const response = await fetch(`/platform/dead-letter-recovery/${requestId}/review`, {
+    const response = await safeMutationFetch(`/platform/dead-letter-recovery/${requestId}/review`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }),
     });
     setWorking(false);
     if (!response.ok) {
-      setMessage(response.status === 403
+      setMessage(response.status >= 500
+        ? "Recovery controls are temporarily unavailable. No review was recorded."
+        : response.status === 403
         ? "Recovery approval requires recent authentication. Sign out and verify again."
         : "Recovery review requires a different Platform Owner and an unchanged dead letter.");
       return;
@@ -312,7 +316,7 @@ export default function PlatformMasterPage() {
         : "Pause admission of new Voice sessions? Active sessions will continue.";
     if (!window.confirm(warning)) return;
     setWorking(true); setMessage("");
-    const response = await fetch("/platform/voice/runtime-control", {
+    const response = await safeMutationFetch("/platform/voice/runtime-control", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode, reasonCode: voiceReason }),
     });
@@ -328,12 +332,14 @@ export default function PlatformMasterPage() {
 
   async function sendVoiceRoutingCommand(command: Record<string, unknown>, successMessage: string) {
     setWorking(true); setMessage("");
-    const response = await fetch("/platform/voice/routing", {
+    const response = await safeMutationFetch("/platform/voice/routing", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(command),
     });
     setWorking(false);
     if (!response.ok) {
-      setMessage(response.status === 403
+      setMessage(response.status >= 500
+        ? "Advanced Voice controls are temporarily unavailable. No routing state changed."
+        : response.status === 403
         ? "Advanced Voice changes require recent authentication. Sign out and verify again."
         : "Advanced Voice command was rejected. Check review separation, evidence, and current route state.");
       return false;

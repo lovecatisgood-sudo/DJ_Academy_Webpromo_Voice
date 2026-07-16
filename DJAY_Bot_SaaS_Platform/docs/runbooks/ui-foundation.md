@@ -31,6 +31,20 @@ Authorized Platform resource failures are named in the dashboard alert and
 must not render a false “no records” message. Existing release-readiness,
 reconciliation, and recovery sections retain their stricter fail-closed states.
 
+Every browser mutation uses `safeMutationFetch` from `@djay/shared`. It converts
+a rejected connection or a non-JSON gateway error into a non-OK, safe JSON
+response so each existing action handler reaches its normal failure branch,
+clears its busy state, and shows non-destructive guidance. Endpoint-specific
+JSON errors remain intact for conflict, recent-authentication, and independent-
+review messages. Sign-out failures never redirect or claim that the session was
+closed. Do not use this helper to reinterpret a successful response or to retry
+a non-idempotent mutation automatically.
+
+The support-access banner is a security disclosure, not decorative content. If
+its status read fails, the workspace shows an explicit warning to refresh
+before handling customer data or making changes; it must never silently imply
+that no Platform support grant is active.
+
 `NEXT_PUBLIC_PUBLIC_APP_URL` is the tenant sign-in link back to public
 registration. Set it to the deployed public origin before building Tenant Web.
 Next.js embeds this public value at build time, so changing only the runtime
@@ -58,7 +72,9 @@ root, all twelve tenant routes at both breakpoints, every tenant role, every
 platform role, direct-route denial, mutation visibility, public catalog,
 workspace-session, authoritative product-read, Platform-session, and
 role-authorized Platform-resource failures, retry actions, and the existence of
-each visible Platform navigation target.
+each visible Platform navigation target. It also aborts representative public,
+Tenant, and Platform mutations and requires visible feedback with a re-enabled
+control.
 
 Do not promote when this gate fails. A passing local gate does not replace
 real-device accessibility review, named-merchant acceptance, managed service

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { safeMutationFetch } from "@djay/shared";
 
 export default function TenantLoginPage() {
   const [status, setStatus] = useState<"idle" | "working" | "mfa_required" | "authenticated" | "error">("idle");
@@ -13,7 +14,7 @@ export default function TenantLoginPage() {
     setMessage("");
     const data = new FormData(event.currentTarget);
     try {
-      const response = await fetch("/public/auth/login", {
+      const response = await safeMutationFetch("/public/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: data.get("email"), password: data.get("password") }),
@@ -24,7 +25,7 @@ export default function TenantLoginPage() {
         setStatus("mfa_required");
         return;
       }
-      if (!response.ok || result.status !== "authenticated") throw new Error("Email or password is incorrect.");
+      if (!response.ok || result.status !== "authenticated") throw new Error(response.status >= 500 ? "Sign in is temporarily unavailable. Try again." : "Email or password is incorrect.");
       setStatus("authenticated");
       setMessage(result.selectedTenantId ? "Signed in. Opening your workspace..." : "Signed in. Choose a workspace to continue.");
       const requested = new URLSearchParams(window.location.search).get("next");
@@ -41,7 +42,7 @@ export default function TenantLoginPage() {
     setStatus("working");
     setMessage("");
     const data = new FormData(event.currentTarget);
-    const response = await fetch("/public/auth/mfa/challenge", {
+    const response = await safeMutationFetch("/public/auth/mfa/challenge", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: data.get("code") }),
@@ -49,7 +50,7 @@ export default function TenantLoginPage() {
     const result = await response.json().catch(() => ({}));
     if (!response.ok || result.status !== "authenticated") {
       setStatus("mfa_required");
-      setMessage("The verification code is invalid or expired.");
+      setMessage(response.status >= 500 ? "Identity verification is temporarily unavailable. Try again." : "The verification code is invalid or expired.");
       return;
     }
     setStatus("authenticated");

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
@@ -44,13 +45,13 @@ export default function InboxPage() {
 
   async function reply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!selectedId || !canReply) return; setWorking(true); setNotice(""); const form = event.currentTarget; const data = new FormData(form);
-    const response = await fetch(`/tenant/conversations/${selectedId}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actorType: "human", direction: "outbound", text: data.get("text") }) });
+    const response = await safeMutationFetch(`/tenant/conversations/${selectedId}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actorType: "human", direction: "outbound", text: data.get("text") }) });
     setWorking(false); if (!response.ok) { setNotice("Reply could not be sent."); return; }
     form.reset(); await Promise.all([loadMessages(selectedId), loadInbox()]);
   }
   async function transition(action: "takeover" | "release") {
     if (!selectedId || !canAssign) return; setWorking(true); setNotice("");
-    const response = await fetch(`/tenant/conversations/${selectedId}/${action}`, { method: "POST" });
+    const response = await safeMutationFetch(`/tenant/conversations/${selectedId}/${action}`, { method: "POST" });
     setWorking(false); if (!response.ok) { setNotice(action === "takeover" ? "Conversation could not be taken over." : "Conversation could not be released."); return; }
     await Promise.all([loadInbox(), loadMessages(selectedId)]);
   }

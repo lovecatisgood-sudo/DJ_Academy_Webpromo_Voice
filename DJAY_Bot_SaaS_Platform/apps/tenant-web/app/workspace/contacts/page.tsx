@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
@@ -35,7 +36,7 @@ export default function ContactsPage() {
     event.preventDefault(); if (!canWrite) return; setWorking(true); setMessage("");
     const form = event.currentTarget; const data = new FormData(form);
     const email = String(data.get("email") || "").trim(); const phone = String(data.get("phone") || "").trim();
-    const response = await fetch("/tenant/contacts", {
+    const response = await safeMutationFetch("/tenant/contacts", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ displayName: data.get("displayName"), ...(email ? { email } : {}), ...(phone ? { phone } : {}), locale: data.get("locale"), consentStatus: data.get("consentStatus") }),
     });

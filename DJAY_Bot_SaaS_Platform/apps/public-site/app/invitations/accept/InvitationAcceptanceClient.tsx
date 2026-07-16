@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { safeMutationFetch } from "@djay/shared";
 
 export function InvitationAcceptanceClient({
   token,
@@ -15,7 +16,7 @@ export function InvitationAcceptanceClient({
     setMessage("");
     const data = new FormData(event.currentTarget);
     try {
-      const response = await fetch("/public/invitations/accept", {
+      const response = await safeMutationFetch("/public/invitations/accept", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -30,7 +31,7 @@ export function InvitationAcceptanceClient({
         setMessage("This email already has an account. Sign in, then open this invitation again.");
         return;
       }
-      if (!response.ok) throw new Error("This invitation is invalid or has expired.");
+      if (!response.ok) throw new Error(response.status >= 500 ? "Invitation acceptance is temporarily unavailable. Try again." : "This invitation is invalid or has expired.");
       setStatus("accepted");
       setMessage("Your team access is ready. Sign in to continue.");
     } catch (error) {

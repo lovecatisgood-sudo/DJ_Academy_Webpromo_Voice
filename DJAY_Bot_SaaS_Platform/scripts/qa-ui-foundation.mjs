@@ -38,9 +38,10 @@ async function visit({ name, url, viewport = desktop, mock, ready = "h1", check 
   await context.close();
 }
 
-async function mockPublic(page, failedPaths) {
+async function mockPublic(page, failedPaths, abortedMutationPaths) {
   await page.route("**/public/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (abortedMutationPaths?.has(path) && route.request().method() !== "GET") return route.abort("connectionfailed");
     if (failedPaths?.has(path)) return json(route, { status: "temporarily_unavailable" }, 503);
     if (path === "/public/catalog") return json(route, { plans: [
       { planKey: "flowbot_basic", productKey: "flowbot", publicName: "FlowBot Basic", tierName: "Basic", summary: "Guided automation", sellable: true, publicHighlights: ["Visual conversation flows"] },
@@ -53,10 +54,11 @@ async function mockPublic(page, failedPaths) {
   });
 }
 
-async function mockTenantRole(page, role, requestedPaths, failedPaths) {
+async function mockTenantRole(page, role, requestedPaths, failedPaths, abortedMutationPaths) {
   await page.route("**/tenant/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     requestedPaths?.add(path);
+    if (abortedMutationPaths?.has(path) && route.request().method() !== "GET") return route.abort("connectionfailed");
     if (failedPaths?.has(path)) return json(route, { status: "temporarily_unavailable" }, 503);
     if (path === "/tenant/session") return json(route, { user: { id: "user", displayName: "QA user" }, workspaces: [{ tenantId, slug: "qa-workspace", businessName: "Bangkok Service Studio", role }], selectedTenantId: tenantId, mfaVerifiedAt: new Date().toISOString() });
     if (path === "/tenant/onboarding") return json(route, { onboarding: { tenant_id: tenantId, business_name: "Bangkok Service Studio", slug: "qa-workspace", locale: "en", timezone: "Asia/Bangkok", stage: "ready" } });
@@ -85,9 +87,10 @@ async function mockTenantRole(page, role, requestedPaths, failedPaths) {
   });
 }
 
-async function mockPlatformRole(page, role, failedPaths) {
+async function mockPlatformRole(page, role, failedPaths, abortedMutationPaths) {
   await page.route("**/platform/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (abortedMutationPaths?.has(path) && route.request().method() !== "GET") return route.abort("connectionfailed");
     if (failedPaths?.has(path)) return json(route, { status: "temporarily_unavailable" }, 503);
     if (path === "/platform/me") return json(route, { user: { id: "platform-user", displayName: "QA operator", role, mfaVerifiedAt: new Date().toISOString() } });
     if (path === "/platform/health-summary") return json(route, { health: { platformUsers: 4, activeSessions: 2, socialChannels: [] } });
@@ -127,6 +130,16 @@ await visit({ name: "public-catalog-failure", url: publicUrl, mock: (page) => mo
   if (!await page.getByRole("button", { name: "Try again" }).count()) failures.push("public-catalog-failure: retry action missing");
   if (!await page.getByRole("button", { name: "Create workspace" }).isEnabled()) failures.push("public-catalog-failure: owner registration was unnecessarily blocked");
 } });
+await visit({ name: "public-mutation-network-failure", url: publicUrl, mock: (page) => mockPublic(page, undefined, new Set(["/public/auth/register"])), ready: "#register-title", check: async (page) => {
+  await page.getByLabel("Your name").fill("QA Owner");
+  await page.getByLabel("Work email").fill("owner@example.test");
+  await page.getByLabel("Business name").fill("QA Studio");
+  await page.getByLabel("Password").fill("correct-horse-battery-staple");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Create workspace" }).click();
+  await page.getByText("Registration could not be completed.", { exact: true }).waitFor();
+  if (!await page.getByRole("button", { name: "Create workspace" }).isEnabled()) failures.push("public-mutation-network-failure: submit remained busy");
+} });
 await visit({ name: "public-verification", url: `${publicUrl}/verify-email?token=qa-token`, mock: mockPublic, ready: "#verification-title", check: async (page) => {
   const link = page.getByRole("link", { name: "Continue to sign in" });
   await page.getByRole("button", { name: "Confirm email" }).click();
@@ -145,6 +158,10 @@ await redirectContext.close();
 await visit({ name: "tenant-recovery", url: `${tenantUrl}/recovery`, ready: "#recovery-title" });
 await visit({ name: "tenant-recovery-complete", url: `${tenantUrl}/recovery/complete?token=qa-token`, ready: "#recovery-complete-title" });
 await visit({ name: "tenant-ownership", url: `${tenantUrl}/ownership/accept?transferId=transfer&token=qa-token`, mock: (page) => mockTenantRole(page, "tenant_master_admin"), ready: "#acceptance-title" });
+await visit({ name: "tenant-ownership-session-failure", url: `${tenantUrl}/ownership/accept?transferId=transfer&token=qa-token`, mock: (page) => mockTenantRole(page, "tenant_master_admin", undefined, new Set(["/tenant/session"])), ready: "#acceptance-title", check: async (page) => {
+  if (!await page.getByText("Your account session could not be checked. No ownership state changed.", { exact: true }).count()) failures.push("tenant-ownership-session-failure: safe explanation missing");
+  if (!await page.getByRole("button", { name: "Try again" }).count()) failures.push("tenant-ownership-session-failure: retry action missing");
+} });
 
 const tenantExpectations = {
   tenant_master_admin: ["Team", "Security", "Data controls"],
@@ -202,6 +219,15 @@ await visit({ name: "operator-knowledge", url: `${tenantUrl}/workspace/knowledge
 await visit({ name: "operator-inbox", url: `${tenantUrl}/workspace/inbox`, mock: (page) => mockTenantRole(page, "tenant_operator"), ready: ".conversation-panel", check: async (page) => {
   if (!await page.getByRole("button", { name: "Send reply" }).count()) failures.push("operator-inbox: reply control missing");
 } });
+await visit({ name: "tenant-mutation-network-failure", url: `${tenantUrl}/workspace/contacts`, mock: (page) => mockTenantRole(page, "tenant_master_admin", undefined, undefined, new Set(["/tenant/contacts"])), ready: ".record-form", check: async (page) => {
+  await page.getByLabel("Name").fill("QA Contact");
+  await page.getByRole("button", { name: "Create contact" }).click();
+  await page.getByText("Contact could not be created.", { exact: true }).waitFor();
+  if (!await page.getByRole("button", { name: "Create contact" }).isEnabled()) failures.push("tenant-mutation-network-failure: control remained busy");
+} });
+await visit({ name: "tenant-support-status-failure", url: `${tenantUrl}/workspace/contacts`, mock: (page) => mockTenantRole(page, "tenant_master_admin", undefined, new Set(["/tenant/support-access"])), ready: ".support-access-banner.error", check: async (page) => {
+  if (!await page.getByText("Refresh before handling customer data or making workspace changes.", { exact: true }).count()) failures.push("tenant-support-status-failure: safe support-access guidance missing");
+} });
 await visit({ name: "inbox-message-failure", url: `${tenantUrl}/workspace/inbox`, mock: (page) => mockTenantRole(page, "tenant_operator", undefined, new Set(["/tenant/conversations/conversation/messages"])), ready: ".conversation-panel", check: async (page) => {
   if (!await page.getByRole("button", { name: "Retry messages" }).count()) failures.push("inbox-message-failure: inline retry action missing");
 } });
@@ -255,6 +281,12 @@ await visit({ name: "platform-resource-failure", url: platformUrl, mock: (page) 
 await visit({ name: "platform-session-failure", url: platformUrl, mock: (page) => mockPlatformRole(page, "platform_owner", new Set(["/platform/me"])), ready: ".platform-session-error", check: async (page) => {
   if (!await page.getByRole("button", { name: "Try again" }).count()) failures.push("platform-session-failure: retry action missing");
 } });
+await visit({ name: "platform-mutation-network-failure", url: platformUrl, mock: (page) => mockPlatformRole(page, "platform_owner", undefined, new Set(["/platform/voice/runtime-control"])), ready: "#voice-operations", check: async (page) => {
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Resume admission" }).click();
+  await page.getByText("Voice runtime control could not be changed.", { exact: true }).waitFor();
+  if (!await page.getByRole("button", { name: "Resume admission" }).isEnabled()) failures.push("platform-mutation-network-failure: control remained busy");
+} });
 await visit({ name: "platform-login", url: platformUrl, mock: (page) => page.route("**/platform/me", (route) => json(route, { status: "unauthenticated" }, 401)), ready: "#platform-login-title" });
 await browser.close();
 
@@ -263,4 +295,4 @@ if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
-console.info("Shared brand, responsive overflow, keyboard focus, safe cross-app links, authentication shells, role navigation, and cross-application dependency-failure recovery passed.");
+console.info("Shared brand, responsive overflow, keyboard focus, safe cross-app links, authentication shells, role navigation, dependency failures, and mutation transport recovery passed.");

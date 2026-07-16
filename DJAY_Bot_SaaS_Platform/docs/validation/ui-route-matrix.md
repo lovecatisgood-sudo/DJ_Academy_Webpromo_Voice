@@ -33,6 +33,10 @@ proves that:
 - Platform authentication failure is distinct from Platform service failure,
   and failed role-authorized operations resources are named without false
   “no records” claims;
+- dropped public, Tenant, and Platform mutation requests resolve into safe,
+  non-destructive feedback and never leave the initiating control busy;
+- an unavailable support-access disclosure warns the Tenant user instead of
+  silently implying that no restricted Platform grant is active;
 - public login, verification, and invitation destinations never fall back to
   localhost in production output;
 - every route has the shared DJAY Bot mark, no horizontal overflow, and no page
@@ -66,6 +70,10 @@ The same gate forces the public catalog, Platform session, health, commerce,
 subscription, tenant-directory, support-grant, Voice-control, Voice-routing,
 and Voice-incident reads to fail. It proves each failure remains explicit,
 role-aware, non-destructive, and retryable.
+Representative registration, contact-creation, and restricted Voice-control
+requests are aborted at the browser boundary. The matrix proves no uncaught
+page error occurs, the user sees an accurate failure message, and the submit or
+command control becomes available again without an automatic replay.
 Target-environment acceptance must repeat it against the deployed artifacts and
 does not replace managed-service, live-provider, named-merchant, legal,
 commercial, or assistive-technology acceptance.

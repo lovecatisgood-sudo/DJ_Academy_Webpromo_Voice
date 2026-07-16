@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
@@ -16,7 +17,7 @@ export default function KnowledgePage() {
   useEffect(() => { if (session.selectedTenantId) void load(); }, [session.selectedTenantId]);
   async function createSource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!canWrite) return; setWorking(true); setMessage(""); const form = event.currentTarget; const data = new FormData(form);
-    const response = await fetch("/tenant/knowledge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), sourceKind: data.get("sourceKind"), content: data.get("content") }) });
+    const response = await safeMutationFetch("/tenant/knowledge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), sourceKind: data.get("sourceKind"), content: data.get("content") }) });
     setWorking(false); if (!response.ok) { setMessage("Knowledge source could not be added."); return; } form.reset(); setMessage("Knowledge source added as revision 1."); await load();
   }
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspaceAccessDenied, WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { useWorkspaceSession } from "../useWorkspaceSession";
@@ -44,7 +45,7 @@ export default function TeamPage() {
     setMessage("");
     const form = event.currentTarget;
     const data = new FormData(form);
-    const response = await fetch("/tenant/team/invitations", {
+    const response = await safeMutationFetch("/tenant/team/invitations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: data.get("email"), role: data.get("role") }),
@@ -62,7 +63,7 @@ export default function TeamPage() {
   async function transferOwnership(targetMembershipId: string) {
     if (!window.confirm("Send an ownership transfer request to this member?")) return;
     setWorking(true);
-    const response = await fetch("/tenant/ownership-transfers", {
+    const response = await safeMutationFetch("/tenant/ownership-transfers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ targetMembershipId }),

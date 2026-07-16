@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
@@ -164,7 +165,7 @@ export default function VoicePage() {
       } catch { setMessage("Every website entry must be an exact HTTPS origin without a path, query, or fragment."); return; }
     }
     setWorking(true); setMessage("");
-    const response = await fetch(`/tenant/voice/deployments/${studio.deployment.id}/studio`, {
+    const response = await safeMutationFetch(`/tenant/voice/deployments/${studio.deployment.id}/studio`, {
       method: "PATCH", headers: { "content-type": "application/json" },
       body: JSON.stringify({
         revision: studio.deployment.draftRevision, name: studio.deployment.name,
@@ -193,7 +194,7 @@ export default function VoicePage() {
   async function publish() {
     if (!studio || !canEdit) return;
     setWorking(true); setMessage("");
-    const response = await fetch(`/tenant/voice/deployments/${studio.deployment.id}/studio`, { method: "POST" });
+    const response = await safeMutationFetch(`/tenant/voice/deployments/${studio.deployment.id}/studio`, { method: "POST" });
     const body = await response.json(); setWorking(false);
     setMessage(response.ok ? `Published immutable Voice playbook version ${body.version}. New sessions will use it.`
       : "The Voice playbook could not be published. Save and validate the draft first.");
@@ -208,7 +209,7 @@ export default function VoicePage() {
       const parsed = new URL(origin);
       if (parsed.origin !== origin || (parsed.protocol !== "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1")) throw new Error();
     } catch { setWorking(false); setMessage("Enter an exact HTTPS origin without a path, query, or fragment."); return; }
-    const response = await fetch("/tenant/voice/deployments", {
+    const response = await safeMutationFetch("/tenant/voice/deployments", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name: data.get("name"), agentName: data.get("agentName"), businessName: data.get("businessName"),
@@ -227,7 +228,7 @@ export default function VoicePage() {
   async function changeStatus(deploymentId: string, action: "enable" | "disable" | "revoke") {
     if (action === "revoke" && !window.confirm("Revoke this deployment permanently? This cannot be undone and the key will stop working immediately.")) return;
     setWorking(true); setMessage("");
-    const response = await fetch(`/tenant/voice/deployments/${deploymentId}`, {
+    const response = await safeMutationFetch(`/tenant/voice/deployments/${deploymentId}`, {
       method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action }),
     });
     setWorking(false); setMessage(response.ok ? `Deployment ${action} request completed.` : "Deployment state could not be changed.");

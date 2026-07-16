@@ -6,13 +6,17 @@ type SupportGrant = { id: string; reason: string; expiresAt: string };
 
 export function WorkspaceSupportBanner({ tenantId }: Readonly<{ tenantId: string }>) {
   const [grants, setGrants] = useState<SupportGrant[]>([]);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     void fetch("/tenant/support-access", { cache: "no-store" }).then(async (response) => {
-      if (response.ok) setGrants((await response.json()).grants || []);
-    });
+      if (!response.ok) throw new Error("support_access_unavailable");
+      setGrants((await response.json()).grants || []);
+      setError(false);
+    }).catch(() => { setGrants([]); setError(true); });
   }, [tenantId]);
 
+  if (error) return <div className="support-access-banner error" role="alert"><strong>Support access status unavailable</strong><span>Refresh before handling customer data or making workspace changes.</span></div>;
   if (!grants.length) return null;
   return (
     <div className="support-access-banner" role="status">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { safeMutationFetch } from "@djay/shared";
 
 const fieldClass = "field";
 type CatalogPlan = {
@@ -41,7 +42,7 @@ export default function RegistrationPage() {
     idempotencyKey.current ??= crypto.randomUUID();
     const data = new FormData(event.currentTarget);
     try {
-      const response = await fetch("/public/auth/register", {
+      const response = await safeMutationFetch("/public/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

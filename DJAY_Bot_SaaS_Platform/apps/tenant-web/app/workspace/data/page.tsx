@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
@@ -37,12 +38,12 @@ export default function DataControlsPage() {
   async function requestJob(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setWorking(true); setMessage(""); const form = event.currentTarget; const data = new FormData(form); const contactId = String(data.get("contactId") || ""); const jobType = String(data.get("jobType") || "export");
     if (jobType === "erasure" && !window.confirm("Erase this contact's personal data? Audit lineage and legally retained records remain.")) { setWorking(false); return; }
-    const response = await fetch("/tenant/privacy-jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobType, ...(contactId ? { contactId } : {}), idempotencyKey: crypto.randomUUID() }) });
+    const response = await safeMutationFetch("/tenant/privacy-jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobType, ...(contactId ? { contactId } : {}), idempotencyKey: crypto.randomUUID() }) });
     setWorking(false); if (!response.ok) { setMessage("Privacy request could not be accepted."); return; } setMessage("Privacy request accepted for processing."); await load();
   }
   async function saveRetention(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setWorking(true); setMessage(""); const data = new FormData(event.currentTarget);
-    const response = await fetch("/tenant/retention-policy", {
+    const response = await safeMutationFetch("/tenant/retention-policy", {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ transcriptDays: Number(data.get("transcriptDays")) }),
     });

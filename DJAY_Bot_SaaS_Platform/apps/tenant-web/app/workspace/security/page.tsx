@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspaceAccessDenied, WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { useWorkspaceSession } from "../useWorkspaceSession";
@@ -35,8 +36,9 @@ export default function SecurityPage() {
   useEffect(() => { if (workspaceSession.selectedTenantId && workspaceSession.allows("security.sessions.read")) void loadSessions(); }, [workspaceSession.selectedTenantId, activeWorkspace?.role]);
 
   async function revoke(sessionId: string) {
-    const response = await fetch(`/tenant/security/sessions/${sessionId}`, { method: "DELETE" });
-    if (!response.ok) return;
+    setMfaMessage("");
+    const response = await safeMutationFetch(`/tenant/security/sessions/${sessionId}`, { method: "DELETE" });
+    if (!response.ok) { setMfaMessage("The session could not be revoked. No session state changed."); return; }
     const result = await response.json();
     if (result.revokedCurrent) window.location.replace("/");
     else await loadSessions();
@@ -44,7 +46,7 @@ export default function SecurityPage() {
 
   async function startMfaEnrollment() {
     setMfaMessage("");
-    const response = await fetch("/tenant/security/mfa/enroll", { method: "POST" });
+    const response = await safeMutationFetch("/tenant/security/mfa/enroll", { method: "POST" });
     if (!response.ok) {
       setMfaMessage("MFA enrollment could not be started.");
       return;
@@ -58,14 +60,14 @@ export default function SecurityPage() {
     event.preventDefault();
     if (!enrollment) return;
     const data = new FormData(event.currentTarget);
-    const response = await fetch("/tenant/security/mfa/verify", {
+    const response = await safeMutationFetch("/tenant/security/mfa/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ factorId: enrollment.factorId, code: data.get("code") }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
-      setMfaMessage("The verification code is invalid.");
+      setMfaMessage(response.status >= 500 ? "MFA verification is temporarily unavailable. Try again." : "The verification code is invalid.");
       return;
     }
     setRecoveryCodes(result.recoveryCodes || []);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
@@ -80,25 +81,27 @@ export default function FlowBotPage() {
     } catch { setLoadError(true); }
   }
   async function loadOperations() {
-    const [analyticsResponse, checksResponse, teamResponse, preflightResponse, notificationResponse] = await Promise.all([
-      fetch("/tenant/flowbot/analytics", { cache: "no-store" }),
-      fetch("/tenant/flowbot/install-checks", { cache: "no-store" }),
-      fetch("/tenant/team", { cache: "no-store" }),
-      fetch("/tenant/flowbot/downgrade-preflight", { cache: "no-store" }),
-      fetch("/tenant/flowbot/notifications", { cache: "no-store" }),
-    ]);
-    if (analyticsResponse.ok) setAnalytics((await analyticsResponse.json()).analytics || null);
-    if (checksResponse.ok) setInstallChecks((await checksResponse.json()).checks || []);
-    if (teamResponse.ok) setTeamMembers((await teamResponse.json()).team?.members || []);
-    if (preflightResponse.ok) setPreflight((await preflightResponse.json()).preflight || null); else setPreflight(null);
-    if (notificationResponse.ok) setNotifications((await notificationResponse.json()).notifications || []);
+    try {
+      const [analyticsResponse, checksResponse, teamResponse, preflightResponse, notificationResponse] = await Promise.all([
+        fetch("/tenant/flowbot/analytics", { cache: "no-store" }),
+        fetch("/tenant/flowbot/install-checks", { cache: "no-store" }),
+        fetch("/tenant/team", { cache: "no-store" }),
+        fetch("/tenant/flowbot/downgrade-preflight", { cache: "no-store" }),
+        fetch("/tenant/flowbot/notifications", { cache: "no-store" }),
+      ]);
+      if (analyticsResponse.ok) setAnalytics((await analyticsResponse.json()).analytics || null);
+      if (checksResponse.ok) setInstallChecks((await checksResponse.json()).checks || []);
+      if (teamResponse.ok) setTeamMembers((await teamResponse.json()).team?.members || []);
+      if (preflightResponse.ok) setPreflight((await preflightResponse.json()).preflight || null); else setPreflight(null);
+      if (notificationResponse.ok) setNotifications((await notificationResponse.json()).notifications || []);
+    } catch { setMessage("Some FlowBot operational panels could not be loaded. Studio data remains available."); }
   }
   useEffect(() => { if (session.selectedTenantId) { void loadBots(); void loadOperations(); } }, [session.selectedTenantId]);
   useEffect(() => { void loadBot(selectedBotId); }, [selectedBotId]);
 
   async function createBot(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setWorking(true); setMessage(""); const form = event.currentTarget; const data = new FormData(form);
-    const response = await fetch("/tenant/flowbot/bots", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), defaultLanguage: data.get("defaultLanguage") }) });
+    const response = await safeMutationFetch("/tenant/flowbot/bots", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), defaultLanguage: data.get("defaultLanguage") }) });
     const result = await response.json(); setWorking(false);
     if (!response.ok) { setMessage(result.status === "limit_reached" ? "Active bot limit reached." : "Bot could not be created."); return; }
     form.reset(); await loadBots(); setSelectedBotId(result.botId); setMessage("Bot created.");
@@ -107,48 +110,48 @@ export default function FlowBotPage() {
     if (!draft || !selectedBotId) return; setWorking(true); setMessage("");
     try {
       const definition = JSON.parse(definitionText);
-      const response = await fetch(`/tenant/flowbot/bots/${selectedBotId}/draft`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: draft.revision, definition }) });
+      const response = await safeMutationFetch(`/tenant/flowbot/bots/${selectedBotId}/draft`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: draft.revision, definition }) });
       setWorking(false); if (!response.ok) { setMessage(response.status === 409 ? "Draft changed in another session. Reload before saving." : "Draft validation failed."); return; }
       setMessage("Draft saved."); await loadBot(selectedBotId);
     } catch { setWorking(false); setMessage("Definition must be valid JSON."); }
   }
   async function publish() {
     if (!selectedBotId) return; setWorking(true); setMessage("");
-    const response = await fetch(`/tenant/flowbot/bots/${selectedBotId}/publish`, { method: "POST" }); const result = await response.json(); setWorking(false);
+    const response = await safeMutationFetch(`/tenant/flowbot/bots/${selectedBotId}/publish`, { method: "POST" }); const result = await response.json(); setWorking(false);
     if (!response.ok) { setMessage(result.issues?.map((issue: { code: string }) => issue.code).join(", ") || "Publish failed."); return; }
     setMessage(`Version ${result.version} published.`); await loadBots(); await loadBot(selectedBotId);
   }
   async function rollback(versionId: string) {
     if (!selectedBotId || !window.confirm("Publish this historical definition as a new version?")) return; setWorking(true);
-    const response = await fetch(`/tenant/flowbot/bots/${selectedBotId}/rollback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceVersionId: versionId }) }); const result = await response.json(); setWorking(false);
+    const response = await safeMutationFetch(`/tenant/flowbot/bots/${selectedBotId}/rollback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceVersionId: versionId }) }); const result = await response.json(); setWorking(false);
     setMessage(response.ok ? `Version ${result.version} published from history.` : "Rollback publish failed."); if (response.ok) await loadBot(selectedBotId);
   }
   async function createDeployment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!selectedBotId) return; setWorking(true); setNewDeploymentKey(""); const form = event.currentTarget; const data = new FormData(form);
-    const response = await fetch(`/tenant/flowbot/bots/${selectedBotId}/deployments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), allowedOrigins: [data.get("origin")] }) }); const result = await response.json(); setWorking(false);
+    const response = await safeMutationFetch(`/tenant/flowbot/bots/${selectedBotId}/deployments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), allowedOrigins: [data.get("origin")] }) }); const result = await response.json(); setWorking(false);
     if (!response.ok) { setMessage("Deployment could not be created."); return; } setNewDeploymentKey(result.deploymentKey); setMessage("Deployment key created. It is shown once."); form.reset(); await loadBot(selectedBotId);
   }
   async function requestInstallCheck(deployment: Deployment) {
     const targetOrigin = deployment.allowedOrigins[0]; if (!targetOrigin) return;
     setWorking(true);
-    const response = await fetch("/tenant/flowbot/install-checks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deploymentId: deployment.id, targetOrigin }) });
+    const response = await safeMutationFetch("/tenant/flowbot/install-checks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deploymentId: deployment.id, targetOrigin }) });
     setWorking(false); setMessage(response.ok ? "Install check requested. Reload the website containing the widget to verify it." : "Install check could not be requested.");
     if (response.ok) await loadOperations();
   }
   async function saveSchedule(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); setWorking(true);
     const weeklyWindows = [1, 2, 3, 4, 5].map((dayOfWeek) => ({ dayOfWeek, startMinute: 540, endMinute: 1020 }));
-    const response = await fetch("/tenant/flowbot/schedules", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scheduleKey: data.get("scheduleKey"), name: data.get("name"), timezone: data.get("timezone"), weeklyWindows, closedDates: [] }) });
+    const response = await safeMutationFetch("/tenant/flowbot/schedules", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scheduleKey: data.get("scheduleKey"), name: data.get("name"), timezone: data.get("timezone"), weeklyWindows, closedDates: [] }) });
     setWorking(false); setMessage(response.ok ? "Business schedule saved (Monday-Friday, 09:00-17:00)." : "Business schedule could not be saved.");
   }
   async function saveRoutingTeam(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); setWorking(true);
-    const response = await fetch("/tenant/flowbot/routing-teams", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teamKey: data.get("teamKey"), name: data.get("name"), membershipIds: data.getAll("membershipIds") }) });
+    const response = await safeMutationFetch("/tenant/flowbot/routing-teams", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teamKey: data.get("teamKey"), name: data.get("name"), membershipIds: data.getAll("membershipIds") }) });
     setWorking(false); setMessage(response.ok ? "Routing team saved." : "Routing team could not be saved.");
   }
   async function createNotification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); setWorking(true);
-    const response = await fetch("/tenant/flowbot/notifications", {
+    const response = await safeMutationFetch("/tenant/flowbot/notifications", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: data.get("name"), recipientEmail: data.get("recipientEmail") }),
     });

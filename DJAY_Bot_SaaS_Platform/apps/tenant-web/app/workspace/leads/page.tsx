@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
@@ -28,7 +29,7 @@ export default function LeadsPage() {
   useEffect(() => { if (session.selectedTenantId) void load(); }, [session.selectedTenantId]);
   async function createLead(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!canWrite) return; setWorking(true); setMessage(""); const form = event.currentTarget; const data = new FormData(form);
-    const response = await fetch("/tenant/leads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactId: data.get("contactId"), title: data.get("title"), source: data.get("source"), status: "new" }) });
+    const response = await safeMutationFetch("/tenant/leads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactId: data.get("contactId"), title: data.get("title"), source: data.get("source"), status: "new" }) });
     setWorking(false); if (!response.ok) { setMessage("Lead could not be created."); return; }
     form.reset(); setMessage("Lead created."); await load();
   }

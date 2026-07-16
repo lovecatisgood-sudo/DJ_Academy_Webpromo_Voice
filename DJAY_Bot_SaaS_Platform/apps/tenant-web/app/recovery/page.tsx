@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { safeMutationFetch } from "@djay/shared";
 
 export default function RecoveryRequestPage() {
   const [working, setWorking] = useState(false);
@@ -11,13 +12,13 @@ export default function RecoveryRequestPage() {
     setWorking(true);
     const data = new FormData(event.currentTarget);
     try {
-      const response = await fetch("/public/auth/recovery/request", {
+      const response = await safeMutationFetch("/public/auth/recovery/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: data.get("email") }),
       });
       const result = await response.json().catch(() => ({}));
-      setMessage(result.message || "If the account exists, a recovery email has been sent.");
+      setMessage(response.ok ? result.message || "If the account exists, a recovery email has been sent." : response.status >= 500 ? "Recovery is temporarily unavailable. Try again shortly." : result.message || "The recovery request could not be submitted.");
     } catch {
       setMessage("Recovery is unavailable. Try again shortly.");
     } finally {
@@ -41,4 +42,3 @@ export default function RecoveryRequestPage() {
     </main>
   );
 }
-

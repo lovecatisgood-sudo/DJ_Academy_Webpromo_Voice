@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
@@ -46,15 +47,17 @@ export default function AiChatPage() {
     } catch { setLoadError(true); }
   }
   async function loadShared() {
-    const [knowledgeResponse, notificationResponse, analyticsResponse, socialResponse] = await Promise.all([
-      fetch("/tenant/knowledge", { cache: "no-store" }), fetch("/tenant/ai-chat/notifications", { cache: "no-store" }),
-      fetch("/tenant/ai-chat/analytics", { cache: "no-store" }),
-      fetch("/tenant/ai-chat/social-connections", { cache: "no-store" }),
-    ]);
-    if (knowledgeResponse.ok) setKnowledge((await knowledgeResponse.json()).sources || []);
-    if (notificationResponse.ok) setNotifications((await notificationResponse.json()).notifications || []);
-    if (analyticsResponse.ok) setAnalytics((await analyticsResponse.json()).analytics || null);
-    if (socialResponse.ok) setSocialConnections((await socialResponse.json()).connections || []);
+    try {
+      const [knowledgeResponse, notificationResponse, analyticsResponse, socialResponse] = await Promise.all([
+        fetch("/tenant/knowledge", { cache: "no-store" }), fetch("/tenant/ai-chat/notifications", { cache: "no-store" }),
+        fetch("/tenant/ai-chat/analytics", { cache: "no-store" }),
+        fetch("/tenant/ai-chat/social-connections", { cache: "no-store" }),
+      ]);
+      if (knowledgeResponse.ok) setKnowledge((await knowledgeResponse.json()).sources || []);
+      if (notificationResponse.ok) setNotifications((await notificationResponse.json()).notifications || []);
+      if (analyticsResponse.ok) setAnalytics((await analyticsResponse.json()).analytics || null);
+      if (socialResponse.ok) setSocialConnections((await socialResponse.json()).connections || []);
+    } catch { setMessage("Some AI Chat operational panels could not be loaded. Studio data remains available."); }
   }
   async function loadAgent(agentId: string) {
     if (!agentId) { setDraft(null); setDeployments([]); return; }
@@ -73,7 +76,7 @@ export default function AiChatPage() {
 
   async function createAgent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); setWorking(true); setMessage("");
-    const response = await fetch("/tenant/ai-chat/agents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), businessName: data.get("businessName"), defaultLanguage: data.get("defaultLanguage") }) });
+    const response = await safeMutationFetch("/tenant/ai-chat/agents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), businessName: data.get("businessName"), defaultLanguage: data.get("defaultLanguage") }) });
     const result = await response.json(); setWorking(false); if (!response.ok) { setMessage("AI agent could not be created."); return; }
     form.reset(); await loadAgents(); setSelectedAgentId(result.agentId); setMessage("AI agent created.");
   }
@@ -81,35 +84,35 @@ export default function AiChatPage() {
     if (!draft || !selectedAgentId) return; setWorking(true); setMessage("");
     try {
       const definition = JSON.parse(definitionText);
-      const response = await fetch(`/tenant/ai-chat/agents/${selectedAgentId}/draft`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: draft.revision, definition, knowledgeRevisionIds: selectedKnowledge }) });
+      const response = await safeMutationFetch(`/tenant/ai-chat/agents/${selectedAgentId}/draft`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: draft.revision, definition, knowledgeRevisionIds: selectedKnowledge }) });
       setWorking(false); if (!response.ok) { setMessage(response.status === 409 ? "Draft changed elsewhere. Reload before saving." : "Draft validation failed."); return; }
       setMessage("Draft and knowledge pins saved."); await loadAgent(selectedAgentId);
     } catch { setWorking(false); setMessage("Playbook must be valid JSON."); }
   }
   async function publish() {
     if (!selectedAgentId) return; setWorking(true);
-    const response = await fetch(`/tenant/ai-chat/agents/${selectedAgentId}/publish`, { method: "POST" }); const result = await response.json(); setWorking(false);
+    const response = await safeMutationFetch(`/tenant/ai-chat/agents/${selectedAgentId}/publish`, { method: "POST" }); const result = await response.json(); setWorking(false);
     setMessage(response.ok ? `Playbook version ${result.version} published.` : "Publish failed."); if (response.ok) { await loadAgents(); await loadAgent(selectedAgentId); }
   }
   async function createDeployment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!selectedAgentId) return; const form = event.currentTarget; const data = new FormData(form); setWorking(true); setNewDeploymentKey("");
-    const response = await fetch(`/tenant/ai-chat/agents/${selectedAgentId}/deployments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), allowedOrigins: [data.get("origin")] }) }); const result = await response.json(); setWorking(false);
+    const response = await safeMutationFetch(`/tenant/ai-chat/agents/${selectedAgentId}/deployments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), allowedOrigins: [data.get("origin")] }) }); const result = await response.json(); setWorking(false);
     if (!response.ok) { setMessage("Website deployment could not be created."); return; } setNewDeploymentKey(result.deploymentKey); setMessage("Deployment key created. It is shown once."); form.reset(); await loadAgent(selectedAgentId);
   }
   async function createNotification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); setWorking(true);
-    const response = await fetch("/tenant/ai-chat/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), recipientEmail: data.get("recipientEmail") }) }); setWorking(false);
+    const response = await safeMutationFetch("/tenant/ai-chat/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), recipientEmail: data.get("recipientEmail") }) }); setWorking(false);
     setMessage(response.ok ? "Qualified-lead recipient added." : "Notification recipient could not be added."); if (response.ok) { form.reset(); await loadShared(); }
   }
   async function runTest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!selectedAgentId) return; const data = new FormData(event.currentTarget); setWorking(true); setPreview(null);
-    const response = await fetch(`/tenant/ai-chat/agents/${selectedAgentId}/test`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ inputId: crypto.randomUUID(), language: data.get("language"), message: data.get("testMessage") }) }); const result = await response.json(); setWorking(false);
+    const response = await safeMutationFetch(`/tenant/ai-chat/agents/${selectedAgentId}/test`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ inputId: crypto.randomUUID(), language: data.get("language"), message: data.get("testMessage") }) }); const result = await response.json(); setWorking(false);
     if (!response.ok) { setMessage("Test mode is temporarily unavailable."); return; } setPreview(result.preview); setMessage("Preview generated. No action was executed and no customer usage was charged.");
   }
   async function createLineConnection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!selectedAgentId) return; const form = event.currentTarget; const data = new FormData(form);
     setWorking(true); setMessage(""); setNewSocialWebhookKey(""); setNewSocialChannel("");
-    const response = await fetch("/tenant/ai-chat/social-connections", {
+    const response = await safeMutationFetch("/tenant/ai-chat/social-connections", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         channel: "line", agentId: selectedAgentId, name: data.get("name"),
         externalAccountRef: data.get("externalAccountRef"), channelAccessToken: data.get("channelAccessToken"),
@@ -123,7 +126,7 @@ export default function AiChatPage() {
   async function createWhatsAppConnection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!selectedAgentId) return; const form = event.currentTarget; const data = new FormData(form);
     setWorking(true); setMessage(""); setNewSocialWebhookKey(""); setNewSocialChannel("");
-    const response = await fetch("/tenant/ai-chat/social-connections", {
+    const response = await safeMutationFetch("/tenant/ai-chat/social-connections", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         channel: "whatsapp", agentId: selectedAgentId, name: data.get("name"),
         externalAccountRef: data.get("externalAccountRef"), accessToken: data.get("accessToken"),
@@ -139,7 +142,7 @@ export default function AiChatPage() {
   async function createMessengerConnection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!selectedAgentId) return; const form = event.currentTarget; const data = new FormData(form);
     setWorking(true); setMessage(""); setNewSocialWebhookKey(""); setNewSocialChannel("");
-    const response = await fetch("/tenant/ai-chat/social-connections", {
+    const response = await safeMutationFetch("/tenant/ai-chat/social-connections", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         channel: "messenger", agentId: selectedAgentId, name: data.get("name"),
         externalAccountRef: data.get("externalAccountRef"), pageAccessToken: data.get("pageAccessToken"),
@@ -152,12 +155,12 @@ export default function AiChatPage() {
     setMessage("Messenger connected. Copy the callback URL now; its key is shown once."); await loadShared(); await loadAgent(selectedAgentId);
   }
   async function checkSocialHealth(connectionId: string) {
-    setWorking(true); setMessage(""); const response = await fetch(`/tenant/ai-chat/social-connections/${connectionId}/health`, { method: "POST" });
+    setWorking(true); setMessage(""); const response = await safeMutationFetch(`/tenant/ai-chat/social-connections/${connectionId}/health`, { method: "POST" });
     setWorking(false); setMessage(response.ok ? "Connection health check completed." : "Connection health check could not run."); await loadShared();
   }
   async function rotateLineCredentials(event: FormEvent<HTMLFormElement>, connectionId: string) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); setWorking(true); setMessage("");
-    const response = await fetch(`/tenant/ai-chat/social-connections/${connectionId}`, {
+    const response = await safeMutationFetch(`/tenant/ai-chat/social-connections/${connectionId}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         channel: "line", channelAccessToken: data.get("channelAccessToken"), channelSecret: data.get("channelSecret"),
       }),
@@ -167,7 +170,7 @@ export default function AiChatPage() {
   }
   async function rotateWhatsAppCredentials(event: FormEvent<HTMLFormElement>, connectionId: string) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); setWorking(true); setMessage("");
-    const response = await fetch(`/tenant/ai-chat/social-connections/${connectionId}`, {
+    const response = await safeMutationFetch(`/tenant/ai-chat/social-connections/${connectionId}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         channel: "whatsapp", accessToken: data.get("accessToken"), appSecret: data.get("appSecret"),
         verifyToken: data.get("verifyToken"), phoneNumberId: data.get("phoneNumberId"),
@@ -179,7 +182,7 @@ export default function AiChatPage() {
   }
   async function rotateMessengerCredentials(event: FormEvent<HTMLFormElement>, connectionId: string) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); setWorking(true); setMessage("");
-    const response = await fetch(`/tenant/ai-chat/social-connections/${connectionId}`, {
+    const response = await safeMutationFetch(`/tenant/ai-chat/social-connections/${connectionId}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         channel: "messenger", pageAccessToken: data.get("pageAccessToken"), appSecret: data.get("appSecret"),
         verifyToken: data.get("verifyToken"), pageId: data.get("pageId"),
@@ -190,7 +193,7 @@ export default function AiChatPage() {
   }
   async function revokeSocial(connectionId: string) {
     if (!window.confirm("Revoke this channel connection? Its webhook and credentials will stop working immediately.")) return;
-    setWorking(true); const response = await fetch(`/tenant/ai-chat/social-connections/${connectionId}`, { method: "DELETE" }); setWorking(false);
+    setWorking(true); const response = await safeMutationFetch(`/tenant/ai-chat/social-connections/${connectionId}`, { method: "DELETE" }); setWorking(false);
     setMessage(response.ok ? "Channel connection revoked." : "Connection could not be revoked."); await loadShared(); await loadAgent(selectedAgentId);
   }
   function setNotificationProfile(profileId: string) {

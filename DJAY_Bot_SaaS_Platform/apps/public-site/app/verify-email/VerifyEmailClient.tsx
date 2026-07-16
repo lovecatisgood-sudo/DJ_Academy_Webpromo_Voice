@@ -1,23 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import { safeMutationFetch } from "@djay/shared";
 
 export function VerifyEmailClient({ token, tenantLoginUrl }: Readonly<{ token: string; tenantLoginUrl: string }>) {
   const [status, setStatus] = useState<"idle" | "working" | "verified" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState("");
 
   async function verify() {
     setStatus("working");
-    try {
-      const response = await fetch("/public/auth/verify-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      });
-      const result = await response.json().catch(() => ({}));
-      setStatus(response.ok && ["verified", "already_verified"].includes(result.status) ? "verified" : "error");
-    } catch {
-      setStatus("error");
-    }
+    setErrorMessage("");
+    const response = await safeMutationFetch("/public/auth/verify-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (response.ok && ["verified", "already_verified"].includes(result.status)) setStatus("verified");
+    else { setStatus("error"); setErrorMessage(response.status >= 500 ? "Email verification is temporarily unavailable. Try again." : "This link is invalid or expired."); }
   }
 
   return (
@@ -36,10 +36,9 @@ export function VerifyEmailClient({ token, tenantLoginUrl }: Readonly<{ token: s
           <button type="button" onClick={verify} disabled={status === "working" || !token}>
             {status === "working" ? "Confirming..." : "Confirm email"}
           </button>
-          {status === "error" || !token ? <p className="form-message error" role="alert">This link is invalid or expired.</p> : null}
+          {status === "error" || !token ? <p className="form-message error" role="alert">{errorMessage || "This link is invalid or expired."}</p> : null}
         </>
       )}
     </section>
   );
 }
-

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { tenantRoleAllows, type TenantRole } from "@djay/authorization";
+import { safeMutationFetch } from "@djay/shared";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "./WorkspaceAccess";
 import { WorkspaceSidebar, type WorkspaceSummary } from "./WorkspaceSidebar";
 
@@ -30,6 +31,7 @@ export default function WorkspacePage() {
   const [onboarding, setOnboarding] = useState<Onboarding | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [mutationMessage, setMutationMessage] = useState("");
   const activeWorkspace = workspaces.find((workspace) => workspace.tenantId === selectedTenantId);
   const canUpdateOnboarding = activeWorkspace
     ? tenantRoleAllows(activeWorkspace.role as TenantRole, "onboarding.update")
@@ -56,7 +58,8 @@ export default function WorkspacePage() {
   useEffect(() => { void load(); }, []);
 
   async function selectWorkspace(tenantId: string) {
-    const response = await fetch("/tenant/workspace/select", {
+    setMutationMessage("");
+    const response = await safeMutationFetch("/tenant/workspace/select", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tenantId }),
@@ -65,22 +68,26 @@ export default function WorkspacePage() {
       setLoading(true);
       setOnboarding(null);
       await load();
-    }
+    } else setMutationMessage("Workspace selection is temporarily unavailable. Your current workspace has not changed.");
   }
 
   async function updateStage(stage: Onboarding["stage"]) {
     if (!canUpdateOnboarding) return;
-    const response = await fetch("/tenant/onboarding", {
+    setMutationMessage("");
+    const response = await safeMutationFetch("/tenant/onboarding", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ stage }),
     });
     if (response.ok) setOnboarding((current) => current ? { ...current, stage } : current);
+    else setMutationMessage("The onboarding stage could not be changed. Your saved setup is unchanged.");
   }
 
   async function logout() {
-    await fetch("/tenant/auth/logout", { method: "POST" });
-    window.location.replace("/");
+    setMutationMessage("");
+    const response = await safeMutationFetch("/tenant/auth/logout", { method: "POST" });
+    if (response.ok) window.location.replace("/");
+    else setMutationMessage("Sign out could not be confirmed. Your current session remains open.");
   }
 
   if (loading) return <main className="workspace-loading">Loading workspace...</main>;
@@ -100,6 +107,7 @@ export default function WorkspacePage() {
               </button>
             ))}
           </div>
+          {mutationMessage ? <p className="inline-message" role="alert">{mutationMessage}</p> : null}
           <button className="quiet-command" type="button" onClick={logout}>Sign out</button>
         </div>
       </main>
@@ -122,6 +130,7 @@ export default function WorkspacePage() {
           <div><p>Workspace</p><h1>{activeWorkspace?.businessName || onboarding?.business_name}</h1></div>
           <span className="role-label">{activeWorkspace?.role.replaceAll("_", " ")}</span>
         </header>
+        {mutationMessage ? <p className="inline-message dashboard-inline-message" role="alert">{mutationMessage}</p> : null}
         {!canUpdateOnboarding ? <WorkspaceViewOnly>You can review workspace setup. A workspace administrator can change onboarding stages.</WorkspaceViewOnly> : null}
         <section className="onboarding-band" aria-labelledby="onboarding-title">
           <div className="band-heading"><div><p>Setup</p><h2 id="onboarding-title">Workspace onboarding</h2></div><span>{onboarding?.timezone || "Asia/Bangkok"}</span></div>
