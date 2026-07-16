@@ -53,5 +53,14 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'restored SLO evidence immutability trigger missing';
   END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_constraint
+    WHERE conname = 'operational_attestations_attestation_kind_check'
+      AND pg_get_constraintdef(oid) LIKE '%event_replay%'
+      AND pg_get_constraintdef(oid) LIKE '%queue_recovery%'
+      AND pg_get_constraintdef(oid) LIKE '%pool_exhaustion%'
+  ) THEN
+    RAISE EXCEPTION 'restored resilience attestation policy missing';
+  END IF;
 END
 $$;

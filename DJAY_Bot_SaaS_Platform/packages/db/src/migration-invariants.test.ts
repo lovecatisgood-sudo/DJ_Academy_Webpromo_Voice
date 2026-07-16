@@ -38,6 +38,7 @@ const voiceAdvancedDeploymentMigration = readFileSync(resolve(import.meta.dirnam
 const voiceAdvancedRuntimeMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0036_voice_advanced_runtime.sql"), "utf8");
 const voiceAnalyticsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0037_voice_analytics_indexes.sql"), "utf8");
 const releaseReadinessMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0038_release_readiness.sql"), "utf8");
+const resilienceDrillsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0039_resilience_drills.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -131,6 +132,14 @@ describe("P9 release-readiness invariants", () => {
     expect(releaseReadinessMigration).toContain("REVOKE ALL ON FUNCTION platform.blocking_incident_summary() FROM PUBLIC");
     expect(releaseReadinessMigration).toContain("TO djay_platform");
     expect(releaseReadinessMigration).toMatch(/REVOKE ALL ON platform\.service_objectives,[\s\S]+FROM PUBLIC/);
+  });
+
+  it("requires replay, queue recovery, and pool exhaustion evidence", () => {
+    for (const drill of ["event_replay", "queue_recovery", "pool_exhaustion"]) {
+      expect(resilienceDrillsMigration).toContain(`'${drill}'`);
+    }
+    expect(resilienceDrillsMigration).toContain("operational_attestations_attestation_kind_check");
+    expect(resilienceDrillsMigration).not.toMatch(/provider_key|model_key|credential|customer_content/i);
   });
 });
 

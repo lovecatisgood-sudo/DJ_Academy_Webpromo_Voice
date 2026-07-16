@@ -36,7 +36,7 @@ type ReleaseReadiness = {
     observation: null | { windowEnd: string; availabilityBasisPoints: number; latencyP95Ms: number; queueAgeSeconds: number | null; deadLetterCount: number; sampleCount: number; sourceReference: string };
   }>;
   attestations: Array<{
-    kind: "on_call" | "restore" | "support_runbook" | "security_review" | "privacy_review";
+    kind: "on_call" | "restore" | "support_runbook" | "security_review" | "privacy_review" | "event_replay" | "queue_recovery" | "pool_exhaustion";
     passing: boolean; status: "passed" | "failed" | "missing";
     validUntil: string | null; sourceReference: string | null;
   }>;
@@ -354,11 +354,11 @@ export default function PlatformMasterPage() {
             <div><span>Pending activation</span><strong>{commerce?.pending ?? "-"}</strong></div>
           </div>
           <div className="operations-band"><p>System</p><h2>Identity and commerce foundations operational</h2></div>
-          {readinessStage === "loading" ? <div className="subscription-band release-readiness-band readiness-placeholder" aria-live="polite"><div><p>Release operations</p><h2>Checking release readiness…</h2></div><p className="operational-note">Loading current SLO, incident, on-call, restore, security, privacy, support, and usage evidence.</p></div> : null}
+          {readinessStage === "loading" ? <div className="subscription-band release-readiness-band readiness-placeholder" aria-live="polite"><div><p>Release operations</p><h2>Checking release readiness…</h2></div><p className="operational-note">Loading current SLO, incident, on-call, restore, replay, queue, pool, security, privacy, support, and usage evidence.</p></div> : null}
           {readinessStage === "error" ? <div className="subscription-band release-readiness-band status-blocked readiness-placeholder" role="alert"><div><p>Release operations</p><h2>Release evidence unavailable</h2></div><p className="operational-note">The release gate is blocked. No service should be promoted while current evidence cannot be verified.</p><button type="button" disabled={working} onClick={() => void loadCurrent()}>Retry readiness check</button></div> : null}
           {readiness ? <div className={`subscription-band release-readiness-band status-${readiness.status}`}>
             <div className="readiness-heading"><div><p>Release operations</p><h2>Public release readiness</h2></div><span className="readiness-status" role="status">{readiness.status === "ready" ? "Ready for reviewed release" : "Release blocked"}</span></div>
-            <p className="operational-note">A release remains fail-closed until all seven service objectives, five time-limited operational attestations, incident review, and usage reconciliation pass together.</p>
+            <p className="operational-note">A release remains fail-closed until all seven service objectives, eight time-limited operational attestations, incident review, and usage reconciliation pass together.</p>
             <div className="readiness-summary">
               <div><span>Environment</span><strong>{readiness.environment}</strong><small>{readiness.releaseVersion}</small></div>
               <div><span>Service objectives</span><strong>{readiness.services.filter((service) => service.passing).length}/{readiness.services.length}</strong><small>passing</small></div>

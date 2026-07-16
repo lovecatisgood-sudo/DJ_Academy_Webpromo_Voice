@@ -2,10 +2,11 @@
 
 ## Status
 
-In progress. The first three P9 engineering slices deliver tenant-isolated usage
+In progress. The first four P9 engineering slices deliver tenant-isolated usage
 visibility, restricted finance reconciliation, executable backup/restore
 evidence, immutable service/operations evidence, a fail-closed release gate,
-and a provider-neutral public status page. Paid checkout, invoices, tax, proration, dunning,
+provider-neutral public status, deterministic effect replay, stale-queue
+recovery, and bounded pool-exhaustion readiness. Paid checkout, invoices, tax, proration, dunning,
 cancellation, overage charging, and broad self-service remain disabled because
 ADR-008 has not been accepted with exact commercial and legal decisions.
 
@@ -84,9 +85,9 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
 2. Release evidence is current only when every service has a minimum 24-hour
    window, enough samples, no more than 30 minutes of age, passing availability
    and P95 latency, passing queue age where applicable, and zero dead letters.
-3. Five separately hashed, time-limited attestations cover on-call, restore,
-   support runbook, security, and privacy review. Missing, failed, or expired
-   evidence blocks release.
+3. Eight separately hashed, time-limited attestations cover on-call, restore,
+   support runbook, security, privacy, event replay, queue recovery, and pool
+   exhaustion. Missing, failed, or expired evidence blocks release.
 4. `POST /internal/operations/status` is server-to-server, bearer-authenticated,
    constant-time compared, strict, bounded, audited, and idempotent by evidence
    hash. Production refuses configuration without a sufficiently long ingestion
@@ -104,6 +105,25 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
    Platform Owner, Finance, Support, and AI Operations views without overflow,
    console errors, internal-identity leakage, or false commercial authority.
 
+## Resilience drill foundation delivered
+
+1. Every email attempt now sends the durable outbox UUID as the downstream
+   idempotency key. Retrying an ambiguous provider acknowledgment no longer
+   invents a new key that could duplicate customer email.
+2. `qa:p9-resilience` starts a fresh PostgreSQL 16 cluster and proves a failed
+   item retries with the same key, creates one provider-side effect, finishes
+   sent, and cannot be claimed again.
+3. The same drill leaves a worker item in stale `processing`, then proves the
+   five-minute lease recovery reclaims it through the normal worker repository
+   and completes it exactly once.
+4. `DatabaseReadinessProbe` collapses concurrent checks onto one outstanding
+   query. With every connection reserved, `/api/health/ready` fails closed with
+   503 inside the bounded deadline; after capacity returns, the same probe and a
+   new query recover. Liveness stays separate and does not claim database health.
+5. Migration `0039_resilience_drills.sql` extends immutable operational evidence
+   with event replay, queue recovery, and pool exhaustion. These three current
+   passes are required in addition to the five human/restore reviews.
+
 ## Schema, API, and event impact
 
 - No tenant-schema migration is required for these slices. Usage and
@@ -114,10 +134,14 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
   `GET /platform/usage-reconciliation`, authenticated
   `POST /internal/operations/status`, restricted
   `GET /platform/release-readiness`, and public `GET /public/status`.
+- `GET /api/health/ready` is a safe database-backed readiness signal; it exposes
+  only ready/unavailable and never database errors or configuration.
 - Platform migration `0038_release_readiness.sql` adds immutable objectives,
   observations, attestations, their indexes/triggers, and a narrow
   security-definer aggregate for blocking incidents. It adds no tenant/customer
   content, commercial data, or provider/model fields.
+- Platform migration `0039_resilience_drills.sql` additively expands the
+  attestation constraint; no tenant table or commercial contract changes.
 - The fresh-cluster role bootstrap is additively completed in
   `0000_roles.sql`; embedded later role guards remain idempotent. Existing
   environments already have these roles and need no destructive change.
@@ -146,6 +170,8 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
   independent deployment secret material and never enters a browser response.
 - Public status is deliberately lossy and provider-neutral. Platform evidence
   may include safe opaque references, but those never cross the public boundary.
+- Email delivery receives only rendered allow-listed content and the opaque
+  outbox UUID. Readiness errors are collapsed to a safe unavailable response.
 
 ## Non-goals for this slice
 
@@ -156,10 +182,13 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
 - Enabling paid plans, overage collection, or broad public self-service.
 - Treating local QA evidence as a production SLA, managed monitoring result,
   staffed on-call rota, managed PITR, regional recovery, or legal launch signoff.
+- Direct-SQL dead-letter replay. Dead letters continue to block release until a
+  reviewed two-person recovery workflow is implemented and exercised.
 
 ## Next slice
 
-Exercise event replay, queue recovery, pool exhaustion, real managed monitoring,
+Add reviewed two-person dead-letter recovery, then exercise managed database
+failover, cache loss, object-store/provider outage, real monitoring,
 production backup/PITR, regional recovery, staffed on-call escalation, and live
 status communication. After ADR-008 is accepted, implement
 immutable invoices, provider checkout, signed webhook application, plan
@@ -170,7 +199,7 @@ approved fixtures.
 
 Remove the Usage Center, reconciliation, readiness, and status route/UI, then
 deploy the previous application. No tenant schema reversal is required. Retain
-migration 0038 and its immutable operational evidence; do not delete or rewrite
+migrations 0038/0039 and their immutable operational evidence; do not delete or rewrite
 observations/attestations during application rollback. Public status must remain
 unknown or unavailable rather than claim operational health without evidence. The
 additive no-login/no-bypass role declarations are safe to retain; do not revoke

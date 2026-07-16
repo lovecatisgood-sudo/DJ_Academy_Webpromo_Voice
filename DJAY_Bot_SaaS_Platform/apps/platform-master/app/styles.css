@@ -76,7 +76,7 @@ small { display: block; margin-top: 18px; color: #666d6a; }
 .readiness-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #2d7652; box-shadow: 0 0 0 3px #e1f0e8; }
 .readiness-service-card.failing .readiness-dot, .readiness-service-card.missing .readiness-dot { background: #a22d28; box-shadow: 0 0 0 3px #f6dfdc; }
 .readiness-service-card.failing > span, .readiness-service-card.missing > span { color: #8d2a25; }
-.readiness-attestations { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 18px; }
+.readiness-attestations { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 18px; }
 .readiness-attestations > div { min-width: 0; display: grid; gap: 6px; padding: 12px; border: 1px solid #dce1df; border-radius: 6px; background: #fff; }
 .readiness-attestations strong { overflow-wrap: anywhere; font-size: 11px; text-transform: capitalize; }
 .readiness-attestations span { color: #23714e; font-size: 10px; font-weight: 900; text-transform: uppercase; }
@@ -152,7 +152,6 @@ small { display: block; margin-top: 18px; color: #666d6a; }
   .readiness-summary > div:last-child { grid-column: 1 / -1; }
   .readiness-service-grid { grid-template-columns: 1fr; }
   .readiness-attestations { grid-template-columns: 1fr 1fr; }
-  .readiness-attestations > div:last-child { grid-column: 1 / -1; }
   .readiness-authority { grid-template-columns: 1fr; }
   .readiness-authority small { text-align: left; }
   .reconciliation-summary { grid-template-columns: 1fr 1fr; }

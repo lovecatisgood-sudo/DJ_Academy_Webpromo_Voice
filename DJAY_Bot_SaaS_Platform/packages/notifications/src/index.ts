@@ -22,7 +22,7 @@ export type EmailMessage = Readonly<{
 }>;
 
 export interface EmailDelivery {
-  send(message: EmailMessage): Promise<void>;
+  send(message: EmailMessage, idempotencyKey: string): Promise<void>;
 }
 
 export type FlowbotMerchantEmailItem = Readonly<{
@@ -91,7 +91,7 @@ export async function runFlowbotMerchantEmail(
     if (!item.deliveryAllowed || !item.recipientCiphertext) throw new Error("notification_profile_disabled");
     const recipient = merchantRecipientSchema.parse(openJson<unknown>(item.recipientCiphertext, envelopeKey));
     const payload = merchantLeadPayloadSchema.parse(item.payload);
-    await delivery.send(renderMerchantLead(recipient.email, payload));
+    await delivery.send(renderMerchantLead(recipient.email, payload), item.id);
     await store.finish(item.id, true, null, false);
     return Object.freeze({ status: "sent" as const, outboxId: item.id });
   } catch (error) {
@@ -126,7 +126,7 @@ export async function runAiChatMerchantEmail(
       subject: "Qualified website lead from DJAY Bot",
       text: `A website visitor completed an AI sales conversation. Lead ID: ${payload.leadId}`,
       html: `<p>A website visitor completed an AI sales conversation.</p><p>Lead ID: <strong>${leadId}</strong></p>`,
-    });
+    }, item.id);
     await store.finish(item.id, true, null, false);
     return Object.freeze({ status: "sent" as const, outboxId: item.id });
   } catch (error) {
@@ -181,7 +181,7 @@ export async function runEmailBatch(
   for (const item of items) {
     try {
       const payload = payloadSchema.parse(openJson<unknown>(item.payloadCiphertext, envelopeKey));
-      await delivery.send(render(payload));
+      await delivery.send(render(payload), item.id);
       await store.markSent(item.id, now);
       sent += 1;
     } catch (error) {
@@ -206,13 +206,13 @@ export function createHttpEmailDelivery(config: Readonly<{
   from: string;
 }>): EmailDelivery {
   return {
-    async send(message) {
+    async send(message, idempotencyKey) {
       const response = await fetch(config.endpoint, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${config.apiToken}`,
           "Content-Type": "application/json",
-          "Idempotency-Key": crypto.randomUUID(),
+          "Idempotency-Key": idempotencyKey,
         },
         body: JSON.stringify({ from: config.from, ...message }),
         signal: AbortSignal.timeout(15_000),

@@ -10,6 +10,7 @@ export type OperationalServiceKey = (typeof operationalServiceKeys)[number];
 export type OperationsEnvironment = "staging" | "production";
 export const operationalAttestationKinds = [
   "on_call", "restore", "support_runbook", "security_review", "privacy_review",
+  "event_replay", "queue_recovery", "pool_exhaustion",
 ] as const;
 export type OperationalAttestationKind = (typeof operationalAttestationKinds)[number];
 

@@ -1,8 +1,8 @@
 # P9 Validation: Billing, operations, and paid GA
 
-- Result: Usage, reconciliation, restore, immutable SLO, release-readiness, and public-status engineering gates passed; paid-GA gate remains open
+- Result: Usage, reconciliation, restore, immutable SLO, release-readiness, public-status, replay, queue-recovery, and pool-exhaustion engineering gates passed; paid-GA gate remains open
 - Date: 2026-07-16
-- Schema migration: `0038_release_readiness.sql`
+- Schema migrations: `0038_release_readiness.sql`, `0039_resilience_drills.sql`
 - Public charging: disabled
 - Invoices and commercial mutations: unavailable
 
@@ -16,6 +16,7 @@ scripts/use-node24.sh pnpm --filter @djay/tenant-web typecheck
 scripts/use-node24.sh pnpm --filter @djay/platform-master typecheck
 scripts/use-node24.sh pnpm --filter @djay/db test
 scripts/use-node24.sh pnpm test:db
+scripts/use-node24.sh pnpm run qa:p9-resilience
 scripts/use-node24.sh pnpm run verify
 scripts/use-node24.sh pnpm --filter @djay/tenant-web build
 scripts/use-node24.sh pnpm --filter @djay/platform-master build
@@ -71,9 +72,9 @@ data/schema/policy fingerprints, complete least-privilege role bootstrap,
 restored ACLs, immutable ledger/catalog triggers, forced commerce RLS, and the
 runtime-role Tenant A/Tenant B substitution suite.
 
-Migration 0038 and its integration test prove seven immutable technical
+Migrations 0038/0039 and their integration tests prove seven immutable technical
 objectives, append-only staging/production observations, computed availability,
-five time-limited attestations, idempotent evidence replay, audit records, and a
+eight time-limited attestations, idempotent evidence replay, audit records, and a
 narrow blocking-incident aggregate. An initial test correctly failed when the
 store tried to read a restricted incident table directly; the implementation
 was corrected to a least-privilege security-definer count/timestamp function.
@@ -95,7 +96,7 @@ Visual evidence:
 
 The production Platform Master build exercised Owner desktop, Finance mobile,
 Support desktop, and AI Operations mobile. Every role received the same
-fail-closed 7-service/5-attestation/incident/usage decision with appropriate
+fail-closed 7-service/8-attestation/incident/usage decision with appropriate
 authority guidance. Billing counts remained limited to Owner/Finance. All views
 passed overflow, console, confidentiality, commercial-boundary, and actionable
 failure checks.
@@ -107,6 +108,24 @@ Visual evidence:
 - `/tmp/djay-p9-operations-support-desktop.png`
 - `/tmp/djay-p9-operations-ai-operations-mobile.png`
 
+The focused resilience drill used a fresh PostgreSQL 16 cluster. It deliberately
+applied an email effect and then returned an ambiguous failure, retried with the
+same durable outbox UUID, and proved the provider-effect set remained one. The
+sent item was not claimable again. A second item was abandoned in processing
+with a ten-minute-old lock and was reclaimed through the normal five-minute
+lease path, finishing with exactly two attempts.
+
+The drill then reserved both connections in a constrained pool. The shared
+database readiness probe returned unavailable within the 100ms test deadline,
+created no second outstanding probe, and recovered after one reservation was
+released. A following SQL probe succeeded. `/api/health/ready` returns only the
+safe ready/unavailable state and 503 when the database cannot be confirmed.
+
+The first resilience run exposed a fixture-clock race: the database-created due
+time was milliseconds later than the injected worker time, so the worker
+correctly claimed nothing. The fixture now records its due time explicitly; the
+full database suite and focused `qa:p9-resilience` command pass.
+
 ## Pending P9 gates
 
 - Accepted ADR-008 with payment provider, immutable prices/rates/allowances,
@@ -116,11 +135,13 @@ Visual evidence:
   immutable invoices/credit notes, and customer billing portal.
 - Overage forecast/alerts, approved safety-cap management, and exact customer
   unit rounding under the accepted rate card.
-- Managed-environment backup/PITR, event replay, regional disaster recovery,
-  capacity, real monitoring observations, staffed support/on-call, security,
+- Managed-environment backup/PITR, event replay, queue/pool drills, regional
+  disaster recovery, capacity, real monitoring observations, staffed support/on-call, security,
   privacy, and legal launch exercises. The local separate-cluster restore and
   status/SLO engineering gates are complete but are not substitutes for
   production infrastructure and human-response exercises.
+- Reviewed two-person dead-letter recovery; direct SQL remains prohibited and a
+  dead letter keeps the local/production release gate blocked.
 - End-to-end unfamiliar-SME register/pay/configure/test/launch acceptance.
 
 This evidence does not authorize payment collection, public prices, invoices,

@@ -31,7 +31,10 @@ const readiness = {
       deadLetterCount: 0, sampleCount: 1200, sourceReference: `monitor:qa-${index + 1}`,
     },
   })),
-  attestations: ["on_call", "restore", "support_runbook", "security_review", "privacy_review"].map((kind) => ({
+  attestations: [
+    "on_call", "restore", "support_runbook", "security_review", "privacy_review",
+    "event_replay", "queue_recovery", "pool_exhaustion",
+  ].map((kind) => ({
     kind, passing: true, status: "passed", validUntil: "2026-08-16T09:00:00Z",
     sourceReference: `evidence:${kind}-qa`,
   })),
@@ -137,6 +140,7 @@ async function inspect(name, role, viewport) {
   if (restricted.test(snapshot.reconciliation)) failures.push(`${name}: restricted cost or routing identity visible in reconciliation`);
   if (restricted.test(snapshot.readiness)) failures.push(`${name}: restricted cost or routing identity visible in release readiness`);
   if (!snapshot.readiness.includes("6/7") || !snapshot.readiness.includes("AI conversations") || !snapshot.readiness.toLowerCase().includes("fail-closed")) failures.push(`${name}: actionable release evidence missing`);
+  if (!snapshot.readiness.includes("8/8") || !snapshot.readiness.toLowerCase().includes("event replay") || !snapshot.readiness.toLowerCase().includes("pool exhaustion")) failures.push(`${name}: resilience drill evidence missing`);
   if (["platform_owner", "platform_finance"].includes(role) && (!snapshot.body.toLowerCase().includes("attention required") || !snapshot.body.includes("Siam Growth Studio"))) failures.push(`${name}: actionable variance evidence missing`);
   if (["platform_owner", "platform_finance"].includes(role) && !snapshot.body.includes("does not enable charging")) failures.push(`${name}: commercial boundary missing`);
   if (role === "platform_owner" && !snapshot.body.includes("Platform Owner review")) failures.push(`${name}: owner authority guidance missing`);

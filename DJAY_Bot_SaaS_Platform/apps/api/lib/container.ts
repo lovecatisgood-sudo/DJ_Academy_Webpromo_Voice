@@ -17,6 +17,7 @@ import {
   AiSocialConnectionStore,
   AiSocialRuntimeStore,
   createDatabaseClient,
+  DatabaseReadinessProbe,
   BillingWebhookStore,
   FlowBotStore,
   TenantFlowbotNotificationStore,
@@ -163,6 +164,7 @@ async function buildServices() {
     privacyExportKey: env.PRIVACY_EXPORT_KEY
       ? parse32ByteSecret(env.PRIVACY_EXPORT_KEY, "PRIVACY_EXPORT_KEY") : null,
     catalog: new PostgresCatalogStore(client),
+    databaseReadiness: new DatabaseReadinessProbe(client),
     platformCommerce: new PlatformCommerceStore(platformClient),
     platformOperations: new PlatformOperationsStore(platformClient),
     platformVoiceOperations: new PlatformVoiceOperationsStore(platformClient),

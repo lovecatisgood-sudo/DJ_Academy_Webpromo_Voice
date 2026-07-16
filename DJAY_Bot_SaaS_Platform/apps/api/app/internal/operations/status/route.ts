@@ -10,6 +10,7 @@ const operationalServiceKeys = [
 ] as const;
 const operationalAttestationKinds = [
   "on_call", "restore", "support_runbook", "security_review", "privacy_review",
+  "event_replay", "queue_recovery", "pool_exhaustion",
 ] as const;
 
 const digest = z.string().regex(/^[a-f0-9]{64}$/);

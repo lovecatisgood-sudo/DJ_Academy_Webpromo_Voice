@@ -20,8 +20,9 @@ sample count, is no older than 30 minutes, passes the recorded P95 latency
 target, stays within any queue-age target, and has zero dead letters. These are
 engineering release baselines, not contractual customer SLAs.
 
-The five required attestations are on-call coverage, restore evidence, support
-runbook review, security review, and privacy review. Each is append-only,
+The eight required attestations are on-call coverage, restore evidence, support
+runbook review, security review, privacy review, event replay, queue recovery,
+and pool exhaustion. Each is append-only,
 evidence-hashed, explicitly passed or failed, and valid for no more than 90
 days. A newer failed or expired attestation blocks release.
 
@@ -46,6 +47,9 @@ routes, credentials, costs, tenant identifiers, or incident detail.
   dead-letter evidence blocks the internal release gate.
 - Any unresolved major/critical Voice incident or usage reconciliation variance
   blocks the gate.
+- Missing, failed, or expired replay, queue-recovery, or pool-exhaustion drill
+  evidence blocks the gate. A local drill does not qualify production; each
+  environment records its own evidence.
 - Public status reports `unknown` when current evidence cannot support a health
   claim. A failing service reports an outage; a near-threshold failure reports
   degraded when the stored policy permits that classification.

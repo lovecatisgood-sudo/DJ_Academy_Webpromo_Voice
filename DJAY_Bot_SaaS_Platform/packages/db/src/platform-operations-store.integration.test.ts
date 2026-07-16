@@ -38,7 +38,7 @@ describe.runIf(enabled)("P9 release readiness operations", () => {
     expect(initial).toMatchObject({ status: "blocked", environment: "staging" });
     expect(initial.services).toHaveLength(7);
     expect(initial.services.every((service) => service.status === "missing")).toBe(true);
-    expect(initial.attestations).toHaveLength(5);
+    expect(initial.attestations).toHaveLength(8);
 
     for (const environment of ["staging", "production"] as const) {
       for (const [index, serviceKey] of operationalServiceKeys.entries()) {
@@ -101,6 +101,6 @@ describe.runIf(enabled)("P9 release readiness operations", () => {
       WHERE action IN ('operations.slo_observation.recorded', 'operations.attestation.recorded')
         AND created_at >= ${new Date(now.getTime() - 1_000)}
     `;
-    expect(audit[0]?.count).toBe(20);
+    expect(audit[0]?.count).toBe(23);
   });
 });

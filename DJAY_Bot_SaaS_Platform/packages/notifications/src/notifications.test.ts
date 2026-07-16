@@ -1,10 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { sealJson } from "@djay/auth";
 import {
-  runAiChatMerchantEmail, runEmailBatch, runFlowbotMerchantEmail, type EmailDelivery, type EmailOutboxStore,
+  createHttpEmailDelivery, runAiChatMerchantEmail, runEmailBatch, runFlowbotMerchantEmail, type EmailDelivery, type EmailOutboxStore,
   type FlowbotMerchantEmailStore,
 } from "./index";
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("email outbox worker", () => {
   it("opens encrypted payloads, renders an allow-listed template, and marks delivery", async () => {
@@ -15,9 +17,9 @@ describe("email outbox worker", () => {
       async markSent(id) { events.push(`sent:${id}`); },
       async markFailed(id) { events.push(`failed:${id}`); },
     };
-    const delivery: EmailDelivery = { async send(message) { events.push(`deliver:${message.to}:${message.subject}`); } };
+    const delivery: EmailDelivery = { async send(message, idempotencyKey) { events.push(`deliver:${message.to}:${message.subject}:${idempotencyKey}`); } };
     await expect(runEmailBatch(store, delivery, key)).resolves.toEqual({ claimed: 1, sent: 1, failed: 0 });
-    expect(events).toEqual(["deliver:owner@example.test:Verify your DJAY Bot account", "sent:job-1"]);
+    expect(events).toEqual(["deliver:owner@example.test:Verify your DJAY Bot account:job-1", "sent:job-1"]);
   });
 
   it("records a bounded error code without exposing payload data", async () => {
@@ -30,6 +32,25 @@ describe("email outbox worker", () => {
     };
     await expect(runEmailBatch(store, { async send() {} }, key)).resolves.toEqual({ claimed: 1, sent: 0, failed: 1 });
     expect(failure).toBe("delivery_failed:true");
+  });
+});
+
+describe("HTTP email delivery", () => {
+  it("reuses the durable outbox ID as the provider idempotency key", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const delivery = createHttpEmailDelivery({
+      endpoint: "https://email.example.test/messages",
+      apiToken: "test-email-token-value",
+      from: "DJAY Bot <no-reply@example.test>",
+    });
+    const message = { to: "owner@example.test", subject: "Test", text: "Test", html: "<p>Test</p>" };
+    await delivery.send(message, "durable-outbox-id");
+    await delivery.send(message, "durable-outbox-id");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const call of fetchMock.mock.calls) {
+      expect(call[1]?.headers).toMatchObject({ "Idempotency-Key": "durable-outbox-id" });
+    }
   });
 });
 
