@@ -19,7 +19,9 @@ if (!read("packages/shared/src/website-deployment-fields.ts").includes("maxLengt
 }
 
 const salesCore = read("packages/sales-core/src/index.ts");
-if (!/greeting: z\.object\(\{ th: z\.string\(\)\.trim\(\)\.min\(1\)\.max\(500\), en: z\.string\(\)\.trim\(\)\.min\(1\)\.max\(500\)/.test(salesCore)) {
+if (!salesCore.includes("localizedMessage: Object.freeze({ minLength: 1, maxLength: 500 })")
+  || !salesCore.includes("th: z.string().trim().min(aiPlaybookFieldLimits.localizedMessage.minLength).max(aiPlaybookFieldLimits.localizedMessage.maxLength)")
+  || !salesCore.includes("en: z.string().trim().min(aiPlaybookFieldLimits.localizedMessage.minLength).max(aiPlaybookFieldLimits.localizedMessage.maxLength)")) {
   failures.push("Immutable Sales Core greeting boundary is no longer 1–500 characters");
 }
 

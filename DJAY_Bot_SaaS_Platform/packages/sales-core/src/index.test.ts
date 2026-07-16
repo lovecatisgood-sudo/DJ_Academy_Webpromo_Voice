@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chunkKnowledge, salesCoreOutputSchema, selectRelevantKnowledge } from "./index";
+import { aiPlaybookFieldLimits, aiPlaybookSchema, chunkKnowledge, salesCoreOutputSchema, selectRelevantKnowledge } from "./index";
 
 const ids = {
   revision: "11111111-1111-4111-8111-111111111111",
@@ -7,6 +7,33 @@ const ids = {
 };
 
 describe("Sales Conversation Core contract", () => {
+  it("publishes browser-safe playbook boundaries and rejects invalid timezones", () => {
+    expect(aiPlaybookFieldLimits).toMatchObject({
+      agentName: { minLength: 2, maxLength: 100 },
+      businessName: { minLength: 2, maxLength: 200 },
+      localizedMessage: { minLength: 1, maxLength: 500 },
+      weeklyWindows: { maxItems: 21 },
+    });
+    expect(aiPlaybookSchema.safeParse({
+      schemaVersion: 1,
+      playbookVersionId: "54000000-0000-4000-8000-000000000001",
+      businessName: "Studio",
+      agentName: "Mali",
+      languages: ["en"],
+      tone: "Warm",
+      salesGoal: "Qualify interest",
+      approvedClaims: [],
+      prohibitedClaims: [],
+      discoveryQuestions: ["What would you like to improve?"],
+      ctaPolicy: ["Offer a consultation"],
+      requiredContactFields: ["name", "email"],
+      greeting: { th: "สวัสดี", en: "Hello" },
+      offlineMessage: { th: "ติดต่อกลับ", en: "We will follow up" },
+      timezone: "not/a-timezone",
+      weeklyWindows: [],
+    }).success).toBe(false);
+  });
+
   it("accepts a grounded bilingual discovery turn without effects", () => {
     expect(salesCoreOutputSchema.parse({
       schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover_pain",

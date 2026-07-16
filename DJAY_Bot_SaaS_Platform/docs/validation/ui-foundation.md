@@ -63,6 +63,9 @@ Finance roles. It verified:
   assertive correction with zero mutations;
 - FlowBot visual titles/copy match domain limits, malformed Advanced JSON keeps
   its repair control, and invalid per-node JSON cannot silently save stale data;
+- AI Chat uses a responsive guided Sales Core editor across desktop and mobile;
+  invalid timezone/schema input remains local, malformed Advanced JSON remains
+  repairable, and unsaved visible changes cannot publish an older draft;
 - a branded registration completion and invalid-link recovery journey with one
   anti-enumerating, retryable verification resend control;
 - correct permission-derived tenant and Platform navigation;

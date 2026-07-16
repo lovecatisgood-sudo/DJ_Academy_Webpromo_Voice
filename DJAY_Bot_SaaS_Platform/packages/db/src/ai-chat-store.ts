@@ -123,8 +123,6 @@ export class AiChatStore {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await this.authority(sql, context.tenantId);
       if (!authority || authority.accessMode !== "active" || authority.entitlements["ai.text"] !== true) return { status: "not_entitled" as const };
-      try { new Intl.DateTimeFormat("en", { timeZone: definition.timezone }).format(new Date()); }
-      catch { return { status: "validation_failed" as const, issues: ["invalid_timezone"] } as const; }
       const revisionIds = [...new Set(input.knowledgeRevisionIds)];
       const available = revisionIds.length ? await sql<{ count: number }[]>`
         SELECT count(*)::int AS count FROM tenancy.knowledge_source_revisions

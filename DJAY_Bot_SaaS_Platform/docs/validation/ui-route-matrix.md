@@ -81,6 +81,15 @@ proves that:
 - FlowBot keeps malformed Advanced JSON editable, announces node-schema errors,
   and rejects invalid visual titles or per-node settings with zero draft PATCH
   requests before accepting one corrected mutation;
+- AI Chat exposes guided identity, goals, policy, bilingual messages, contact,
+  timezone, and availability fields rather than mandatory raw JSON; invalid
+  timezone and malformed Advanced JSON journeys preserve correction state and
+  send zero draft PATCH requests, while one repaired playbook sends one update;
+- AI Chat Publish is unavailable for unsaved guided, Advanced JSON, or knowledge
+  changes, preventing a visible draft from silently publishing its prior saved
+  revision;
+- AI Chat multiline lists preserve newline entry, and dismissing the unsaved
+  agent-switch warning keeps the current draft intact;
 - every exercised UI state passes the automated axe WCAG 2.2 A/AA rule set,
   including document titles, contrast, keyboard-scroll access, and ARIA
   structure;

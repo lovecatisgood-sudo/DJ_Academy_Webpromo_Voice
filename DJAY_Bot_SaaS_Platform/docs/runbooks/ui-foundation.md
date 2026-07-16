@@ -257,6 +257,18 @@ Malformed Advanced JSON must retain the same editable value and an open repair
 control. Per-node JSON must not update the rendered definition until it parses
 and passes `flowNodeSchema`, and any pending node-settings error must block Save.
 
+AI Chat authoring must render `AiPlaybookEditor` instead of requiring merchant
+administrators to author raw Sales Core JSON. Its guided identity, policy,
+message, contact, timezone, and availability fields must use
+`aiPlaybookFieldLimits`, and the complete candidate must pass
+`aiPlaybookSchema` before PATCH. Advanced JSON remains an expert escape hatch:
+malformed or schema-invalid text stays visible and editable, disables guided
+fields, and sends no stale mutation. Any visible playbook or knowledge change
+must make Publish unavailable until Save succeeds and the authoritative draft
+is reloaded. Preserve blank/newline editing in list fields, protect browser
+navigation while dirty, and require explicit confirmation before switching to
+another agent with unsaved work.
+
 Do not promote when this gate fails. A passing local gate does not replace
 manual keyboard, screen-reader, zoom/reflow, cognitive, or representative-device
 review. It also does not replace named-merchant acceptance, managed service

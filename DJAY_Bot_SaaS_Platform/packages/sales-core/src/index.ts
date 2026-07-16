@@ -5,27 +5,57 @@ export const salesStageSchema = z.enum([
   "S5_OBJECTION", "S6_CTA", "S7_CONTACT", "S8_APPOINTMENT", "S9_ACTION_CLOSE",
 ]);
 
+export const aiPlaybookFieldLimits = Object.freeze({
+  agentName: Object.freeze({ minLength: 2, maxLength: 100 }),
+  businessName: Object.freeze({ minLength: 2, maxLength: 200 }),
+  tone: Object.freeze({ minLength: 2, maxLength: 200 }),
+  salesGoal: Object.freeze({ minLength: 2, maxLength: 500 }),
+  claim: Object.freeze({ minLength: 1, maxLength: 500, maxItems: 100 }),
+  discoveryQuestion: Object.freeze({ minLength: 1, maxLength: 300, maxItems: 30 }),
+  ctaPolicy: Object.freeze({ minLength: 1, maxLength: 300, maxItems: 20 }),
+  localizedMessage: Object.freeze({ minLength: 1, maxLength: 500 }),
+  timezone: Object.freeze({ minLength: 1, maxLength: 100 }),
+  weeklyWindows: Object.freeze({ maxItems: 21 }),
+});
+
+export function isValidIanaTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value }).format(new Date(0));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const aiPlaybookSchema = z.object({
   schemaVersion: z.literal(1),
   playbookVersionId: z.uuid(),
-  businessName: z.string().trim().min(2).max(200),
-  agentName: z.string().trim().min(2).max(100),
+  businessName: z.string().trim().min(aiPlaybookFieldLimits.businessName.minLength).max(aiPlaybookFieldLimits.businessName.maxLength),
+  agentName: z.string().trim().min(aiPlaybookFieldLimits.agentName.minLength).max(aiPlaybookFieldLimits.agentName.maxLength),
   languages: z.array(z.enum(["th", "en"])).min(1).max(2),
-  tone: z.string().trim().min(2).max(200),
-  salesGoal: z.string().trim().min(2).max(500),
-  approvedClaims: z.array(z.string().trim().min(1).max(500)).max(100),
-  prohibitedClaims: z.array(z.string().trim().min(1).max(500)).max(100),
-  discoveryQuestions: z.array(z.string().trim().min(1).max(300)).min(1).max(30),
-  ctaPolicy: z.array(z.string().trim().min(1).max(300)).min(1).max(20),
+  tone: z.string().trim().min(aiPlaybookFieldLimits.tone.minLength).max(aiPlaybookFieldLimits.tone.maxLength),
+  salesGoal: z.string().trim().min(aiPlaybookFieldLimits.salesGoal.minLength).max(aiPlaybookFieldLimits.salesGoal.maxLength),
+  approvedClaims: z.array(z.string().trim().min(aiPlaybookFieldLimits.claim.minLength).max(aiPlaybookFieldLimits.claim.maxLength)).max(aiPlaybookFieldLimits.claim.maxItems),
+  prohibitedClaims: z.array(z.string().trim().min(aiPlaybookFieldLimits.claim.minLength).max(aiPlaybookFieldLimits.claim.maxLength)).max(aiPlaybookFieldLimits.claim.maxItems),
+  discoveryQuestions: z.array(z.string().trim().min(aiPlaybookFieldLimits.discoveryQuestion.minLength).max(aiPlaybookFieldLimits.discoveryQuestion.maxLength)).min(1).max(aiPlaybookFieldLimits.discoveryQuestion.maxItems),
+  ctaPolicy: z.array(z.string().trim().min(aiPlaybookFieldLimits.ctaPolicy.minLength).max(aiPlaybookFieldLimits.ctaPolicy.maxLength)).min(1).max(aiPlaybookFieldLimits.ctaPolicy.maxItems),
   requiredContactFields: z.array(z.enum(["name", "email", "phone"])).min(2).max(3),
-  greeting: z.object({ th: z.string().trim().min(1).max(500), en: z.string().trim().min(1).max(500) }).strict(),
-  offlineMessage: z.object({ th: z.string().trim().min(1).max(500), en: z.string().trim().min(1).max(500) }).strict(),
-  timezone: z.string().trim().min(1).max(100),
+  greeting: z.object({
+    th: z.string().trim().min(aiPlaybookFieldLimits.localizedMessage.minLength).max(aiPlaybookFieldLimits.localizedMessage.maxLength),
+    en: z.string().trim().min(aiPlaybookFieldLimits.localizedMessage.minLength).max(aiPlaybookFieldLimits.localizedMessage.maxLength),
+  }).strict(),
+  offlineMessage: z.object({
+    th: z.string().trim().min(aiPlaybookFieldLimits.localizedMessage.minLength).max(aiPlaybookFieldLimits.localizedMessage.maxLength),
+    en: z.string().trim().min(aiPlaybookFieldLimits.localizedMessage.minLength).max(aiPlaybookFieldLimits.localizedMessage.maxLength),
+  }).strict(),
+  timezone: z.string().trim().min(aiPlaybookFieldLimits.timezone.minLength).max(aiPlaybookFieldLimits.timezone.maxLength)
+    .refine(isValidIanaTimeZone, "Enter a valid IANA timezone, such as Asia/Bangkok."),
   weeklyWindows: z.array(z.object({
     dayOfWeek: z.number().int().min(0).max(6),
     startMinute: z.number().int().min(0).max(1439),
     endMinute: z.number().int().min(1).max(1440),
-  }).strict().refine((value) => value.endMinute > value.startMinute)).max(21),
+  }).strict().refine((value) => value.endMinute > value.startMinute, "End time must be after start time."))
+    .max(aiPlaybookFieldLimits.weeklyWindows.maxItems),
   notificationProfileId: z.uuid().optional(),
 }).strict();
 

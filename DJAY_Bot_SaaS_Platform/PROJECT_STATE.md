@@ -67,6 +67,11 @@ ordered inbound events, idempotent Sales Core turns, atomic actions and usage,
 durable outbound delivery, resumable multipart Meta delivery, channel analytics,
 and aggregate Platform Operations health. P5 AI Chatbot Basic remains Web-only
 and provider-neutral.
+AI Chat Studio now presents the complete Sales Core playbook through guided,
+responsive merchant fields rather than mandatory raw JSON. The browser shares
+the runtime schema limits and IANA timezone authority, keeps malformed Advanced
+JSON visible for repair, blocks invalid draft transport, and prevents an
+unsaved visible draft from publishing the older stored revision.
 
 ## P4 release checkpoint
 
@@ -302,3 +307,7 @@ or social production activation, AI Chat self-service, or paid launch without
 the remaining external acceptance gates. FlowBot, AI Chat, and Voice customer
 widgets now pass one canonical brand/accessibility browser contract and ship
 together in a hashed seventh static release artifact.
+The final packaged AI Chat gate also proves guided field boundaries, invalid
+timezone focus with zero PATCHes, Advanced JSON preservation/recovery, exactly
+one normalized corrected update, unsaved-publish denial, desktop/mobile
+responsiveness, and the existing provider-confidentiality boundary.

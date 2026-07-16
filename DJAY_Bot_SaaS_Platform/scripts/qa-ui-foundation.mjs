@@ -178,7 +178,15 @@ async function mockTenantRole(page, role, requestedPaths, failedPaths, abortedMu
     if (path === "/tenant/flowbot/downgrade-preflight") return json(route, { preflight: null });
     if (path === "/tenant/flowbot/notifications") return json(route, { notifications: [] });
     if (path === "/tenant/ai-chat/agents" && productDetail) return json(route, { agents: [{ id: "60000000-0000-4000-8000-000000000001", name: "Sales assistant", status: "published", defaultLanguage: "en", currentPublishedPlaybookVersionId: "70000000-0000-4000-8000-000000000001", draftRevision: 1, deploymentCount: 1 }], capabilities: { planKey: "ai_chat_premium", accessMode: "active", web: true, social: { line: true, whatsapp: true, messenger: true }, limits: { deployments: 10, knowledgeDocuments: 100 } } });
-    if (path === "/tenant/ai-chat/agents/60000000-0000-4000-8000-000000000001/draft") return json(route, { draft: { revision: 1, definition: {}, knowledgeRevisionIds: [], updatedAt: new Date().toISOString() } });
+    if (path === "/tenant/ai-chat/agents/60000000-0000-4000-8000-000000000001/draft") return json(route, { draft: { revision: 1, definition: {
+      schemaVersion: 1, playbookVersionId: "70000000-0000-4000-8000-000000000001",
+      businessName: "Bangkok Service Studio", agentName: "Sales assistant", languages: ["en", "th"],
+      tone: "Warm and concise", salesGoal: "Qualify consultation interest", approvedClaims: [],
+      prohibitedClaims: ["Unsupported guarantees"], discoveryQuestions: ["What would you like to improve?"],
+      ctaPolicy: ["Offer a consultation request"], requiredContactFields: ["name", "email"],
+      greeting: { th: "สวัสดี", en: "Hello" }, offlineMessage: { th: "ทีมงานจะติดต่อกลับ", en: "Our team will follow up" },
+      timezone: "Asia/Bangkok", weeklyWindows: [],
+    }, knowledgeRevisionIds: [], updatedAt: new Date().toISOString() } });
     if (path === "/tenant/ai-chat/agents/60000000-0000-4000-8000-000000000001/deployments") return json(route, { deployments: [{ id: "80000000-0000-4000-8000-000000000001", name: "Website", channel: "web", keyPrefix: "chat_qa", allowedOrigins: ["https://merchant.example"], status: "active", createdAt: new Date().toISOString() }] });
     if (path === "/tenant/ai-chat/agents") return json(route, { agents: [], capabilities: { planKey: "ai_chat_basic", accessMode: "active", web: true, social: { line: false, whatsapp: false, messenger: false }, limits: { deployments: 1, knowledgeDocuments: 10 } } });
     if (path === "/tenant/ai-chat/notifications") return json(route, { notifications: [] });

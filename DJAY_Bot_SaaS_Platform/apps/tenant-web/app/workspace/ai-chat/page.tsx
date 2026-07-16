@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { aiPlaybookSchema, type AiPlaybook } from "@djay/sales-core";
 import { safeMutationFetch } from "@djay/shared";
 import { createSocialCallbackUrl, createWidgetInstallSnippet } from "@djay/shared/widget-install";
 import { tenantWidgetInstallEnvironment } from "../../../lib/widget-install-environment";
@@ -9,6 +10,7 @@ import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceA
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { WebsiteDeploymentForm } from "../WebsiteDeploymentForm";
 import { useWorkspaceSession } from "../useWorkspaceSession";
+import { AiPlaybookEditor } from "./AiPlaybookEditor";
 
 type Agent = { id: string; name: string; status: string; defaultLanguage: "th" | "en"; currentPublishedPlaybookVersionId: string | null; draftRevision: number; deploymentCount: number };
 type Capabilities = { planKey: "ai_chat_basic" | "ai_chat_premium"; accessMode: string; web: boolean; social: Record<string, boolean>; limits: { deployments: number | null; knowledgeDocuments: number | null } };
@@ -21,16 +23,27 @@ type ChannelAnalytics = { channel: "web" | "line" | "whatsapp" | "messenger"; se
 type Analytics = { periodDays: number; level: string; sessions: number; completedTurns: number; failedTurns: number; handovers: number; leads: number; appointmentRequests: number; settledResponses: number; channels?: ChannelAnalytics[] };
 type SocialConnection = { id: string; agentId: string; channel: "line" | "whatsapp" | "messenger"; name: string; externalAccountRef: string; status: string; healthStatus: string; safeErrorCode: string | null; lastHealthAt: string | null; pendingDeliveries: number; failedDeliveries: number; deadLetterDeliveries: number; succeededDeliveries: number; attemptedQuantity: number };
 
-function notificationProfileFrom(value: string) {
-  try { const parsed = JSON.parse(value) as { notificationProfileId?: unknown }; return typeof parsed.notificationProfileId === "string" ? parsed.notificationProfileId : ""; }
-  catch { return ""; }
+function playbookValidationMessage(path: string, issue: string): string {
+  const labels: Record<string, string> = {
+    agentName: "Assistant name", businessName: "Business name", languages: "Conversation languages",
+    tone: "Tone", salesGoal: "Sales goal", approvedClaims: "Approved claims",
+    prohibitedClaims: "Prohibited claims", discoveryQuestions: "Discovery questions",
+    ctaPolicy: "Calls to action", requiredContactFields: "Required contact details",
+    greeting: "Greeting", offlineMessage: "Offline message", timezone: "Timezone",
+    weeklyWindows: "Business hours",
+  };
+  const label = labels[path.split(".")[0] || ""] || "Playbook";
+  return `${label}: ${issue}`;
 }
 
 export default function AiChatPage() {
   const session = useWorkspaceSession();
   const [agents, setAgents] = useState<Agent[]>([]); const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState(""); const [draft, setDraft] = useState<Draft | null>(null);
-  const [definitionText, setDefinitionText] = useState(""); const [knowledge, setKnowledge] = useState<Knowledge[]>([]);
+  const [definition, setDefinition] = useState<AiPlaybook | null>(null); const [definitionText, setDefinitionText] = useState("");
+  const [advancedPending, setAdvancedPending] = useState(false); const [draftDirty, setDraftDirty] = useState(false);
+  const [validationPath, setValidationPath] = useState(""); const [validationMessage, setValidationMessage] = useState("");
+  const [knowledge, setKnowledge] = useState<Knowledge[]>([]);
   const [selectedKnowledge, setSelectedKnowledge] = useState<string[]>([]); const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]); const [newDeploymentKey, setNewDeploymentKey] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null); const [analytics, setAnalytics] = useState<Analytics | null>(null);
@@ -81,19 +94,27 @@ export default function AiChatPage() {
     } catch { setSocialConnections([]); setSocialLoadError(true); }
   }
   async function loadAgent(agentId: string) {
-    if (!agentId) { setDraft(null); setDeployments([]); return; }
+    if (!agentId) { setDraft(null); setDefinition(null); setDeployments([]); return; }
     try {
       const [draftResponse, deploymentResponse] = await Promise.all([
         fetch(`/tenant/ai-chat/agents/${agentId}/draft`, { cache: "no-store" }),
         fetch(`/tenant/ai-chat/agents/${agentId}/deployments`, { cache: "no-store" }),
       ]);
       if (!draftResponse.ok || !deploymentResponse.ok) throw new Error("ai_chat_detail_unavailable");
-      const value = (await draftResponse.json()).draft as Draft; setDraft(value); setDefinitionText(JSON.stringify(value.definition, null, 2)); setSelectedKnowledge(value.knowledgeRevisionIds);
+      const value = (await draftResponse.json()).draft as Draft; const parsed = aiPlaybookSchema.safeParse(value.definition); if (!parsed.success) throw new Error("invalid_ai_playbook");
+      setDraft(value); setDefinition(parsed.data); setDefinitionText(JSON.stringify(parsed.data, null, 2)); setSelectedKnowledge(value.knowledgeRevisionIds);
+      setAdvancedPending(false); setDraftDirty(false); setValidationPath(""); setValidationMessage("");
       setDeployments((await deploymentResponse.json()).deployments || []); setLoadError(false);
     } catch { setLoadError(true); }
   }
   useEffect(() => { if (session.selectedTenantId) { void loadAgents(); void loadShared(); } }, [session.selectedTenantId]);
   useEffect(() => { void loadAgent(selectedAgentId); setPreview(null); }, [selectedAgentId]);
+  useEffect(() => {
+    if (!draftDirty) return;
+    const protectDraft = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", protectDraft);
+    return () => window.removeEventListener("beforeunload", protectDraft);
+  }, [draftDirty]);
 
   async function createAgent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); setWorking(true); setMessage("");
@@ -104,11 +125,22 @@ export default function AiChatPage() {
   async function saveDraft() {
     if (!draft || !selectedAgentId) return; setWorking(true); setMessage("");
     try {
-      const definition = JSON.parse(definitionText);
-      const response = await safeMutationFetch(`/tenant/ai-chat/agents/${selectedAgentId}/draft`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: draft.revision, definition, knowledgeRevisionIds: selectedKnowledge }) });
+      const candidate = JSON.parse(definitionText) as unknown; const parsed = aiPlaybookSchema.safeParse(candidate);
+      if (!parsed.success) {
+        const issue = parsed.error.issues[0]!; const path = issue.path.map(String).join(".") || "advanced";
+        setWorking(false); setValidationPath(path); setValidationMessage(playbookValidationMessage(path, issue.message));
+        requestAnimationFrame(() => {
+          const exact = document.querySelector<HTMLElement>(`[data-ai-playbook-path="${CSS.escape(path)}"]`);
+          const root = path.split(".")[0] || "";
+          (exact || document.querySelector<HTMLElement>(`[data-ai-playbook-path="${CSS.escape(root)}"]`) || document.querySelector<HTMLElement>("[data-ai-playbook-json]"))?.focus();
+        });
+        return;
+      }
+      setDefinition(parsed.data); setAdvancedPending(false); setValidationPath(""); setValidationMessage("");
+      const response = await safeMutationFetch(`/tenant/ai-chat/agents/${selectedAgentId}/draft`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: draft.revision, definition: parsed.data, knowledgeRevisionIds: selectedKnowledge }) });
       setWorking(false); if (!response.ok) { setMessage(response.status === 409 ? "Draft changed elsewhere. Reload before saving." : "Draft validation failed."); return; }
       setMessage("Draft and knowledge pins saved."); await loadAgent(selectedAgentId);
-    } catch { setWorking(false); setMessage("Playbook must be valid JSON."); }
+    } catch { setWorking(false); setAdvancedPending(true); setValidationPath("advanced"); setValidationMessage("Advanced JSON must be valid before this draft can be saved."); requestAnimationFrame(() => document.querySelector<HTMLElement>("[data-ai-playbook-json]")?.focus()); }
   }
   async function publish() {
     if (!selectedAgentId) return; setWorking(true);
@@ -218,8 +250,30 @@ export default function AiChatPage() {
     setMessage(response.ok ? "Channel connection revoked." : "Connection could not be revoked."); await loadShared(); await loadAgent(selectedAgentId);
   }
   function setNotificationProfile(profileId: string) {
-    try { const value = JSON.parse(definitionText); if (profileId) value.notificationProfileId = profileId; else delete value.notificationProfileId; setDefinitionText(JSON.stringify(value, null, 2)); }
-    catch { setMessage("Fix the playbook JSON before selecting a recipient."); }
+    if (!definition || advancedPending) { setMessage("Fix the Advanced JSON before selecting a recipient."); return; }
+    const next = { ...definition }; if (profileId) next.notificationProfileId = profileId; else delete next.notificationProfileId;
+    updateDefinition(next);
+  }
+  function updateDefinition(next: AiPlaybook) {
+    setDefinition(next); setDefinitionText(JSON.stringify(next, null, 2)); setAdvancedPending(false); setDraftDirty(true); setValidationPath(""); setValidationMessage("");
+  }
+  function changeAdvancedDefinition(value: string) {
+    setDefinitionText(value); setAdvancedPending(true); setDraftDirty(true); setValidationPath(""); setValidationMessage("");
+  }
+  function validateAdvancedDefinition() {
+    try {
+      const parsed = aiPlaybookSchema.safeParse(JSON.parse(definitionText) as unknown);
+      if (!parsed.success) {
+        const issue = parsed.error.issues[0]!; const path = issue.path.map(String).join(".") || "advanced";
+        setValidationPath("advanced"); setValidationMessage(playbookValidationMessage(path, issue.message)); return;
+      }
+      setDefinition(parsed.data); setDefinitionText(JSON.stringify(parsed.data, null, 2)); setAdvancedPending(false); setValidationPath(""); setValidationMessage("");
+    } catch { setValidationPath("advanced"); setValidationMessage("Advanced JSON must be valid. Your text is preserved so you can repair it."); }
+  }
+  function selectAgent(agentId: string) {
+    if (agentId === selectedAgentId) return;
+    if (draftDirty && !window.confirm("Discard the unsaved playbook and knowledge changes?")) return;
+    setSelectedAgentId(agentId);
   }
 
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
@@ -230,15 +284,15 @@ export default function AiChatPage() {
       <header className="workspace-header"><div><p>Grounded sales conversations</p><h1>AI Chat</h1></div><span className="role-label">{capabilities?.planKey.replace("ai_chat_", "") || "unavailable"} / {capabilities?.accessMode || "none"}</span></header>
       <section className="tool-band flowbot-control-band"><div className="band-heading"><div><p>Agents</p><h2>Sales assistants</h2></div><span>{agents.length}</span></div>
         {canAuthor ? <form className="ai-agent-create" onSubmit={createAgent}><label>Agent name<input name="name" minLength={2} maxLength={100} required /></label><label>Business name<input name="businessName" minLength={2} maxLength={200} required /></label><label>Language<select name="defaultLanguage" defaultValue="en"><option value="en">English</option><option value="th">Thai</option></select></label><button disabled={working}>Create agent</button></form> : null}
-        <div className="flowbot-tabs">{agents.map((agent) => <button type="button" className={agent.id === selectedAgentId ? "selected" : ""} key={agent.id} onClick={() => setSelectedAgentId(agent.id)}><strong>{agent.name}</strong><span>{agent.status} / {agent.deploymentCount} deployments</span></button>)}</div>
+        <div className="flowbot-tabs">{agents.map((agent) => <button type="button" className={agent.id === selectedAgentId ? "selected" : ""} key={agent.id} onClick={() => selectAgent(agent.id)}><strong>{agent.name}</strong><span>{agent.status} / {agent.deploymentCount} deployments</span></button>)}</div>
         {!agents.length ? <div className="pending-line"><strong>No AI agents</strong><span>Create the first grounded sales assistant.</span></div> : null}
       </section>
-      {selectedAgent && draft ? <>
+      {selectedAgent && draft && definition ? <>
         <section className="tool-band"><div className="band-heading"><div><p>Draft revision {draft.revision}</p><h2>{selectedAgent.name} playbook</h2></div><span>{selectedKnowledge.length} knowledge pins</span></div>
-          <div className="ai-authoring-grid"><div><label>Approved knowledge</label><div className="knowledge-picker">{knowledgeLoadError ? <div className="pending-line inline-retry" role="alert"><strong>Knowledge options could not be loaded</strong><button className="secondary-command" type="button" onClick={() => void loadShared()}>Try again</button></div> : knowledge.map((source) => <label key={source.revisionId}><input type="checkbox" checked={selectedKnowledge.includes(source.revisionId)} disabled={!canAuthor} onChange={(event) => setSelectedKnowledge((current) => event.target.checked ? [...current, source.revisionId] : current.filter((id) => id !== source.revisionId))} /> {source.name} <small>v{source.version}</small></label>)}</div></div>
-            <label>Qualified-lead recipient<select disabled={!canAuthor || notificationsLoadError} value={notificationProfileFrom(definitionText)} onChange={(event) => setNotificationProfile(event.target.value)}><option value="">{notificationsLoadError ? "Recipients unavailable" : "No email action"}</option>{notifications.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select>{notificationsLoadError ? <span className="field-help" role="alert">Recipient options could not be loaded.</span> : null}</label></div>
-          <details className="advanced-definition" open><summary>Sales Core playbook JSON</summary><textarea aria-label="AI sales playbook" readOnly={!canAuthor} value={definitionText} onChange={(event) => setDefinitionText(event.target.value)} /></details>
-          {canAuthor ? <div className="flowbot-actions"><button type="button" className="secondary-command" disabled={working} onClick={() => void saveDraft()}>Save draft</button><button type="button" disabled={working} onClick={() => void publish()}>Publish immutable version</button></div> : null}
+          <div className="ai-authoring-grid"><div><label>Approved knowledge</label><div className="knowledge-picker">{knowledgeLoadError ? <div className="pending-line inline-retry" role="alert"><strong>Knowledge options could not be loaded</strong><button className="secondary-command" type="button" onClick={() => void loadShared()}>Try again</button></div> : knowledge.map((source) => <label key={source.revisionId}><input type="checkbox" checked={selectedKnowledge.includes(source.revisionId)} disabled={!canAuthor} onChange={(event) => { setSelectedKnowledge((current) => event.target.checked ? [...current, source.revisionId] : current.filter((id) => id !== source.revisionId)); setDraftDirty(true); }} /> {source.name} <small>v{source.version}</small></label>)}</div></div>
+            <label>Qualified-lead recipient<select disabled={!canAuthor || notificationsLoadError || advancedPending} value={definition.notificationProfileId || ""} onChange={(event) => setNotificationProfile(event.target.value)}><option value="">{notificationsLoadError ? "Recipients unavailable" : "No email action"}</option>{notifications.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select>{notificationsLoadError ? <span className="field-help" role="alert">Recipient options could not be loaded.</span> : null}</label></div>
+          <AiPlaybookEditor definition={definition} definitionText={definitionText} readOnly={!canAuthor} advancedPending={advancedPending} validationPath={validationPath} validationMessage={validationMessage} onDefinitionChange={updateDefinition} onAdvancedChange={changeAdvancedDefinition} onAdvancedBlur={validateAdvancedDefinition} />
+          {canAuthor ? <div className="flowbot-actions"><button type="button" className="secondary-command" disabled={working} onClick={() => void saveDraft()}>Save draft</button><button type="button" disabled={working || draftDirty} onClick={() => void publish()}>Publish immutable version</button>{draftDirty ? <span className="field-help">Save the current draft before publishing.</span> : null}</div> : null}
           {message ? <p className="inline-message" role="status">{message}</p> : null}
         </section>
         {canAuthor ? <section className="tool-band muted-band"><div className="band-heading"><div><p>Merchant-authorized test mode</p><h2>Preview without side effects</h2></div><span>20 / minute</span></div>

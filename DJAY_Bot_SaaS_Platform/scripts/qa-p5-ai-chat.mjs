@@ -9,6 +9,7 @@ const failures = [];
 const restricted = /\b(openai|anthropic|claude|gemini|gpt-[0-9]|provider[_ -]?(?:key|name|id)|model[_ -]?id)\b/i;
 const workspace = { tenantId: "20000000-0000-4000-8000-000000000001", slug: "ai-browser", businessName: "AI Browser Studio", role: "tenant_master_admin" };
 const agentId = "51000000-0000-4000-8000-000000000001";
+const secondAgentId = "51000000-0000-4000-8000-000000000002";
 const revisionId = "52000000-0000-4000-8000-000000000001";
 const profileId = "53000000-0000-4000-8000-000000000001";
 const deploymentKey = "djay_ai_" + "b".repeat(48);
@@ -34,14 +35,21 @@ async function mockTenant(page, counters) {
     if (path === "/tenant/session") return json(route, { user: { id: "user", displayName: "AI Owner" }, workspaces: [workspace], selectedTenantId: workspace.tenantId, mfaVerifiedAt: new Date().toISOString() });
     if (path === "/tenant/support-access") return json(route, { grants: [] });
     if (path === "/tenant/knowledge") return json(route, { sources: [{ id: "source", revisionId, name: "Approved service guide", sourceKind: "text", status: "active", version: 2 }] });
-    if (path === "/tenant/ai-chat/agents" && method === "GET") return json(route, { agents: [{ id: agentId, name: "Mali", status: "active", defaultLanguage: "en", currentPublishedPlaybookVersionId: playbook().playbookVersionId, draftRevision: 3, deploymentCount: 1 }], capabilities: { planKey: "ai_chat_basic", accessMode: "active", web: true, social: { line: false, whatsapp: false, messenger: false }, limits: { deployments: 1, knowledgeDocuments: 10 } } });
-    if (path.endsWith("/draft")) return json(route, method === "GET" ? { draft: { revision: 3, definition: playbook(), knowledgeRevisionIds: [revisionId], updatedAt: new Date().toISOString() } } : { status: "updated", revision: 4 });
+    if (path === "/tenant/ai-chat/agents" && method === "GET") return json(route, { agents: [
+      { id: agentId, name: "Mali", status: "active", defaultLanguage: "en", currentPublishedPlaybookVersionId: playbook().playbookVersionId, draftRevision: 3, deploymentCount: 1 },
+      { id: secondAgentId, name: "Arun", status: "draft", defaultLanguage: "th", currentPublishedPlaybookVersionId: null, draftRevision: 1, deploymentCount: 0 },
+    ], capabilities: { planKey: "ai_chat_basic", accessMode: "active", web: true, social: { line: false, whatsapp: false, messenger: false }, limits: { deployments: 1, knowledgeDocuments: 10 } } });
+    if (path.endsWith("/draft")) {
+      if (method === "GET") return json(route, { draft: { revision: 3, definition: playbook(), knowledgeRevisionIds: [revisionId], updatedAt: new Date().toISOString() } });
+      counters.draftUpdates += 1; counters.draftBodies.push(route.request().postDataJSON());
+      return json(route, { status: "updated", revision: 4 });
+    }
     if (path.endsWith("/deployments")) {
       if (method === "GET") return json(route, { deployments: [{ id: "deployment", name: "Main website", channel: "web", keyPrefix: "djay_ai_demo", allowedOrigins: ["https://merchant.example"], status: "active", createdAt: new Date().toISOString() }] });
       counters.deploymentCreates += 1;
       return json(route, { status: "created", deploymentId: crypto.randomUUID(), deploymentKey }, 201);
     }
-    if (path.endsWith("/publish")) return json(route, { status: "published", playbookVersionId: crypto.randomUUID(), version: 2 });
+    if (path.endsWith("/publish")) { counters.publishes += 1; return json(route, { status: "published", playbookVersionId: crypto.randomUUID(), version: 2 }); }
     if (path.endsWith("/test")) return json(route, { preview: { stage: "S2_DISCOVERY", text: "The approved consultation is 30 minutes. What would you like to improve?", proposedActionTypes: [], citationCount: 1, handover: false } });
     if (path === "/tenant/ai-chat/notifications") return json(route, { notifications: [{ id: profileId, name: "Sales inbox", allowedTemplateKeys: ["ai_chat.lead_qualified"], status: "active" }] });
     if (path === "/tenant/ai-chat/analytics") return json(route, { analytics: { periodDays: 30, level: "core", sessions: 21, completedTurns: 48, failedTurns: 1, handovers: 3, leads: 9, appointmentRequests: 4, settledResponses: 48 } });
@@ -52,7 +60,7 @@ async function mockTenant(page, counters) {
 
 async function inspectDashboard(viewport, suffix) {
   const context = await browser.newContext({ viewport }); const page = await context.newPage();
-  const counters = { deploymentCreates: 0 };
+  const counters = { deploymentCreates: 0, draftUpdates: 0, draftBodies: [], publishes: 0 };
   page.on("pageerror", (error) => failures.push(`dashboard-${suffix}: ${error.message}`));
   page.on("console", (entry) => { if (entry.type() === "error") failures.push(`dashboard-${suffix}: console ${entry.text()}`); });
   await mockTenant(page, counters);
@@ -62,10 +70,47 @@ async function inspectDashboard(viewport, suffix) {
   if (!(await page.getByText("Approved service guide", { exact: false }).count())) failures.push(`dashboard-${suffix}: knowledge pin missing`);
   if (!(await page.getByText("Sales inbox", { exact: true }).count())) failures.push(`dashboard-${suffix}: notification profile missing`);
   if (suffix === "desktop") {
+    const assistantName = page.getByLabel("Assistant name");
+    const businessName = page.getByLabel("Business name", { exact: true }).last();
+    const timezone = page.getByLabel("IANA timezone");
+    if (await assistantName.getAttribute("minlength") !== "2" || await assistantName.getAttribute("maxlength") !== "100"
+      || await businessName.getAttribute("minlength") !== "2" || await businessName.getAttribute("maxlength") !== "200"
+      || await timezone.getAttribute("maxlength") !== "100") failures.push(`dashboard-${suffix}: guided playbook field boundaries drifted from Sales Core`);
+    await timezone.fill("not/a-timezone");
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await page.getByRole("alert").getByText("Timezone:", { exact: false }).waitFor();
+    if (counters.draftUpdates !== 0) failures.push(`dashboard-${suffix}: invalid timezone reached the draft API`);
+    if (!await timezone.evaluate((element) => element === document.activeElement)) failures.push(`dashboard-${suffix}: invalid timezone did not receive focus`);
+    await timezone.fill("Asia/Bangkok");
+    await assistantName.fill("  Mali Updated  ");
+    await page.getByLabel("Discovery questions").fill("What would you like to improve?\nWhen would you like to start?");
+    let discardPrompt = ""; page.once("dialog", async (dialog) => { discardPrompt = dialog.message(); await dialog.dismiss(); });
+    await page.getByRole("button", { name: /Arun/ }).click();
+    if (!discardPrompt.includes("Discard the unsaved playbook") || await assistantName.inputValue() !== "  Mali Updated  ") failures.push(`dashboard-${suffix}: dismissed agent switch discarded unsaved work`);
+    if (!await page.getByRole("button", { name: "Publish immutable version" }).isDisabled()) failures.push(`dashboard-${suffix}: publish remained enabled with unsaved guided edits`);
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await page.getByText("Draft and knowledge pins saved.", { exact: true }).waitFor();
+    if (counters.draftUpdates !== 1 || counters.draftBodies[0]?.definition?.agentName !== "Mali Updated"
+      || counters.draftBodies[0]?.definition?.discoveryQuestions?.length !== 2
+      || counters.draftBodies[0]?.definition?.discoveryQuestions?.[1] !== "When would you like to start?") failures.push(`dashboard-${suffix}: corrected guided draft did not send one normalized update`);
+
+    await page.getByText("Advanced JSON", { exact: true }).click();
+    const advanced = page.getByLabel("Advanced AI sales playbook JSON");
+    await advanced.fill("{"); await advanced.blur();
+    await page.getByRole("alert").getByText("Your text is preserved", { exact: false }).waitFor();
+    await page.getByRole("button", { name: "Save draft" }).click();
+    if (counters.draftUpdates !== 1) failures.push(`dashboard-${suffix}: malformed Advanced JSON sent a stale draft update`);
+    if (await advanced.inputValue() !== "{") failures.push(`dashboard-${suffix}: malformed Advanced JSON was not preserved for repair`);
+    await advanced.fill(JSON.stringify({ ...playbook(), tone: "Direct but warm" }, null, 2)); await advanced.blur();
+    if (await page.getByLabel("Tone").inputValue() !== "Direct but warm") failures.push(`dashboard-${suffix}: repaired Advanced JSON did not refresh guided fields`);
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await page.getByText("Draft and knowledge pins saved.", { exact: true }).waitFor();
+    if (counters.draftUpdates !== 2) failures.push(`dashboard-${suffix}: repaired Advanced JSON did not send exactly one update`);
+
     await page.getByRole("button", { name: "Run safe preview" }).click();
     await page.getByText("The approved consultation is 30 minutes.", { exact: false }).waitFor();
-    await page.getByRole("button", { name: "Save draft" }).click();
     await page.getByRole("button", { name: "Publish immutable version" }).click();
+    if (counters.publishes !== 1) failures.push(`dashboard-${suffix}: expected one immutable publish, received ${counters.publishes}`);
     const deploymentForm = page.locator("form.flowbot-deploy").filter({ has: page.getByLabel("Exact allowed website origin") });
     if (await deploymentForm.getByLabel("Deployment name").getAttribute("maxlength") !== "160"
       || await deploymentForm.getByLabel("Exact allowed website origin").getAttribute("maxlength") !== "2048") {

@@ -1,6 +1,6 @@
 # DJAI Voice Agent Current State
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 ## DJAY Bot SaaS Platform State
 
@@ -40,6 +40,10 @@ The separate multi-tenant implementation is under:
   effects, pending appointment requests, encrypted merchant notification,
   takeover, usage settlement, bilingual/adversarial fixtures, and tenant UI.
 - P5 production build and Chromium desktop/mobile/widget QA pass.
+- AI Chat Studio now replaces mandatory raw Sales Core JSON with a guided,
+  responsive editor. Invalid playbooks stay local with focused accessible
+  correction, malformed Advanced JSON remains repairable, and unsaved visible
+  changes cannot publish an older stored draft.
 - External gates remain explicit: three named FlowBot pilots; an approved live AI
   text routing profile and live bilingual/adversarial evaluation; named merchant
   acceptance; commercial decisions; and paid-GA authorization.

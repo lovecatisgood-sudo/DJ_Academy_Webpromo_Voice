@@ -154,6 +154,15 @@ Its browser and API limits match the immutable Sales Core playbook, including
 the actual 500-character bilingual greeting maximum. Studio rejects invalid
 draft boundaries locally, preserves the draft, and opens the relevant section
 before any save request is sent.
+AI Chat authoring now uses a guided Sales Core editor for assistant identity,
+goals, languages, contact requirements, claims, discovery, calls to action,
+bilingual customer messages, timezone, and weekly availability. The browser,
+API, database, and runtime share one schema and field-limit authority. Invalid
+timezones or playbooks stay local with focused accessible correction, malformed
+Advanced JSON remains open and repairable, and publishing is disabled whenever
+the visible draft or knowledge selection has not been saved. Multiline policy
+editing and unsaved agent/browser navigation are protected against accidental
+data loss.
 
 ## Local commands
 

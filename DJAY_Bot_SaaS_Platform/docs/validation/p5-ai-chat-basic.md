@@ -50,6 +50,17 @@ authoring/operations routes.
   verified knowledge selection, notification configuration, safe preview,
   draft save, immutable publish, responsive overflow, console errors, and
   restricted-term leakage.
+- Merchant administrators edit the full Sales Core contract through guided,
+  branded fields instead of mandatory raw JSON. Browser limits come from the
+  same schema authority used by API, database, and runtime; an invalid IANA
+  timezone receives focused assertive correction and sends zero draft PATCHes.
+- Advanced JSON is still available for experts. The browser gate proves
+  malformed text remains visible and repairable, cannot send a stale draft,
+  and refreshes the guided fields after correction. Publishing stays disabled
+  while guided, JSON, or knowledge changes are unsaved.
+- Multiline claim/question fields preserve newline entry, and a dismissed agent
+  switch keeps all unsaved values. Browser navigation is also guarded while the
+  current draft is dirty.
 - Website deployment uses the shared 2–160-character name and 2,048-character
   exact-origin form. A path-bearing URL is announced on the origin field with
   zero requests; one corrected exact origin sends one normalized request.

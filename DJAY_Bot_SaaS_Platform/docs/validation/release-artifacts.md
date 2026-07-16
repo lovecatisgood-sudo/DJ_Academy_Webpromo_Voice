@@ -22,13 +22,13 @@ document, and fetched every referenced static asset. Accepted static evidence
 was:
 
 - API: 132 files,
-  `2186cd137ef368dc675f3b73e068fd728cf76d7a3aaeedcf7a9cb76a469bf5ab`
+  `2492f863028dd2dc5544e6b2118a1b37415ca115b9a90bb4d500650ffd836665`
 - Platform Master: 24 files,
   `b6b46ed7b3182c7b5281bb7eef259f60c3b632021c58bd494044b9d48640d111`
 - Public site: 31 files,
   `4d8bc49c625e4e8a4661bba8f741ca8fe542cfb7211a7e7797dba05cf3cad149`
 - Tenant workspace: 43 files,
-  `0922cc02b64e0aaa254cac81d2cd8b8a047db186bff78aae744ee2a06c507603`
+  `03a5b4a5eb393489ee45b937085657c7978f8c8acc073c4687650864c9b0d68e`
 
 The release audit found that all three Tenant install snippets referenced
 versioned CDN modules, but the release package did not archive those modules.
@@ -99,6 +99,13 @@ editable, bounds direct title/copy fields to the domain contract, and blocks
 invalid or unvalidated per-node JSON from producing a stale draft PATCH. The
 focused browser gate proves both invalid paths send zero requests and a repaired
 draft sends exactly one.
+The packaged AI Chat Studio renders a complete guided Sales Core editor with
+the domain's field limits and timezone authority. Invalid guided input or
+malformed Advanced JSON remains local and repairable, and unsaved visible
+changes disable immutable publication and protect agent switching/navigation.
+The focused browser gate proves multiline policy editing, dismissed-switch
+preservation, invalid journeys with zero draft PATCHes, and one normalized
+corrected candidate.
 
 The first Voice artifact run exposed a production-only ESM failure: bundled
 `ws` attempted a dynamic CommonJS require of Node's `events` module. Source
@@ -117,7 +124,7 @@ before execution, proving it does not resolve those packages from workspace
 `node_modules`. With database authority deliberately absent, startup fails
 closed, names only `WORKER_DATABASE_URL`, and exposes no connection URL. The
 accepted 56-file digest is
-`8d7fe168431911416632b869fb107c7df2b0fb277017e7d1bbe5aad0ec606715`.
+`2f376f55396d658f5f340b77f48c2e77590359f4f8e08aa9f5da0f24833faa0e`.
 
 These hashes describe the local generated build and are not target-deployment
 evidence. The immutable deployment system must archive its own package hashes,

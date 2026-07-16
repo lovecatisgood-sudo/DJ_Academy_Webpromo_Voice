@@ -185,6 +185,9 @@ importers:
       '@djay/flowbot-domain':
         specifier: workspace:*
         version: link:../../packages/flowbot-domain
+      '@djay/sales-core':
+        specifier: workspace:*
+        version: link:../../packages/sales-core
       '@djay/shared':
         specifier: workspace:*
         version: link:../../packages/shared
