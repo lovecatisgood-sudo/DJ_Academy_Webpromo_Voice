@@ -57,6 +57,13 @@ supported-IANA-timezone, and 1–100-member contracts. Chromium proves an invali
 timezone and an empty routing team each send zero requests; corrected values
 send one normalized mutation. Storage integration independently rejects both
 cases and persists trimmed accepted values.
+The visual editor now shares its 1–160-character title and 10,000-character
+per-language copy limits with the domain schema. Chromium proves malformed
+Advanced JSON retains an open repair textarea, whitespace-only titles and
+invalid per-node JSON send zero draft PATCH requests, and one corrected draft
+sends exactly one mutation. Per-node JSON is schema-checked before replacing
+the rendered node, preventing the visible editor from silently diverging from
+the saved definition.
 
 ## Pilot acceptance worksheet
 

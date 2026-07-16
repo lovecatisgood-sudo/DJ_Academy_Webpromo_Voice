@@ -1,9 +1,20 @@
-import { flowbotOperationKeyPattern, flowbotOperationsFieldLimits, isSupportedIanaTimezone } from "@djay/shared";
+import {
+  flowbotEditorFieldLimits,
+  flowbotOperationKeyPattern,
+  flowbotOperationsFieldLimits,
+  isSupportedIanaTimezone,
+} from "@djay/shared";
 import { z } from "zod";
 
-const localizedTextSchema = z.object({ th: z.string().max(10_000), en: z.string().max(10_000) }).strict();
+const localizedTextSchema = z.object({
+  th: z.string().max(flowbotEditorFieldLimits.localizedText.maxLength),
+  en: z.string().max(flowbotEditorFieldLimits.localizedText.maxLength),
+}).strict();
 const nextNodeSchema = z.uuid().nullable();
-const baseNode = { id: z.uuid(), title: z.string().trim().min(1).max(160) } as const;
+const baseNode = {
+  id: z.uuid(),
+  title: z.string().trim().min(flowbotEditorFieldLimits.title.minLength).max(flowbotEditorFieldLimits.title.maxLength),
+} as const;
 
 const formFieldSchema = z.object({
   key: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),

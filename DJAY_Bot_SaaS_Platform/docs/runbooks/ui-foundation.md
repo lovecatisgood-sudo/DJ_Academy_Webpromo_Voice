@@ -252,6 +252,11 @@ unsupported IANA timezones and empty member selections remain local, while one
 corrected submission is trimmed and sent exactly once. Do not bypass the shared
 key/name/timezone/member contract in the UI, API, domain, or repository.
 
+FlowBot draft authoring must validate against `flowSnapshotSchema` before PATCH.
+Malformed Advanced JSON must retain the same editable value and an open repair
+control. Per-node JSON must not update the rendered definition until it parses
+and passes `flowNodeSchema`, and any pending node-settings error must block Save.
+
 Do not promote when this gate fails. A passing local gate does not replace
 manual keyboard, screen-reader, zoom/reflow, cognitive, or representative-device
 review. It also does not replace named-merchant acceptance, managed service

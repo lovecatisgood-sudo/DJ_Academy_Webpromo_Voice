@@ -78,6 +78,9 @@ proves that:
 - FlowBot Premium rejects an unsupported timezone or empty routing team locally,
   focuses the correction target, preserves the form, and sends one normalized
   mutation only after the input satisfies domain and storage authority;
+- FlowBot keeps malformed Advanced JSON editable, announces node-schema errors,
+  and rejects invalid visual titles or per-node settings with zero draft PATCH
+  requests before accepting one corrected mutation;
 - every exercised UI state passes the automated axe WCAG 2.2 A/AA rule set,
   including document titles, contrast, keyboard-scroll access, and ARIA
   structure;

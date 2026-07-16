@@ -182,6 +182,9 @@ importers:
       '@djay/authorization':
         specifier: workspace:*
         version: link:../../packages/authorization
+      '@djay/flowbot-domain':
+        specifier: workspace:*
+        version: link:../../packages/flowbot-domain
       '@djay/shared':
         specifier: workspace:*
         version: link:../../packages/shared

@@ -185,6 +185,12 @@ name, IANA timezone, and 1–100-member boundaries across browser, domain, API,
 and storage. Invalid timezone or empty-team input is focused and announced
 before transport, accepted text is normalized once, and routing creation is
 disabled when the authoritative team read contains no active members.
+FlowBot visual authoring now uses the domain schema in the browser before draft
+transport. Node titles and bilingual copy expose the same limits as the domain;
+invalid direct edits are focused and announced with zero PATCH requests.
+Advanced JSON remains open and retains malformed text for repair instead of
+removing its own editor. Per-node JSON exposes parse/schema errors and blocks
+stale-state saves until the visible settings validate.
 
 ## P6 LINE, WhatsApp, and Messenger runtime checkpoint
 

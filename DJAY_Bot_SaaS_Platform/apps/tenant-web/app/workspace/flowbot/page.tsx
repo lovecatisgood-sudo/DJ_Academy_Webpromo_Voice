@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { flowSnapshotSchema } from "@djay/flowbot-domain";
 import {
   flowbotOperationsFieldConstraints,
   flowbotRoutingTeamFormError,
@@ -27,6 +28,7 @@ type TeamMember = { membership_id: string; display_name: string; membership_stat
 type DowngradePreflight = { allowed: boolean; blockers: { code: string; detail?: string }[]; remediation: { action: string }[] };
 type NotificationProfile = { id: string; name: string; allowedTemplateKeys: string[]; status: "active" | "disabled"; createdAt: string };
 type OperationsValidation = { form: "schedule" | "team"; field: string; message: string };
+type DraftValidation = { message: string; path: readonly PropertyKey[] };
 
 function focusFormControl(form: HTMLFormElement, fieldName: string) {
   requestAnimationFrame(() => {
@@ -34,6 +36,30 @@ function focusFormControl(form: HTMLFormElement, fieldName: string) {
     const field = named instanceof HTMLElement ? named : form.querySelector(`[name="${fieldName}"]`);
     if (field instanceof HTMLElement) field.focus();
   });
+}
+
+function focusFlowDefinitionIssue(path: readonly PropertyKey[]) {
+  requestAnimationFrame(() => {
+    const values = path.map(String);
+    if (values[0] === "nodes" && values[1]) {
+      const article = Array.from(document.querySelectorAll<HTMLElement>("[data-flow-node-id]"))
+        .find((element) => element.dataset.flowNodeId === values[1]);
+      const fieldName = values.slice(2).join(".");
+      const field = Array.from(article?.querySelectorAll<HTMLElement>("[data-flow-node-field]") || [])
+        .find((element) => element.dataset.flowNodeField === fieldName);
+      if (field) { field.focus(); return; }
+    }
+    document.querySelector<HTMLElement>("[data-flow-advanced-json]")?.focus();
+  });
+}
+
+function draftIssueMessage(issue: Readonly<{ path: readonly PropertyKey[]; message: string }>) {
+  const path = issue.path.map(String);
+  if (path.at(-1) === "title") return "Each node title must contain 1–160 visible characters.";
+  if ((path.at(-1) === "en" || path.at(-1) === "th") && issue.message.toLowerCase().includes("too big")) {
+    return "English and Thai node copy must each be no longer than 10,000 characters.";
+  }
+  return `Flow definition is invalid at ${path.length ? path.join(" › ") : "the document root"}: ${issue.message}`;
 }
 
 function greetingTemplate() {
@@ -78,6 +104,8 @@ export default function FlowBotPage() {
   const [teamLoadError, setTeamLoadError] = useState(false); const [preflightLoadError, setPreflightLoadError] = useState(false);
   const [notificationsLoadError, setNotificationsLoadError] = useState(false);
   const [operationsValidation, setOperationsValidation] = useState<OperationsValidation | null>(null);
+  const [draftValidation, setDraftValidation] = useState<DraftValidation | null>(null);
+  const [editorErrorMessage, setEditorErrorMessage] = useState("");
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canAuthor = workspace?.role === "tenant_master_admin" || workspace?.role === "tenant_admin";
   const selectedBot = bots.find((bot) => bot.id === selectedBotId);
@@ -100,7 +128,7 @@ export default function FlowBotPage() {
         fetch(`/tenant/flowbot/bots/${botId}/draft`, { cache: "no-store" }), fetch(`/tenant/flowbot/bots/${botId}/versions`, { cache: "no-store" }), fetch(`/tenant/flowbot/bots/${botId}/deployments`, { cache: "no-store" }),
       ]);
       if (!draftResponse.ok || !versionResponse.ok || !deploymentResponse.ok) throw new Error("flowbot_detail_unavailable");
-      const value = (await draftResponse.json()).draft as Draft; setDraft(value); setDefinitionText(JSON.stringify(value.definition, null, 2));
+      const value = (await draftResponse.json()).draft as Draft; setDraft(value); setDefinitionText(JSON.stringify(value.definition, null, 2)); setDraftValidation(null); setEditorErrorMessage("");
       setVersions((await versionResponse.json()).versions || []);
       setDeployments((await deploymentResponse.json()).deployments || []); setLoadError(false);
     } catch { setLoadError(true); }
@@ -148,13 +176,20 @@ export default function FlowBotPage() {
     form.reset(); await loadBots(); setSelectedBotId(result.botId); setMessage("Bot created.");
   }
   async function saveDraft() {
-    if (!draft || !selectedBotId) return; setWorking(true); setMessage("");
+    if (!draft || !selectedBotId) return;
+    if (editorErrorMessage) { setMessage(""); setDraftValidation({ message: editorErrorMessage, path: [] }); return; }
     try {
       const definition = JSON.parse(definitionText);
-      const response = await safeMutationFetch(`/tenant/flowbot/bots/${selectedBotId}/draft`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: draft.revision, definition }) });
+      const parsedDefinition = flowSnapshotSchema.safeParse(definition);
+      if (!parsedDefinition.success) {
+        const issue = parsedDefinition.error.issues[0]!;
+        setMessage(""); setDraftValidation({ message: draftIssueMessage(issue), path: issue.path }); focusFlowDefinitionIssue(issue.path); return;
+      }
+      setWorking(true); setMessage(""); setDraftValidation(null);
+      const response = await safeMutationFetch(`/tenant/flowbot/bots/${selectedBotId}/draft`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: draft.revision, definition: parsedDefinition.data }) });
       setWorking(false); if (!response.ok) { setMessage(response.status === 409 ? "Draft changed in another session. Reload before saving." : "Draft validation failed."); return; }
       setMessage("Draft saved."); await loadBot(selectedBotId);
-    } catch { setWorking(false); setMessage("Definition must be valid JSON."); }
+    } catch { setMessage(""); setDraftValidation({ message: "Definition must be valid JSON. Repair it in the open Advanced JSON editor.", path: [] }); focusFlowDefinitionIssue([]); }
   }
   async function publish() {
     if (!selectedBotId) return; setWorking(true); setMessage("");
@@ -224,7 +259,7 @@ export default function FlowBotPage() {
     if (response.ok) { form.reset(); await loadOperations(); }
   }
   function applyTemplate(template: "greeting" | "lead" | "premium") {
-    const value = template === "greeting" ? greetingTemplate() : template === "lead" ? leadTemplate() : premiumTemplate(); setDefinitionText(JSON.stringify(value, null, 2)); setMessage("");
+    const value = template === "greeting" ? greetingTemplate() : template === "lead" ? leadTemplate() : premiumTemplate(); setDefinitionText(JSON.stringify(value, null, 2)); setMessage(""); setDraftValidation(null); setEditorErrorMessage("");
   }
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading FlowBot...</main>;
@@ -240,9 +275,9 @@ export default function FlowBotPage() {
       {selectedBot && draft ? <>
         <section className="tool-band"><div className="band-heading"><div><p>Draft revision {draft.revision}</p><h2>{selectedBot.name}</h2></div><span>{Object.keys((draft.definition.nodes as object) || {}).length} nodes</span></div>
           {canAuthor ? <div className="template-control" aria-label="Flow templates"><button type="button" onClick={() => applyTemplate("greeting")}>Greeting</button><button type="button" onClick={() => applyTemplate("lead")}>Lead capture</button>{capabilities?.advancedNodes ? <button type="button" onClick={() => applyTemplate("premium")}>Timed follow-up</button> : null}</div> : null}
-          <FlowVisualEditor value={definitionText} onChange={setDefinitionText} readOnly={!canAuthor} premium={Boolean(capabilities?.advancedNodes)} />
+          <FlowVisualEditor value={definitionText} onChange={(value) => { setDefinitionText(value); setDraftValidation(null); }} onEditorErrorChange={setEditorErrorMessage} validationPath={draftValidation?.path} readOnly={!canAuthor} premium={Boolean(capabilities?.advancedNodes)} />
           {canAuthor ? <div className="flowbot-actions"><button type="button" className="secondary-command" onClick={() => void saveDraft()} disabled={working}>Save draft</button><button type="button" onClick={() => void publish()} disabled={working}>Publish</button></div> : null}
-          {message ? <p className="inline-message" role="status">{message}</p> : null}
+          {draftValidation ? <p className="inline-message error" id="flowbot-draft-error" role="alert">{draftValidation.message}</p> : message ? <p className="inline-message" role="status">{message}</p> : null}
         </section>
         <section className="tool-band muted-band"><div className="band-heading"><div><p>Deployments</p><h2>Website origins</h2></div><span>{deployments.length}{capabilities?.limits.deployments ? ` / ${capabilities.limits.deployments}` : ""}</span></div>
           {installChecksLoadError ? <div className="inline-message inline-retry" role="alert"><span>Install verification status could not be loaded. Deployment records remain available.</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>Try again</button></div> : null}

@@ -10,4 +10,5 @@ export * from "./contact-fields";
 export * from "./voice-deployment-fields";
 export * from "./website-deployment-fields";
 export * from "./flowbot-operations-fields";
+export * from "./flowbot-editor-fields";
 export * from "./api-proxy";

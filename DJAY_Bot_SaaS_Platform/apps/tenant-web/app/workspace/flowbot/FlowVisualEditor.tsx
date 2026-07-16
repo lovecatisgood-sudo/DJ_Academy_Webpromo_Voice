@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, type ChangeEvent } from "react";
+import { flowNodeSchema } from "@djay/flowbot-domain";
+import { flowbotEditorFieldConstraints } from "@djay/shared";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 
 type NodeRecord = Record<string, unknown> & { id: string; type: string; title: string };
 type Definition = { schemaVersion: number; flowVersionId: string; rootNodeId: string; keywords: unknown[]; nodes: Record<string, NodeRecord> };
@@ -34,14 +36,36 @@ function localizedValue(node: NodeRecord) {
 }
 
 export function FlowVisualEditor(props: Readonly<{
-  value: string; onChange: (value: string) => void; readOnly: boolean; premium: boolean;
+  value: string;
+  onChange: (value: string) => void;
+  onEditorErrorChange: (message: string) => void;
+  readOnly: boolean;
+  premium: boolean;
+  validationPath?: readonly PropertyKey[] | undefined;
 }>) {
+  const [nodeJsonErrors, setNodeJsonErrors] = useState<Record<string, string>>({});
   const parsed = useMemo(() => {
     try {
       const value = JSON.parse(props.value) as Definition;
       return value && value.nodes && typeof value.nodes === "object" ? value : null;
     } catch { return null; }
   }, [props.value]);
+  const nodeIds = parsed ? Object.keys(parsed.nodes).sort().join("|") : "";
+  useEffect(() => {
+    if (!parsed) return;
+    setNodeJsonErrors((current) => Object.fromEntries(Object.entries(current).filter(([nodeId]) => nodeId in parsed.nodes)));
+  }, [nodeIds]);
+  const firstNodeJsonError = Object.values(nodeJsonErrors).find(Boolean) || "";
+  useEffect(() => { props.onEditorErrorChange(firstNodeJsonError); }, [firstNodeJsonError, props.onEditorErrorChange]);
+
+  function setNodeJsonError(nodeId: string, message: string) {
+    setNodeJsonErrors((current) => {
+      if (!message) {
+        const next = { ...current }; delete next[nodeId]; return next;
+      }
+      return { ...current, [nodeId]: message };
+    });
+  }
 
   function replace(definition: Definition) { props.onChange(JSON.stringify(definition, null, 2)); }
   function updateNode(nodeId: string, update: (node: NodeRecord) => NodeRecord) {
@@ -56,12 +80,27 @@ export function FlowVisualEditor(props: Readonly<{
   function editNodeJson(nodeId: string, event: ChangeEvent<HTMLTextAreaElement>) {
     try {
       const node = JSON.parse(event.target.value) as NodeRecord;
-      if (node.id === nodeId) updateNode(nodeId, () => node);
-    } catch { /* Keep the last valid node while a user is typing. */ }
+      if (node.id !== nodeId) {
+        setNodeJsonError(nodeId, "Node settings must keep the same node ID.");
+        return;
+      }
+      const result = flowNodeSchema.safeParse(node);
+      if (!result.success) {
+        const issue = result.error.issues[0];
+        const location = issue?.path.length ? ` at ${issue.path.join(".")}` : "";
+        setNodeJsonError(nodeId, `Node settings are invalid${location}: ${issue?.message || "review the node fields"}.`);
+        return;
+      }
+      setNodeJsonError(nodeId, "");
+      updateNode(nodeId, () => result.data as NodeRecord);
+    } catch {
+      setNodeJsonError(nodeId, "Node settings must be valid JSON before this draft can be saved.");
+    }
   }
 
-  if (!parsed) return <div className="flow-editor-invalid" role="alert">The definition is not valid JSON. Repair it in Advanced JSON below.</div>;
+  if (!parsed) return <div className="flow-visual-editor"><div className="flow-editor-invalid" id="flowbot-advanced-json-error" role="alert">The definition must be valid FlowBot JSON with a nodes map. Advanced JSON remains open so you can repair it.</div><details className="advanced-definition" open><summary>Advanced JSON</summary><textarea value={props.value} onChange={(event) => props.onChange(event.target.value)} spellCheck={false} readOnly={props.readOnly} aria-invalid="true" aria-describedby="flowbot-advanced-json-error" data-flow-advanced-json /></details></div>;
   const nodes = Object.values(parsed.nodes);
+  const validationPath = props.validationPath?.map(String) || [];
   return <div className="flow-visual-editor">
     <div className="node-palette" role="toolbar" aria-label="Add flow node" tabIndex={0}>
       {[...coreTypes, ...(props.premium ? premiumTypes : [])].map((type) => <button key={type} type="button" disabled={props.readOnly} onClick={() => addNode(type)}>+ {type.replaceAll("_", " ")}</button>)}
@@ -69,24 +108,25 @@ export function FlowVisualEditor(props: Readonly<{
     <div className="flow-node-list">
       {nodes.map((node, index) => {
         const localized = localizedValue(node);
-        return <article className={`flow-node-card ${node.id === parsed.rootNodeId ? "root" : ""}`} key={node.id}>
+        const nodeValidationPath = validationPath[0] === "nodes" && validationPath[1] === node.id ? validationPath.slice(2).join(".") : "";
+        return <article className={`flow-node-card ${node.id === parsed.rootNodeId ? "root" : ""}`} key={node.id} data-flow-node-id={node.id}>
           <header><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{node.title}</strong><small>{node.type}{node.id === parsed.rootNodeId ? " · entry" : ""}</small></div>
             {!props.readOnly && node.id !== parsed.rootNodeId ? <button type="button" className="node-delete" onClick={() => {
-              const next = { ...parsed.nodes }; delete next[node.id]; replace({ ...parsed, nodes: next });
+              const next = { ...parsed.nodes }; delete next[node.id]; setNodeJsonError(node.id, ""); replace({ ...parsed, nodes: next });
             }}>Remove</button> : null}
           </header>
           <div className="node-fields">
-            <label>Title<input value={node.title} readOnly={props.readOnly} onChange={(event) => updateNode(node.id, (current) => ({ ...current, title: event.target.value }))} /></label>
+            <label>Title<input value={node.title} readOnly={props.readOnly} {...flowbotEditorFieldConstraints.title} required aria-invalid={nodeValidationPath === "title" || undefined} aria-describedby={nodeValidationPath === "title" ? "flowbot-draft-error" : undefined} data-flow-node-field="title" onChange={(event) => updateNode(node.id, (current) => ({ ...current, title: event.target.value }))} /></label>
             <label>Entry node<select value={node.id === parsed.rootNodeId ? node.id : ""} disabled={props.readOnly} onChange={() => replace({ ...parsed, rootNodeId: node.id })}><option value="">No</option><option value={node.id}>Yes</option></select></label>
             {localized ? <>
-              <label>English<input value={String(localized.value.en ?? "")} readOnly={props.readOnly} onChange={(event) => updateNode(node.id, (current) => ({ ...current, [localized.key]: { ...localized.value, en: event.target.value } }))} /></label>
-              <label>Thai<input value={String(localized.value.th ?? "")} readOnly={props.readOnly} onChange={(event) => updateNode(node.id, (current) => ({ ...current, [localized.key]: { ...localized.value, th: event.target.value } }))} /></label>
+              <label>English<input value={String(localized.value.en ?? "")} readOnly={props.readOnly} {...flowbotEditorFieldConstraints.localizedText} aria-invalid={nodeValidationPath === `${localized.key}.en` || undefined} aria-describedby={nodeValidationPath === `${localized.key}.en` ? "flowbot-draft-error" : undefined} data-flow-node-field={`${localized.key}.en`} onChange={(event) => updateNode(node.id, (current) => ({ ...current, [localized.key]: { ...localized.value, en: event.target.value } }))} /></label>
+              <label>Thai<input value={String(localized.value.th ?? "")} readOnly={props.readOnly} {...flowbotEditorFieldConstraints.localizedText} aria-invalid={nodeValidationPath === `${localized.key}.th` || undefined} aria-describedby={nodeValidationPath === `${localized.key}.th` ? "flowbot-draft-error" : undefined} data-flow-node-field={`${localized.key}.th`} onChange={(event) => updateNode(node.id, (current) => ({ ...current, [localized.key]: { ...localized.value, th: event.target.value } }))} /></label>
             </> : null}
           </div>
-          <details><summary>Node settings</summary><textarea key={JSON.stringify(node)} defaultValue={JSON.stringify(node, null, 2)} readOnly={props.readOnly} onBlur={(event) => editNodeJson(node.id, event)} spellCheck={false} /></details>
+          <details><summary>Node settings</summary><textarea key={JSON.stringify(node)} defaultValue={JSON.stringify(node, null, 2)} readOnly={props.readOnly} onInput={() => setNodeJsonError(node.id, "Node settings have unvalidated edits. Leave this field to validate them before saving.")} onBlur={(event) => editNodeJson(node.id, event)} spellCheck={false} aria-invalid={Boolean(nodeJsonErrors[node.id]) || undefined} aria-describedby={nodeJsonErrors[node.id] ? `flow-node-json-error-${node.id}` : undefined} />{nodeJsonErrors[node.id] ? <p className="inline-message error" id={`flow-node-json-error-${node.id}`} role="alert">{nodeJsonErrors[node.id]}</p> : null}</details>
         </article>;
       })}
     </div>
-    <details className="advanced-definition"><summary>Advanced JSON</summary><textarea value={props.value} onChange={(event) => props.onChange(event.target.value)} spellCheck={false} readOnly={props.readOnly} /></details>
+    <details className="advanced-definition"><summary>Advanced JSON</summary><textarea value={props.value} onChange={(event) => props.onChange(event.target.value)} spellCheck={false} readOnly={props.readOnly} aria-invalid={validationPath.length > 0 || undefined} aria-describedby={validationPath.length > 0 ? "flowbot-draft-error" : undefined} data-flow-advanced-json /></details>
   </div>;
 }

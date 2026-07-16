@@ -61,6 +61,8 @@ Finance roles. It verified:
 - FlowBot Premium schedule and routing fields match database-safe key, name,
   IANA timezone, and active-member limits; invalid values receive focused,
   assertive correction with zero mutations;
+- FlowBot visual titles/copy match domain limits, malformed Advanced JSON keeps
+  its repair control, and invalid per-node JSON cannot silently save stale data;
 - a branded registration completion and invalid-link recovery journey with one
   anti-enumerating, retryable verification resend control;
 - correct permission-derived tenant and Platform navigation;

@@ -80,6 +80,9 @@ HTTP, and overlong origins instead of silently rewriting merchant input.
 FlowBot Premium schedule and routing forms likewise enforce the same key, name,
 timezone, and member boundaries as their API, domain, and PostgreSQL authority,
 with accessible local correction instead of generic late failures.
+Its visual editor also validates the complete draft schema locally, keeps
+malformed Advanced JSON repairable, and refuses to save stale per-node JSON;
+title/copy errors remain visible and send no draft mutation.
 Read-only roles no longer
 receive misleading mutation controls, and forbidden direct
 routes fail closed with a recovery path. Unexpected URLs and render failures in

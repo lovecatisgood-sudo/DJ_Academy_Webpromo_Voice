@@ -33,7 +33,11 @@ async function mockFlowbot(page, planKey, counters) {
     if (path === "/tenant/support-access") return json(route, { grants: [] });
     if (path === "/tenant/team") return json(route, { team: { members: [{ membership_id: "44000000-0000-4000-8000-000000000001", display_name: "Sales Owner", membership_status: "active" }], invitations: [], transfers: [] } });
     if (path === "/tenant/flowbot/bots" && method === "GET") return json(route, { bots: [{ id: botId, name: `${planKey} assistant`, status: "active", defaultLanguage: "en", currentPublishedVersionId: versionId, draftRevision: 3, deploymentCount: 1 }], capabilities: { planKey, accessMode: "active", advancedNodes: planKey === "flowbot_premium", approvedWebhooks: planKey === "flowbot_premium", teamRouting: planKey === "flowbot_premium", brandingRemoval: planKey === "flowbot_premium", limits: { activeBots: planKey === "flowbot_premium" ? 3 : 1, nodesPerBot: planKey === "flowbot_premium" ? 500 : 100, deployments: planKey === "flowbot_premium" ? 5 : 1 } } });
-    if (path.endsWith("/draft")) return json(route, method === "GET" ? { draft: { revision: 3, definition: definition(), updatedAt: new Date().toISOString() } } : { status: "updated", revision: 4 });
+    if (path.endsWith("/draft")) {
+      if (method === "GET") return json(route, { draft: { revision: 3, definition: definition(), updatedAt: new Date().toISOString() } });
+      counters.draftPatches += 1;
+      return json(route, { status: "updated", revision: 4 });
+    }
     if (path.endsWith("/versions")) return json(route, { versions: [{ id: versionId, version: 1, sourceVersionId: null, publishedAt: new Date().toISOString() }] });
     if (path.endsWith("/deployments")) {
       if (method === "GET") return json(route, { deployments: [{ id: deploymentId, name: "Website", keyPrefix: "djay_flow_demo", status: "active", allowedOrigins: ["https://merchant.example"], createdAt: new Date().toISOString() }] });
@@ -59,7 +63,7 @@ async function mockFlowbot(page, planKey, counters) {
 
 async function inspectPlan(planKey, viewport, suffix) {
   const context = await browser.newContext({ viewport }); const page = await context.newPage();
-  const counters = { deploymentCreates: 0, scheduleSaves: 0, routingTeamSaves: 0, scheduleBody: null, routingTeamBody: null };
+  const counters = { deploymentCreates: 0, draftPatches: 0, scheduleSaves: 0, routingTeamSaves: 0, scheduleBody: null, routingTeamBody: null };
   page.on("pageerror", (error) => failures.push(`${planKey}-${suffix}: ${error.message}`));
   page.on("console", (entry) => { if (entry.type() === "error") failures.push(`${planKey}-${suffix}: console ${entry.text()}`); });
   await mockFlowbot(page, planKey, counters);
@@ -72,9 +76,38 @@ async function inspectPlan(planKey, viewport, suffix) {
   if ((planKey === "flowbot_premium") !== palette.includes("delay")) failures.push(`${planKey}-${suffix}: Premium palette classification mismatch`);
   if (!(await page.getByText("Sales inbox", { exact: true }).count())) failures.push(`${planKey}-${suffix}: encrypted merchant notification profile missing`);
   if (suffix === "desktop") {
+    const advancedEditor = page.locator("details.advanced-definition");
+    await advancedEditor.getByText("Advanced JSON", { exact: true }).click();
+    const advancedJson = advancedEditor.locator("textarea");
+    const validDefinition = await advancedJson.inputValue();
+    await advancedJson.fill("{");
+    await page.getByText("Advanced JSON remains open so you can repair it.", { exact: false }).waitFor();
+    if (!(await advancedJson.isVisible()) || await advancedJson.inputValue() !== "{") failures.push(`${planKey}-${suffix}: invalid Advanced JSON removed its repair control`);
+    await advancedJson.fill(validDefinition);
+    await page.locator(".flow-node-card").nth(1).waitFor();
     await page.getByRole("button", { name: "Lead capture" }).click();
-    await page.locator(".flow-node-card").nth(2).waitFor();
+    const newNode = page.locator(".flow-node-card").nth(2); await newNode.waitFor();
+    if (await newNode.getByLabel("Title").getAttribute("maxlength") !== "160"
+      || await newNode.getByLabel("English").getAttribute("maxlength") !== "10000"
+      || await newNode.getByLabel("Thai").getAttribute("maxlength") !== "10000") {
+      failures.push(`${planKey}-${suffix}: visual editor fields drifted from the FlowBot domain boundary`);
+    }
+    await newNode.getByLabel("Title").fill("   ");
     await page.getByRole("button", { name: "Save draft" }).click();
+    await page.getByRole("alert").getByText("Each node title must contain 1–160 visible characters.", { exact: true }).waitFor();
+    if (counters.draftPatches !== 0) failures.push(`${planKey}-${suffix}: invalid node title reached the API`);
+    await newNode.getByLabel("Title").fill("Contact details");
+    const nodeSettings = newNode.locator("details");
+    await nodeSettings.getByText("Node settings", { exact: true }).click();
+    const nodeJson = nodeSettings.locator("textarea"); const validNode = await nodeJson.inputValue();
+    await nodeJson.fill("{"); await nodeJson.blur();
+    await nodeSettings.getByRole("alert").getByText("Node settings must be valid JSON", { exact: false }).waitFor();
+    await page.getByRole("button", { name: "Save draft" }).click();
+    if (counters.draftPatches !== 0) failures.push(`${planKey}-${suffix}: invalid per-node JSON allowed a stale draft mutation`);
+    await nodeJson.fill(validNode); await nodeJson.blur();
+    await nodeSettings.getByRole("alert").waitFor({ state: "hidden" });
+    await page.getByRole("button", { name: "Save draft" }).click();
+    if (counters.draftPatches !== 1) failures.push(`${planKey}-${suffix}: corrected visual draft did not send exactly one mutation`);
     await page.getByRole("button", { name: "Publish", exact: true }).click();
     const deploymentForm = page.locator("form.flowbot-deploy").filter({ has: page.getByLabel("Exact allowed website origin") });
     if (await deploymentForm.getByLabel("Deployment name").getAttribute("maxlength") !== "160"
