@@ -82,6 +82,7 @@ run_sql /workspace/packages/db/migrations/0036_voice_advanced_runtime.sql
 run_sql /workspace/packages/db/migrations/0037_voice_analytics_indexes.sql
 run_sql /workspace/packages/db/migrations/0038_release_readiness.sql
 run_sql /workspace/packages/db/migrations/0039_resilience_drills.sql
+run_sql /workspace/packages/db/migrations/0040_dead_letter_recovery.sql
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -c "ALTER ROLE djay_auth_runtime LOGIN PASSWORD 'djay_auth_test'" >/dev/null
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
@@ -98,6 +99,16 @@ docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -c "ALTER ROLE djay_voice_runtime LOGIN PASSWORD 'djay_voice_test'" >/dev/null
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -c "ALTER ROLE djay_migrator LOGIN PASSWORD 'djay_migrator_test'" >/dev/null
+
+if [[ "${P9_RECOVERY_ONLY:-false}" == "true" ]]; then
+  echo "Running focused reviewed dead-letter recovery integration test."
+  PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:55432/postgres" \
+  WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:55432/postgres" \
+  ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+    "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/platform-recovery-store.integration.test.ts
+  echo "P9 focused reviewed dead-letter recovery passed."
+  exit 0
+fi
 
 if [[ "${P9_RESILIENCE_ONLY:-false}" == "true" ]]; then
   echo "Running focused event replay, stale-queue recovery, and pool-exhaustion drill."
@@ -170,6 +181,12 @@ PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:5
 TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:55432/postgres" \
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/platform-support-store.integration.test.ts
+
+echo "Running reviewed dead-letter recovery integration test."
+PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:55432/postgres" \
+WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:55432/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/platform-recovery-store.integration.test.ts
 
 echo "Running FlowBot Basic and Premium authoring integration test."
 TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:55432/postgres" \

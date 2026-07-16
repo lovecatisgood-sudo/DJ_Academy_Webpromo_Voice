@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0039_resilience_drills";
+export const currentSchemaVersion = "0040_dead_letter_recovery";
 
 export { PostgresAuthStore } from "./auth-store";
 export { BillingWebhookStore } from "./billing-webhook-store";
@@ -30,6 +30,7 @@ export {
 export { PostgresEmailOutboxStore } from "./email-outbox-store";
 export { PostgresPlatformAuthStore } from "./platform-auth-store";
 export { PlatformSupportStore } from "./platform-support-store";
+export { PlatformRecoveryStore, type RecoverableQueueKind } from "./platform-recovery-store";
 export {
   PlatformOperationsStore,
   operationalAttestationKinds,

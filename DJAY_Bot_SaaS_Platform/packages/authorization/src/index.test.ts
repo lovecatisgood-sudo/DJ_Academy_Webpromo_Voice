@@ -39,6 +39,15 @@ describe("authorization policy", () => {
     expect(platformRoleAllows("platform_ai_operations", "platform.billing.read")).toBe(false);
   });
 
+  it("requires an owner to review recovery requested by operations or support", () => {
+    expect(platformRoleAllows("platform_support", "platform.recovery.request")).toBe(true);
+    expect(platformRoleAllows("platform_ai_operations", "platform.recovery.request")).toBe(true);
+    expect(platformRoleAllows("platform_support", "platform.recovery.review")).toBe(false);
+    expect(platformRoleAllows("platform_ai_operations", "platform.recovery.review")).toBe(false);
+    expect(platformRoleAllows("platform_finance", "platform.recovery.read")).toBe(false);
+    expect(platformRoleAllows("platform_owner", "platform.recovery.review")).toBe(true);
+  });
+
   it("covers every declared permission in the owner sets", () => {
     expect(platformPermissions.every((permission) => platformRoleAllows("platform_owner", permission))).toBe(true);
   });

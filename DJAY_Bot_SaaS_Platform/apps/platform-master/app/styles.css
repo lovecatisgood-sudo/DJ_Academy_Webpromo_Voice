@@ -52,6 +52,9 @@ small { display: block; margin-top: 18px; color: #666d6a; }
 .platform-row button { width: fit-content; height: 38px; justify-self: end; padding: 0 13px; font-size: 12px; }
 .empty-row { margin: 20px 0; color: #666d6a; font-size: 13px; text-transform: none; }
 .support-band { border-top: 1px solid #dce1df; background: #f7f9f8; }
+.recovery-band { border-top: 1px solid #dce1df; border-bottom: 1px solid #dce1df; background: #f7f9f8; }
+.recovery-request-form { grid-template-columns: minmax(260px, 1fr) minmax(300px, 1.4fr) auto; }
+.recovery-row { grid-template-columns: minmax(240px, 1.2fr) 100px minmax(190px, .7fr) minmax(210px, auto); }
 .voice-control-band { border-bottom: 1px solid #dce1df; background: #f7f9f8; }
 .voice-control-band.mode-emergency_stop { box-shadow: inset 4px 0 #a22d28; background: #fff7f6; }
 .advanced-voice-band { border-top: 1px solid #dce1df; border-bottom: 1px solid #dce1df; background: #f7f9f8; }
@@ -142,7 +145,7 @@ small { display: block; margin-top: 18px; color: #666d6a; }
   .metrics-band > div { min-height: 110px; border-right: 0; }
   .platform-row { grid-template-columns: 1fr; gap: 8px; padding: 14px 0; }
   .platform-row button { justify-self: start; }
-  .support-request-form, .support-row { grid-template-columns: 1fr; }
+  .support-request-form, .support-row, .recovery-request-form, .recovery-row { grid-template-columns: 1fr; }
   .voice-control-summary { grid-template-columns: 1fr; }
   .reconciliation-heading { display: grid; }
   .reconciliation-status { width: fit-content; }

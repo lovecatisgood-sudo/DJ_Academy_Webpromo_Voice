@@ -24,9 +24,13 @@ evidence.
   `FOR UPDATE SKIP LOCKED`; the item finishes exactly once.
 - Payload contents and decrypted recipients never appear in logs or drill
   evidence.
-- A dead-letter is not changed with direct SQL. Manual dead-letter recovery
-  remains fail-closed until the reviewed two-person replay workflow is deployed;
-  any dead letter keeps the SLO/release gate blocked.
+- A dead-letter is never changed with direct SQL. Use the reviewed recovery
+  workflow only for an eligible email item after correcting its root cause.
+- Approval requires a different Platform Owner and creates one due retry through
+  the normal worker. The release gate remains blocked until delivery succeeds
+  and fresh zero-dead-letter evidence is accepted.
+- FlowBot webhooks and social inbound/delivery remain non-replayable; escalate
+  them for queue-specific remediation rather than selecting a similar email row.
 
 ### Pool exhaustion
 
@@ -55,6 +59,12 @@ The full database suite repeats the same drill:
 scripts/use-node24.sh pnpm test:db
 ```
 
+The focused two-person recovery contract can be exercised separately:
+
+```bash
+scripts/use-node24.sh pnpm run qa:p9-recovery
+```
+
 ## Production execution
 
 1. Announce the maintenance window and identify the primary/secondary operator.
@@ -71,6 +81,21 @@ scripts/use-node24.sh pnpm test:db
 6. Confirm Platform Master shows 8/8 current attestations only after every other
    operational review also passes.
 
+## Reviewed dead-letter recovery
+
+1. Confirm the source failure is understood and corrected. If the item is not
+   listed in Platform Master, it is not approved for manual replay.
+2. Support, AI Operations, or Owner selects the opaque eligible email item and
+   records a 12–500 character root-cause/replay reason. Do not paste customer
+   data, recipients, payloads, credentials, SQL, or provider/model details.
+3. A different Platform Owner signs in again if authentication is older than ten
+   minutes, reviews the reason and safe error, then approves one retry or rejects.
+4. Confirm the request is `applied` and the normal worker consumes the item.
+   Approval alone is not success and does not clear the release blocker.
+5. Confirm the provider effect is singular under the immutable outbox UUID,
+   source status becomes `sent`, backlog returns to normal, and fresh SLO/drill
+   evidence reports zero dead letters. Otherwise open an incident and stop.
+
 ## Rollback and incident handling
 
 - The email idempotency contract is backward compatible because the durable
@@ -79,7 +104,8 @@ scripts/use-node24.sh pnpm test:db
 - The readiness endpoint is additive. Remove it from the load-balancer check
   before rolling back the application, but keep liveness distinct from
   readiness.
-- Migration 0039 only expands accepted attestation kinds. Retain it and all
-  immutable evidence during rollback.
+- Migrations 0039 and 0040 are additive. Retain their request, review, audit, and
+  attestation evidence during rollback; pause recovery actions before reverting
+  the application.
 - If a drill creates a duplicate effect or cannot recover, record failed
   attestations, block release, preserve the evidence, and open an incident.

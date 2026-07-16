@@ -82,7 +82,8 @@ function json(route, value, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(value) });
 }
 
-async function mockPlatform(page, role) {
+async function mockPlatform(page, role, recoveryMode) {
+  const calls = { recoveryRequests: 0, recoveryReviews: 0 };
   await page.route("**/platform/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/platform/me") return json(route, { user: {
@@ -103,6 +104,33 @@ async function mockPlatform(page, role) {
     if (path === "/platform/subscriptions") return json(route, { subscriptions: [] });
     if (path === "/platform/tenants") return json(route, { tenants: [] });
     if (path === "/platform/support-grants") return json(route, { grants: [] });
+    if (path === "/platform/dead-letter-recovery" && route.request().method() === "GET" && recoveryMode === "error") return json(route, { status: "temporarily_unavailable" }, 503);
+    if (path === "/platform/dead-letter-recovery" && route.request().method() === "GET") return json(route, { recovery: {
+      recoverable: [{
+        recordKind: "recoverable", recordId: "94000000-0000-4000-8000-000000000001",
+        queueKind: "system_email", itemId: "94000000-0000-4000-8000-000000000001",
+        attemptCount: 8, safeErrorCode: "delivery_rejected", occurredAt: now.toISOString(), status: "dead_letter",
+      }],
+      requests: [{
+        recordKind: "request", recordId: "94000000-0000-4000-8000-000000000002",
+        queueKind: "flowbot_email", itemId: "94000000-0000-4000-8000-000000000003",
+        attemptCount: 8, occurredAt: now.toISOString(), status: "requested",
+        reason: "Root cause corrected; permit one idempotent email retry.",
+        requestedByPlatformUserId: "platform_support", reviewedByPlatformUserId: null,
+      }],
+      policy: {
+        replayableQueueKinds: ["system_email", "flowbot_email", "ai_chat_email"],
+        excludedQueueKinds: ["flowbot_webhook", "social_inbound", "social_delivery"],
+      },
+    } });
+    if (path === "/platform/dead-letter-recovery" && route.request().method() === "POST") {
+      calls.recoveryRequests += 1;
+      return json(route, { status: "requested", requestId: "94000000-0000-4000-8000-000000000004" }, 202);
+    }
+    if (path.endsWith("/review")) {
+      calls.recoveryReviews += 1;
+      return json(route, { status: "applied" });
+    }
     if (path === "/platform/voice/runtime-control") return json(route, { control: {
       mode: "paused", reasonCode: "pre_release", version: 1, changedAt: now.toISOString(),
       activeSessions: 0, reconnectingSessions: 0, expiredGrants: 0, staleConnections: 0,
@@ -114,14 +142,19 @@ async function mockPlatform(page, role) {
     if (path === "/platform/voice/incidents") return json(route, { incidents: [] });
     return json(route, { status: "not_found" }, 404);
   });
+  return calls;
 }
 
-async function inspect(name, role, viewport) {
+async function inspect(name, role, viewport, recoveryMode = "ready") {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   page.on("pageerror", (error) => failures.push(`${name}: page error ${error.message}`));
-  page.on("console", (entry) => { if (entry.type() === "error") failures.push(`${name}: console ${entry.text()}`); });
-  await mockPlatform(page, role);
+  page.on("console", (entry) => {
+    if (entry.type() === "error" && !(recoveryMode === "error" && entry.text().includes("503"))) {
+      failures.push(`${name}: console ${entry.text()}`);
+    }
+  });
+  const calls = await mockPlatform(page, role, recoveryMode);
   const response = await page.goto(platformUrl, { waitUntil: "networkidle" });
   if (!response?.ok()) failures.push(`${name}: navigation ${response?.status()}`);
   if (["platform_owner", "platform_finance"].includes(role)) {
@@ -129,6 +162,19 @@ async function inspect(name, role, viewport) {
   }
   await page.getByRole("heading", { name: "Public release readiness" }).waitFor();
   await page.getByText("Release blocked", { exact: true }).waitFor();
+  if (role === "platform_support" && recoveryMode === "ready") {
+    await page.getByLabel("Eligible dead letter").selectOption({ index: 1 });
+    await page.getByLabel("Root-cause and replay reason").fill("Root cause corrected; approve one idempotent retry.");
+    await page.getByRole("button", { name: "Request replay" }).click();
+    await page.waitForLoadState("networkidle");
+    if (calls.recoveryRequests !== 1) failures.push(`${name}: recovery request was not submitted once`);
+  }
+  if (role === "platform_owner" && recoveryMode === "ready") {
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "Approve one retry" }).click();
+    await page.waitForLoadState("networkidle");
+    if (calls.recoveryReviews !== 1) failures.push(`${name}: recovery approval was not submitted once`);
+  }
   const snapshot = await page.evaluate(() => ({
     body: document.body.innerText,
     reconciliation: document.querySelector(".reconciliation-band")?.textContent || "",
@@ -147,6 +193,13 @@ async function inspect(name, role, viewport) {
   if (role === "platform_finance" && (!snapshot.body.includes("Finance review") || !snapshot.body.includes("Read-only evidence"))) failures.push(`${name}: finance authority guidance missing`);
   if (role === "platform_support" && !snapshot.body.includes("Keep on-call and support-runbook evidence current")) failures.push(`${name}: support release guidance missing`);
   if (role === "platform_ai_operations" && !snapshot.body.includes("Resolve failing runtime objectives")) failures.push(`${name}: AI Operations release guidance missing`);
+  const recoveryVisible = snapshot.body.includes("Reviewed dead-letter replay");
+  if (["platform_owner", "platform_support", "platform_ai_operations"].includes(role) && recoveryMode === "ready" && !recoveryVisible) failures.push(`${name}: reviewed recovery workflow missing`);
+  if (recoveryMode === "error" && (!snapshot.body.includes("Recovery controls unavailable") || !snapshot.body.includes("Do not use direct SQL"))) failures.push(`${name}: fail-closed recovery error guidance missing`);
+  if (role === "platform_finance" && recoveryVisible) failures.push(`${name}: Finance received recovery authority`);
+  if (recoveryVisible && (!snapshot.body.includes("durable idempotency key") || !snapshot.body.includes("cannot be proven safe to repeat"))) failures.push(`${name}: recovery safety boundary missing`);
+  if (recoveryVisible && /secret-recipient|payload_ciphertext|tenant_id/i.test(snapshot.body)) failures.push(`${name}: recovery confidentiality leak`);
+  if (recoveryMode === "ready" && ["platform_support", "platform_ai_operations"].includes(role) && !(await page.getByRole("button", { name: "Request replay" }).isVisible())) failures.push(`${name}: recovery request authority missing`);
   await page.screenshot({ path: `/tmp/djay-p9-operations-${name}.png`, fullPage: true });
   await context.close();
 }
@@ -155,10 +208,11 @@ await inspect("owner-desktop", "platform_owner", { width: 1365, height: 900 });
 await inspect("finance-mobile", "platform_finance", { width: 390, height: 844 });
 await inspect("support-desktop", "platform_support", { width: 1280, height: 800 });
 await inspect("ai-operations-mobile", "platform_ai_operations", { width: 390, height: 844 });
+await inspect("support-recovery-error-mobile", "platform_support", { width: 390, height: 844 }, "error");
 await browser.close();
 
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
-console.info("P9 operations UI passed Owner, Finance, Support, and AI Operations release-readiness, reconciliation, authority, overflow, commercial-boundary, console, and confidentiality checks.");
+console.info("P9 operations UI passed Owner, Finance, Support, and AI Operations release-readiness, reviewed recovery, reconciliation, authority, overflow, commercial-boundary, console, and confidentiality checks.");

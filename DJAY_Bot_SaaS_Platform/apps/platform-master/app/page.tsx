@@ -49,6 +49,9 @@ type Subscription = {
 };
 type Tenant = { id: string; businessName: string; slug: string; status: string };
 type SupportGrant = { id: string; tenantId: string; businessName: string; requestedByPlatformUserId: string; approvedByPlatformUserId: string | null; reason: string; status: string; startsAt: string; expiresAt: string };
+type RecoveryItem = { recordKind: "recoverable"; recordId: string; queueKind: "system_email" | "flowbot_email" | "ai_chat_email"; itemId: string; attemptCount: number; safeErrorCode: string; occurredAt: string; status: "dead_letter" };
+type RecoveryRequest = { recordKind: "request"; recordId: string; queueKind: RecoveryItem["queueKind"]; itemId: string; attemptCount: number; occurredAt: string; status: "requested" | "applied" | "rejected" | "invalidated"; reason: string; requestedByPlatformUserId: string; reviewedByPlatformUserId: string | null };
+type RecoveryOverview = { recoverable: RecoveryItem[]; requests: RecoveryRequest[]; policy: { replayableQueueKinds: string[]; excludedQueueKinds: string[] } };
 type VoiceControl = { mode: "running" | "paused" | "emergency_stop"; reasonCode: string; version: number; changedAt: string; activeSessions: number; reconnectingSessions: number; expiredGrants: number; staleConnections: number };
 type VoiceIncident = { id: string; capabilityProfile: "voice_gen2"; severity: "minor" | "major" | "critical"; status: "open" | "monitoring" | "resolved"; reason: string; resolution: string | null; routingChangeId: string | null; creditReviewStatus: "not_required" | "required" | "approved" | "rejected"; openedByPlatformUserId: string; openedAt: string; resolvedAt: string | null };
 type VoiceCandidate = { id: string; capabilityProfile: "voice_gen2"; providerKey: string; modelKey: string; regionKey: string; status: "proposed" | "qualified" | "rejected" | "paused"; proposedByPlatformUserId: string; reviewedByPlatformUserId: string | null; proposedAt: string; reviewedAt: string | null };
@@ -70,6 +73,8 @@ export default function PlatformMasterPage() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [supportGrants, setSupportGrants] = useState<SupportGrant[]>([]);
+  const [recovery, setRecovery] = useState<RecoveryOverview | null>(null);
+  const [recoveryStage, setRecoveryStage] = useState<"hidden" | "loading" | "ready" | "error">("hidden");
   const [voiceControl, setVoiceControl] = useState<VoiceControl | null>(null);
   const [voiceRouting, setVoiceRouting] = useState<VoiceRouting | null>(null);
   const [voiceIncidents, setVoiceIncidents] = useState<VoiceIncident[] | null>(null);
@@ -123,6 +128,21 @@ export default function PlatformMasterPage() {
     if (tenantResponse.ok) setTenants((await tenantResponse.json()).tenants || []);
     const grantResponse = await fetch("/platform/support-grants", { cache: "no-store" });
     if (grantResponse.ok) setSupportGrants((await grantResponse.json()).grants || []);
+    if (["platform_owner", "platform_support", "platform_ai_operations"].includes(result.user.role)) {
+      setRecoveryStage("loading");
+      try {
+        const recoveryResponse = await fetch("/platform/dead-letter-recovery", { cache: "no-store" });
+        if (!recoveryResponse.ok) throw new Error("recovery_unavailable");
+        setRecovery((await recoveryResponse.json()).recovery);
+        setRecoveryStage("ready");
+      } catch {
+        setRecovery(null);
+        setRecoveryStage("error");
+      }
+    } else {
+      setRecovery(null);
+      setRecoveryStage("hidden");
+    }
     const voiceResponse = await fetch("/platform/voice/runtime-control", { cache: "no-store" });
     if (voiceResponse.ok) setVoiceControl((await voiceResponse.json()).control);
     if (["platform_owner", "platform_ai_operations"].includes(result.user.role)) {
@@ -185,6 +205,8 @@ export default function PlatformMasterPage() {
     setSubscriptions([]);
     setTenants([]);
     setSupportGrants([]);
+    setRecovery(null);
+    setRecoveryStage("hidden");
     setVoiceControl(null);
     setVoiceRouting(null);
     setVoiceIncidents(null);
@@ -213,6 +235,37 @@ export default function PlatformMasterPage() {
   async function decideSupport(grantId: string, command: "approve" | "revoke") {
     setWorking(true); setMessage(""); const response = await fetch(`/platform/support-grants/${grantId}/${command}`, { method: "POST" }); setWorking(false);
     if (!response.ok) { setMessage(command === "approve" ? "Approval requires another platform user and recent authentication." : "Grant could not be revoked."); return; }
+    await loadCurrent();
+  }
+
+  async function requestRecovery(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setWorking(true); setMessage("");
+    const form = event.currentTarget; const data = new FormData(form);
+    const [queueKind, itemId, attemptCount] = String(data.get("recoveryTarget") || "").split("|");
+    const response = await fetch("/platform/dead-letter-recovery", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        queueKind, itemId, attemptCount: Number(attemptCount), reason: data.get("reason"),
+      }),
+    });
+    setWorking(false);
+    if (!response.ok) { setMessage("Recovery request is stale, duplicated, or no longer safe to replay."); return; }
+    form.reset(); await loadCurrent();
+  }
+
+  async function reviewRecovery(requestId: string, decision: "approve" | "reject") {
+    if (decision === "approve" && !window.confirm("Approve one idempotent email delivery attempt? This action is audited and cannot be undone.")) return;
+    setWorking(true); setMessage("");
+    const response = await fetch(`/platform/dead-letter-recovery/${requestId}/review`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }),
+    });
+    setWorking(false);
+    if (!response.ok) {
+      setMessage(response.status === 403
+        ? "Recovery approval requires recent authentication. Sign out and verify again."
+        : "Recovery review requires a different Platform Owner and an unchanged dead letter.");
+      return;
+    }
     await loadCurrent();
   }
 
@@ -466,6 +519,31 @@ export default function PlatformMasterPage() {
             <div className="platform-table" role="table" aria-label="Advanced Voice incidents">{voiceIncidents.map((incident) => <div className="platform-row incident-row" role="row" key={incident.id}><div><strong>{incident.severity} · {incident.status}</strong><span>{incident.reason}</span></div><span>{incident.creditReviewStatus.replaceAll("_", " ")}</span><div className="row-actions">{incident.creditReviewStatus === "required" && ["platform_owner", "platform_finance"].includes(user.role) ? <><button disabled={working || incident.openedByPlatformUserId === user.id} onClick={() => void reviewVoiceCredit(incident.id, "approve")}>Approve credit review</button><button className="outline-button" disabled={working || incident.openedByPlatformUserId === user.id} onClick={() => void reviewVoiceCredit(incident.id, "reject")}>Reject</button></> : null}{incident.status !== "resolved" && ["platform_owner", "platform_ai_operations"].includes(user.role) ? <button disabled={working} onClick={() => void resolveVoiceIncident(incident.id)}>Resolve</button> : null}</div></div>)}{!voiceIncidents.length ? <p className="empty-row">No Advanced Voice incidents</p> : null}</div>
           </div> : null}
           {health?.socialChannels?.length ? <div className="subscription-band"><div><p>AI Chat operations</p><h2>Social channel health</h2></div><div className="platform-table" role="table" aria-label="Social channel health">{health.socialChannels.map((channel) => <div className="platform-row" role="row" key={channel.channel}><div><strong>{channel.channel === "line" ? "LINE" : channel.channel === "whatsapp" ? "WhatsApp" : "Messenger"}</strong><span>{channel.activeConnections} active / {channel.reauthorizationRequired} reauthorization</span></div><span>{channel.queuedInbound} inbound queued / {channel.oldestInboundQueueSeconds}s oldest</span><span>{channel.queuedDeliveries} delivery queued / {channel.oldestDeliveryQueueSeconds}s oldest</span><span>{channel.deadLetterInbound + channel.deadLetterDeliveries} dead letters / {channel.failedAttempts24h} failed attempts</span></div>)}</div></div> : null}
+          {recoveryStage === "loading" ? <div className="subscription-band recovery-band" aria-busy="true"><div><p>Queue recovery · restricted</p><h2>Loading reviewed recovery</h2></div><p className="operational-note">Checking replay eligibility and independent-review state.</p></div> : null}
+          {recoveryStage === "error" ? <div className="subscription-band recovery-band"><div><p>Queue recovery · restricted</p><h2>Recovery controls unavailable</h2></div><p className="operational-note" role="alert">Failing closed. Do not use direct SQL; restore the recovery service and refresh this page.</p></div> : null}
+          {recoveryStage === "ready" && recovery ? <div className="subscription-band recovery-band">
+            <div><p>Queue recovery · restricted</p><h2>Reviewed dead-letter replay</h2></div>
+            <p className="operational-note">Only email deliveries with our durable idempotency key are eligible. FlowBot webhooks and social queues remain blocked for root-cause review because an external side effect cannot be proven safe to repeat.</p>
+            <div className="voice-control-summary recovery-summary">
+              <div><span>Eligible</span><strong>{recovery.recoverable.length}</strong><small>safe email dead letters</small></div>
+              <div><span>Awaiting review</span><strong>{recovery.requests.filter((request) => request.status === "requested").length}</strong><small>different owner required</small></div>
+              <div><span>Excluded</span><strong>{recovery.policy.excludedQueueKinds.length}</strong><small>non-idempotent queue classes</small></div>
+            </div>
+            {recovery.recoverable.length ? <form className="support-request-form recovery-request-form" onSubmit={requestRecovery}>
+              <label>Eligible dead letter<select name="recoveryTarget" required defaultValue=""><option value="" disabled>Select an opaque queue item</option>{recovery.recoverable.map((item) => <option key={`${item.queueKind}:${item.itemId}`} value={`${item.queueKind}|${item.itemId}|${item.attemptCount}`}>{item.queueKind.replaceAll("_", " ")} · …{item.itemId.slice(-8)} · attempt {item.attemptCount}</option>)}</select></label>
+              <label>Root-cause and replay reason<input name="reason" minLength={12} maxLength={500} required placeholder="Cause corrected; approve one idempotent retry" /></label>
+              <button type="submit" disabled={working}>Request replay</button>
+            </form> : <p className="empty-row">No eligible email dead letters</p>}
+            <div className="platform-table" role="table" aria-label="Dead-letter recovery requests">
+              {recovery.requests.map((request) => <div className="platform-row recovery-row" role="row" key={request.recordId}>
+                <div><strong>{request.queueKind.replaceAll("_", " ")} · …{request.itemId.slice(-8)}</strong><span>{request.reason}</span></div>
+                <span>{request.status}</span><span>Attempt {request.attemptCount} · {new Date(request.occurredAt).toLocaleString()}</span>
+                <div className="row-actions">{user.role === "platform_owner" && request.status === "requested" ? <><button type="button" disabled={working || request.requestedByPlatformUserId === user.id} onClick={() => void reviewRecovery(request.recordId, "approve")}>Approve one retry</button><button className="outline-button" type="button" disabled={working || request.requestedByPlatformUserId === user.id} onClick={() => void reviewRecovery(request.recordId, "reject")}>Reject</button></> : null}</div>
+              </div>)}
+              {!recovery.requests.length ? <p className="empty-row">No recovery requests</p> : null}
+            </div>
+            <small>Payloads, recipients, tenant identifiers, credentials, providers, and models are never exposed here. Every request and review is immutable audit evidence.</small>
+          </div> : null}
           <div className="subscription-band">
             <div><p>Commerce</p><h2>Product subscriptions</h2></div>
             <div className="platform-table" role="table" aria-label="Product subscriptions">

@@ -123,6 +123,9 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
 5. Migration `0039_resilience_drills.sql` extends immutable operational evidence
    with event replay, queue recovery, and pool exhaustion. These three current
    passes are required in addition to the five human/restore reviews.
+6. Migration `0040_dead_letter_recovery.sql` and ADR-012 add queue-specific
+   request/review evidence and one normal-worker retry for the three email
+   queues whose downstream idempotency key is the immutable outbox UUID.
 
 ## Schema, API, and event impact
 
@@ -142,6 +145,9 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
   content, commercial data, or provider/model fields.
 - Platform migration `0039_resilience_drills.sql` additively expands the
   attestation constraint; no tenant table or commercial contract changes.
+- Platform migration `0040_dead_letter_recovery.sql` adds request/review state
+  and narrow recovery functions. It does not grant the platform role direct
+  queue/table access and introduces no tenant or commercial mutation contract.
 - The fresh-cluster role bootstrap is additively completed in
   `0000_roles.sql`; embedded later role guards remain idempotent. Existing
   environments already have these roles and need no destructive change.
@@ -182,13 +188,13 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
 - Enabling paid plans, overage collection, or broad public self-service.
 - Treating local QA evidence as a production SLA, managed monitoring result,
   staffed on-call rota, managed PITR, regional recovery, or legal launch signoff.
-- Direct-SQL dead-letter replay. Dead letters continue to block release until a
-  reviewed two-person recovery workflow is implemented and exercised.
+- Generic or direct-SQL dead-letter replay. Reviewed recovery is limited to the
+  three email queues with an end-to-end durable idempotency key; webhook and
+  social dead letters remain fail-closed.
 
 ## Next slice
 
-Add reviewed two-person dead-letter recovery, then exercise managed database
-failover, cache loss, object-store/provider outage, real monitoring,
+Exercise managed database failover, cache loss, object-store/provider outage, real monitoring,
 production backup/PITR, regional recovery, staffed on-call escalation, and live
 status communication. After ADR-008 is accepted, implement
 immutable invoices, provider checkout, signed webhook application, plan
@@ -199,7 +205,7 @@ approved fixtures.
 
 Remove the Usage Center, reconciliation, readiness, and status route/UI, then
 deploy the previous application. No tenant schema reversal is required. Retain
-migrations 0038/0039 and their immutable operational evidence; do not delete or rewrite
+migrations 0038/0039/0040 and their immutable operational evidence; do not delete or rewrite
 observations/attestations during application rollback. Public status must remain
 unknown or unavailable rather than claim operational health without evidence. The
 additive no-login/no-bypass role declarations are safe to retain; do not revoke

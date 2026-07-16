@@ -39,6 +39,7 @@ const voiceAdvancedRuntimeMigration = readFileSync(resolve(import.meta.dirname, 
 const voiceAnalyticsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0037_voice_analytics_indexes.sql"), "utf8");
 const releaseReadinessMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0038_release_readiness.sql"), "utf8");
 const resilienceDrillsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0039_resilience_drills.sql"), "utf8");
+const deadLetterRecoveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0040_dead_letter_recovery.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -110,6 +111,27 @@ describe("P1 database migration invariants", () => {
     expect(tenantMfaMigration).toContain("ADD COLUMN mfa_verified_at");
     expect(tenantMfaMigration).toContain("CREATE TABLE identity.auth_login_challenges");
     expect(tenantMfaMigration).toContain("code_hash bytea NOT NULL UNIQUE");
+  });
+});
+
+describe("P9 reviewed dead-letter recovery invariants", () => {
+  it("limits replay to idempotent email queues behind two-person platform authority", () => {
+    expect(deadLetterRecoveryMigration).toContain("'system_email', 'flowbot_email', 'ai_chat_email'");
+    expect(deadLetterRecoveryMigration).toContain("reviewed_by_platform_user_id <> requested_by_platform_user_id");
+    expect(deadLetterRecoveryMigration).toContain("request_record.requested_by_platform_user_id = actor_id");
+    expect(deadLetterRecoveryMigration).toContain("status = 'dead_letter'");
+    expect(deadLetterRecoveryMigration).toContain("attempt_count = request_record.expected_attempt_count");
+    expect(deadLetterRecoveryMigration).toContain("last_error_code = 'reviewed_replay'");
+    expect(deadLetterRecoveryMigration).not.toMatch(/flowbot_webhook|social_delivery|social_inbound/);
+  });
+
+  it("uses narrow fixed-path functions without exposing queue payloads", () => {
+    expect(deadLetterRecoveryMigration).toContain("SECURITY DEFINER");
+    expect(deadLetterRecoveryMigration).toContain("session_user <> 'djay_platform'");
+    expect(deadLetterRecoveryMigration).toContain("REVOKE ALL ON FUNCTION platform.dead_letter_recovery_overview");
+    expect(deadLetterRecoveryMigration).not.toMatch(/RETURNS TABLE[\s\S]{0,500}(payload|ciphertext|recipient|tenant_id)/i);
+    expect(deadLetterRecoveryMigration).not.toMatch(/GRANT (SELECT|UPDATE)[^;]+(operations|tenancy)\.outbox TO djay_platform/i);
+    expect(deadLetterRecoveryMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE)[^;]+dead_letter_replay_requests TO djay_platform/i);
   });
 });
 

@@ -62,5 +62,20 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'restored resilience attestation policy missing';
   END IF;
+  IF to_regclass('platform.dead_letter_replay_requests') IS NULL
+     OR NOT EXISTS (
+       SELECT 1 FROM pg_catalog.pg_proc procedure
+       JOIN pg_catalog.pg_namespace namespace ON namespace.oid = procedure.pronamespace
+       WHERE namespace.nspname = 'platform'
+         AND procedure.proname = 'review_dead_letter_replay'
+     ) THEN
+    RAISE EXCEPTION 'restored reviewed dead-letter recovery contract missing';
+  END IF;
+  IF has_table_privilege('djay_platform', 'platform.dead_letter_replay_requests', 'SELECT')
+     OR NOT has_function_privilege(
+       'djay_platform', 'platform.dead_letter_recovery_overview()', 'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'restored dead-letter recovery least-privilege ACL mismatch';
+  END IF;
 END
 $$;

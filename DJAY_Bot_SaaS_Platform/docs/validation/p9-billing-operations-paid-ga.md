@@ -1,8 +1,8 @@
 # P9 Validation: Billing, operations, and paid GA
 
-- Result: Usage, reconciliation, restore, immutable SLO, release-readiness, public-status, replay, queue-recovery, and pool-exhaustion engineering gates passed; paid-GA gate remains open
+- Result: Usage, reconciliation, restore, immutable SLO, release-readiness, public-status, replay, queue/pool resilience, and reviewed email recovery engineering gates passed; paid-GA gate remains open
 - Date: 2026-07-16
-- Schema migrations: `0038_release_readiness.sql`, `0039_resilience_drills.sql`
+- Schema migrations: `0038_release_readiness.sql`, `0039_resilience_drills.sql`, `0040_dead_letter_recovery.sql`
 - Public charging: disabled
 - Invoices and commercial mutations: unavailable
 
@@ -17,6 +17,7 @@ scripts/use-node24.sh pnpm --filter @djay/platform-master typecheck
 scripts/use-node24.sh pnpm --filter @djay/db test
 scripts/use-node24.sh pnpm test:db
 scripts/use-node24.sh pnpm run qa:p9-resilience
+scripts/use-node24.sh pnpm run qa:p9-recovery
 scripts/use-node24.sh pnpm run verify
 scripts/use-node24.sh pnpm --filter @djay/tenant-web build
 scripts/use-node24.sh pnpm --filter @djay/platform-master build
@@ -82,6 +83,17 @@ A second test caught an internal service key in the draft public DTO; that key
 was removed before acceptance. The final database suite passed all migrations,
 RLS probes, repository tests, and legacy migration rehearsal.
 
+Migration 0040 and ADR-012 add reviewed recovery only for system, FlowBot, and
+AI Chat email queues. The focused PostgreSQL test proves the platform role has
+no direct request-table or queue access; Support can inspect/request but cannot
+review; a requester cannot self-approve; a second Owner can apply exactly one
+due retry; an altered attempt count invalidates the approval; duplicate/repeated
+actions fail closed; the normal worker claims the same opaque item, advances the
+attempt history, preserves ciphertext, and completes it; and immutable safe
+audit events are written. FlowBot webhooks and social queues
+are deliberately excluded because their external side effects are not proven
+safe to repeat.
+
 The production public-site build includes `/status`. Chromium exercised an
 operational desktop at 1365x900 and a degraded mobile view at 390x844. Both
 rendered exactly seven customer-facing services with correct state, timestamps,
@@ -101,12 +113,19 @@ authority guidance. Billing counts remained limited to Owner/Finance. All views
 passed overflow, console, confidentiality, commercial-boundary, and actionable
 failure checks.
 
+Owner, Support, and AI Operations also received the reviewed recovery surface
+with safe opaque item data, root-cause input, explicit independent review, and
+the excluded-queue boundary. Finance received no recovery data or controls. The
+four desktop/mobile views passed recovery authority, failure guidance,
+confidentiality, console, and horizontal-overflow checks.
+
 Visual evidence:
 
 - `/tmp/djay-p9-operations-owner-desktop.png`
 - `/tmp/djay-p9-operations-finance-mobile.png`
 - `/tmp/djay-p9-operations-support-desktop.png`
 - `/tmp/djay-p9-operations-ai-operations-mobile.png`
+- `/tmp/djay-p9-operations-support-recovery-error-mobile.png`
 
 The focused resilience drill used a fresh PostgreSQL 16 cluster. It deliberately
 applied an email effect and then returned an ambiguous failure, retried with the
@@ -140,8 +159,9 @@ full database suite and focused `qa:p9-resilience` command pass.
   privacy, and legal launch exercises. The local separate-cluster restore and
   status/SLO engineering gates are complete but are not substitutes for
   production infrastructure and human-response exercises.
-- Reviewed two-person dead-letter recovery; direct SQL remains prohibited and a
-  dead letter keeps the local/production release gate blocked.
+- Managed-environment exercise of the reviewed two-person email recovery;
+  direct SQL remains prohibited and a dead letter keeps the release gate blocked
+  until normal delivery succeeds and fresh zero-dead-letter evidence is accepted.
 - End-to-end unfamiliar-SME register/pay/configure/test/launch acceptance.
 
 This evidence does not authorize payment collection, public prices, invoices,
