@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { safeMutationFetch, safeSameOriginPath } from "@djay/shared";
+import { emailFieldConstraints, safeMutationFetch, safeSameOriginPath } from "@djay/shared";
 import { tenantApplicationEnvironment } from "../lib/application-environment";
 
 export default function TenantLoginPage() {
@@ -73,7 +73,7 @@ export default function TenantLoginPage() {
           </form>
         ) : (
           <form onSubmit={submit}>
-            <label>Email<input type="email" name="email" autoComplete="email" required /></label>
+            <label>Email<input type="email" name="email" autoComplete="email" {...emailFieldConstraints} required /></label>
             <label>Password<input type="password" name="password" autoComplete="current-password" maxLength={128} required /></label>
             <button type="submit" disabled={status === "working"}>
               {status === "working" ? "Signing in..." : "Sign in"}

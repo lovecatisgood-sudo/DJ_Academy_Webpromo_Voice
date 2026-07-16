@@ -130,6 +130,11 @@ recovery now use one 12–128-character passphrase contract with confirmation.
 Mismatches are announced before any network request, preserve all entered data
 and one-time state, and remain immediately correctable. Tenant and Platform
 sign-in fields also enforce the corresponding server maximum.
+All browser email inputs likewise share the API's 320-character maximum.
+Registration and new-user invitation validate normalized person and business
+names on the originating field, reject whitespace-only values locally, preserve
+correctable form/token state, and send trimmed values within the server's
+2–160 and 2–200-character boundaries.
 
 ## Local commands
 

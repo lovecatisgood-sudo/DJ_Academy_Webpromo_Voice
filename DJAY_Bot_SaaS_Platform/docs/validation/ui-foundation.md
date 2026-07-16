@@ -46,6 +46,9 @@ Finance roles. It verified:
 - one accessible 12–128-character password/confirmation contract across
   registration, new-user invitation, and recovery, with mismatch correction
   preserving form and token state while sending zero mutations;
+- shared email, person-name, and business-name browser boundaries matching the
+  API; whitespace-only normalized names remain correctable and send zero
+  registration or invitation mutations;
 - a branded registration completion and invalid-link recovery journey with one
   anti-enumerating, retryable verification resend control;
 - correct permission-derived tenant and Platform navigation;

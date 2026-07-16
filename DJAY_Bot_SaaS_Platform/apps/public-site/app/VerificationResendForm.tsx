@@ -1,6 +1,6 @@
 "use client";
 
-import { safeMutationFetch } from "@djay/shared";
+import { emailFieldConstraints, safeMutationFetch } from "@djay/shared";
 import { useState, type FormEvent } from "react";
 
 export function VerificationResendForm({ initialEmail = "" }: Readonly<{ initialEmail?: string }>) {
@@ -37,7 +37,7 @@ export function VerificationResendForm({ initialEmail = "" }: Readonly<{ initial
       <form onSubmit={submit}>
         <label>
           Work email
-          <input className="field" type="email" name="email" autoComplete="email" defaultValue={initialEmail} required />
+          <input className="field" type="email" name="email" autoComplete="email" defaultValue={initialEmail} {...emailFieldConstraints} required />
         </label>
         <button type="submit" disabled={status === "working"}>
           {status === "working" ? "Sending..." : "Send new link"}

@@ -36,6 +36,15 @@ async function auditAccessibility(page, name) {
   }
 }
 
+async function auditFieldBoundary(page, label, expected, name) {
+  const field = page.getByLabel(label, { exact: true });
+  for (const [attribute, value] of Object.entries(expected)) {
+    if (await field.getAttribute(attribute) !== String(value)) {
+      failures.push(`${name}: ${label} is missing ${attribute}=${value}`);
+    }
+  }
+}
+
 function auditSecurityHeaders(response, name, url) {
   const headers = response.headers();
   const csp = headers["content-security-policy"] || "";
@@ -92,10 +101,13 @@ async function visit({ name, url, viewport = desktop, mock, ready = "h1", expect
   await context.close();
 }
 
-async function mockPublic(page, failedPaths, abortedMutationPaths, changedLegalPaths, requestCounts, invitationStatus = "accepted") {
+async function mockPublic(page, failedPaths, abortedMutationPaths, changedLegalPaths, requestCounts, invitationStatus = "accepted", requestBodies) {
   await page.route("**/public/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (route.request().method() !== "GET") requestCounts?.set(path, (requestCounts.get(path) || 0) + 1);
+    if (route.request().method() !== "GET") {
+      requestCounts?.set(path, (requestCounts.get(path) || 0) + 1);
+      try { requestBodies?.set(path, route.request().postDataJSON()); } catch { /* body evidence is optional */ }
+    }
     if (abortedMutationPaths?.has(path) && route.request().method() !== "GET") return route.abort("connectionfailed");
     if (changedLegalPaths?.has(path) && route.request().method() !== "GET") return json(route, {
       accepted: false,
@@ -209,6 +221,9 @@ for (const [name, viewport] of [["desktop", desktop], ["mobile", mobile]]) {
     if (await page.getByRole("link", { name: "Service Terms" }).getAttribute("href") !== "/terms") failures.push(`public-registration-${name}: terms link missing`);
     if (await page.getByRole("link", { name: "Privacy Notice" }).getAttribute("href") !== "/privacy") failures.push(`public-registration-${name}: privacy link missing`);
     if (!await page.getByText("Versions terms-qa-2026-07 and privacy-qa-2026-07", { exact: false }).count()) failures.push(`public-registration-${name}: accepted legal versions are not visible`);
+    await auditFieldBoundary(page, "Your name", { minlength: 2, maxlength: 160 }, `public-registration-${name}`);
+    await auditFieldBoundary(page, "Work email", { maxlength: 320 }, `public-registration-${name}`);
+    await auditFieldBoundary(page, "Business name", { minlength: 2, maxlength: 200 }, `public-registration-${name}`);
     await page.keyboard.press("Tab");
     const focusOutline = await page.locator(":focus").evaluate((element) => getComputedStyle(element).outlineStyle).catch(() => "none");
     if (focusOutline === "none") failures.push(`public-registration-${name}: keyboard focus is not visible`);
@@ -224,6 +239,7 @@ for (const [name, viewport] of [["desktop", desktop], ["mobile", mobile]]) {
   await visit({ name: `tenant-login-${name}`, url: tenantUrl, viewport, ready: "#tenant-login-title", check: async (page) => {
     const href = await page.getByRole("link", { name: "Create workspace" }).getAttribute("href");
     if (href !== "https://djaybot.com") failures.push(`tenant-login-${name}: unsafe public registration URL ${href}`);
+    await auditFieldBoundary(page, "Email", { maxlength: 320 }, `tenant-login-${name}`);
   } });
   await visit({ name: `api-root-${name}`, url: apiUrl, viewport, ready: "#api-title", check: async (page) => {
     if (await page.getByRole("link", { name: "Go to DJAY Bot" }).getAttribute("href") !== "https://djaybot.com") failures.push(`api-root-${name}: unsafe public site URL`);
@@ -307,6 +323,24 @@ await visit({ name: "public-mutation-network-failure", url: publicUrl, mock: (pa
   await page.getByText("Registration could not be completed.", { exact: true }).waitFor();
   if (!await page.getByRole("button", { name: "Create workspace" }).isEnabled()) failures.push("public-mutation-network-failure: submit remained busy");
 } });
+const registrationIdentityRequests = new Map();
+await visit({ name: "public-registration-identity-boundary", url: publicUrl, mock: (page) => mockPublic(page, undefined, undefined, undefined, registrationIdentityRequests), ready: "#register-title", check: async (page) => {
+  await page.getByLabel("Your name").fill("  ");
+  await page.getByLabel("Work email").fill("preserved@example.test");
+  await page.getByLabel("Business name").fill("Preserved Studio");
+  await page.getByLabel("Password", { exact: true }).fill("correct-horse-battery-staple");
+  await page.getByLabel("Confirm password", { exact: true }).fill("correct-horse-battery-staple");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Create workspace" }).click();
+  await page.getByText("Name must be 2–160 characters after removing leading and trailing spaces.", { exact: true }).waitFor();
+  if (registrationIdentityRequests.has("/public/auth/register")) failures.push("public-registration-identity-boundary: whitespace-only name reached the API");
+  await page.getByLabel("Your name").fill("Preserved Owner");
+  await page.getByLabel("Business name").fill("  ");
+  await page.getByRole("button", { name: "Create workspace" }).click();
+  await page.getByText("Business name must be 2–200 characters after removing leading and trailing spaces.", { exact: true }).waitFor();
+  if (registrationIdentityRequests.has("/public/auth/register")) failures.push("public-registration-identity-boundary: whitespace-only business name reached the API");
+  if (await page.getByLabel("Work email").inputValue() !== "preserved@example.test") failures.push("public-registration-identity-boundary: correctable fields were erased");
+} });
 const registrationMismatchRequests = new Map();
 await visit({ name: "public-registration-password-mismatch", url: publicUrl, mock: (page) => mockPublic(page, undefined, undefined, undefined, registrationMismatchRequests), ready: "#register-title", check: async (page) => {
   await page.getByLabel("Your name").fill("Preserved Owner");
@@ -334,10 +368,11 @@ await visit({ name: "public-legal-version-change", url: publicUrl, mock: (page) 
   if (await page.getByLabel("Your name").inputValue() !== "Preserved Owner") failures.push("public-legal-version-change: account fields were erased");
 } });
 const registrationRequests = new Map();
-await visit({ name: "public-registration-complete", url: publicUrl, mock: (page) => mockPublic(page, undefined, undefined, undefined, registrationRequests), ready: "#register-title", check: async (page) => {
-  await page.getByLabel("Your name").fill("Completed Owner");
+const registrationBodies = new Map();
+await visit({ name: "public-registration-complete", url: publicUrl, mock: (page) => mockPublic(page, undefined, undefined, undefined, registrationRequests, "accepted", registrationBodies), ready: "#register-title", check: async (page) => {
+  await page.getByLabel("Your name").fill("  Completed Owner  ");
   await page.getByLabel("Work email").fill("completed@example.test");
-  await page.getByLabel("Business name").fill("Completed Studio");
+  await page.getByLabel("Business name").fill("  Completed Studio  ");
   await page.getByLabel("Password", { exact: true }).fill("correct-horse-battery-staple");
   await page.getByLabel("Confirm password", { exact: true }).fill("correct-horse-battery-staple");
   await page.getByRole("checkbox").check();
@@ -348,6 +383,8 @@ await visit({ name: "public-registration-complete", url: publicUrl, mock: (page)
   await page.getByRole("button", { name: "Send new link" }).click();
   await page.getByText("If a pending account matches that email, a new verification link has been sent.", { exact: true }).waitFor();
   if (registrationRequests.get("/public/auth/register") !== 1 || registrationRequests.get("/public/auth/resend-verification") !== 1) failures.push("public-registration-complete: registration or resend mutation was duplicated");
+  const registrationBody = registrationBodies.get("/public/auth/register");
+  if (registrationBody?.name !== "Completed Owner" || registrationBody?.businessName !== "Completed Studio") failures.push("public-registration-complete: normalized identity values were not trimmed before transport");
   await page.screenshot({ path: "/tmp/djay-registration-complete-desktop.png", fullPage: true });
 } });
 await visit({ name: "public-registration-complete-mobile", url: publicUrl, viewport: mobile, mock: mockPublic, ready: "#register-title", check: async (page) => {
@@ -372,6 +409,7 @@ await visit({ name: "public-verification", url: `${publicUrl}/verify-email#token
 } });
 await visit({ name: "public-verification-missing-token", url: `${publicUrl}/verify-email`, mock: mockPublic, ready: "#verification-title", check: async (page) => {
   if (await page.getByRole("button", { name: "Confirm email" }).count()) failures.push("public-verification-missing-token: dead confirmation control remained visible");
+  await auditFieldBoundary(page, "Work email", { maxlength: 320 }, "public-verification-missing-token");
   await page.getByLabel("Work email").fill("owner@example.test");
   await page.getByRole("button", { name: "Send new link" }).click();
   await page.getByText("If a pending account matches that email, a new verification link has been sent.", { exact: true }).waitFor();
@@ -398,9 +436,20 @@ await visit({ name: "public-verification-resend-network-failure", url: `${public
   if (!await page.getByRole("button", { name: "Send new link" }).isEnabled()) failures.push("public-verification-resend-network-failure: resend remained busy");
 } });
 await visit({ name: "public-invitation", url: `${publicUrl}/invitations/accept#token=qa-token`, mock: mockPublic, ready: "#invitation-title", check: async (page) => {
+  await auditFieldBoundary(page, "Your name", { minlength: 2, maxlength: 160 }, "public-invitation");
   const href = await page.getByRole("link", { name: "Sign in first" }).getAttribute("href");
   if (href !== "https://app.djaybot.com/invitations/accept#token=qa-token") failures.push(`public-invitation: unsafe existing-account continuation ${href}`);
   if (page.url() !== `${publicUrl}/invitations/accept`) failures.push("public-invitation: token remained in the address after hydration");
+} });
+const invitationIdentityRequests = new Map();
+await visit({ name: "public-invitation-identity-boundary", url: `${publicUrl}/invitations/accept#token=qa-token`, mock: (page) => mockPublic(page, undefined, undefined, undefined, invitationIdentityRequests), ready: "#invitation-title", check: async (page) => {
+  await page.getByLabel("Your name").fill("  ");
+  await page.getByLabel("Password", { exact: true }).fill("correct-horse-battery-staple");
+  await page.getByLabel("Confirm password", { exact: true }).fill("correct-horse-battery-staple");
+  await page.getByRole("button", { name: "Accept invitation" }).click();
+  await page.getByText("Name must be 2–160 characters after removing leading and trailing spaces.", { exact: true }).waitFor();
+  if (invitationIdentityRequests.has("/public/invitations/accept")) failures.push("public-invitation-identity-boundary: whitespace-only name reached the API");
+  if (await page.evaluate(() => sessionStorage.getItem("djay.invitation.token")) !== "qa-token") failures.push("public-invitation-identity-boundary: invitation token was discarded");
 } });
 const invitationMismatchRequests = new Map();
 await visit({ name: "public-invitation-password-mismatch", url: `${publicUrl}/invitations/accept#token=qa-token`, mock: (page) => mockPublic(page, undefined, undefined, undefined, invitationMismatchRequests), ready: "#invitation-title", check: async (page) => {
@@ -412,21 +461,25 @@ await visit({ name: "public-invitation-password-mismatch", url: `${publicUrl}/in
   if (invitationMismatchRequests.has("/public/invitations/accept")) failures.push("public-invitation-password-mismatch: mismatched password reached the API");
   if (await page.evaluate(() => sessionStorage.getItem("djay.invitation.token")) !== "qa-token") failures.push("public-invitation-password-mismatch: invitation token was discarded");
 } });
-await visit({ name: "public-existing-account-invitation", url: `${publicUrl}/invitations/accept#token=qa-token`, mock: (page) => mockPublic(page, undefined, undefined, undefined, undefined, "sign_in_required"), ready: "#invitation-title", check: async (page) => {
-  await page.getByLabel("Your name").fill("Existing User");
+const existingInvitationBodies = new Map();
+await visit({ name: "public-existing-account-invitation", url: `${publicUrl}/invitations/accept#token=qa-token`, mock: (page) => mockPublic(page, undefined, undefined, undefined, undefined, "sign_in_required", existingInvitationBodies), ready: "#invitation-title", check: async (page) => {
+  await page.getByLabel("Your name").fill("  Existing User  ");
   await page.getByLabel("Password", { exact: true }).fill("existing-account-password");
   await page.getByLabel("Confirm password", { exact: true }).fill("existing-account-password");
   await page.getByRole("button", { name: "Accept invitation" }).click();
   await page.getByText("This email already has an account. Continue to the secure sign-in journey to accept it.", { exact: true }).waitFor();
   const href = await page.getByRole("link", { name: "Continue to sign in" }).getAttribute("href");
   if (href !== "https://app.djaybot.com/invitations/accept#token=qa-token") failures.push("public-existing-account-invitation: token-safe Tenant continuation missing");
+  if (existingInvitationBodies.get("/public/invitations/accept")?.name !== "Existing User") failures.push("public-existing-account-invitation: normalized name was not trimmed before transport");
 } });
 const redirectContext = await browser.newContext();
 const loginRedirect = await redirectContext.request.get(`${publicUrl}/login`, { maxRedirects: 0 });
 if (![307, 308].includes(loginRedirect.status()) || !["https://app.djaybot.com", "https://app.djaybot.com/"].includes(loginRedirect.headers().location)) failures.push(`public-login: unsafe redirect ${loginRedirect.status()} ${loginRedirect.headers().location}`);
 await redirectContext.close();
 
-await visit({ name: "tenant-recovery", url: `${tenantUrl}/recovery`, ready: "#recovery-title" });
+await visit({ name: "tenant-recovery", url: `${tenantUrl}/recovery`, ready: "#recovery-title", check: async (page) => {
+  await auditFieldBoundary(page, "Work email", { maxlength: 320 }, "tenant-recovery");
+} });
 const recoveryMismatchRequests = new Map();
 await visit({ name: "tenant-recovery-password-mismatch", url: `${tenantUrl}/recovery/complete#token=qa-token`, mock: (page) => mockPublic(page, undefined, undefined, undefined, recoveryMismatchRequests), ready: "#recovery-complete-title", check: async (page) => {
   await page.getByLabel("New password", { exact: true }).fill("replacement-password-accepted");
@@ -508,6 +561,7 @@ for (const [viewportName, viewport] of [["desktop", desktop], ["mobile", mobile]
     const routeName = route || "overview";
     await visit({ name: `workspace-${routeName}-${viewportName}`, url: `${tenantUrl}/workspace${route ? `/${route}` : ""}`, viewport, mock: (page) => mockTenantRole(page, "tenant_master_admin"), ready: "h1", check: async (page) => {
       if (!await page.locator(".workspace-main").count()) failures.push(`workspace-${routeName}-${viewportName}: workspace shell missing`);
+      if (route === "team") await auditFieldBoundary(page, "Email", { maxlength: 320 }, `workspace-${routeName}-${viewportName}`);
     } });
   }
 }
@@ -645,7 +699,9 @@ await visit({ name: "platform-mutation-network-failure", url: platformUrl, mock:
   await page.getByText("Voice runtime control could not be changed.", { exact: true }).waitFor();
   if (!await page.getByRole("button", { name: "Resume admission" }).isEnabled()) failures.push("platform-mutation-network-failure: control remained busy");
 } });
-await visit({ name: "platform-login", url: platformUrl, mock: (page) => page.route("**/platform/me", (route) => json(route, { status: "unauthenticated" }, 401)), ready: "#platform-login-title" });
+await visit({ name: "platform-login", url: platformUrl, mock: (page) => page.route("**/platform/me", (route) => json(route, { status: "unauthenticated" }, 401)), ready: "#platform-login-title", check: async (page) => {
+  await auditFieldBoundary(page, "Platform email", { maxlength: 320 }, "platform-login");
+} });
 await browser.close();
 
 if (brandColors.size !== 1 || !brandColors.has("rgb(242, 193, 78)")) failures.push(`brand mark palette inconsistent: ${[...brandColors].join(", ")}`);

@@ -147,6 +147,14 @@ and one-time token, and leaves the action available after correction. Tenant and
 Platform current-password inputs enforce the same server maximum. Production
 Chromium proves the three mismatch paths, responsive layout, live error
 announcement, and zero mutation requests.
+Every browser email field now enforces the API's 320-character boundary,
+including registration, verification resend, recovery, Tenant and Platform
+login, team invitations, contacts, and product notification recipients.
+Registration and new-user invitation also share normalized 2–160-character
+person-name and 2–200-character business-name contracts. Whitespace-only or
+out-of-bound normalized names are announced on the exact field before any
+mutation, while valid values are trimmed before transport. A workspace guard
+prevents future account forms from dropping these boundaries.
 
 ## P6 LINE, WhatsApp, and Messenger runtime checkpoint
 

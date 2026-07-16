@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import { emailFieldConstraints, safeMutationFetch } from "@djay/shared";
 
 export default function RecoveryRequestPage() {
   const [working, setWorking] = useState(false);
@@ -33,7 +33,7 @@ export default function RecoveryRequestPage() {
         <p>Account security</p>
         <h1 id="recovery-title">Reset your password</h1>
         <form onSubmit={submit}>
-          <label>Work email<input type="email" name="email" autoComplete="email" required /></label>
+          <label>Work email<input type="email" name="email" autoComplete="email" {...emailFieldConstraints} required /></label>
           <button type="submit" disabled={working}>{working ? "Sending..." : "Send recovery email"}</button>
         </form>
         {message ? <p className="message" role="status">{message}</p> : null}

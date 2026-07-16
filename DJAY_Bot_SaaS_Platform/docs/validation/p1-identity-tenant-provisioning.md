@@ -71,6 +71,15 @@ API request count stays zero. Tenant and Platform current-password inputs also
 enforce the server maximum. A workspace lint gate prevents any of these forms
 from silently dropping the shared contract.
 
+The identity-field audit then aligned every browser email input with the API's
+320-character maximum. Public registration and new-user invitation share the
+server's normalized 2–160-character display-name contract; registration also
+uses the 2–200-character business-name contract. Production Chromium proves
+whitespace-only values are announced on the exact field, preserve correctable
+input and invitation-token state, and issue zero registration or invitation
+mutations. Successful requests send the trimmed values. A workspace lint gate
+scans all application email inputs and the two normalized-name journeys.
+
 Visual evidence:
 
 - `/tmp/djay-registration-complete-desktop.png`

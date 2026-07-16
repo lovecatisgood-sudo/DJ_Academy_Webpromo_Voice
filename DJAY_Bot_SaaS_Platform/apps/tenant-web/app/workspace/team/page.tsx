@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import { emailFieldConstraints, safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspaceAccessDenied, WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { useWorkspaceSession } from "../useWorkspaceSession";
@@ -98,7 +98,7 @@ export default function TeamPage() {
           <section className="tool-band">
             <div className="band-heading"><div><p>Access</p><h2>Invite a team member</h2></div></div>
             <form className="inline-form" onSubmit={invite}>
-              <label>Email<input name="email" type="email" autoComplete="email" required /></label>
+              <label>Email<input name="email" type="email" autoComplete="email" {...emailFieldConstraints} required /></label>
               <label>Role<select name="role" defaultValue="tenant_operator"><option value="tenant_admin">Tenant Admin</option><option value="tenant_operator">Operator</option><option value="tenant_analyst">Analyst</option></select></label>
               <button type="submit" disabled={working}>Send invitation</button>
             </form>

@@ -145,6 +145,15 @@ Tenant and Platform password fields retain `autocomplete="current-password"`
 and the server maximum of 128 characters. Do not add composition rules that
 would reject long passphrases without an accepted identity-policy change.
 
+Every browser email input must use `emailFieldConstraints` or the exact
+320-character API maximum. Registration and new-user invitation must use the
+shared display/business-name constraints, `identityTextError`, and
+`normalizeIdentityText`: validate the trimmed length on the originating field,
+call `reportValidity`, preserve the form and one-time state, and send no
+mutation until corrected. Person names are 2–160 characters and business names
+are 2–200 characters after surrounding space is removed. Do not rely only on
+raw HTML `minlength`, because a whitespace-only value can satisfy that check.
+
 `config/next-security-headers.ts` is the single application-level browser
 policy for API, Public Site, Tenant Web, and Platform Master. It limits content,
 forms, frames, objects, connections, workers, and media to the minimum origins

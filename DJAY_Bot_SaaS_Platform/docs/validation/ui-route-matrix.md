@@ -63,6 +63,9 @@ proves that:
 - registration, new-user invitation, and recovery expose matching password
   guidance and confirmation semantics; three mismatch journeys announce the
   same error, preserve correctable input/token state, and issue no API mutation;
+- every rendered email input enforces the API maximum; registration and
+  new-user invitation reject whitespace-only normalized names on the exact
+  field, preserve correctable state, and issue no API mutation;
 - every exercised UI state passes the automated axe WCAG 2.2 A/AA rule set,
   including document titles, contrast, keyboard-scroll access, and ARIA
   structure;

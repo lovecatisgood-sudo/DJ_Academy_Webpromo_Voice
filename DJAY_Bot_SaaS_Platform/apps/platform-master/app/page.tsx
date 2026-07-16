@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import { emailFieldConstraints, safeMutationFetch } from "@djay/shared";
 import { PlatformNavigation } from "./PlatformNavigation";
 
 type PlatformUser = { id: string; displayName: string; role: string; mfaVerifiedAt: string };
@@ -634,7 +634,7 @@ export default function PlatformMasterPage() {
           </form>
         ) : (
           <form onSubmit={passwordLogin}>
-            <label>Platform email<input type="email" name="email" autoComplete="email" required /></label>
+            <label>Platform email<input type="email" name="email" autoComplete="email" {...emailFieldConstraints} required /></label>
             <label>Password<input type="password" name="password" autoComplete="current-password" maxLength={128} required /></label>
             <button type="submit" disabled={controlsBusy}>{working ? "Checking..." : "Continue"}</button>
           </form>

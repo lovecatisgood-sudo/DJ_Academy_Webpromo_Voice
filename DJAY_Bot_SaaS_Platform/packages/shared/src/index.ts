@@ -5,4 +5,5 @@ export * from "./http";
 export * from "./navigation";
 export * from "./browser-one-time-state";
 export * from "./passwords";
+export * from "./identity-fields";
 export * from "./api-proxy";

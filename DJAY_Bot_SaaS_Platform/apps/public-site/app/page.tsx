@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { newPasswordConstraints, passwordConfirmationError, safeMutationFetch } from "@djay/shared";
+import {
+  businessNameFieldConstraints,
+  displayNameFieldConstraints,
+  emailFieldConstraints,
+  identityTextError,
+  newPasswordConstraints,
+  normalizeIdentityText,
+  passwordConfirmationError,
+  safeMutationFetch,
+} from "@djay/shared";
 import { VerificationResendForm } from "./VerificationResendForm";
 
 const fieldClass = "field";
@@ -70,6 +79,23 @@ export default function RegistrationPage() {
       return;
     }
     const data = new FormData(event.currentTarget);
+    const nameError = identityTextError(data.get("name"), "displayName");
+    const businessNameError = identityTextError(data.get("businessName"), "businessName");
+    const identityError = nameError
+      ? { field: "name", message: nameError }
+      : businessNameError
+        ? { field: "businessName", message: businessNameError }
+        : null;
+    if (identityError) {
+      const input = event.currentTarget.elements.namedItem(identityError.field);
+      if (input instanceof HTMLInputElement) {
+        input.setCustomValidity(identityError.message);
+        input.reportValidity();
+      }
+      setStatus("error");
+      setMessage(identityError.message);
+      return;
+    }
     const confirmationError = passwordConfirmationError(data.get("password"), data.get("passwordConfirmation"));
     if (confirmationError) {
       const confirmation = event.currentTarget.elements.namedItem("passwordConfirmation");
@@ -90,9 +116,9 @@ export default function RegistrationPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           idempotencyKey: idempotencyKey.current,
-          name: data.get("name"),
+          name: normalizeIdentityText(data.get("name")),
           email: data.get("email"),
-          businessName: data.get("businessName"),
+          businessName: normalizeIdentityText(data.get("businessName")),
           password: data.get("password"),
           locale: "en",
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Bangkok",
@@ -145,15 +171,15 @@ export default function RegistrationPage() {
           ) : <form onSubmit={submit}>
             <label>
               Your name
-              <input className={fieldClass} name="name" autoComplete="name" minLength={2} required />
+              <input className={fieldClass} name="name" autoComplete="name" {...displayNameFieldConstraints} required onInput={(event) => event.currentTarget.setCustomValidity("")} />
             </label>
             <label>
               Work email
-              <input className={fieldClass} type="email" name="email" autoComplete="email" required />
+              <input className={fieldClass} type="email" name="email" autoComplete="email" {...emailFieldConstraints} required />
             </label>
             <label>
               Business name
-              <input className={fieldClass} name="businessName" autoComplete="organization" minLength={2} required />
+              <input className={fieldClass} name="businessName" autoComplete="organization" {...businessNameFieldConstraints} required onInput={(event) => event.currentTarget.setCustomValidity("")} />
             </label>
             <label>
               Password
