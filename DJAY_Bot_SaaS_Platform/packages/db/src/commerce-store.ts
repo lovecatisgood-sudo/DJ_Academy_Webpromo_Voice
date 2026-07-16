@@ -91,6 +91,35 @@ type SubscriptionSummary = Readonly<{
   periodEnd: Date | null;
 }>;
 
+type TenantUsageOverview = Readonly<{
+  asOf: Date;
+  billingMode: "pre_release" | "configured";
+  invoicesAvailable: false;
+  subscriptions: ReadonlyArray<Readonly<{
+    subscriptionId: string;
+    productKey: ProductKey;
+    planKey: PublicPlanKey;
+    publicName: string;
+    tierName: string;
+    status: SubscriptionState;
+    accessMode: "none" | "read_only" | "active";
+    customerUnit: CustomerUnit;
+    periodStart: Date;
+    periodEnd: Date;
+    includedQuantity: number | null;
+    safetyCapQuantity: number | null;
+    reservedQuantity: number;
+    settledQuantity: number;
+    committedQuantity: number;
+    remainingIncludedQuantity: number | null;
+    remainingSafetyCapQuantity: number | null;
+    recurringAmountMinor: number | null;
+    billingInterval: "month" | "year" | null;
+    overageRateMinor: number | null;
+    pricingConfigured: boolean;
+  }>>;
+}>;
+
 function unitForProduct(productKey: ProductKey): CustomerUnit {
   return productKey === "flowbot" ? "flow_execution" : productKey === "ai_chat" ? "ai_response" : "voice_minute";
 }
@@ -125,6 +154,92 @@ export class TenantCommerceStore {
         accessMode: row.access_mode ?? "none", snapshotId: row.snapshot_id,
         periodStart: row.period_start, periodEnd: row.period_end,
       }));
+    });
+  }
+
+  async usageOverview(context: TenantContext, now = new Date()): Promise<TenantUsageOverview> {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{
+        subscription_id: string; product_key: ProductKey; plan_key: PublicPlanKey;
+        public_name: string; tier_name: string; status: SubscriptionState;
+        access_mode: "none" | "read_only" | "active" | null;
+        customer_unit: CustomerUnit; period_start: Date; period_end: Date;
+        included_quantity: string | null; safety_cap_quantity: string | null;
+        reserved_quantity: string; settled_quantity: string;
+        recurring_amount_minor: number | null; billing_interval: "month" | "year" | null;
+        sellable: boolean; overage_rate_minor: string | null;
+      }[]>`
+        SELECT subscription.id AS subscription_id, subscription.product_key,
+               plan.plan_key, plan.public_name, plan.tier_name, subscription.status,
+               snapshot.access_mode, quota.customer_unit, quota.period_start,
+               quota.period_end, quota.included_quantity, quota.safety_cap_quantity,
+               quota.reserved_quantity, quota.settled_quantity,
+               version.recurring_amount_minor, version.billing_interval, version.sellable,
+               version.overage_rates_minor ->> quota.customer_unit AS overage_rate_minor
+        FROM tenancy.product_subscriptions subscription
+        JOIN catalog.plan_versions version ON version.id = subscription.plan_version_id
+        JOIN catalog.plans plan ON plan.id = version.plan_id
+        LEFT JOIN LATERAL (
+          SELECT candidate.access_mode
+          FROM tenancy.entitlement_snapshots candidate
+          WHERE candidate.tenant_id = subscription.tenant_id
+            AND candidate.subscription_id = subscription.id
+          ORDER BY candidate.created_at DESC, candidate.id DESC LIMIT 1
+        ) snapshot ON true
+        JOIN LATERAL (
+          SELECT account.customer_unit, account.period_start, account.period_end,
+                 account.included_quantity, account.safety_cap_quantity,
+                 account.reserved_quantity, account.settled_quantity
+          FROM tenancy.quota_accounts account
+          WHERE account.tenant_id = subscription.tenant_id
+            AND account.subscription_id = subscription.id
+          ORDER BY (${now} >= account.period_start AND ${now} < account.period_end) DESC,
+                   account.period_start DESC, account.id DESC
+          LIMIT 1
+        ) quota ON true
+        WHERE subscription.tenant_id = ${context.tenantId}::uuid
+        ORDER BY subscription.created_at, subscription.id
+      `;
+      const subscriptions = rows.map((row) => {
+        const includedQuantity = row.included_quantity === null ? null : Number(row.included_quantity);
+        const safetyCapQuantity = row.safety_cap_quantity === null ? null : Number(row.safety_cap_quantity);
+        const reservedQuantity = Number(row.reserved_quantity);
+        const settledQuantity = Number(row.settled_quantity);
+        const committedQuantity = reservedQuantity + settledQuantity;
+        const overageRateMinor = row.overage_rate_minor === null ? null : Number(row.overage_rate_minor);
+        const pricingConfigured = row.sellable && row.recurring_amount_minor !== null
+          && row.billing_interval !== null;
+        return Object.freeze({
+          subscriptionId: row.subscription_id,
+          productKey: row.product_key,
+          planKey: row.plan_key,
+          publicName: row.public_name,
+          tierName: row.tier_name,
+          status: row.status,
+          accessMode: row.access_mode ?? "none",
+          customerUnit: row.customer_unit,
+          periodStart: row.period_start,
+          periodEnd: row.period_end,
+          includedQuantity,
+          safetyCapQuantity,
+          reservedQuantity,
+          settledQuantity,
+          committedQuantity,
+          remainingIncludedQuantity: includedQuantity === null ? null : Math.max(0, includedQuantity - committedQuantity),
+          remainingSafetyCapQuantity: safetyCapQuantity === null ? null : Math.max(0, safetyCapQuantity - committedQuantity),
+          recurringAmountMinor: row.recurring_amount_minor,
+          billingInterval: row.billing_interval,
+          overageRateMinor,
+          pricingConfigured,
+        });
+      });
+      return Object.freeze({
+        asOf: now,
+        billingMode: subscriptions.length > 0 && subscriptions.every((item) => item.pricingConfigured)
+          ? "configured" as const : "pre_release" as const,
+        invoicesAvailable: false as const,
+        subscriptions: Object.freeze(subscriptions),
+      });
     });
   }
 

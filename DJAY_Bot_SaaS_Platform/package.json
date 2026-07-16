@@ -21,6 +21,7 @@
     "qa:p7-voice": "node scripts/qa-p7-voice-widget.mjs",
     "qa:p8-voice-eval": "pnpm --filter @djay/ai-evals voice:evaluate",
     "qa:p8-voice-load": "pnpm --filter @djay/voice-gateway exec vitest run src/load.test.ts --reporter=verbose",
+    "qa:p9-usage": "node scripts/qa-p9-usage.mjs",
     "verify": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
   },
   "devDependencies": {

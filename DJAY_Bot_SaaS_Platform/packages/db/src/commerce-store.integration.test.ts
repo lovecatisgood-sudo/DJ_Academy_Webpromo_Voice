@@ -104,6 +104,25 @@ describe.runIf(enabled)("P2 commerce repositories", () => {
       reservationId: reserved.reservationId, actualQuantity: 1, idempotencyKey: settleKey, now: new Date(),
     })).resolves.toEqual({ status: "settled", replayed: true });
 
+    await adminClient!`
+      UPDATE tenancy.quota_accounts
+      SET included_quantity = 100, safety_cap_quantity = 120
+      WHERE tenant_id = ${contextA.tenantId}::uuid AND subscription_id = ${subscriptionA}::uuid
+    `;
+    const usageA = await commerce.usageOverview(contextA, now);
+    expect(usageA).toMatchObject({ billingMode: "pre_release", invoicesAvailable: false });
+    expect(usageA.subscriptions.find((item) => item.subscriptionId === subscriptionA)).toMatchObject({
+      productKey: "ai_chat", planKey: "ai_chat_basic", customerUnit: "ai_response",
+      includedQuantity: 100, safetyCapQuantity: 120, reservedQuantity: 0,
+      settledQuantity: 1, committedQuantity: 1, remainingIncludedQuantity: 99,
+      remainingSafetyCapQuantity: 119, pricingConfigured: false,
+      recurringAmountMinor: null, billingInterval: null, overageRateMinor: null,
+    });
+    const usageB = await commerce.usageOverview(contextB, now);
+    expect(usageB.subscriptions).toHaveLength(1);
+    expect(usageB.subscriptions.every((item) => item.productKey === "voice")).toBe(true);
+    expect(JSON.stringify({ usageA, usageB })).not.toMatch(/provider|model|adapter|nativeUsage|cost/i);
+
     const webhookStore = new BillingWebhookStore(workerClient!);
     const event: VerifiedWebhook = {
       externalEventId: `event-${randomUUID()}`, eventType: "subscription.active",

@@ -42,7 +42,10 @@ real isolated tenant acceptances pass. AI Chat Basic also requires an approved
 live routing-profile evaluation and named merchant acceptance before production
 self-service. Social channels remain disabled pending the external acceptance
 worksheet and platform approvals. Paid plans remain disabled until the commercial and paid-GA gates
-are accepted and passed.
+are accepted and passed. P9 engineering is active: the tenant-isolated,
+role-aware Usage Center now reconciles customer units, reservations, allowance,
+and safety caps while making the pre-release billing state explicit; checkout,
+invoices, tax, dunning, and public charging remain disabled.
 
 ## Local commands
 
