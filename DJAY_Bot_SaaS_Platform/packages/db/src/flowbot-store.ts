@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createOpaqueToken, hashOpaqueToken } from "@djay/auth";
 import { flowBusinessScheduleSchema, flowbotDowngradeBlockers, flowSnapshotSchema, validateFlowForPublish, type FlowEntitlements, type FlowSnapshot, type FlowValidationIssue } from "@djay/flowbot-domain";
+import { normalizeExactWebsiteOrigin } from "@djay/shared";
 import type { TenantContext } from "@djay/tenancy";
 import type postgres from "postgres";
 import type { DatabaseClient } from "./client";
@@ -284,6 +285,8 @@ export class FlowBotStore {
       if (!authority || authority.accessMode !== "active" || authority.entitlements["ai.enabled"] !== false) {
         return { status: "not_entitled" as const };
       }
+      const origins = [...new Set(input.allowedOrigins.map(normalizeExactWebsiteOrigin))];
+      if (!origins.length || origins.some((value) => value === null)) return { status: "validation_failed" as const };
       const bots = await sql<{ current_published_version_id: string | null }[]>`SELECT current_published_version_id FROM tenancy.flow_bots WHERE tenant_id = ${context.tenantId}::uuid AND id = ${botId}::uuid AND status = 'active'`;
       if (!bots[0]?.current_published_version_id) return { status: "not_published" as const };
       const deployments = await sql<{ count: number }[]>`
@@ -296,7 +299,7 @@ export class FlowBotStore {
         return { status: "limit_reached" as const };
       }
       const rawKey = `djay_flow_${createOpaqueToken()}`; const deploymentId = randomUUID();
-      await sql`INSERT INTO tenancy.flow_deployments (id, tenant_id, bot_id, name, deployment_key_hash, key_prefix, allowed_origins, created_by_membership_id) VALUES (${deploymentId}::uuid, ${context.tenantId}::uuid, ${botId}::uuid, ${input.name}, ${hashOpaqueToken(rawKey)}, ${rawKey.slice(0, 16)}, ${input.allowedOrigins as string[]}, ${context.membershipId}::uuid)`;
+      await sql`INSERT INTO tenancy.flow_deployments (id, tenant_id, bot_id, name, deployment_key_hash, key_prefix, allowed_origins, created_by_membership_id) VALUES (${deploymentId}::uuid, ${context.tenantId}::uuid, ${botId}::uuid, ${input.name}, ${hashOpaqueToken(rawKey)}, ${rawKey.slice(0, 16)}, ${origins as string[]}, ${context.membershipId}::uuid)`;
       return { status: "created" as const, deploymentId, deploymentKey: rawKey };
     });
   }

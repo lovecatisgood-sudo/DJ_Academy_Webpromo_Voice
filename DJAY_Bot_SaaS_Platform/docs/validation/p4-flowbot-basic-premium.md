@@ -48,6 +48,10 @@ production tenant build. It verified plan-specific palettes, visual template
 editing, save/publish, analytics, encrypted-notification profile display,
 responsive overflow, console errors, and provider-leak terms. The built widget
 also passed start, sync, reload replay, polling, and human-handover behavior.
+The deployment journey now shares the exact website-origin form contract with AI
+Chat: a path-bearing URL receives focused, assertive local feedback and sends
+zero requests, while one corrected exact origin sends one normalized request.
+The FlowBot store independently rejects a path-bearing origin before insertion.
 
 ## Pilot acceptance worksheet
 

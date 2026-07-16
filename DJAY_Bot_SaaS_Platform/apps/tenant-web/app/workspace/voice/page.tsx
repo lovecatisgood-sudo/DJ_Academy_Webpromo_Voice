@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { safeMutationFetch, voiceDeploymentFieldConstraints, voiceDeploymentValidationError } from "@djay/shared";
+import { normalizeExactWebsiteOrigin, safeMutationFetch, voiceDeploymentFieldConstraints, voiceDeploymentValidationError } from "@djay/shared";
 import { createWidgetInstallSnippet } from "@djay/shared/widget-install";
 import { tenantWidgetInstallEnvironment } from "../../../lib/widget-install-environment";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
@@ -188,12 +188,6 @@ export default function VoicePage() {
       setStudioValidationMessage(validationError.message);
       return;
     }
-    for (const origin of studio.deployment.allowedOrigins) {
-      try {
-        const parsed = new URL(origin);
-        if (parsed.origin !== origin || (parsed.protocol !== "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1")) throw new Error();
-      } catch { setStudioValidationMessage("Every website entry must be an exact HTTPS origin without a path, query, or fragment."); setMessage(""); setActiveTab("entry"); return; }
-    }
     setWorking(true); setMessage(""); setStudioValidationMessage("");
     const response = await safeMutationFetch(`/tenant/voice/deployments/${studio.deployment.id}/studio`, {
       method: "PATCH", headers: { "content-type": "application/json" },
@@ -234,11 +228,8 @@ export default function VoicePage() {
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
     setWorking(true); setMessage(""); setDeploymentKey("");
-    const origin = String(data.get("origin") || "");
-    try {
-      const parsed = new URL(origin);
-      if (parsed.origin !== origin || (parsed.protocol !== "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1")) throw new Error();
-    } catch { setWorking(false); setMessage("Enter an exact HTTPS origin without a path, query, or fragment."); return; }
+    const origin = normalizeExactWebsiteOrigin(String(data.get("origin") || ""));
+    if (!origin) { setWorking(false); setMessage("Enter an exact HTTPS origin without a path, query, or fragment."); return; }
     const response = await safeMutationFetch("/tenant/voice/deployments", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({

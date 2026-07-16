@@ -7,6 +7,7 @@ import { tenantWidgetInstallEnvironment } from "../../../lib/widget-install-envi
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
+import { WebsiteDeploymentForm } from "../WebsiteDeploymentForm";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
 type Agent = { id: string; name: string; status: string; defaultLanguage: "th" | "en"; currentPublishedPlaybookVersionId: string | null; draftRevision: number; deploymentCount: number };
@@ -114,9 +115,9 @@ export default function AiChatPage() {
     const response = await safeMutationFetch(`/tenant/ai-chat/agents/${selectedAgentId}/publish`, { method: "POST" }); const result = await response.json(); setWorking(false);
     setMessage(response.ok ? `Playbook version ${result.version} published.` : "Publish failed."); if (response.ok) { await loadAgents(); await loadAgent(selectedAgentId); }
   }
-  async function createDeployment(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!selectedAgentId) return; const form = event.currentTarget; const data = new FormData(form); setWorking(true); setNewDeploymentKey("");
-    const response = await safeMutationFetch(`/tenant/ai-chat/agents/${selectedAgentId}/deployments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), allowedOrigins: [data.get("origin")] }) }); const result = await response.json(); setWorking(false);
+  async function createDeployment(input: Readonly<{ name: string; allowedOrigins: readonly [string] }>, form: HTMLFormElement) {
+    if (!selectedAgentId) return; setWorking(true); setNewDeploymentKey("");
+    const response = await safeMutationFetch(`/tenant/ai-chat/agents/${selectedAgentId}/deployments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }); const result = await response.json(); setWorking(false);
     if (!response.ok) { setMessage("Website deployment could not be created."); return; } setNewDeploymentKey(result.deploymentKey); setMessage("Deployment key created. It is shown once."); form.reset(); await loadAgent(selectedAgentId);
   }
   async function createNotification(event: FormEvent<HTMLFormElement>) {
@@ -249,7 +250,7 @@ export default function AiChatPage() {
           <p className="field-help">Addresses are encrypted. Only the fixed qualified-lead template is allowed.</p><div className="data-table">{notificationsLoadError ? <div className="pending-line inline-retry" role="alert"><strong>Notification recipients could not be loaded</strong><span>Existing delivery settings have not changed.</span><button className="secondary-command" type="button" onClick={() => void loadShared()}>Try again</button></div> : notifications.map((item) => <div className="data-row" key={item.id}><strong>{item.name}</strong><span>{item.allowedTemplateKeys.join(", ")}</span><span>{item.status}</span></div>)}</div>
         </section>
         <section className="tool-band muted-band"><div className="band-heading"><div><p>Basic channel</p><h2>Website deployments</h2></div><span>{deployments.length}{capabilities?.limits.deployments ? ` / ${capabilities.limits.deployments}` : ""}</span></div>
-          {canAuthor && selectedAgent.currentPublishedPlaybookVersionId ? <form className="flowbot-deploy" onSubmit={createDeployment}><label>Name<input name="name" minLength={2} maxLength={160} required /></label><label>Exact allowed origin<input name="origin" type="url" placeholder="https://www.example.com" required /></label><button disabled={working}>Create web deployment</button></form> : null}
+          {canAuthor && selectedAgent.currentPublishedPlaybookVersionId ? <WebsiteDeploymentForm className="flowbot-deploy" onCreate={createDeployment} submitLabel="Create web deployment" working={working} /> : null}
           {newDeploymentKey ? <div className="deployment-secret"><strong>One-time deployment key</strong><code>{newDeploymentKey}</code><pre>{installSnippet}</pre></div> : null}
           <div className="data-table">{deployments.map((item) => <div className="data-row" key={item.id}><div><strong>{item.name}</strong><span>{item.allowedOrigins.join(", ")}</span></div><span>{item.channel}</span><span>{item.status}</span></div>)}{!deployments.length ? <div className="pending-line"><strong>No deployments</strong><span>Publish before creating a web deployment.</span></div> : null}</div>
         </section>

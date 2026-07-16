@@ -1,6 +1,6 @@
 import { tenantRoleAllows } from "@djay/authorization";
 import { aiPlaybookSchema } from "@djay/sales-core";
-import { voiceDeploymentFieldLimits } from "@djay/shared";
+import { isExactWebsiteOrigin, voiceDeploymentFieldLimits } from "@djay/shared";
 import type { NextRequest } from "next/server";
 import { ZodError, z } from "zod";
 import { hasTrustedOrigin, readJson, safeJson } from "../../../../../../lib/http";
@@ -12,7 +12,9 @@ const updateSchema = z.object({
   agentName: z.string().trim().min(voiceDeploymentFieldLimits.agentName.minLength).max(voiceDeploymentFieldLimits.agentName.maxLength),
   businessName: z.string().trim().min(voiceDeploymentFieldLimits.businessName.minLength).max(voiceDeploymentFieldLimits.businessName.maxLength),
   defaultLocale: z.enum(["th", "en"]),
-  allowedOrigins: z.array(z.string().max(voiceDeploymentFieldLimits.origin.maxLength)).min(1).max(voiceDeploymentFieldLimits.origin.maximumCount),
+  allowedOrigins: z.array(
+    z.string().trim().max(voiceDeploymentFieldLimits.origin.maxLength).refine(isExactWebsiteOrigin),
+  ).min(1).max(voiceDeploymentFieldLimits.origin.maximumCount),
   greetingTh: z.string().trim().min(voiceDeploymentFieldLimits.greeting.minLength).max(voiceDeploymentFieldLimits.greeting.maxLength),
   greetingEn: z.string().trim().min(voiceDeploymentFieldLimits.greeting.minLength).max(voiceDeploymentFieldLimits.greeting.maxLength),
   automatedDisclosureTh: z.string().trim().min(voiceDeploymentFieldLimits.disclosure.minLength).max(voiceDeploymentFieldLimits.disclosure.maxLength),

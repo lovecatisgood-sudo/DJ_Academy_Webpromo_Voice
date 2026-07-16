@@ -74,6 +74,9 @@ describe.runIf(enabled)("P4 FlowBot authoring repository", () => {
       [end]: { id: end, type: "end", title: "Done", message: { th: "ขอบคุณ", en: "Thank you" } },
     } } });
     const first = await store.publish(contextA, basic.botId); expect(first.status).toBe("published"); if (first.status !== "published") throw new Error("Expected publish.");
+    await expect(store.createDeployment(contextA, basic.botId, {
+      name: "Invalid website", allowedOrigins: ["https://merchant.example/path"],
+    })).resolves.toEqual({ status: "validation_failed" });
     const deployment = await store.createDeployment(contextA, basic.botId, { name: "Website", allowedOrigins: ["https://merchant.example"] });
     expect(deployment.status).toBe("created");
     if (deployment.status === "created") {

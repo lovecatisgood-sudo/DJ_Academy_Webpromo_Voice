@@ -73,7 +73,11 @@ disconnected frontend from receiving traffic. FlowBot, AI Chat, and Voice now
 share the same accessible DJAY customer-widget shell and ship as one hashed
 static CDN artifact alongside the six runtime artifacts. Merchant install code
 is generated from the same checked product/path contract as that artifact, and
-production Tenant builds reject insecure public API or CDN origins. Read-only roles no longer
+production Tenant builds reject insecure public API or CDN origins. Their
+website deployment journeys also share one exact-origin authority: the browser,
+API, and storage layers reject paths, queries, fragments, credentials, remote
+HTTP, and overlong origins instead of silently rewriting merchant input.
+Read-only roles no longer
 receive misleading mutation controls, and forbidden direct
 routes fail closed with a recovery path. Unexpected URLs and render failures in
 every web realm now use the same accessible branded recovery system with

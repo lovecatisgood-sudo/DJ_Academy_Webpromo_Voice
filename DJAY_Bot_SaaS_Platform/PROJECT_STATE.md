@@ -173,6 +173,13 @@ and immutable playbook authority now share the 1–500 boundary, plus the same
 name, origin-count/length, disclosure, call-duration, and reconnect limits.
 Studio validates these fields before mutation, switches to the relevant tab,
 announces the correction assertively, and preserves the draft.
+FlowBot and AI Chat website deployment creation now use one shared Tenant form
+and the same exact-origin authority as Voice. Deployment names and origins have
+identical browser/API limits; paths, queries, fragments, credentials, remote
+HTTP, and overlong values are rejected instead of silently normalized. Invalid
+input is announced on and focused at the originating field with zero mutation.
+All three APIs revalidate the contract, and all three storage paths normalize
+and reject independently; FlowBot no longer trusts API-only canonicalization.
 
 ## P6 LINE, WhatsApp, and Messenger runtime checkpoint
 

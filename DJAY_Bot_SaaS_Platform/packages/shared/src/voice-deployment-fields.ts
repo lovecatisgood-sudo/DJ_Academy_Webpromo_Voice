@@ -1,8 +1,10 @@
+import { isExactWebsiteOrigin, websiteDeploymentFieldLimits } from "./website-deployment-fields";
+
 export const voiceDeploymentFieldLimits = Object.freeze({
-  name: Object.freeze({ minLength: 2, maxLength: 160 }),
+  name: websiteDeploymentFieldLimits.name,
   agentName: Object.freeze({ minLength: 2, maxLength: 100 }),
   businessName: Object.freeze({ minLength: 2, maxLength: 200 }),
-  origin: Object.freeze({ maxLength: 2048, maximumCount: 20 }),
+  origin: websiteDeploymentFieldLimits.origin,
   greeting: Object.freeze({ minLength: 1, maxLength: 500 }),
   disclosure: Object.freeze({ minLength: 8, maxLength: 500 }),
   maxCallSeconds: Object.freeze({ min: 30, max: 14_400 }),
@@ -55,8 +57,11 @@ export function voiceDeploymentValidationError(input: VoiceDeploymentValidationI
     return { tab: "disclosure", message: "Each automated-agent disclosure must be 8–500 characters." };
   }
   if (!input.allowedOrigins.length || input.allowedOrigins.length > voiceDeploymentFieldLimits.origin.maximumCount
-    || input.allowedOrigins.some((origin) => origin.length > voiceDeploymentFieldLimits.origin.maxLength)) {
-    return { tab: "entry", message: "Enter 1–20 website origins, each no longer than 2,048 characters." };
+    || input.allowedOrigins.some((origin) => !isExactWebsiteOrigin(origin))) {
+    return {
+      tab: "entry",
+      message: "Enter 1–20 exact HTTPS origins without paths, queries, or fragments. Local HTTP is accepted only for localhost development.",
+    };
   }
   if (!Number.isInteger(input.maxCallSeconds)
     || input.maxCallSeconds < voiceDeploymentFieldLimits.maxCallSeconds.min

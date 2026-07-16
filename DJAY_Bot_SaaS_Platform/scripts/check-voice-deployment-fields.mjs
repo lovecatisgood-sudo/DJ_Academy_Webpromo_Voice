@@ -8,11 +8,14 @@ const failures = [];
 
 const policy = read("packages/shared/src/voice-deployment-fields.ts");
 for (const marker of [
-  "minLength: 2, maxLength: 160", "minLength: 2, maxLength: 100",
-  "maxLength: 2048, maximumCount: 20", "minLength: 1, maxLength: 500",
+  "name: websiteDeploymentFieldLimits.name", "minLength: 2, maxLength: 100",
+  "origin: websiteDeploymentFieldLimits.origin", "minLength: 1, maxLength: 500",
   "minLength: 8, maxLength: 500", "voiceDeploymentValidationError",
 ]) {
   if (!policy.includes(marker)) failures.push(`Shared Voice deployment policy is missing ${marker}`);
+}
+if (!read("packages/shared/src/website-deployment-fields.ts").includes("maxLength: 2048, maximumCount: 20")) {
+  failures.push("Shared website deployment origin boundary is no longer 2,048 characters / 20 origins");
 }
 
 const salesCore = read("packages/sales-core/src/index.ts");

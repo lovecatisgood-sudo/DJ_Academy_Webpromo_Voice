@@ -1,13 +1,15 @@
 import { tenantRoleAllows } from "@djay/authorization";
-import { uuidSchema } from "@djay/shared";
+import { isExactWebsiteOrigin, uuidSchema, websiteDeploymentFieldLimits } from "@djay/shared";
 import type { NextRequest } from "next/server";
 import { ZodError, z } from "zod";
 import { hasTrustedOrigin, readJson, safeJson } from "../../../../../../lib/http";
 import { resolveTenantRequest } from "../../../../../../lib/tenant-context";
 
 const deploymentSchema = z.object({
-  name: z.string().trim().min(2).max(160),
-  allowedOrigins: z.array(z.url().transform((value) => new URL(value).origin)).min(1).max(20),
+  name: z.string().trim().min(websiteDeploymentFieldLimits.name.minLength).max(websiteDeploymentFieldLimits.name.maxLength),
+  allowedOrigins: z.array(
+    z.string().trim().max(websiteDeploymentFieldLimits.origin.maxLength).refine(isExactWebsiteOrigin),
+  ).min(1).max(websiteDeploymentFieldLimits.origin.maximumCount),
 }).strict();
 
 export async function GET(request: NextRequest, route: { params: Promise<{ agentId: string }> }) {

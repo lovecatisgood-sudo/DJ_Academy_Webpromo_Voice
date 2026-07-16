@@ -7,6 +7,7 @@ import { tenantWidgetInstallEnvironment } from "../../../lib/widget-install-envi
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
+import { WebsiteDeploymentForm } from "../WebsiteDeploymentForm";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 import { FlowVisualEditor } from "./FlowVisualEditor";
 
@@ -150,9 +151,9 @@ export default function FlowBotPage() {
     const response = await safeMutationFetch(`/tenant/flowbot/bots/${selectedBotId}/rollback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceVersionId: versionId }) }); const result = await response.json(); setWorking(false);
     setMessage(response.ok ? `Version ${result.version} published from history.` : "Rollback publish failed."); if (response.ok) await loadBot(selectedBotId);
   }
-  async function createDeployment(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!selectedBotId) return; setWorking(true); setNewDeploymentKey(""); const form = event.currentTarget; const data = new FormData(form);
-    const response = await safeMutationFetch(`/tenant/flowbot/bots/${selectedBotId}/deployments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), allowedOrigins: [data.get("origin")] }) }); const result = await response.json(); setWorking(false);
+  async function createDeployment(input: Readonly<{ name: string; allowedOrigins: readonly [string] }>, form: HTMLFormElement) {
+    if (!selectedBotId) return; setWorking(true); setNewDeploymentKey("");
+    const response = await safeMutationFetch(`/tenant/flowbot/bots/${selectedBotId}/deployments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }); const result = await response.json(); setWorking(false);
     if (!response.ok) { setMessage("Deployment could not be created."); return; } setNewDeploymentKey(result.deploymentKey); setMessage("Deployment key created. It is shown once."); form.reset(); await loadBot(selectedBotId);
   }
   async function requestInstallCheck(deployment: Deployment) {
@@ -205,7 +206,7 @@ export default function FlowBotPage() {
         </section>
         <section className="tool-band muted-band"><div className="band-heading"><div><p>Deployments</p><h2>Website origins</h2></div><span>{deployments.length}{capabilities?.limits.deployments ? ` / ${capabilities.limits.deployments}` : ""}</span></div>
           {installChecksLoadError ? <div className="inline-message inline-retry" role="alert"><span>Install verification status could not be loaded. Deployment records remain available.</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>Try again</button></div> : null}
-          {canAuthor && selectedBot.currentPublishedVersionId ? <form className="flowbot-deploy" onSubmit={createDeployment}><label>Name<input name="name" minLength={2} maxLength={160} required /></label><label>Allowed origin<input name="origin" type="url" placeholder="https://www.example.com" required /></label><button type="submit" disabled={working}>Create deployment</button></form> : null}
+          {canAuthor && selectedBot.currentPublishedVersionId ? <WebsiteDeploymentForm className="flowbot-deploy" onCreate={createDeployment} submitLabel="Create deployment" working={working} /> : null}
           {newDeploymentKey ? <div className="deployment-secret"><strong>One-time deployment key</strong><code>{newDeploymentKey}</code><pre>{installSnippet}</pre></div> : null}
           <div className="data-table">{deployments.map((item) => { const check = installChecks.find((candidate) => candidate.deploymentId === item.id); return <div className="data-row" key={item.id}><div><strong>{item.name}</strong><span>{item.allowedOrigins.join(", ")}</span></div><span>{check?.status || item.status}</span>{canAuthor ? <button type="button" className="secondary-command" disabled={working} onClick={() => void requestInstallCheck(item)}>Verify install</button> : <code>{item.keyPrefix}...</code>}</div>; })}{!deployments.length ? <div className="pending-line"><strong>No deployments</strong><span>Publish before creating a website deployment.</span></div> : null}</div>
         </section>

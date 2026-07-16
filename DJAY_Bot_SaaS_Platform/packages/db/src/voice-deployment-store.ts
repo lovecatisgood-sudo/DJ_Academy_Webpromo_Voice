@@ -1,18 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createOpaqueToken, hashOpaqueToken } from "@djay/auth";
 import { aiPlaybookSchema, type AiPlaybook } from "@djay/sales-core";
+import { normalizeExactWebsiteOrigin } from "@djay/shared";
 import type { TenantContext } from "@djay/tenancy";
 import type postgres from "postgres";
 import type { DatabaseClient } from "./client";
 import { withTenantTransaction } from "./scoped-transaction";
-
-function validOrigin(value: string) {
-  try {
-    const url = new URL(value);
-    return (url.protocol === "https:" || url.hostname === "localhost" || url.hostname === "127.0.0.1")
-      && !url.username && !url.password && url.pathname === "/" && !url.search && !url.hash ? url.origin : null;
-  } catch { return null; }
-}
 
 type VoiceCapabilityProfile = "voice_gen1" | "voice_gen2";
 type VoicePublicLabel = "First-Generation Voice Engine" | "Second-Generation Voice Engine";
@@ -394,7 +387,7 @@ export class VoiceDeploymentStore {
     automatedDisclosureEn: string; maxCallSeconds: number; reconnectWindowSeconds: number;
     definition: unknown; knowledgeRevisionIds: readonly string[];
   }>) {
-    const origins = [...new Set(input.allowedOrigins.map(validOrigin))];
+    const origins = [...new Set(input.allowedOrigins.map(normalizeExactWebsiteOrigin))];
     if (!origins.length || origins.some((origin) => origin === null)) return { status: "validation_failed" as const };
     const definition = aiPlaybookSchema.parse({
       ...(input.definition as object), agentName: input.agentName, businessName: input.businessName,
@@ -547,7 +540,7 @@ export class VoiceDeploymentStore {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await hasVoiceAuthority(sql, context.tenantId);
       if (!authority) return { status: "not_entitled" as const };
-      const origins = [...new Set(input.allowedOrigins.map(validOrigin))];
+      const origins = [...new Set(input.allowedOrigins.map(normalizeExactWebsiteOrigin))];
       if (!origins.length || origins.some((origin) => origin === null)) return { status: "validation_failed" as const };
       const deploymentId = randomUUID(); const agentId = randomUUID(); const playbookVersionId = randomUUID();
       const deploymentKey = `djay_voice_deploy_${createOpaqueToken()}`;

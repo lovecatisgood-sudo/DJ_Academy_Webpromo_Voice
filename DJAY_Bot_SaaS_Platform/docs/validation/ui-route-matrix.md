@@ -72,6 +72,9 @@ proves that:
 - first and additional Voice deployment creation use identical bounded fields;
   Studio rejects a greeting outside the immutable 500-character playbook limit
   before transport and switches to the Voice tab for correction;
+- FlowBot and AI Chat website deployment forms expose identical name/origin
+  boundaries, reject path-bearing URLs with assertive field feedback, preserve
+  correction state, and issue no request until an exact origin is supplied;
 - every exercised UI state passes the automated axe WCAG 2.2 A/AA rule set,
   including document titles, contrast, keyboard-scroll access, and ARIA
   structure;

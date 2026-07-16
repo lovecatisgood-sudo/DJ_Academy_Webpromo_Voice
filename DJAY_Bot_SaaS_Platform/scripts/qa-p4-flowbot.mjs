@@ -25,7 +25,7 @@ function json(route, value, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(value) });
 }
 
-async function mockFlowbot(page, planKey) {
+async function mockFlowbot(page, planKey, counters) {
   await page.route("**/tenant/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const method = route.request().method();
@@ -35,9 +35,11 @@ async function mockFlowbot(page, planKey) {
     if (path === "/tenant/flowbot/bots" && method === "GET") return json(route, { bots: [{ id: botId, name: `${planKey} assistant`, status: "active", defaultLanguage: "en", currentPublishedVersionId: versionId, draftRevision: 3, deploymentCount: 1 }], capabilities: { planKey, accessMode: "active", advancedNodes: planKey === "flowbot_premium", approvedWebhooks: planKey === "flowbot_premium", teamRouting: planKey === "flowbot_premium", brandingRemoval: planKey === "flowbot_premium", limits: { activeBots: planKey === "flowbot_premium" ? 3 : 1, nodesPerBot: planKey === "flowbot_premium" ? 500 : 100, deployments: planKey === "flowbot_premium" ? 5 : 1 } } });
     if (path.endsWith("/draft")) return json(route, method === "GET" ? { draft: { revision: 3, definition: definition(), updatedAt: new Date().toISOString() } } : { status: "updated", revision: 4 });
     if (path.endsWith("/versions")) return json(route, { versions: [{ id: versionId, version: 1, sourceVersionId: null, publishedAt: new Date().toISOString() }] });
-    if (path.endsWith("/deployments")) return json(route, method === "GET"
-      ? { deployments: [{ id: deploymentId, name: "Website", keyPrefix: "djay_flow_demo", status: "active", allowedOrigins: ["https://merchant.example"], createdAt: new Date().toISOString() }] }
-      : { status: "created", deploymentId: crypto.randomUUID(), deploymentKey }, method === "GET" ? 200 : 201);
+    if (path.endsWith("/deployments")) {
+      if (method === "GET") return json(route, { deployments: [{ id: deploymentId, name: "Website", keyPrefix: "djay_flow_demo", status: "active", allowedOrigins: ["https://merchant.example"], createdAt: new Date().toISOString() }] });
+      counters.deploymentCreates += 1;
+      return json(route, { status: "created", deploymentId: crypto.randomUUID(), deploymentKey }, 201);
+    }
     if (path.endsWith("/publish")) return json(route, { status: "published", versionId: crypto.randomUUID(), version: 2 });
     if (path === "/tenant/flowbot/analytics") return json(route, { analytics: { periodDays: 30, level: planKey === "flowbot_premium" ? "advanced" : "core", executions: 18, completed: 13, handovers: 2, leads: 7, messages: 64, nodeEvents: [] } });
     if (path === "/tenant/flowbot/install-checks") return json(route, method === "GET" ? { checks: [{ id: "45000000-0000-4000-8000-000000000001", deploymentId, targetOrigin: "https://merchant.example", status: "verified", safeResultCode: "widget_seen", createdAt: new Date().toISOString() }] } : { status: "requested", checkId: crypto.randomUUID() }, method === "GET" ? 200 : 201);
@@ -50,9 +52,10 @@ async function mockFlowbot(page, planKey) {
 
 async function inspectPlan(planKey, viewport, suffix) {
   const context = await browser.newContext({ viewport }); const page = await context.newPage();
+  const counters = { deploymentCreates: 0 };
   page.on("pageerror", (error) => failures.push(`${planKey}-${suffix}: ${error.message}`));
   page.on("console", (entry) => { if (entry.type() === "error") failures.push(`${planKey}-${suffix}: console ${entry.text()}`); });
-  await mockFlowbot(page, planKey);
+  await mockFlowbot(page, planKey, counters);
   const response = await page.goto(`${tenantUrl}/workspace/flowbot`, { waitUntil: "networkidle" });
   if (!response?.ok()) failures.push(`${planKey}-${suffix}: navigation ${response?.status()}`);
   await page.locator("h1", { hasText: "FlowBot" }).waitFor();
@@ -66,11 +69,20 @@ async function inspectPlan(planKey, viewport, suffix) {
     await page.locator(".flow-node-card").nth(2).waitFor();
     await page.getByRole("button", { name: "Save draft" }).click();
     await page.getByRole("button", { name: "Publish", exact: true }).click();
-    const deploymentForm = page.locator("form.flowbot-deploy").filter({ has: page.getByLabel("Allowed origin") });
-    await deploymentForm.getByLabel("Name").fill("Install contract");
-    await deploymentForm.getByLabel("Allowed origin").fill("https://merchant.example");
+    const deploymentForm = page.locator("form.flowbot-deploy").filter({ has: page.getByLabel("Exact allowed website origin") });
+    if (await deploymentForm.getByLabel("Deployment name").getAttribute("maxlength") !== "160"
+      || await deploymentForm.getByLabel("Exact allowed website origin").getAttribute("maxlength") !== "2048") {
+      failures.push(`${planKey}-${suffix}: deployment form drifted from the shared field boundary`);
+    }
+    await deploymentForm.getByLabel("Deployment name").fill("Install contract");
+    await deploymentForm.getByLabel("Exact allowed website origin").fill("https://merchant.example/path");
+    await deploymentForm.getByRole("button", { name: "Create deployment" }).click();
+    await deploymentForm.getByRole("alert").getByText("Enter an exact HTTPS origin", { exact: false }).waitFor();
+    if (counters.deploymentCreates !== 0) failures.push(`${planKey}-${suffix}: invalid path origin reached the API`);
+    await deploymentForm.getByLabel("Exact allowed website origin").fill("https://merchant.example");
     await deploymentForm.getByRole("button", { name: "Create deployment" }).click();
     await page.getByText("One-time deployment key", { exact: true }).waitFor();
+    if (counters.deploymentCreates !== 1) failures.push(`${planKey}-${suffix}: expected one deployment create, received ${counters.deploymentCreates}`);
     const snippet = await page.locator(".deployment-secret pre").innerText();
     const expected = 'import { mountFlowbotWidget } from "https://cdn.djaybot.com/flowbot/v1/index.js";'
       + '\n  mountFlowbotWidget({ deploymentKey: "' + deploymentKey + '", apiBaseUrl: "https://api.djaybot.com" });';

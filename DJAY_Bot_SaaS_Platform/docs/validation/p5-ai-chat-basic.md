@@ -50,6 +50,9 @@ authoring/operations routes.
   verified knowledge selection, notification configuration, safe preview,
   draft save, immutable publish, responsive overflow, console errors, and
   restricted-term leakage.
+- Website deployment uses the shared 2–160-character name and 2,048-character
+  exact-origin form. A path-bearing URL is announced on the origin field with
+  zero requests; one corrected exact origin sends one normalized request.
 - Chromium loaded the compiled widget as a third-party module, started a durable
   session, rendered an NDJSON response, synced a human reply, and entered
   handover without duplicate sends.

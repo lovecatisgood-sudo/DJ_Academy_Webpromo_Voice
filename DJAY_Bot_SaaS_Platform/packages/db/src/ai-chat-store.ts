@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createOpaqueToken, hashOpaqueToken } from "@djay/auth";
 import { aiPlaybookSchema, type AiPlaybook } from "@djay/sales-core";
+import { normalizeExactWebsiteOrigin } from "@djay/shared";
 import type { TenantContext } from "@djay/tenancy";
 import type postgres from "postgres";
 import type { DatabaseClient } from "./client";
@@ -12,14 +13,6 @@ type AiAuthority = Readonly<{
   entitlements: Record<string, boolean | string | number | null>;
   limits: Record<string, number | null>;
 }>;
-
-function validOrigin(value: string) {
-  try {
-    const url = new URL(value);
-    return (url.protocol === "https:" || url.hostname === "localhost" || url.hostname === "127.0.0.1")
-      && !url.username && !url.password && url.pathname === "/" && !url.search && !url.hash ? url.origin : null;
-  } catch { return null; }
-}
 
 export class AiChatStore {
   constructor(private readonly client: DatabaseClient) {}
@@ -205,7 +198,7 @@ export class AiChatStore {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await this.authority(sql, context.tenantId);
       if (!authority || authority.accessMode !== "active" || authority.entitlements["channel.web"] !== true) return { status: "not_entitled" as const };
-      const origins = [...new Set(input.allowedOrigins.map(validOrigin))];
+      const origins = [...new Set(input.allowedOrigins.map(normalizeExactWebsiteOrigin))];
       if (!origins.length || origins.some((value) => value === null)) return { status: "validation_failed" as const };
       const agents = await sql<{ published: boolean }[]>`
         SELECT current_published_playbook_version_id IS NOT NULL AS published FROM tenancy.ai_agents

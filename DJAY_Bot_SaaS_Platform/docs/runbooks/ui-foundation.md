@@ -241,6 +241,12 @@ each visible Platform navigation target. It also aborts representative public,
 Tenant, and Platform mutations and requires visible feedback with a re-enabled
 control.
 
+FlowBot, AI Chat, and Voice deployment origins must remain exact HTTPS origins
+without paths, queries, fragments, or credentials; localhost-only HTTP is for
+local development. The focused P4, P5, and P7 browser gates must prove invalid
+input sends zero mutations, and the shared static guard must prove the Tenant,
+API, and storage layers still use the same authority.
+
 Do not promote when this gate fails. A passing local gate does not replace
 manual keyboard, screen-reader, zoom/reflow, cognitive, or representative-device
 review. It also does not replace named-merchant acceptance, managed service

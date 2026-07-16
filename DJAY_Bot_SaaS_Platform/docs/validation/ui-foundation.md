@@ -55,6 +55,9 @@ Finance roles. It verified:
 - first/additional Voice deployment forms share one component and the API,
   Studio, and immutable playbook share the actual 500-character greeting
   maximum; invalid Studio fields remain local and open the relevant tab;
+- FlowBot and AI Chat share one accessible website-deployment form and all three
+  product APIs/storage paths share exact-origin validation; path-bearing input
+  stays correctable on the source field and sends zero mutations;
 - a branded registration completion and invalid-link recovery journey with one
   anti-enumerating, retryable verification resend control;
 - correct permission-derived tenant and Platform navigation;
