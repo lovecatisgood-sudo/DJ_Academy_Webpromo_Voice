@@ -40,6 +40,10 @@ proves that:
 - the Overview product summary reflects the authoritative subscription and
   access-mode response for read-only and administrative roles, while a failed
   subscription read cannot produce a false empty-product claim;
+- Voice Studio secondary-dependency failures preserve the Studio while showing
+  explicit Knowledge, notification-profile, and analytics retry states;
+- restricted Platform copy does not claim that foundations are operational
+  independently of the evidence-backed readiness and resource states;
 - public login, verification, and invitation destinations never fall back to
   localhost in production output;
 - every route has the shared DJAY Bot mark, no horizontal overflow, and no page

@@ -99,6 +99,9 @@ export default function VoicePage() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [message, setMessage] = useState(""); const [working, setWorking] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [knowledgeLoadError, setKnowledgeLoadError] = useState(false);
+  const [notificationLoadError, setNotificationLoadError] = useState(false);
+  const [analyticsLoadError, setAnalyticsLoadError] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session.workspaces, session.selectedTenantId]);
   const canDeploy = workspace?.role === "tenant_master_admin" || workspace?.role === "tenant_admin";
   const canEdit = Boolean(canDeploy && studio?.editable && studio.deployment.status !== "revoked");
@@ -106,19 +109,21 @@ export default function VoicePage() {
   const installSnippet = deploymentKey ? `<script type="module">\n  import { mountVoiceWidget } from "https://cdn.djaybot.com/voice/v1/index.js";\n  mountVoiceWidget({ deploymentKey: "${deploymentKey}", apiBaseUrl: "${apiBaseUrl}" });\n</script>` : "";
 
   async function loadStudio(id: string) {
-    if (!id) { setStudio(null); setAnalytics(null); return; }
-    const [studioResponse, knowledgeResponse, notificationResponse, analyticsResponse] = await Promise.all([
-      fetch(`/tenant/voice/deployments/${id}/studio`, { cache: "no-store" }),
-      fetch("/tenant/knowledge", { cache: "no-store" }),
-      fetch("/tenant/ai-chat/notifications", { cache: "no-store" }),
-      fetch(`/tenant/voice/analytics?deploymentId=${encodeURIComponent(id)}&days=30`, { cache: "no-store" }),
-    ]);
+    if (!id) { setStudio(null); setAnalytics(null); setKnowledgeLoadError(false); setNotificationLoadError(false); setAnalyticsLoadError(false); return; }
+    const studioResponse = await fetch(`/tenant/voice/deployments/${id}/studio`, { cache: "no-store" });
     if (!studioResponse.ok) throw new Error("voice_studio_unavailable");
     setStudio((await studioResponse.json()).studio);
-    if (knowledgeResponse.ok) setKnowledge((await knowledgeResponse.json()).sources || []);
-    if (notificationResponse.ok) setNotifications((await notificationResponse.json()).notifications || []);
-    if (analyticsResponse.ok) setAnalytics((await analyticsResponse.json()).analytics || null);
-    else setAnalytics(null);
+    const [knowledgeResponse, notificationResponse, analyticsResponse] = await Promise.all([
+      fetch("/tenant/knowledge", { cache: "no-store" }).catch(() => null),
+      fetch("/tenant/ai-chat/notifications", { cache: "no-store" }).catch(() => null),
+      fetch(`/tenant/voice/analytics?deploymentId=${encodeURIComponent(id)}&days=30`, { cache: "no-store" }).catch(() => null),
+    ]);
+    if (knowledgeResponse?.ok) { setKnowledge((await knowledgeResponse.json()).sources || []); setKnowledgeLoadError(false); }
+    else { setKnowledge([]); setKnowledgeLoadError(true); }
+    if (notificationResponse?.ok) { setNotifications((await notificationResponse.json()).notifications || []); setNotificationLoadError(false); }
+    else { setNotifications([]); setNotificationLoadError(true); }
+    if (analyticsResponse?.ok) { setAnalytics((await analyticsResponse.json()).analytics || null); setAnalyticsLoadError(false); }
+    else { setAnalytics(null); setAnalyticsLoadError(true); }
   }
 
   async function load(preferredId?: string) {
@@ -273,7 +278,7 @@ export default function VoicePage() {
           <label className="wide-field">Required contact fields <small>One field per line</small><textarea disabled={!canEdit} rows={3} value={listText(studio.deployment.definition.requiredContactFields)} onChange={(event) => patchDefinition({ requiredContactFields: lineList(event.target.value) })} /></label>
         </div>{saveBar}</section> : null}
 
-        {activeTab === "knowledge" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Grounded business facts</p><h2>Knowledge</h2></div><span>{studio.deployment.knowledgeRevisionIds.length} pinned</span></div><p className="control-copy">Only selected ready revisions are copied into the next immutable playbook. Existing calls remain pinned to their original knowledge.</p><div className="knowledge-picker studio-knowledge">{knowledge.map((source) => <label key={source.revisionId}><input type="checkbox" disabled={!canEdit || source.status !== "ready"} checked={studio.deployment.knowledgeRevisionIds.includes(source.revisionId)} onChange={(event) => patchDeployment({ knowledgeRevisionIds: event.target.checked ? [...studio.deployment.knowledgeRevisionIds, source.revisionId] : studio.deployment.knowledgeRevisionIds.filter((id) => id !== source.revisionId) })} /><span>{source.name}</span><small>{source.sourceKind} · v{source.version} · {source.status}</small></label>)}{!knowledge.length ? <div className="pending-line"><strong>No approved knowledge</strong><span>Add a source in Knowledge & Sales Setup.</span></div> : null}</div><a className="secondary-link studio-link" href="/workspace/knowledge">Open Knowledge & Sales Setup</a>{saveBar}</section> : null}
+        {activeTab === "knowledge" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Grounded business facts</p><h2>Knowledge</h2></div><span>{studio.deployment.knowledgeRevisionIds.length} pinned</span></div><p className="control-copy">Only selected ready revisions are copied into the next immutable playbook. Existing calls remain pinned to their original knowledge.</p><div className="knowledge-picker studio-knowledge">{knowledge.map((source) => <label key={source.revisionId}><input type="checkbox" disabled={!canEdit || source.status !== "ready"} checked={studio.deployment.knowledgeRevisionIds.includes(source.revisionId)} onChange={(event) => patchDeployment({ knowledgeRevisionIds: event.target.checked ? [...studio.deployment.knowledgeRevisionIds, source.revisionId] : studio.deployment.knowledgeRevisionIds.filter((id) => id !== source.revisionId) })} /><span>{source.name}</span><small>{source.sourceKind} · v{source.version} · {source.status}</small></label>)}{knowledgeLoadError ? <div className="pending-line inline-retry" role="alert"><span>Knowledge options could not be loaded.</span><button className="secondary-command" type="button" onClick={() => void load(selectedId)}>Try again</button></div> : !knowledge.length ? <div className="pending-line"><strong>No approved knowledge</strong><span>Add a source in Knowledge & Sales Setup.</span></div> : null}</div><a className="secondary-link studio-link" href="/workspace/knowledge">Open Knowledge & Sales Setup</a>{saveBar}</section> : null}
 
         {activeTab === "entry" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Browser admission boundary</p><h2>Call / Session Entry</h2></div><span>{studio.deployment.allowedOrigins.length} origins</span></div><div className="studio-form-grid">
           <label>Deployment name<input disabled={!canEdit} value={studio.deployment.name} onChange={(event) => patchDeployment({ name: event.target.value })} /></label>
@@ -297,7 +302,7 @@ export default function VoicePage() {
           <div><strong>Appointment request</strong><span>{studio.actions.appointmentRequest ? "Available" : "Not included"}</span></div>
           <div><strong>Human handover</strong><span>{studio.actions.humanHandover ? "Available" : "Not included"}</span></div>
           <div><strong>Merchant email</strong><span>{studio.actions.merchantEmail ? "Available" : "Not included"}</span></div>
-        </div><label className="studio-select-field">Qualified-lead email profile<select disabled={!canEdit || !studio.actions.merchantEmail} value={studio.deployment.definition.notificationProfileId || ""} onChange={(event) => setNotificationProfile(event.target.value)}><option value="">No email action</option>{notifications.filter((item) => item.status === "active").map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><p className="control-copy">Every action is revalidated against the active subscription and allow-list inside the same database transaction as the transcript response.</p>{saveBar}</section> : null}
+        </div>{notificationLoadError ? <div className="inline-message inline-retry" role="alert"><span>Email action profiles could not be loaded.</span><button className="secondary-command" type="button" onClick={() => void load(selectedId)}>Try again</button></div> : null}<label className="studio-select-field">Qualified-lead email profile<select disabled={!canEdit || !studio.actions.merchantEmail || notificationLoadError} value={studio.deployment.definition.notificationProfileId || ""} onChange={(event) => setNotificationProfile(event.target.value)}><option value="">No email action</option>{notifications.filter((item) => item.status === "active").map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><p className="control-copy">Every action is revalidated against the active subscription and allow-list inside the same database transaction as the transcript response.</p>{saveBar}</section> : null}
 
         {activeTab === "test" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Safe preflight</p><h2>Test Call</h2></div><span>{studio.health === "ready" ? "Ready on approved origin" : "Action required"}</span></div><div className="readiness-list">
           <div><strong>Published playbook</strong><span>{studio.deployment.currentPublishedVersion ? `Version ${studio.deployment.currentPublishedVersion}` : "Publish required"}</span></div>
@@ -312,7 +317,7 @@ export default function VoicePage() {
             <div><strong>{analytics.summary.sessions}</strong><span>Sessions</span></div><div><strong>{analytics.summary.completedCalls}</strong><span>Completed</span></div><div><strong>{analytics.summary.failedCalls}</strong><span>Failed / expired</span></div><div><strong>{analytics.summary.completedTurns}</strong><span>Grounded turns</span></div><div><strong>{analytics.summary.leads}</strong><span>Leads captured</span></div><div><strong>{analytics.summary.appointmentRequests}</strong><span>Appointment requests</span></div>
           </div><div className="quality-grid quality-grid-secondary">
             <div><strong>{percent(analytics.summary.completedCalls, analytics.summary.connectedCalls)}</strong><span>Completion rate</span></div><div><strong>{formatDuration(analytics.summary.averageConnectedSeconds)}</strong><span>Average connected time</span></div><div><strong>{formatLatency(analytics.summary.averageTurnMilliseconds)}</strong><span>Average turn response</span></div><div><strong>{analytics.level === "advanced" ? formatLatency(analytics.summary.p95TurnMilliseconds) : "Advanced"}</strong><span>95th percentile response</span></div><div><strong>{analytics.summary.reconnectingCalls}</strong><span>Calls reconnected</span></div><div><strong>{analytics.summary.settledMinutes}</strong><span>Settled minutes</span></div>
-          </div></> : <div className="pending-line"><strong>Analytics are temporarily unavailable</strong><span>Call records remain intact. Reload this page to try again.</span></div>}
+          </div></> : <div className="pending-line inline-retry" role={analyticsLoadError ? "alert" : "status"}><strong>{analyticsLoadError ? "Analytics could not be loaded" : "No analytics are available yet"}</strong><span>{analyticsLoadError ? "Call records remain intact." : "Completed calls will appear here."}</span><button className="secondary-command" type="button" onClick={() => void load(selectedId)}>Try again</button></div>}
           {analytics?.level === "advanced" ? <div className="voice-analytics-breakdowns">
             <section><h3>Sales outcomes</h3>{analytics.outcomes.length ? analytics.outcomes.map((item) => <div key={item.outcome}><span>{friendlyMetric(item.outcome)}</span><strong>{item.calls}</strong></div>) : <p>No classified outcomes yet.</p>}</section>
             <section><h3>Language mix</h3>{analytics.languages.length ? analytics.languages.map((item) => <div key={item.locale}><span>{item.locale === "th" ? "Thai" : "English"}</span><strong>{item.calls}</strong></div>) : <p>No sessions yet.</p>}</section>

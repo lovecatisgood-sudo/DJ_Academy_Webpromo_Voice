@@ -52,6 +52,13 @@ are configured” is allowed only after both onboarding and subscription reads
 succeed with an empty subscription array. Either authoritative read failing
 must render the shared Overview retry state.
 
+Secondary Studio reads preserve valid primary authoring data but must remain
+truthful. Voice Knowledge, notification-profile, and analytics failures render
+inline retry states, disable the affected selector, and never substitute “no
+approved knowledge,” “no email action,” or zero analytics for an unavailable
+response. Platform headings describe the evidence to review and do not make an
+unconditional “operational” claim before those reads complete.
+
 `NEXT_PUBLIC_PUBLIC_APP_URL` is the tenant sign-in link back to public
 registration. Set it to the deployed public origin before building Tenant Web.
 Next.js embeds this public value at build time, so changing only the runtime

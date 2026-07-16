@@ -65,7 +65,9 @@ signed-out sessions. Public, Tenant, and Platform mutations also normalize
 connection and gateway failures into safe feedback, clear busy controls, and
 never retry non-idempotent actions automatically. The workspace Overview now
 reports authoritative product subscription and effective access state instead
-of an unconditional empty-product placeholder. Real managed
+of an unconditional empty-product placeholder. Voice Studio secondary reads
+also distinguish unavailable options and analytics from genuine empty states,
+and Platform copy avoids unconditional operational claims. Real managed
 production observations, on-call staffing, PITR/regional exercises, legal and
 commercial approval remain external launch gates. Checkout, invoices, tax,
 dunning, and public charging remain disabled.

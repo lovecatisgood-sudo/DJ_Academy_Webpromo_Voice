@@ -160,7 +160,7 @@ async function inspectThai() {
 async function inspectTenantWorkspace() {
   if (!tenantUrl) return;
   const context = await browser.newContext({ viewport: { width: 1365, height: 900 } }); const page = await context.newPage();
-  let createCalls = 0; let revokeCalls = 0; let studioSaveCalls = 0; let readOnly = false; let advanced = false;
+  let createCalls = 0; let revokeCalls = 0; let studioSaveCalls = 0; let readOnly = false; let advanced = false; let secondaryFailure = false;
   const workspace = { tenantId: "20000000-0000-4000-8000-000000000001", slug: "voice-studio", businessName: "Voice Studio", role: "tenant_master_admin" };
   const deployment = { id: "30000000-0000-4000-8000-000000000001", name: "Main website", agentName: "Mali", businessName: "Merchant Store", keyPrefix: "djay_voice_deploy_ab", allowedOrigins: ["https://merchant.example"], defaultLocale: "en", maxCallSeconds: 900, reconnectWindowSeconds: 30, status: "active" };
   const definition = {
@@ -192,8 +192,11 @@ async function inspectTenantWorkspace() {
     const respond = (value, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(value) });
     if (path === "/tenant/session") return respond({ user: { id: "owner", displayName: "Voice Owner" }, workspaces: [{ ...workspace, role: readOnly ? "tenant_analyst" : workspace.role }], selectedTenantId: workspace.tenantId, mfaVerifiedAt: new Date().toISOString() });
     if (path === "/tenant/support-access") return respond({ grants: [] });
+    if (path === "/tenant/knowledge" && secondaryFailure) return respond({ status: "temporarily_unavailable" }, 503);
     if (path === "/tenant/knowledge") return respond({ sources: [{ id: "60000000-0000-4000-8000-000000000001", revisionId: "70000000-0000-4000-8000-000000000001", name: "Approved services", sourceKind: "text", status: "ready", version: 1 }] });
+    if (path === "/tenant/ai-chat/notifications" && secondaryFailure) return respond({ status: "temporarily_unavailable" }, 503);
     if (path === "/tenant/ai-chat/notifications") return respond({ notifications: [{ id: "80000000-0000-4000-8000-000000000001", name: "Sales inbox", allowedTemplateKeys: ["ai_chat.lead_qualified"], status: "active" }] });
+    if (path === "/tenant/voice/analytics" && secondaryFailure) return respond({ status: "temporarily_unavailable" }, 503);
     if (path === "/tenant/voice/analytics") return respond({ analytics: {
       periodDays: 30, level: advanced ? "advanced" : "core", deploymentId: deployment.id,
       summary: {
@@ -297,6 +300,15 @@ async function inspectTenantWorkspace() {
   await page.getByRole("heading", { name: "Mali" }).waitFor();
   if (await page.getByRole("button", { name: "Save draft" }).count()) failures.push("tenant-viewer: read-only role can see a save command");
   if (!(await page.getByLabel("Public agent name").isDisabled())) failures.push("tenant-viewer: identity field remains editable");
+  readOnly = false; secondaryFailure = true; await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "Mali" }).waitFor();
+  await page.getByRole("tab", { name: /^Knowledge / }).click();
+  await page.getByText("Knowledge options could not be loaded.", { exact: true }).waitFor();
+  if (await page.getByText("No approved knowledge", { exact: true }).count()) failures.push("tenant-secondary-failure: failed knowledge was presented as empty");
+  await page.getByRole("tab", { name: /^Actions / }).click();
+  await page.getByText("Email action profiles could not be loaded.", { exact: true }).waitFor();
+  await page.getByRole("tab", { name: /Quality Evaluation/ }).click();
+  await page.getByText("Analytics could not be loaded", { exact: true }).waitFor();
   await context.close();
 }
 

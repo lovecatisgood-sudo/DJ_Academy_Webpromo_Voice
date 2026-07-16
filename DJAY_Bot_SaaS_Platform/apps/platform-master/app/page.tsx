@@ -450,7 +450,7 @@ export default function PlatformMasterPage() {
             <div><span>Subscriptions</span><strong>{commerce.subscriptions}</strong></div>
             <div><span>Pending activation</span><strong>{commerce.pending}</strong></div></> : null}
           </div>
-          <div className="operations-band"><p>System</p><h2>Identity and commerce foundations operational</h2></div>
+          <div className="operations-band"><p>System evidence</p><h2>Review current identity, release, and role-authorized operations data</h2></div>
           {readinessStage === "loading" ? <div className="subscription-band release-readiness-band readiness-placeholder" id="release-operations" aria-live="polite"><div><p>Release operations</p><h2>Checking release readiness…</h2></div><p className="operational-note">Loading current SLO, incident, on-call, restore, replay, queue, pool, security, privacy, support, and usage evidence.</p></div> : null}
           {readinessStage === "error" ? <div className="subscription-band release-readiness-band status-blocked readiness-placeholder" id="release-operations" role="alert"><div><p>Release operations</p><h2>Release evidence unavailable</h2></div><p className="operational-note">The release gate is blocked. No service should be promoted while current evidence cannot be verified.</p><button type="button" disabled={working} onClick={() => void loadCurrent()}>Retry readiness check</button></div> : null}
           {readiness ? <div className={`subscription-band release-readiness-band status-${readiness.status}`} id="release-operations">
