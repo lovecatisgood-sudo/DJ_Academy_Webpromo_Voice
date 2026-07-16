@@ -40,7 +40,9 @@ latency gate, retention review, and named merchant acceptance are complete.
    cleanup gate through `qa:p8-voice-eval` for Advanced candidates.
 5. In Platform Master, enter the release record identifier as the operational
    reason and select **Resume admission**. This requires a recent MFA-backed
-   platform session and creates an immutable platform audit record.
+   platform session and creates an immutable platform audit record. The reason
+   must contain 3–200 visible characters after outer whitespace is removed;
+   correct the focused field before retrying if it is rejected locally.
 6. Issue one named staging session. Reconcile connection history, heartbeats,
    concurrency lease, reservation, terminal settlement, conversation closure,
    and the public transcript before expanding admission.
@@ -82,6 +84,9 @@ export for merchant review rather than direct database access.
   gateway process.
 - Use a non-sensitive incident or change-record identifier as the reason. Do not
   put customer data or credentials in the reason field.
+- Runtime buttons validate and normalize the adjacent operational reason before
+  confirmation. An invalid reason sends no command; a successful change is
+  announced separately from server failure. Never bypass this with direct SQL.
 
 For suspected cross-tenant access, credential exposure, disclosure sequencing
 failure, or unapproved routing disclosure, use emergency stop, preserve the

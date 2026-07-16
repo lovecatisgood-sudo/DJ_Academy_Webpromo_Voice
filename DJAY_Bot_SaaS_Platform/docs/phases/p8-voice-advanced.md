@@ -100,6 +100,11 @@ remains unavailable and paused by default in production.
     inline form keeps rejected or transport-failed evidence available for
     correction, announces errors and success separately, and sends no request
     for whitespace-only evidence.
+24. Button-driven runtime and routing actions no longer bypass their visible
+    reason constraints. The Platform form, both restricted APIs, repository,
+    and existing database functions share trimmed 3–200 runtime and 12–500
+    routing-action boundaries, with focused local correction and no invalid
+    mutation.
 
 ## Schema, API, and event contract
 
@@ -142,7 +147,8 @@ remains unavailable and paused by default in production.
 - PostgreSQL 16 integration proves denied direct access, denied self-review,
   qualification, approval, blocked direct promotion, canary, promotion, incident
   pause, denied Support resolution, separate finance review, normalized
-  resolution, rollback, and immutable auditing.
+  resolution, normalized runtime/action reasons, rollback, and immutable
+  auditing.
 - Deployment integration proves server-resolved Advanced creation, exact-origin
   isolation, public-label-only DTOs, default unavailable admission, entitlement
   mismatch denial, and database-enforced no-Gen1 fallback after downgrade.
@@ -155,7 +161,9 @@ remains unavailable and paused by default in production.
 - Platform desktop/mobile browser acceptance covers role-safe rendering,
   responsive layout, tenant/provider confidentiality, canceled and invalid
   resolution with zero mutations, one normalized accepted command, and a
-  retryable preserved draft after a controlled transport failure.
+  retryable preserved draft after a controlled transport failure. It also
+  proves whitespace-only runtime/routing reasons stay focused with zero
+  mutations and corrected reasons are normalized once.
 - Analytics integration proves Advanced/core packaging, cross-tenant and
   cross-deployment isolation, bounded daily series, safe operational latency,
   reconnect, outcome, lead, and appointment reconciliation, and immediate

@@ -22,13 +22,13 @@ document, and fetched every referenced static asset. Accepted static evidence
 was:
 
 - API: 132 files,
-  `eb10f6affbc97ef3b15d7813068d2d27b5491680956aaa5c828ac08446643159`
+  `ed2145217bbacaab1882f83ac52447ba3ff2b1c44a8d90e98975cd8852914799`
 - Platform Master: 24 files,
-  `d5ab9d46e959b14060971c8af97a4a36e09f17bfcd6ccb238de12bac6ac08897`
+  `022e8b25c8ef542803820be1d7de85ba934d09b023c6f44d5f506ef737a6ccd9`
 - Public site: 31 files,
-  `5c3f017cf95a70f6785495b9377047c71e16b17cf1790ff07d008249cdf63286`
+  `25d69d082239b21490757a46d14a895bc47e163dff471d62246649e08c79843d`
 - Tenant workspace: 43 files,
-  `391cff1288e64042342f704412926da187b28a7119fd4670a9f7ff4c2c1282e4`
+  `4249e18411a9d99dcf6368ee01ebb0401d95735739b484de84117101b6aa74ed`
 
 The release audit found that all three Tenant install snippets referenced
 versioned CDN modules, but the release package did not archive those modules.
@@ -94,6 +94,12 @@ incident-resolution form under the affected incident. Cancel and invalid
 evidence send no command, accepted evidence is trimmed to the shared
 12–2,000-character contract and announced politely, and a controlled transport
 failure preserves the exact draft and an enabled retry control.
+The packaged runtime and route-action buttons explicitly validate their
+adjacent reason fields before confirmation. Whitespace-only evidence retains
+focus and sends no request; corrected values are trimmed and transported once,
+successful runtime change is announced politely, and authority changes reset
+the drafts. Existing dead-letter recovery evidence also remains rendered with
+busy controls during post-mutation refresh rather than flashing a blank panel.
 The two Voice deployment creation journeys now render one shared form contract,
 including exact origin, disclosure, and bilingual greeting limits. Studio uses
 the same limits before transport; a greeting over the immutable Sales Core
@@ -127,7 +133,7 @@ tests did not exercise the emitted bundle. The build now supplies an ESM
 `createRequire` bridge; the isolated bundle starts, reports liveness, and fails
 readiness closed with provider-neutral `503 not_ready` when media authority is
 absent. Its accepted bundle digest is
-`c491953933eb863c4900a2299e97900cc39c8bf8da359ae61374efc78a210f2e`.
+`f83d2a3161d0055134c0d0cffac226e7af99de5f958cf3889586d2b831dc0695`.
 The artifact is also started with a copied example production authority token;
 it must exit before listening, name only the affected field, and never echo the
 token value.
@@ -138,7 +144,7 @@ before execution, proving it does not resolve those packages from workspace
 `node_modules`. With database authority deliberately absent, startup fails
 closed, names only `WORKER_DATABASE_URL`, and exposes no connection URL. The
 accepted 56-file digest is
-`e8521be02bcde98c600b30cff656d8553cb82bc9f8fe95e8efe45ed48f4c64ac`.
+`a7842864ad5d4c8e3c7cb11f08473e670484dab5805419529a14b549f4e7b36a`.
 
 These hashes describe the local generated build and are not target-deployment
 evidence. The immutable deployment system must archive its own package hashes,

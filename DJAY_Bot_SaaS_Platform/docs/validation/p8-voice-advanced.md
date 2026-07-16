@@ -10,6 +10,7 @@
 ```bash
 git diff --check
 scripts/use-node24.sh pnpm run lint:platform-incident-resolution
+scripts/use-node24.sh pnpm run lint:platform-voice-actions
 scripts/use-node24.sh pnpm --filter @djay/db typecheck
 scripts/use-node24.sh pnpm --filter @djay/api typecheck
 scripts/use-node24.sh pnpm --filter @djay/platform-master typecheck
@@ -42,12 +43,30 @@ zero mutations, invalid evidence receives focus, one corrected value sends one
 normalized `incident.resolve` command, success uses a polite status, and a
 controlled `503` leaves the exact draft and enabled retry control in place.
 
+The button-driven Voice control checkpoint closes a separate browser gap: the
+runtime and route-action buttons previously did not submit their nearby inputs,
+so native `minLength`/`maxLength` constraints were not invoked. Both actions now
+apply shared trimmed 3–200 and 12–500-character contracts before confirmation.
+PostgreSQL integration proves direct repository calls reject invisible evidence
+and store padded accepted reasons without outer whitespace. Packaged Chromium
+proves each invalid reason sends zero mutations and retains focus, while each
+corrected value sends exactly one normalized command and runtime success is
+announced politely. The P9 role gate also exposed and now covers a transient
+refresh gap: existing authorized recovery evidence stays rendered and busy
+during the post-mutation snapshot refresh instead of disappearing briefly.
+Unexpected Platform session loss now uses the same complete in-memory purge as
+explicit logout and a detected role/identity change. No prior health, commerce,
+tenant, support, recovery, Voice, incident, message, or operational-reason state
+can bridge a 401/403 or failed session read into a later identity.
+
 ## Change impact and rollback
 
 - Phase: P8 Voice Agent Advanced; no P9 commercial or credit policy was added.
 - Schema/API/events: no migration, request shape, event name, or audit payload
   change. Validation and normalization are now shared before the existing
-  `platform.resolve_voice_incident` 12–2,000-character constraint.
+  `platform.resolve_voice_incident` 12–2,000-character,
+  `platform.set_voice_runtime_control` 3–200-character, and
+  `platform.apply_voice_routing_change` 12–500-character constraints.
 - Security/observability: Owner and AI Operations mutation authority, recent
   reauthentication, audit logging, Finance incident-only visibility, and
   provider confidentiality are unchanged. Browser-local rejection produces no

@@ -27,6 +27,9 @@ proves that:
 - Platform Owner and AI Operations can resolve an open Voice incident through
   the shared inline evidence form, while Finance remains incident-read/
   credit-review only and Support has no incident access;
+- Platform Owner and AI Operations runtime/routing actions reject invisible
+  operational evidence locally, focus the exact field, and transport one
+  normalized corrected command without weakening review separation;
 - direct Analyst visits to Team and Security receive a branded access-denied
   state instead of an empty or misleading operations page;
 - forbidden pages do not initiate their protected Team, Security, or privacy

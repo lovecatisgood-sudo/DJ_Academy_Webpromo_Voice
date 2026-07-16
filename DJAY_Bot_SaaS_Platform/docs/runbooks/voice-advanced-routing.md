@@ -33,11 +33,14 @@ the exact live-candidate and named-merchant runs.
    evaluation artifact and records its lowercase SHA-256 digest.
 3. An operator requests a 1–100% canary with a reason and evaluation digest.
 4. A different operator approves or rejects the request.
-5. Start the approved canary. Promotion is unavailable until this transition is
+5. Enter a non-sensitive 12–500-character action reason, then start the approved
+   canary. The browser removes outer whitespace and sends no command when the
+   focused reason is invalid. Promotion is unavailable until this transition is
    current; a newer canary makes the older change stale.
 6. Review live quality, latency, error, capacity, and cost/margin evidence under
    the approved acceptance thresholds before promotion.
-7. Promote explicitly. Never configure Gen1 as an Advanced fallback.
+7. Promote explicitly with the reviewed action reason. Never configure Gen1 as
+   an Advanced fallback.
 
 ## Production admission
 

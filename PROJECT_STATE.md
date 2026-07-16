@@ -700,3 +700,17 @@ export const buildVersion = "voice-behavior-restore-2026-07-14";
   authority and audit behavior, and confirms normalized storage.
 - Gen2 remains paused/admission-disabled until the existing live-provider,
   capacity, commercial, and named-merchant acceptance gates pass.
+
+## DJAY Bot SaaS Voice Action Reason Checkpoint - 2026-07-16
+
+- Corrected Platform Voice runtime and routing buttons that previously bypassed
+  their nearby input constraints because they were not form submissions.
+- Added shared trimmed 3–200 runtime and 12–500 routing-action reason contracts
+  across browser, restricted APIs, repository, and existing database functions.
+- Invalid evidence remains focused and sends zero commands; corrected evidence
+  sends once, runtime success is polite, and authority changes reset drafts.
+- Session loss, session-read failure, explicit logout, and mid-session authority
+  changes now share a complete authorized-snapshot purge, preventing stale
+  Platform data or operational drafts from crossing identities.
+- No schema, event, permission, provider-routing, or production-admission policy
+  changed; external Voice release gates remain mandatory.

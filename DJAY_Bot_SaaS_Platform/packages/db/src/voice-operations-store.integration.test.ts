@@ -40,9 +40,11 @@ describe.runIf(enabled)("Voice platform operations", () => {
 
     await expect(platformClient!`SELECT * FROM platform.voice_runtime_controls`).rejects.toThrow();
     await expect(store.getControl(support)).rejects.toThrow(/platform_voice_operations_required/);
-    await expect(store.setControl(owner, { mode: "emergency_stop", reasonCode: "integration_incident" }))
+    await expect(store.setControl(owner, { mode: "emergency_stop", reasonCode: "   " }))
+      .rejects.toThrow();
+    await expect(store.setControl(owner, { mode: "emergency_stop", reasonCode: "  integration_incident  " }))
       .resolves.toMatchObject({ mode: "emergency_stop", reasonCode: "integration_incident" });
-    await expect(store.setControl(owner, { mode: "running", reasonCode: "integration_recovered" }))
+    await expect(store.setControl(owner, { mode: "running", reasonCode: "  integration_recovered  " }))
       .resolves.toMatchObject({ mode: "running", reasonCode: "integration_recovered" });
     await expect(store.getControl(owner)).resolves.toMatchObject({ mode: "running" });
 
@@ -117,7 +119,10 @@ describe.runIf(enabled)("Voice platform operations", () => {
       changeId: requested.changeId, action: "promote", reason: "Cannot skip the reviewed canary",
     })).rejects.toThrow(/voice_routing_change_not_promotable/);
     await expect(store.applyRoutingChange(owner, {
-      changeId: requested.changeId, action: "start_canary", reason: "Start the reviewed integration canary",
+      changeId: requested.changeId, action: "start_canary", reason: "   ",
+    })).rejects.toThrow();
+    await expect(store.applyRoutingChange(owner, {
+      changeId: requested.changeId, action: "start_canary", reason: "  Start the reviewed integration canary  ",
     })).resolves.toEqual({ status: "canary" });
 
     const canaryOverview = await store.getRoutingOverview(reviewer);
@@ -180,7 +185,7 @@ describe.runIf(enabled)("Voice platform operations", () => {
     })).resolves.toEqual({ status: "resolved" });
     await expect(store.applyRoutingChange(owner, {
       changeId: requested.changeId, action: "rollback",
-      reason: "Rollback after integration incident review",
+      reason: "  Rollback after integration incident review  ",
     })).resolves.toEqual({ status: "rolled_back" });
 
     const finalOverview = await store.getRoutingOverview(owner);
@@ -194,6 +199,7 @@ describe.runIf(enabled)("Voice platform operations", () => {
       id: incident.incidentId, status: "resolved", creditReviewStatus: "approved",
       resolution: "Route remains paused pending the explicit rollback",
     });
+    expect(finalOverview.changes[0]?.rollbackReason).toBe("Rollback after integration incident review");
     const audits = await adminClient!<{ count: number }[]>`
       SELECT count(*)::int AS count FROM platform.audit_logs
       WHERE actor_platform_user_id IN (${ownerId}::uuid, ${aiOperationsId}::uuid, ${financeId}::uuid)

@@ -88,6 +88,19 @@ contract across its inline accessible form, API, repository, and existing
 PostgreSQL function. Cancel/invalid evidence sends no command, accepted evidence
 is normalized once, Support is denied, success is announced politely, and a
 transport failure preserves the exact operator draft for an explicit retry.
+P7/P8 button-driven Voice runtime and routing actions now explicitly enforce
+their adjacent reason fields rather than relying on native form validation that
+those buttons never invoked. Whitespace-only evidence stays focused and sends
+zero commands; accepted evidence is trimmed across browser, API, repository,
+and existing PostgreSQL authority, with polite runtime success feedback and
+identity-change draft reset.
+The same packaged role gate now keeps existing dead-letter recovery evidence
+visible with busy controls during its post-mutation snapshot refresh, removing
+a transient blank panel without retaining stale evidence after a failed read.
+Platform session expiry and failed session reads now purge the complete
+authorized in-memory snapshot using the same path as logout and detected
+identity/role change, preventing prior Owner/AI Ops evidence or drafts from
+bridging into a later platform identity.
 
 ## P4 release checkpoint
 

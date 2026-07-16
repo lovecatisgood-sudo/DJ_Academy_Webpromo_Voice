@@ -10,6 +10,7 @@ export * from "./contact-fields";
 export * from "./privacy-jobs";
 export * from "./conversation-message-fields";
 export * from "./voice-incident-fields";
+export * from "./platform-voice-action-fields";
 export * from "./voice-deployment-fields";
 export * from "./website-deployment-fields";
 export * from "./flowbot-operations-fields";

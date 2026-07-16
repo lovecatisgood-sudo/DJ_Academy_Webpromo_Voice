@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { emailFieldConstraints, safeMutationFetch } from "@djay/shared";
+import {
+  emailFieldConstraints,
+  normalizePlatformVoiceReason,
+  safeMutationFetch,
+  voiceRoutingActionReasonError,
+  voiceRoutingActionReasonFieldConstraints,
+  voiceRuntimeReasonError,
+  voiceRuntimeReasonFieldConstraints,
+} from "@djay/shared";
 import { PlatformNavigation } from "./PlatformNavigation";
 import { VoiceIncidentResolutionForm } from "./VoiceIncidentResolutionForm";
 
@@ -63,6 +71,9 @@ type VoiceChange = { id: string; capabilityProfile: "voice_gen2"; candidateId: s
 type VoiceAdmissionChange = { id: string; capabilityProfile: "voice_gen2"; targetEnabled: boolean; status: "requested" | "approved" | "rejected" | "applied"; reason: string; requestedByPlatformUserId: string; approvedByPlatformUserId: string | null; requestedAt: string; approvedAt: string | null; appliedAt: string | null };
 type VoiceRouting = { admissionEnabled: boolean; admissionChanges: VoiceAdmissionChange[]; profiles: { capabilityProfile: "voice_gen2"; mode: "paused" | "canary" | "running" | "degraded"; reasonCode: string; version: number; changedAt: string; primaryCandidateId: string | null; canaryCandidateId: string | null; canaryPercent: number }[]; candidates: VoiceCandidate[]; changes: VoiceChange[]; incidents: VoiceIncident[] };
 
+const defaultVoiceReason = "scheduled_maintenance";
+const defaultRoutingActionReason = "Reviewed Advanced Voice operational change";
+
 export default function PlatformMasterPage() {
   const loadGeneration = useRef(0);
   const [stage, setStage] = useState<"loading" | "error" | "password" | "mfa" | "dashboard">("loading");
@@ -87,8 +98,12 @@ export default function PlatformMasterPage() {
   const [voiceRouting, setVoiceRouting] = useState<VoiceRouting | null>(null);
   const [voiceIncidents, setVoiceIncidents] = useState<VoiceIncident[] | null>(null);
   const [resolvingIncidentId, setResolvingIncidentId] = useState<string | null>(null);
-  const [voiceReason, setVoiceReason] = useState("scheduled_maintenance");
-  const [routingActionReason, setRoutingActionReason] = useState("Reviewed Advanced Voice operational change");
+  const [voiceReason, setVoiceReason] = useState(defaultVoiceReason);
+  const [voiceReasonIssue, setVoiceReasonIssue] = useState("");
+  const voiceReasonRef = useRef<HTMLInputElement>(null);
+  const [routingActionReason, setRoutingActionReason] = useState(defaultRoutingActionReason);
+  const [routingActionReasonIssue, setRoutingActionReasonIssue] = useState("");
+  const routingActionReasonRef = useRef<HTMLInputElement>(null);
   const controlsBusy = working || dashboardLoading;
 
   function clearMessage() {
@@ -101,6 +116,36 @@ export default function PlatformMasterPage() {
     setMessage(text);
   }
 
+  function resetVoiceActionFields() {
+    setVoiceReason(defaultVoiceReason);
+    setVoiceReasonIssue("");
+    voiceReasonRef.current?.setCustomValidity("");
+    setRoutingActionReason(defaultRoutingActionReason);
+    setRoutingActionReasonIssue("");
+    routingActionReasonRef.current?.setCustomValidity("");
+  }
+
+  function clearAuthorizedPlatformSnapshot() {
+    setHealth(null);
+    setCommerce(null);
+    setReconciliation(null);
+    setReconciliationStage("hidden");
+    setReadiness(null);
+    setReadinessStage("loading");
+    setSubscriptions([]);
+    setTenants([]);
+    setSupportGrants([]);
+    setRecovery(null);
+    setRecoveryStage("hidden");
+    setVoiceControl(null);
+    setVoiceRouting(null);
+    setVoiceIncidents(null);
+    setResolvingIncidentId(null);
+    setResourceErrors([]);
+    setDashboardLoading(false);
+    resetVoiceActionFields();
+  }
+
   async function loadCurrent() {
     const generation = ++loadGeneration.current;
     if (!user) setStage("loading");
@@ -108,7 +153,13 @@ export default function PlatformMasterPage() {
     try {
       const response = await fetch("/platform/me", { cache: "no-store" });
       if (generation !== loadGeneration.current) return;
-      if ([401, 403].includes(response.status)) { setUser(null); setStage("password"); return; }
+      if ([401, 403].includes(response.status)) {
+        setUser(null);
+        clearAuthorizedPlatformSnapshot();
+        clearMessage();
+        setStage("password");
+        return;
+      }
       if (!response.ok) throw new Error("platform_session_unavailable");
       result = await response.json();
       if (generation !== loadGeneration.current) return;
@@ -116,15 +167,14 @@ export default function PlatformMasterPage() {
     } catch {
       if (generation !== loadGeneration.current) return;
       setUser(null);
+      clearAuthorizedPlatformSnapshot();
+      clearMessage();
       setStage("error");
       return;
     }
     const authorityChanged = Boolean(user && (user.id !== result.user.id || user.role !== result.user.role));
     if (authorityChanged) {
-      setHealth(null); setCommerce(null); setSubscriptions([]); setTenants([]); setSupportGrants([]);
-      setReadiness(null); setReconciliation(null); setRecovery(null);
-      setVoiceControl(null); setVoiceRouting(null); setVoiceIncidents(null);
-      setResolvingIncidentId(null);
+      clearAuthorizedPlatformSnapshot();
     }
     setUser(result.user);
     setStage("dashboard");
@@ -242,21 +292,7 @@ export default function PlatformMasterPage() {
     if (!response.ok) { setMessage("Sign out could not be confirmed. Your current session remains open."); return; }
     loadGeneration.current += 1;
     setUser(null);
-    setHealth(null);
-    setCommerce(null);
-    setReconciliation(null);
-    setReconciliationStage("hidden");
-    setReadiness(null);
-    setReadinessStage("loading");
-    setSubscriptions([]);
-    setTenants([]);
-    setSupportGrants([]);
-    setRecovery(null);
-    setRecoveryStage("hidden");
-    setVoiceControl(null);
-    setVoiceRouting(null);
-    setVoiceIncidents(null);
-    setResolvingIncidentId(null);
+    clearAuthorizedPlatformSnapshot();
     setDashboardLoading(false);
     setStage("password");
   }
@@ -321,16 +357,28 @@ export default function PlatformMasterPage() {
   }
 
   async function changeVoiceMode(mode: VoiceControl["mode"]) {
+    clearMessage();
+    const issue = voiceRuntimeReasonError(voiceReason);
+    if (issue) {
+      setVoiceReasonIssue(issue);
+      voiceReasonRef.current?.setCustomValidity(issue);
+      voiceReasonRef.current?.reportValidity();
+      voiceReasonRef.current?.focus();
+      return;
+    }
+    setVoiceReasonIssue("");
+    voiceReasonRef.current?.setCustomValidity("");
+    const reasonCode = normalizePlatformVoiceReason(voiceReason);
     const warning = mode === "emergency_stop"
       ? "Emergency stop ends every active Voice session and prevents new sessions. Continue?"
       : mode === "running"
         ? "Resume new Voice sessions? Confirm deployment readiness first."
         : "Pause admission of new Voice sessions? Active sessions will continue.";
     if (!window.confirm(warning)) return;
-    setWorking(true); clearMessage();
+    setWorking(true);
     const response = await safeMutationFetch("/platform/voice/runtime-control", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode, reasonCode: voiceReason }),
+      body: JSON.stringify({ mode, reasonCode }),
     });
     setWorking(false);
     if (!response.ok) {
@@ -339,6 +387,7 @@ export default function PlatformMasterPage() {
         : "Voice runtime control could not be changed.");
       return;
     }
+    showMessage("Voice runtime control updated.", "success");
     await loadCurrent();
   }
 
@@ -393,8 +442,20 @@ export default function PlatformMasterPage() {
   }
 
   async function applyVoiceChange(changeId: string, action: "start_canary" | "promote" | "rollback") {
+    clearMessage();
+    const issue = voiceRoutingActionReasonError(routingActionReason);
+    if (issue) {
+      setRoutingActionReasonIssue(issue);
+      routingActionReasonRef.current?.setCustomValidity(issue);
+      routingActionReasonRef.current?.reportValidity();
+      routingActionReasonRef.current?.focus();
+      return;
+    }
+    setRoutingActionReasonIssue("");
+    routingActionReasonRef.current?.setCustomValidity("");
+    const reason = normalizePlatformVoiceReason(routingActionReason);
     if (!window.confirm(`${action.replaceAll("_", " ")} this reviewed Advanced Voice change?`)) return;
-    await sendVoiceRoutingCommand({ command: "change.apply", changeId, action, reason: routingActionReason }, `Routing action ${action.replaceAll("_", " ")} completed.`);
+    await sendVoiceRoutingCommand({ command: "change.apply", changeId, action, reason }, `Routing action ${action.replaceAll("_", " ")} completed.`);
   }
 
   async function requestVoiceAdmission(event: FormEvent<HTMLFormElement>) {
@@ -538,7 +599,7 @@ export default function PlatformMasterPage() {
               <div><span>Active</span><strong>{voiceControl.activeSessions}</strong><small>{voiceControl.reconnectingSessions} reconnecting</small></div>
               <div><span>Recovery queue</span><strong>{voiceControl.expiredGrants + voiceControl.staleConnections}</strong><small>{voiceControl.staleConnections} stale connections</small></div>
             </div>
-            <label className="voice-reason">Operational reason<input value={voiceReason} minLength={3} maxLength={200} onChange={(event) => setVoiceReason(event.target.value)} /></label>
+            <label className="voice-reason" htmlFor="voice-runtime-reason">Operational reason<input {...voiceRuntimeReasonFieldConstraints} id="voice-runtime-reason" ref={voiceReasonRef} value={voiceReason} aria-describedby={voiceReasonIssue ? "voice-runtime-reason-error" : undefined} aria-invalid={Boolean(voiceReasonIssue)} onChange={(event) => { setVoiceReason(event.target.value); if (voiceReasonIssue) setVoiceReasonIssue(""); event.currentTarget.setCustomValidity(""); }} />{voiceReasonIssue ? <span className="voice-reason-error" id="voice-runtime-reason-error" role="alert">{voiceReasonIssue}</span> : null}</label>
             <div className="voice-control-actions">
               <button type="button" disabled={controlsBusy || voiceControl.mode === "running"} onClick={() => void changeVoiceMode("running")}>Resume admission</button>
               <button className="outline-button" type="button" disabled={controlsBusy || voiceControl.mode === "paused"} onClick={() => void changeVoiceMode("paused")}>Pause new sessions</button>
@@ -560,7 +621,7 @@ export default function PlatformMasterPage() {
               <form onSubmit={reviewVoiceCandidate}><h3>2. Independent qualification</h3><label>Proposed candidate<select name="candidateId" required defaultValue=""><option value="" disabled>Select candidate</option>{voiceRouting.candidates.filter((candidate) => candidate.status === "proposed").map((candidate) => <option key={candidate.id} value={candidate.id} disabled={candidate.proposedByPlatformUserId === user.id}>{candidate.providerKey} / {candidate.modelKey}{candidate.proposedByPlatformUserId === user.id ? " · another reviewer required" : ""}</option>)}</select></label><label>Decision<select name="decision" defaultValue="qualify"><option value="qualify">Qualify</option><option value="reject">Reject</option></select></label><label>Qualification evidence SHA-256<input name="evidenceSha256" pattern="[a-fA-F0-9]{64}" minLength={64} maxLength={64} required /></label><button disabled={controlsBusy} type="submit">Record review</button></form>
               <form onSubmit={requestVoiceChange}><h3>3. Request canary</h3><label>Qualified candidate<select name="candidateId" required defaultValue=""><option value="" disabled>Select candidate</option>{voiceRouting.candidates.filter((candidate) => candidate.status === "qualified").map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.providerKey} / {candidate.modelKey}</option>)}</select></label><label>Canary percent<input name="canaryPercent" type="number" min={1} max={100} defaultValue={10} required /></label><label>Operational reason<input name="reason" minLength={12} maxLength={500} required /></label><label>Evaluation evidence SHA-256<input name="evidenceSha256" pattern="[a-fA-F0-9]{64}" minLength={64} maxLength={64} required /></label><button disabled={controlsBusy} type="submit">Request change</button></form>
             </div>
-            <label className="voice-reason">Action reason<input value={routingActionReason} minLength={12} maxLength={500} onChange={(event) => setRoutingActionReason(event.target.value)} /></label>
+            <label className="voice-reason" htmlFor="voice-routing-action-reason">Action reason<input {...voiceRoutingActionReasonFieldConstraints} id="voice-routing-action-reason" ref={routingActionReasonRef} value={routingActionReason} aria-describedby={routingActionReasonIssue ? "voice-routing-action-reason-error" : undefined} aria-invalid={Boolean(routingActionReasonIssue)} onChange={(event) => { setRoutingActionReason(event.target.value); if (routingActionReasonIssue) setRoutingActionReasonIssue(""); event.currentTarget.setCustomValidity(""); }} />{routingActionReasonIssue ? <span className="voice-reason-error" id="voice-routing-action-reason-error" role="alert">{routingActionReasonIssue}</span> : null}</label>
             <div className="platform-table" role="list" aria-label="Advanced Voice routing changes">
               {voiceRouting.changes.map((change) => <div className="platform-row voice-route-row" role="listitem" key={change.id}><div><strong>{voiceRouting.candidates.find((candidate) => candidate.id === change.candidateId)?.modelKey || change.candidateId}</strong><span>{change.reason} · {change.canaryPercent}% canary</span></div><span>{change.status.replaceAll("_", " ")}</span><div className="row-actions">{change.status === "requested" ? <><button disabled={controlsBusy || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceChange(change.id, "approve")}>Approve</button><button className="outline-button" disabled={controlsBusy || change.requestedByPlatformUserId === user.id} onClick={() => void reviewVoiceChange(change.id, "reject")}>Reject</button></> : null}{change.status === "approved" ? <button disabled={controlsBusy} onClick={() => void applyVoiceChange(change.id, "start_canary")}>Start canary</button> : null}{change.status === "canary" ? <><button disabled={controlsBusy} onClick={() => void applyVoiceChange(change.id, "promote")}>Promote</button><button className="outline-button" disabled={controlsBusy} onClick={() => void applyVoiceChange(change.id, "rollback")}>Rollback</button></> : null}{change.status === "active" ? <button className="danger-button" disabled={controlsBusy} onClick={() => void applyVoiceChange(change.id, "rollback")}>Rollback</button> : null}</div></div>)}
               {!voiceRouting.changes.length ? <p className="empty-row" role="listitem">No routing changes</p> : null}
@@ -578,7 +639,7 @@ export default function PlatformMasterPage() {
           {health?.socialChannels?.length ? <div className="subscription-band"><div><p>AI Chat operations</p><h2>Social channel health</h2></div><div className="platform-table" role="list" aria-label="Social channel health">{health.socialChannels.map((channel) => <div className="platform-row" role="listitem" key={channel.channel}><div><strong>{channel.channel === "line" ? "LINE" : channel.channel === "whatsapp" ? "WhatsApp" : "Messenger"}</strong><span>{channel.activeConnections} active / {channel.reauthorizationRequired} reauthorization</span></div><span>{channel.queuedInbound} inbound queued / {channel.oldestInboundQueueSeconds}s oldest</span><span>{channel.queuedDeliveries} delivery queued / {channel.oldestDeliveryQueueSeconds}s oldest</span><span>{channel.deadLetterInbound + channel.deadLetterDeliveries} dead letters / {channel.failedAttempts24h} failed attempts</span></div>)}</div></div> : null}
           {recoveryStage === "loading" && !recovery ? <div className="subscription-band recovery-band" id="queue-recovery" aria-busy="true"><div><p>Queue recovery · restricted</p><h2>Loading reviewed recovery</h2></div><p className="operational-note">Checking replay eligibility and independent-review state.</p></div> : null}
           {recoveryStage === "error" ? <div className="subscription-band recovery-band" id="queue-recovery"><div><p>Queue recovery · restricted</p><h2>Recovery controls unavailable</h2></div><p className="operational-note" role="alert">Failing closed. Do not use direct SQL; restore the recovery service and retry this read.</p><button type="button" disabled={controlsBusy} onClick={() => void loadCurrent()}>Retry recovery controls</button></div> : null}
-          {recoveryStage === "ready" && recovery ? <div className="subscription-band recovery-band" id="queue-recovery">
+          {recoveryStage !== "error" && recovery ? <div className="subscription-band recovery-band" id="queue-recovery" aria-busy={recoveryStage === "loading"}>
             <div><p>Queue recovery · restricted</p><h2>Reviewed dead-letter replay</h2></div>
             <p className="operational-note">Only email deliveries with our durable idempotency key are eligible. FlowBot webhooks and social queues remain blocked for root-cause review because an external side effect cannot be proven safe to repeat.</p>
             <div className="voice-control-summary recovery-summary">

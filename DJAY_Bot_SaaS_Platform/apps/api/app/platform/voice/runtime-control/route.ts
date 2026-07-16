@@ -1,4 +1,5 @@
 import { platformRoleAllows } from "@djay/authorization";
+import { voiceRuntimeReasonSchema } from "@djay/shared";
 import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { hasTrustedOrigin, readJson, safeJson } from "../../../../lib/http";
@@ -7,7 +8,7 @@ import { resolvePlatformRequest } from "../../../../lib/platform-context";
 const assuranceWindowMs = 10 * 60 * 1_000;
 const schema = z.object({
   mode: z.enum(["running", "paused", "emergency_stop"]),
-  reasonCode: z.string().trim().min(3).max(200),
+  reasonCode: voiceRuntimeReasonSchema,
 }).strict();
 
 export async function GET(request: NextRequest) {

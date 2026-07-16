@@ -232,6 +232,11 @@ reachable, and retry-safe. Advanced Voice incident resolution is the reference:
 validate the shared trimmed boundary locally, focus the invalid field, send
 zero requests on cancel/invalid input, preserve the exact draft after transport
 failure, and announce accepted state with `role="status"` rather than an alert.
+Button-driven controls must explicitly invoke the same validation; input
+attributes alone provide no authority when the button is not a form submit.
+Runtime and routing action reasons are the reference for focused local
+validation, zero invalid requests, normalized transport, and identity-change
+draft reset.
 
 Build the four Next.js applications, start their production output on ports
 3110 through 3113, then run:

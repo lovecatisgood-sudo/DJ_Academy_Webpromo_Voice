@@ -151,6 +151,7 @@ small { display: block; margin-top: 18px; color: #666d6a; }
 .voice-control-summary strong { font-size: 20px; text-transform: capitalize; }
 .voice-control-summary small { margin: 0; font-size: 11px; text-transform: capitalize; }
 .voice-reason { max-width: 520px; margin-top: 20px; }
+.voice-reason-error { color: #7f2824; font-size: 12px; font-weight: 700; line-height: 1.45; }
 .voice-control-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
 .voice-control-actions button { width: auto; height: 40px; padding: 0 14px; font-size: 12px; }
 .voice-control-actions .outline-button { border: 1px solid #8f9995; background: #fff; color: #343b38; }

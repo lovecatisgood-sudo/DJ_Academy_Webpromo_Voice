@@ -1,5 +1,5 @@
 import { platformRoleAllows } from "@djay/authorization";
-import { voiceIncidentResolutionSchema } from "@djay/shared";
+import { voiceIncidentResolutionSchema, voiceRoutingActionReasonSchema } from "@djay/shared";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { hasTrustedOrigin, readJson, safeJson } from "../../../../lib/http";
@@ -17,7 +17,7 @@ const commandSchema = z.discriminatedUnion("command", [
   z.object({ command: z.literal("candidate.review"), candidateId: z.uuid(), decision: z.enum(["qualify", "reject"]), evidenceSha256: digest }).strict(),
   z.object({ command: z.literal("change.request"), capabilityProfile: z.literal("voice_gen2"), candidateId: z.uuid(), canaryPercent: z.number().int().min(1).max(100), reason: z.string().trim().min(12).max(500), evidenceSha256: digest }).strict(),
   z.object({ command: z.literal("change.review"), changeId: z.uuid(), decision: z.enum(["approve", "reject"]) }).strict(),
-  z.object({ command: z.literal("change.apply"), changeId: z.uuid(), action: z.enum(["start_canary", "promote", "rollback"]), reason: z.string().trim().min(12).max(500) }).strict(),
+  z.object({ command: z.literal("change.apply"), changeId: z.uuid(), action: z.enum(["start_canary", "promote", "rollback"]), reason: voiceRoutingActionReasonSchema }).strict(),
   z.object({ command: z.literal("admission.request"), enabled: z.boolean(), reason: z.string().trim().min(12).max(500), evidenceSha256: digest }).strict(),
   z.object({ command: z.literal("admission.review"), changeId: z.uuid(), decision: z.enum(["approve", "reject"]) }).strict(),
   z.object({ command: z.literal("admission.apply"), changeId: z.uuid() }).strict(),

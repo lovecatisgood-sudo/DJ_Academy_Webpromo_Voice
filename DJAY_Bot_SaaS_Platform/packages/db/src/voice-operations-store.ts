@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { voiceIncidentResolutionSchema } from "@djay/shared";
+import {
+  voiceIncidentResolutionSchema,
+  voiceRoutingActionReasonSchema,
+  voiceRuntimeReasonSchema,
+} from "@djay/shared";
 import type { PlatformContext } from "@djay/tenancy";
 import type { DatabaseClient } from "./client";
 import { withPlatformTransaction } from "./scoped-transaction";
@@ -84,11 +88,12 @@ export class PlatformVoiceOperationsStore {
   }
 
   async setControl(context: PlatformContext, input: Readonly<{ mode: VoiceRuntimeMode; reasonCode: string }>) {
+    const reasonCode = voiceRuntimeReasonSchema.parse(input.reasonCode);
     const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{
       mode: VoiceRuntimeMode; reasonCode: string; version: number; changedAt: Date;
     }[]>`
       SELECT mode, reason_code AS "reasonCode", version::int, changed_at AS "changedAt"
-      FROM platform.set_voice_runtime_control(${input.mode}, ${input.reasonCode})
+      FROM platform.set_voice_runtime_control(${input.mode}, ${reasonCode})
     `);
     if (!rows[0]) throw new Error("voice_runtime_control_unavailable");
     return rows[0];
@@ -167,9 +172,10 @@ export class PlatformVoiceOperationsStore {
   async applyRoutingChange(context: PlatformContext, input: Readonly<{
     changeId: string; action: "start_canary" | "promote" | "rollback"; reason: string;
   }>) {
+    const reason = voiceRoutingActionReasonSchema.parse(input.reason);
     const rows = await withPlatformTransaction(this.client, context, async ({ sql }) => sql<{ status: "canary" | "active" | "rolled_back" }[]>`
       SELECT platform.apply_voice_routing_change(
-        ${input.changeId}::uuid, ${input.action}, ${input.reason}
+        ${input.changeId}::uuid, ${input.action}, ${reason}
       ) AS status
     `);
     return { status: rows[0]!.status };

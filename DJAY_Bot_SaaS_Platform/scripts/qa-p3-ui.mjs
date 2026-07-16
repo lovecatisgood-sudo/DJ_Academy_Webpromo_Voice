@@ -59,6 +59,14 @@ async function mockPlatform(page, incidentEvidence) {
     if (path === "/platform/subscriptions") return json(route, { subscriptions: [{ id: "sub", tenantId: workspace.tenantId, businessName: workspace.businessName, productKey: "ai_chat", planKey: "ai_chat_premium", publicName: "AI Chatbot Premium", status: "active", createdAt: new Date().toISOString() }] });
     if (path === "/platform/tenants") return json(route, { tenants: [{ id: workspace.tenantId, businessName: workspace.businessName, slug: workspace.slug, status: "active" }] });
     if (path === "/platform/support-grants") return json(route, { grants: [{ id: "grant", tenantId: workspace.tenantId, businessName: workspace.businessName, requestedByPlatformUserId: "support-user", approvedByPlatformUserId: "platform-owner", reason: "Investigating a merchant-reported message delivery issue.", status: "active", startsAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3_600_000).toISOString() }] });
+    if (path === "/platform/voice/runtime-control" && route.request().method() === "PATCH") {
+      const body = route.request().postDataJSON();
+      if (incidentEvidence) {
+        incidentEvidence.runtimeMutations = (incidentEvidence.runtimeMutations || 0) + 1;
+        incidentEvidence.runtimeBodies = [...(incidentEvidence.runtimeBodies || []), body];
+      }
+      return json(route, { control: { mode: body.mode, reasonCode: body.reasonCode, version: 5, changedAt: new Date().toISOString() } });
+    }
     if (path === "/platform/voice/runtime-control") return json(route, { control: { mode: "paused", reasonCode: "scheduled_maintenance", version: 4, changedAt: new Date().toISOString(), activeSessions: 2, reconnectingSessions: 1, expiredGrants: 0, staleConnections: 0 } });
     if (path === "/platform/voice/routing" && route.request().method() === "POST") {
       if (incidentEvidence) {
@@ -169,6 +177,37 @@ await inspect(`${tenantUrl}/workspace/inbox`, "inbox-reply-retry", desktop, (pag
 });
 await inspect(platformUrl, "platform-desktop", desktop, mockPlatform);
 await inspect(platformUrl, "platform-mobile", mobile, mockPlatform);
+const voiceActionEvidence = { mutations: 0, bodies: [], runtimeMutations: 0, runtimeBodies: [] };
+await inspect(platformUrl, "platform-voice-action-reasons", desktop, (page) => mockPlatform(page, voiceActionEvidence), async (page) => {
+  const runtimeReason = page.locator(".voice-control-band").getByLabel("Operational reason");
+  await runtimeReason.fill("   ");
+  await page.getByRole("button", { name: "Resume admission", exact: true }).click();
+  await page.getByRole("alert").getByText("Operational reason must be 3–200 characters after removing leading and trailing spaces.", { exact: true }).waitFor();
+  if (voiceActionEvidence.runtimeMutations !== 0) failures.push("platform-voice-action-reasons: invalid runtime reason reached the API");
+  if (!await runtimeReason.evaluate((element) => element === document.activeElement)) failures.push("platform-voice-action-reasons: invalid runtime reason did not retain field focus");
+  await runtimeReason.fill("  reviewed recovery  ");
+  page.once("dialog", async (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Resume admission", exact: true }).click();
+  await page.getByRole("status").getByText("Voice runtime control updated.", { exact: true }).waitFor();
+  if (voiceActionEvidence.runtimeMutations !== 1
+    || voiceActionEvidence.runtimeBodies[0]?.mode !== "running"
+    || voiceActionEvidence.runtimeBodies[0]?.reasonCode !== "reviewed recovery") failures.push("platform-voice-action-reasons: corrected runtime reason did not send one normalized command");
+
+  const actionReason = page.getByLabel("Action reason");
+  await actionReason.fill("   ");
+  await page.getByRole("button", { name: "Promote", exact: true }).click();
+  await page.getByRole("alert").getByText("Action reason must be 12–500 characters after removing leading and trailing spaces.", { exact: true }).waitFor();
+  if (voiceActionEvidence.mutations !== 0) failures.push("platform-voice-action-reasons: invalid routing action reason reached the API");
+  if (!await actionReason.evaluate((element) => element === document.activeElement)) failures.push("platform-voice-action-reasons: invalid routing action reason did not retain field focus");
+  await actionReason.fill("  Promote after reviewed evidence  ");
+  page.once("dialog", async (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Promote", exact: true }).click();
+  await page.getByRole("status").getByText("Routing action promote completed.", { exact: true }).waitFor();
+  if (voiceActionEvidence.mutations !== 1
+    || voiceActionEvidence.bodies[0]?.command !== "change.apply"
+    || voiceActionEvidence.bodies[0]?.action !== "promote"
+    || voiceActionEvidence.bodies[0]?.reason !== "Promote after reviewed evidence") failures.push("platform-voice-action-reasons: corrected routing reason did not send one normalized command");
+});
 const incidentEvidence = { mutations: 0, bodies: [] };
 await inspect(platformUrl, "platform-incident-resolution", desktop, (page) => mockPlatform(page, incidentEvidence), async (page) => {
   await page.getByRole("button", { name: "Resolve", exact: true }).click();

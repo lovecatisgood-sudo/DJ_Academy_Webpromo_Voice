@@ -12,6 +12,8 @@ for (const marker of [
   "generation !== loadGeneration.current",
   "const authorityChanged = Boolean(user && (user.id !== result.user.id || user.role !== result.user.role))",
   "if (authorityChanged)",
+  "function clearAuthorizedPlatformSnapshot()",
+  "clearAuthorizedPlatformSnapshot();",
   "] = await Promise.all([",
   "setResourceErrors(unavailable.sort())",
   "const controlsBusy = working || dashboardLoading",
@@ -46,6 +48,11 @@ for (const marker of [
   "roleAfterReview", "retained restricted",
 ]) {
   if (!browserGate.includes(marker)) failures.push(`Platform browser concurrency gate is missing ${marker}`);
+}
+const unauthorizedStart = page.indexOf("if ([401, 403].includes(response.status))");
+const unauthorizedEnd = unauthorizedStart < 0 ? -1 : page.indexOf("if (!response.ok)", unauthorizedStart);
+if (unauthorizedStart < 0 || !page.slice(unauthorizedStart, unauthorizedEnd).includes("clearAuthorizedPlatformSnapshot();")) {
+  failures.push("Platform session loss does not purge the previous authorized snapshot");
 }
 
 if (failures.length) {

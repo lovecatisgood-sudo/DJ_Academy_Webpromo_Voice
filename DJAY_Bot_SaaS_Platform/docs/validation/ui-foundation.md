@@ -59,6 +59,11 @@ Finance roles. It verified:
   browser prompt; cancel and whitespace-only evidence send zero commands,
   corrected evidence is trimmed once, success is polite, and a controlled
   transport failure preserves the exact draft and retry control;
+- Platform Voice runtime and route-action buttons explicitly validate their
+  adjacent reason fields despite not being form submissions; invisible input
+  remains focused with zero requests and corrected input is normalized once;
+- authorized dead-letter recovery evidence remains visible but busy during a
+  post-mutation snapshot refresh, avoiding a transient blank workflow;
 - first/additional Voice deployment forms share one component and the API,
   Studio, and immutable playbook share the actual 500-character greeting
   maximum; invalid Studio fields remain local and open the relevant tab;
