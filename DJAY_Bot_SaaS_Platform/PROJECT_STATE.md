@@ -99,6 +99,9 @@ records only the exact server-current versions the user accepted. A missing or
 changed bundle disables new signup without stranding verification or resend for
 existing intents. Production still requires counsel/privacy approval and the
 signed content artifact.
+Platform release readiness consumes this live authority directly: a complete
+SLO/attestation/incident/usage gate remains blocked when the approved bundle is
+not mounted, and shows only the current public document versions when it is.
 
 ## P6 LINE, WhatsApp, and Messenger runtime checkpoint
 

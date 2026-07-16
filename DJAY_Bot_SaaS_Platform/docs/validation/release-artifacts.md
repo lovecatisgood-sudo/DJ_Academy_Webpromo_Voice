@@ -22,9 +22,9 @@ document, and fetched every referenced static asset. Accepted static evidence
 was:
 
 - API: 132 files,
-  `252dbe70fe214878014e5a69507557ea95647c1635effaf84968f5f61c6338fe`
+  `d024f9e1f0992c058c691309ea75c5b86a0e1fd80346b782b9933bb67d61bb81`
 - Platform Master: 24 files,
-  `d9088e30a35ec019542c41c2ef71ea796b5310acf4400c9b3e9c0003d825565d`
+  `5870a2318eefdc7849774bb867e93f5bdd43188abf36b3007544809674297e95`
 - Public site: 30 files,
   `93211213243fa0bb46b21727280af2643651793c3dffaa78e90a877b1d4ddf78`
 - Tenant workspace: 41 files,

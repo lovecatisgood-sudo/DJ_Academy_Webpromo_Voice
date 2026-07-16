@@ -41,6 +41,15 @@ for (const marker of ["Registration remains paused", 'aria-busy={stage === "load
   if (!legalClient.includes(marker)) failures.push(`legal document UI is missing ${marker}`);
 }
 
+const releaseReadiness = read("apps/api/app/platform/release-readiness/route.ts");
+for (const marker of ["registrationAuthorityGate(", "registration.passing", "registration,"]) {
+  if (!releaseReadiness.includes(marker)) failures.push(`release readiness is missing live legal authority marker ${marker}`);
+}
+const platformPage = read("apps/platform-master/app/page.tsx");
+for (const marker of ["readiness.registration.passing", "Registration authority", "Approved bundle required"]) {
+  if (!platformPage.includes(marker)) failures.push(`Platform release UI is missing ${marker}`);
+}
+
 if (!read(".env.example").includes("LEGAL_DOCUMENTS_FILE=/run/secrets/djay-legal-documents.json")) {
   failures.push("environment example is missing the approved legal bundle mount");
 }

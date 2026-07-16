@@ -44,6 +44,7 @@ type ReleaseReadiness = {
   }>;
   incidents: { passing: boolean; blocking: number; oldestOpenedAt: string | null };
   usage: { passing: boolean; status: "healthy" | "attention"; attentionAccounts?: number; activeWithoutCurrentAccount?: number; orphanUsageEvents?: number; expiredOpenReservations?: number };
+  registration: { passing: boolean; status: "available" | "unavailable"; termsVersion: string | null; privacyVersion: string | null };
 };
 type Subscription = {
   id: string; tenantId: string; businessName: string; productKey: string;
@@ -455,13 +456,14 @@ export default function PlatformMasterPage() {
           {readinessStage === "error" ? <div className="subscription-band release-readiness-band status-blocked readiness-placeholder" id="release-operations" role="alert"><div><p>Release operations</p><h2>Release evidence unavailable</h2></div><p className="operational-note">The release gate is blocked. No service should be promoted while current evidence cannot be verified.</p><button type="button" disabled={working} onClick={() => void loadCurrent()}>Retry readiness check</button></div> : null}
           {readiness ? <div className={`subscription-band release-readiness-band status-${readiness.status}`} id="release-operations">
             <div className="readiness-heading"><div><p>Release operations</p><h2>Public release readiness</h2></div><span className="readiness-status" role="status">{readiness.status === "ready" ? "Ready for reviewed release" : "Release blocked"}</span></div>
-            <p className="operational-note">A release remains fail-closed until all seven service objectives, nine time-limited operational attestations, incident review, and usage reconciliation pass together.</p>
+            <p className="operational-note">A release remains fail-closed until all seven service objectives, nine time-limited operational attestations, incident review, usage reconciliation, and live registration authority pass together.</p>
             <div className="readiness-summary">
               <div><span>Environment</span><strong>{readiness.environment}</strong><small>{readiness.releaseVersion}</small></div>
               <div><span>Service objectives</span><strong>{readiness.services.filter((service) => service.passing).length}/{readiness.services.length}</strong><small>passing</small></div>
               <div><span>Attestations</span><strong>{readiness.attestations.filter((item) => item.passing).length}/{readiness.attestations.length}</strong><small>current</small></div>
               <div><span>Blocking incidents</span><strong>{readiness.incidents.blocking}</strong><small>major or critical</small></div>
               <div><span>Usage ledger</span><strong>{readiness.usage.passing ? "Healthy" : "Review"}</strong><small>{readiness.usage.status}</small></div>
+              <div><span>Registration authority</span><strong>{readiness.registration.passing ? "Ready" : "Blocked"}</strong><small>{readiness.registration.passing ? `${readiness.registration.termsVersion} · ${readiness.registration.privacyVersion}` : "Approved bundle required"}</small></div>
             </div>
             <div className="readiness-service-grid">
               {readiness.services.map((service) => <article className={`readiness-service-card ${service.status}`} key={service.serviceKey}>

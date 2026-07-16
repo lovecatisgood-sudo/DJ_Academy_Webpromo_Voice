@@ -2,6 +2,7 @@ import { platformRoleAllows } from "@djay/authorization";
 import type { NextRequest } from "next/server";
 import { safeJson } from "../../../lib/http";
 import { resolvePlatformRequest } from "../../../lib/platform-context";
+import { registrationAuthorityGate } from "../../../lib/release-runtime-gates";
 
 export async function GET(request: NextRequest) {
   const resolved = await resolvePlatformRequest(request);
@@ -23,11 +24,14 @@ export async function GET(request: NextRequest) {
       expiredOpenReservations: usage.summary.expiredOpenReservations,
     })
     : Object.freeze({ passing: usage.status === "healthy", status: usage.status });
-  const ready = operations.status === "ready" && usageGate.passing;
+  const registration = registrationAuthorityGate(resolved.services.legalDocuments);
+  const ready = operations.status === "ready" && usageGate.passing && registration.passing;
   return safeJson({
     readiness: Object.freeze({
       ...operations, releaseVersion: resolved.services.env.OPERATIONS_RELEASE_VERSION,
-      status: ready ? "ready" as const : "blocked" as const, usage: usageGate,
+      status: ready ? "ready" as const : "blocked" as const,
+      usage: usageGate,
+      registration,
     }),
   });
 }

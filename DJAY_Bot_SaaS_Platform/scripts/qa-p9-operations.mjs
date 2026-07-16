@@ -40,6 +40,7 @@ const readiness = {
   })),
   incidents: { passing: true, blocking: 0, oldestOpenedAt: null },
   usage: { passing: false, status: "attention", attentionAccounts: 1, activeWithoutCurrentAccount: 0, orphanUsageEvents: 0, expiredOpenReservations: 0 },
+  registration: { passing: false, status: "unavailable", termsVersion: null, privacyVersion: null },
 };
 
 const reconciliation = {
@@ -187,6 +188,7 @@ async function inspect(name, role, viewport, recoveryMode = "ready") {
   if (restricted.test(snapshot.readiness)) failures.push(`${name}: restricted cost or routing identity visible in release readiness`);
   if (!snapshot.readiness.includes("6/7") || !snapshot.readiness.includes("AI conversations") || !snapshot.readiness.toLowerCase().includes("fail-closed")) failures.push(`${name}: actionable release evidence missing`);
   if (!snapshot.readiness.includes("9/9") || !snapshot.readiness.includes("nine time-limited operational attestations") || !snapshot.readiness.toLowerCase().includes("event replay") || !snapshot.readiness.toLowerCase().includes("pool exhaustion") || !snapshot.readiness.toLowerCase().includes("dependency outage")) failures.push(`${name}: resilience drill evidence missing`);
+  if (!snapshot.readiness.includes("Registration authority") || !snapshot.readiness.includes("Approved bundle required") || !snapshot.readiness.includes("live registration authority")) failures.push(`${name}: runtime registration blocker missing`);
   if (["platform_owner", "platform_finance"].includes(role) && (!snapshot.body.toLowerCase().includes("attention required") || !snapshot.body.includes("Siam Growth Studio"))) failures.push(`${name}: actionable variance evidence missing`);
   if (["platform_owner", "platform_finance"].includes(role) && !snapshot.body.includes("does not enable charging")) failures.push(`${name}: commercial boundary missing`);
   if (role === "platform_owner" && !snapshot.body.includes("Platform Owner review")) failures.push(`${name}: owner authority guidance missing`);
@@ -215,4 +217,4 @@ if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
-console.info("P9 operations UI passed Owner, Finance, Support, and AI Operations release-readiness, reviewed recovery, reconciliation, authority, overflow, commercial-boundary, console, and confidentiality checks.");
+console.info("P9 operations UI passed Owner, Finance, Support, and AI Operations release-readiness, live registration authority, reviewed recovery, reconciliation, authority, overflow, commercial-boundary, console, and confidentiality checks.");

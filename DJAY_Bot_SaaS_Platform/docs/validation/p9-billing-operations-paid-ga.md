@@ -118,8 +118,10 @@ Visual evidence:
 
 The production Platform Master build exercised Owner desktop, Finance mobile,
 Support desktop, and AI Operations mobile. Every role received the same
-fail-closed 7-service/9-attestation/incident/usage decision with appropriate
-authority guidance. Billing counts remained limited to Owner/Finance. All views
+fail-closed 7-service/9-attestation/incident/usage decision plus live
+registration authority with appropriate authority guidance. A current privacy
+attestation cannot override a missing approved runtime bundle. Billing counts
+remained limited to Owner/Finance. All views
 passed overflow, console, confidentiality, commercial-boundary, and actionable
 failure checks.
 

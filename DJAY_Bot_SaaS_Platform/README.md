@@ -100,6 +100,8 @@ render only validated plain text, and signup persistence binds the exact
 versions the user reviewed. Email verification remains available when new
 registration is paused. The repository supplies the contract and acceptance
 gate, not legal content or legal approval.
+Platform release readiness also requires this live registration authority, so
+a privacy attestation cannot make an unconfigured deployment appear releasable.
 
 ## Local commands
 

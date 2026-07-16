@@ -80,7 +80,7 @@ small { display: block; margin-top: 18px; color: #666d6a; }
 .readiness-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .readiness-status { flex: 0 0 auto; padding: 7px 10px; border-radius: 999px; background: #dcece4; color: #185d3c; font-size: 11px; font-weight: 900; text-transform: uppercase; }
 .status-blocked .readiness-status { background: #f5ddda; color: #8d2a25; }
-.readiness-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; margin-top: 20px; border: 1px solid #dce1df; background: #dce1df; }
+.readiness-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; margin-top: 20px; border: 1px solid #dce1df; background: #dce1df; }
 .readiness-summary > div { min-width: 0; display: grid; align-content: start; gap: 7px; padding: 16px; background: #fff; }
 .readiness-summary span { color: #676f6c; font-size: 11px; text-transform: uppercase; }
 .readiness-summary strong { overflow-wrap: anywhere; font-size: 20px; text-transform: capitalize; }

@@ -70,10 +70,14 @@ matrix in `dependency-outage.md`; synthetic UI fixtures do not qualify.
 2. Open Platform Master and locate **Public release readiness**.
 3. Confirm environment and release version match the intended deployment.
 4. Require 7/7 service objectives and 9/9 current attestations.
-5. Require zero blocking incidents and a healthy usage ledger.
-6. Investigate every red service card. Do not promote while evidence is missing
+5. Require zero blocking incidents, a healthy usage ledger, and live
+   registration authority backed by the mounted approved legal bundle.
+6. Confirm the Terms and Privacy versions shown by Platform Master match the
+   signed deployment artifact. A privacy attestation cannot substitute for a
+   missing runtime bundle.
+7. Investigate every red service card. Do not promote while evidence is missing
    or the API cannot load the gate.
-7. Platform Owner approves deployment only through the reviewed release
+8. Platform Owner approves deployment only through the reviewed release
    workflow. Finance evidence does not confer payment or invoice authority.
 
 `GET /public/status` and `/status` are intentionally provider-neutral. Unknown
@@ -110,4 +114,5 @@ scripts/use-node24.sh pnpm run qa:p9-operations
 ```
 
 Run browser checks against production builds. A release is still blocked until
-real environment observations and attestations replace local QA fixtures.
+real environment observations and attestations replace local QA fixtures and
+the live registration-authority tile reports the approved versions.

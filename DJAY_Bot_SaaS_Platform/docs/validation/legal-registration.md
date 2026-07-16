@@ -50,6 +50,12 @@ Visual evidence is:
 - `/tmp/djay-public-privacy-desktop.png`
 - `/tmp/djay-public-privacy-mobile.png`
 
+Platform release readiness now treats the mounted bundle as a live,
+non-attestable admission requirement. Even 7/7 service objectives, 9/9
+attestations, zero incidents, and healthy usage cannot produce `ready` while
+registration authority is unavailable. Platform Owner, Finance, Support, and AI
+Operations views expose the blocker without approval references or legal text.
+
 No repository test constitutes legal approval. Production remains blocked until
 qualified counsel/privacy review supplies the exact signed bundle, processor and
 jurisdiction disclosures, and approval reference, followed by acceptance
