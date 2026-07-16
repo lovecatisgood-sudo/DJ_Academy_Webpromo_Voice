@@ -79,7 +79,7 @@ export default function TenantLoginPage() {
           </form>
         )}
         {message ? <p className={`message ${status}`} role="status">{message}</p> : null}
-        <nav><a href="/recovery">Forgot password?</a><a href="http://localhost:3100">Create workspace</a></nav>
+        <nav><a href="/recovery">Forgot password?</a><a href={process.env.NEXT_PUBLIC_PUBLIC_APP_URL || "https://djaybot.com"}>Create workspace</a></nav>
       </section>
     </main>
   );

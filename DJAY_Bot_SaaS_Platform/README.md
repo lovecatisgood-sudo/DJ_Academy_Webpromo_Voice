@@ -52,7 +52,10 @@ and a fail-closed role-aware release gate are now implemented. The branded
 provider-neutral `/status` page reports only evidence-backed customer service
 health and reports unknown when evidence cannot be verified. Deterministic
 email replay, stale queue recovery, bounded database readiness, and local pool
-exhaustion now pass executable drills. Real managed
+exhaustion now pass executable drills. Public, tenant, and restricted Platform
+surfaces now share an accessible brand foundation and permission-derived
+navigation, with production-browser coverage for every tenant and Platform
+role. Real managed
 production observations, on-call staffing, PITR/regional exercises, legal and
 commercial approval remain external launch gates. Checkout, invoices, tax,
 dunning, and public charging remain disabled.
@@ -65,6 +68,7 @@ Use the pinned Node 24 wrapper from this directory:
 scripts/use-node24.sh pnpm install
 scripts/use-node24.sh pnpm run verify
 scripts/test-db-integration.sh
+scripts/use-node24.sh pnpm run qa:ui-foundation
 scripts/use-node24.sh pnpm run qa:p3-ui
 scripts/use-node24.sh pnpm run qa:p4-flowbot
 scripts/use-node24.sh pnpm run qa:p5-ai-chat

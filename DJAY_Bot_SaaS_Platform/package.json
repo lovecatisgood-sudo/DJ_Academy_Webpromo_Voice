@@ -16,6 +16,7 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "qa:p3-ui": "node scripts/qa-p3-ui.mjs",
+    "qa:ui-foundation": "node scripts/qa-ui-foundation.mjs",
     "qa:p4-flowbot": "node scripts/qa-p4-flowbot.mjs",
     "qa:p5-ai-chat": "node scripts/qa-p5-ai-chat.mjs",
     "qa:p6-line": "node scripts/qa-p6-line.mjs",

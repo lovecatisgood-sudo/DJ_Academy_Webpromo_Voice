@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { PlatformNavigation } from "./PlatformNavigation";
 
 type PlatformUser = { id: string; displayName: string; role: string; mfaVerifiedAt: string };
 type SocialHealth = { channel: "line" | "whatsapp" | "messenger"; activeConnections: number; reauthorizationRequired: number; queuedInbound: number; oldestInboundQueueSeconds: number; deadLetterInbound: number; queuedDeliveries: number; oldestDeliveryQueueSeconds: number; deadLetterDeliveries: number; serviceWindowClosed24h: number; attemptedQuantity24h: number; failedAttempts24h: number };
@@ -104,9 +105,14 @@ export default function PlatformMasterPage() {
     } catch {
       setReadinessStage("error");
     }
-    const commerceResponse = await fetch("/platform/commerce-overview", { cache: "no-store" });
-    if (commerceResponse.ok) setCommerce((await commerceResponse.json()).commerce);
-    if (["platform_owner", "platform_finance"].includes(result.user.role)) {
+    const canReadBilling = ["platform_owner", "platform_finance"].includes(result.user.role);
+    const canReadTenants = ["platform_owner", "platform_support", "platform_finance"].includes(result.user.role);
+    const canReadVoice = ["platform_owner", "platform_ai_operations"].includes(result.user.role);
+    if (canReadBilling) {
+      const commerceResponse = await fetch("/platform/commerce-overview", { cache: "no-store" });
+      if (commerceResponse.ok) setCommerce((await commerceResponse.json()).commerce);
+    } else setCommerce(null);
+    if (canReadBilling) {
       setReconciliation(null);
       setReconciliationStage("loading");
       try {
@@ -122,10 +128,14 @@ export default function PlatformMasterPage() {
       setReconciliation(null);
       setReconciliationStage("hidden");
     }
-    const subscriptionsResponse = await fetch("/platform/subscriptions", { cache: "no-store" });
-    if (subscriptionsResponse.ok) setSubscriptions((await subscriptionsResponse.json()).subscriptions || []);
-    const tenantResponse = await fetch("/platform/tenants", { cache: "no-store" });
-    if (tenantResponse.ok) setTenants((await tenantResponse.json()).tenants || []);
+    if (canReadBilling) {
+      const subscriptionsResponse = await fetch("/platform/subscriptions", { cache: "no-store" });
+      if (subscriptionsResponse.ok) setSubscriptions((await subscriptionsResponse.json()).subscriptions || []);
+    } else setSubscriptions([]);
+    if (canReadTenants) {
+      const tenantResponse = await fetch("/platform/tenants", { cache: "no-store" });
+      if (tenantResponse.ok) setTenants((await tenantResponse.json()).tenants || []);
+    } else setTenants([]);
     const grantResponse = await fetch("/platform/support-grants", { cache: "no-store" });
     if (grantResponse.ok) setSupportGrants((await grantResponse.json()).grants || []);
     if (["platform_owner", "platform_support", "platform_ai_operations"].includes(result.user.role)) {
@@ -143,9 +153,11 @@ export default function PlatformMasterPage() {
       setRecovery(null);
       setRecoveryStage("hidden");
     }
-    const voiceResponse = await fetch("/platform/voice/runtime-control", { cache: "no-store" });
-    if (voiceResponse.ok) setVoiceControl((await voiceResponse.json()).control);
-    if (["platform_owner", "platform_ai_operations"].includes(result.user.role)) {
+    if (canReadVoice) {
+      const voiceResponse = await fetch("/platform/voice/runtime-control", { cache: "no-store" });
+      if (voiceResponse.ok) setVoiceControl((await voiceResponse.json()).control);
+    } else setVoiceControl(null);
+    if (canReadVoice) {
       const routingResponse = await fetch("/platform/voice/routing", { cache: "no-store" });
       if (routingResponse.ok) setVoiceRouting((await routingResponse.json()).routing);
     } else setVoiceRouting(null);
@@ -392,24 +404,24 @@ export default function PlatformMasterPage() {
         <aside>
           <div className="platform-brand"><span className="mark">D</span><strong>DJAY BOT</strong></div>
           <p>Platform Master</p>
-          <nav><a className="active" href="/">Overview</a><span>Tenants</span><span>Catalog</span><span>Audit</span><span>Operations</span></nav>
+          <PlatformNavigation role={user.role} />
           <button className="quiet-button" type="button" onClick={() => void logout()}>Sign out</button>
         </aside>
         <section className="platform-content">
           <header><div><p>Internal operations</p><h1>Platform health</h1></div><span>{user.displayName}<small>{user.role.replaceAll("_", " ")}</small></span></header>
           {message ? <div className="platform-message dashboard-message" role="alert">{message}</div> : null}
-          <div className="metrics-band">
+          <div className="metrics-band" id="overview">
             <div><span>Platform users</span><strong>{health?.platformUsers ?? "-"}</strong></div>
             <div><span>Active sessions</span><strong>{health?.activeSessions ?? "-"}</strong></div>
             <div><span>MFA status</span><strong>Verified</strong></div>
-            <div><span>SME tenants</span><strong>{commerce?.tenants ?? "-"}</strong></div>
-            <div><span>Subscriptions</span><strong>{commerce?.subscriptions ?? "-"}</strong></div>
-            <div><span>Pending activation</span><strong>{commerce?.pending ?? "-"}</strong></div>
+            {commerce ? <><div><span>SME tenants</span><strong>{commerce.tenants}</strong></div>
+            <div><span>Subscriptions</span><strong>{commerce.subscriptions}</strong></div>
+            <div><span>Pending activation</span><strong>{commerce.pending}</strong></div></> : null}
           </div>
           <div className="operations-band"><p>System</p><h2>Identity and commerce foundations operational</h2></div>
-          {readinessStage === "loading" ? <div className="subscription-band release-readiness-band readiness-placeholder" aria-live="polite"><div><p>Release operations</p><h2>Checking release readiness…</h2></div><p className="operational-note">Loading current SLO, incident, on-call, restore, replay, queue, pool, security, privacy, support, and usage evidence.</p></div> : null}
-          {readinessStage === "error" ? <div className="subscription-band release-readiness-band status-blocked readiness-placeholder" role="alert"><div><p>Release operations</p><h2>Release evidence unavailable</h2></div><p className="operational-note">The release gate is blocked. No service should be promoted while current evidence cannot be verified.</p><button type="button" disabled={working} onClick={() => void loadCurrent()}>Retry readiness check</button></div> : null}
-          {readiness ? <div className={`subscription-band release-readiness-band status-${readiness.status}`}>
+          {readinessStage === "loading" ? <div className="subscription-band release-readiness-band readiness-placeholder" id="release-operations" aria-live="polite"><div><p>Release operations</p><h2>Checking release readiness…</h2></div><p className="operational-note">Loading current SLO, incident, on-call, restore, replay, queue, pool, security, privacy, support, and usage evidence.</p></div> : null}
+          {readinessStage === "error" ? <div className="subscription-band release-readiness-band status-blocked readiness-placeholder" id="release-operations" role="alert"><div><p>Release operations</p><h2>Release evidence unavailable</h2></div><p className="operational-note">The release gate is blocked. No service should be promoted while current evidence cannot be verified.</p><button type="button" disabled={working} onClick={() => void loadCurrent()}>Retry readiness check</button></div> : null}
+          {readiness ? <div className={`subscription-band release-readiness-band status-${readiness.status}`} id="release-operations">
             <div className="readiness-heading"><div><p>Release operations</p><h2>Public release readiness</h2></div><span className="readiness-status" role="status">{readiness.status === "ready" ? "Ready for reviewed release" : "Release blocked"}</span></div>
             <p className="operational-note">A release remains fail-closed until all seven service objectives, nine time-limited operational attestations, incident review, and usage reconciliation pass together.</p>
             <div className="readiness-summary">
@@ -434,16 +446,16 @@ export default function PlatformMasterPage() {
                 : user.role === "platform_ai_operations" ? "Resolve failing runtime objectives without exposing internal routing to customer surfaces."
                   : "This technical gate does not authorize prices, invoices, tax, or payment collection."}</span><small>Checked {new Date(readiness.asOf).toLocaleString()}</small></div>
           </div> : null}
-          {reconciliationStage === "loading" ? <div className="subscription-band reconciliation-band reconciliation-placeholder" aria-live="polite">
+          {reconciliationStage === "loading" ? <div className="subscription-band reconciliation-band reconciliation-placeholder" id="usage-reconciliation" aria-live="polite">
             <div><p>Billing operations · restricted</p><h2>Checking usage reconciliation…</h2></div>
             <p className="operational-note">Comparing customer-unit balances with reservation and immutable event evidence.</p>
           </div> : null}
-          {reconciliationStage === "error" ? <div className="subscription-band reconciliation-band status-attention reconciliation-placeholder" role="alert">
+          {reconciliationStage === "error" ? <div className="subscription-band reconciliation-band status-attention reconciliation-placeholder" id="usage-reconciliation" role="alert">
             <div><p>Billing operations · restricted</p><h2>Usage reconciliation unavailable</h2></div>
             <p className="operational-note">No balance or billing state was changed. Treat the gate as not reconciled until the evidence can be loaded.</p>
             <button type="button" disabled={working} onClick={() => void loadCurrent()}>Retry reconciliation</button>
           </div> : null}
-          {reconciliation ? <div className={`subscription-band reconciliation-band status-${reconciliation.status}`}>
+          {reconciliation ? <div className={`subscription-band reconciliation-band status-${reconciliation.status}`} id="usage-reconciliation">
             <div className="reconciliation-heading">
               <div><p>Billing operations · restricted</p><h2>Usage reconciliation</h2></div>
               <span className="reconciliation-status" role="status">{reconciliation.status === "healthy" ? "Reconciled" : "Attention required"}</span>
@@ -474,7 +486,7 @@ export default function PlatformMasterPage() {
             </div>
             {reconciliation.summary.quotaAccounts > reconciliation.summary.displayedAccounts ? <small className="reconciliation-limit">Showing the {reconciliation.summary.displayedAccounts} highest-priority accounts. Aggregate checks cover all {reconciliation.summary.quotaAccounts} accounts.</small> : null}
           </div> : null}
-          {voiceControl ? <div className={`subscription-band voice-control-band mode-${voiceControl.mode}`}>
+          {voiceControl ? <div className={`subscription-band voice-control-band mode-${voiceControl.mode}`} id="voice-operations">
             <div><p>Voice operations</p><h2>Runtime admission and recovery</h2></div>
             <div className="voice-control-summary">
               <div><span>Mode</span><strong>{voiceControl.mode.replaceAll("_", " ")}</strong><small>{voiceControl.reasonCode.replaceAll("_", " ")}</small></div>
@@ -519,9 +531,9 @@ export default function PlatformMasterPage() {
             <div className="platform-table" role="table" aria-label="Advanced Voice incidents">{voiceIncidents.map((incident) => <div className="platform-row incident-row" role="row" key={incident.id}><div><strong>{incident.severity} · {incident.status}</strong><span>{incident.reason}</span></div><span>{incident.creditReviewStatus.replaceAll("_", " ")}</span><div className="row-actions">{incident.creditReviewStatus === "required" && ["platform_owner", "platform_finance"].includes(user.role) ? <><button disabled={working || incident.openedByPlatformUserId === user.id} onClick={() => void reviewVoiceCredit(incident.id, "approve")}>Approve credit review</button><button className="outline-button" disabled={working || incident.openedByPlatformUserId === user.id} onClick={() => void reviewVoiceCredit(incident.id, "reject")}>Reject</button></> : null}{incident.status !== "resolved" && ["platform_owner", "platform_ai_operations"].includes(user.role) ? <button disabled={working} onClick={() => void resolveVoiceIncident(incident.id)}>Resolve</button> : null}</div></div>)}{!voiceIncidents.length ? <p className="empty-row">No Advanced Voice incidents</p> : null}</div>
           </div> : null}
           {health?.socialChannels?.length ? <div className="subscription-band"><div><p>AI Chat operations</p><h2>Social channel health</h2></div><div className="platform-table" role="table" aria-label="Social channel health">{health.socialChannels.map((channel) => <div className="platform-row" role="row" key={channel.channel}><div><strong>{channel.channel === "line" ? "LINE" : channel.channel === "whatsapp" ? "WhatsApp" : "Messenger"}</strong><span>{channel.activeConnections} active / {channel.reauthorizationRequired} reauthorization</span></div><span>{channel.queuedInbound} inbound queued / {channel.oldestInboundQueueSeconds}s oldest</span><span>{channel.queuedDeliveries} delivery queued / {channel.oldestDeliveryQueueSeconds}s oldest</span><span>{channel.deadLetterInbound + channel.deadLetterDeliveries} dead letters / {channel.failedAttempts24h} failed attempts</span></div>)}</div></div> : null}
-          {recoveryStage === "loading" ? <div className="subscription-band recovery-band" aria-busy="true"><div><p>Queue recovery · restricted</p><h2>Loading reviewed recovery</h2></div><p className="operational-note">Checking replay eligibility and independent-review state.</p></div> : null}
-          {recoveryStage === "error" ? <div className="subscription-band recovery-band"><div><p>Queue recovery · restricted</p><h2>Recovery controls unavailable</h2></div><p className="operational-note" role="alert">Failing closed. Do not use direct SQL; restore the recovery service and refresh this page.</p></div> : null}
-          {recoveryStage === "ready" && recovery ? <div className="subscription-band recovery-band">
+          {recoveryStage === "loading" ? <div className="subscription-band recovery-band" id="queue-recovery" aria-busy="true"><div><p>Queue recovery · restricted</p><h2>Loading reviewed recovery</h2></div><p className="operational-note">Checking replay eligibility and independent-review state.</p></div> : null}
+          {recoveryStage === "error" ? <div className="subscription-band recovery-band" id="queue-recovery"><div><p>Queue recovery · restricted</p><h2>Recovery controls unavailable</h2></div><p className="operational-note" role="alert">Failing closed. Do not use direct SQL; restore the recovery service and refresh this page.</p></div> : null}
+          {recoveryStage === "ready" && recovery ? <div className="subscription-band recovery-band" id="queue-recovery">
             <div><p>Queue recovery · restricted</p><h2>Reviewed dead-letter replay</h2></div>
             <p className="operational-note">Only email deliveries with our durable idempotency key are eligible. FlowBot webhooks and social queues remain blocked for root-cause review because an external side effect cannot be proven safe to repeat.</p>
             <div className="voice-control-summary recovery-summary">
@@ -544,7 +556,7 @@ export default function PlatformMasterPage() {
             </div>
             <small>Payloads, recipients, tenant identifiers, credentials, providers, and models are never exposed here. Every request and review is immutable audit evidence.</small>
           </div> : null}
-          <div className="subscription-band">
+          {commerce ? <div className="subscription-band" id="commerce">
             <div><p>Commerce</p><h2>Product subscriptions</h2></div>
             <div className="platform-table" role="table" aria-label="Product subscriptions">
               {subscriptions.map((subscription) => (
@@ -558,8 +570,8 @@ export default function PlatformMasterPage() {
               ))}
               {!subscriptions.length ? <p className="empty-row">No product subscriptions</p> : null}
             </div>
-          </div>
-          <div className="subscription-band support-band">
+          </div> : null}
+          <div className="subscription-band support-band" id="support-access">
             <div><p>Controlled support</p><h2>Time-limited tenant access grants</h2></div>
             {(user.role === "platform_owner" || user.role === "platform_support") && tenants.length ? <form className="support-request-form" onSubmit={requestSupport}>
               <label>Tenant<select name="tenantId" required defaultValue=""><option value="" disabled>Select tenant</option>{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.businessName}</option>)}</select></label>
