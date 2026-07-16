@@ -19,7 +19,7 @@ const contentSecurityPolicy = [
 
 export function nextSecurityHeaders(realm: BrowserRealm) {
   const microphone = realm === "tenant" ? "(self)" : "()";
-  return [{
+  const general = {
     source: "/:path*",
     headers: [
       { key: "Content-Security-Policy", value: contentSecurityPolicy },
@@ -33,5 +33,13 @@ export function nextSecurityHeaders(realm: BrowserRealm) {
       { key: "X-Frame-Options", value: "DENY" },
       { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
     ],
-  }];
+  };
+  const oneTimeAccountRoutes: Partial<Record<BrowserRealm, readonly string[]>> = {
+    public: ["/verify-email", "/invitations/accept"],
+    tenant: ["/recovery/complete", "/ownership/accept", "/invitations/accept"],
+  };
+  return [general, ...(oneTimeAccountRoutes[realm] || []).map((source) => ({
+    source,
+    headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+  }))];
 }

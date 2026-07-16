@@ -21,7 +21,7 @@ export function createRecoveryService(store: AuthStore, config: RecoveryServiceC
       const token = createOpaqueToken();
       const expiresAt = new Date(Date.now() + recoveryTtlMs);
       const recoveryUrl = new URL("/recovery/complete", config.publicAppUrl);
-      recoveryUrl.searchParams.set("token", token);
+      recoveryUrl.hash = new URLSearchParams({ token }).toString();
       await store.createRecoveryIntent({
         emailNormalized,
         tokenId: randomUUID(),

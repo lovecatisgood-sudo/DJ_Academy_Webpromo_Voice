@@ -33,7 +33,7 @@ export default function TenantLoginPage() {
       if (!response.ok || result.status !== "authenticated") throw new Error(response.status >= 500 ? "Sign in is temporarily unavailable. Try again." : "Email or password is incorrect.");
       setStatus("authenticated");
       setMessage(result.selectedTenantId ? "Signed in. Opening your workspace..." : "Signed in. Choose a workspace to continue.");
-      window.setTimeout(() => window.location.assign(continuationDestination()), 350);
+      window.setTimeout(() => window.location.replace(continuationDestination()), 350);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Sign in is unavailable.");
@@ -57,7 +57,7 @@ export default function TenantLoginPage() {
       return;
     }
     setStatus("authenticated");
-    window.location.assign(continuationDestination());
+    window.location.replace(continuationDestination());
   }
 
   return (

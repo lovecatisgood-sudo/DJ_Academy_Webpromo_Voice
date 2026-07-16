@@ -1,11 +1,21 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import { useEffect, useState, type FormEvent } from "react";
+import { clearBrowserOneTimeValues, retainBrowserOneTimeValues, safeMutationFetch } from "@djay/shared";
 
-export function RecoveryCompleteClient({ token }: Readonly<{ token: string }>) {
+const recoveryStorage = "djay.recovery";
+
+export function RecoveryCompleteClient({ token: initialToken }: Readonly<{ token: string }>) {
+  const [token, setToken] = useState(initialToken);
   const [status, setStatus] = useState<"idle" | "working" | "completed" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    const retained = retainBrowserOneTimeValues({
+      initialValues: { token: initialToken }, storagePrefix: recoveryStorage, cleanPath: "/recovery/complete",
+    });
+    setToken(retained.token || "");
+  }, [initialToken]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -18,8 +28,18 @@ export function RecoveryCompleteClient({ token }: Readonly<{ token: string }>) {
       body: JSON.stringify({ token, newPassword: data.get("newPassword") }),
     });
     const result = await response.json().catch(() => ({}));
-    if (response.ok && result.status === "completed") setStatus("completed");
-    else { setStatus("error"); setErrorMessage(response.status >= 500 ? "Password recovery is temporarily unavailable. Try again." : "This recovery link is invalid or expired."); }
+    if (response.ok && result.status === "completed") {
+      clearBrowserOneTimeValues(recoveryStorage, ["token"]);
+      setToken("");
+      setStatus("completed");
+    } else {
+      if (response.status < 500) {
+        clearBrowserOneTimeValues(recoveryStorage, ["token"]);
+        setToken("");
+      }
+      setStatus("error");
+      setErrorMessage(response.status >= 500 ? "Password recovery is temporarily unavailable. Try again." : "This recovery link is invalid or expired.");
+    }
   }
 
   if (status === "completed") {

@@ -130,6 +130,15 @@ origins in production; malformed configuration stops the build without
 disclosing its value. Production-browser acceptance proves malicious login and
 MFA continuations remain on the Tenant origin while a valid ownership callback
 is preserved.
+New verification, recovery, team-invitation, and ownership-transfer links keep
+their opaque values in URL fragments, so newly issued secrets are never sent in
+HTTP request targets or referrers. Legacy query links remain accepted, then
+move into same-tab session state and are removed from the address before the
+user acts. Terminal success or invalidity clears that state. Existing users can
+now carry a team invitation through Tenant sign-in and accept it on a dedicated
+branded route instead of reopening the original email; the transactional gate
+proves an unauthenticated attempt requires sign-in and the matching authenticated
+identity receives only the invited tenant role.
 
 ## P6 LINE, WhatsApp, and Messenger runtime checkpoint
 

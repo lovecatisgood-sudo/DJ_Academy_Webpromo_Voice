@@ -119,6 +119,12 @@ control characters, credentials, and external URLs fall back to Workspace;
 valid same-origin callbacks are retained. Public/Tenant cross-realm links also
 require exact production HTTPS origins and invalid configuration fails during
 the production build without echoing the supplied value.
+One-time verification, recovery, invitation, and ownership links now place
+opaque credentials in URL fragments instead of HTTP query strings. Legacy links
+are migrated into same-tab state and cleaned from the address, while successful
+or permanently invalid journeys clear the retained value. Existing-account team
+invitations continue through Tenant sign-in to a dedicated acceptance page, so
+users no longer need to reopen the email after authentication.
 
 ## Local commands
 

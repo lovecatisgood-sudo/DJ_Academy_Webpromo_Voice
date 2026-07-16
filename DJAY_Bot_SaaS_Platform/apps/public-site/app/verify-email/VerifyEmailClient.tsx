@@ -1,13 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import { useEffect, useState } from "react";
+import { clearBrowserOneTimeValues, retainBrowserOneTimeValues, safeMutationFetch } from "@djay/shared";
 import { VerificationResendForm } from "../VerificationResendForm";
 
-export function VerifyEmailClient({ token, tenantLoginUrl }: Readonly<{ token: string; tenantLoginUrl: string }>) {
+const verificationStorage = "djay.verification";
+
+export function VerifyEmailClient({ token: initialToken, tenantLoginUrl }: Readonly<{ token: string; tenantLoginUrl: string }>) {
+  const [token, setToken] = useState(initialToken);
   const [status, setStatus] = useState<"idle" | "working" | "verified" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [retryable, setRetryable] = useState(false);
+
+  useEffect(() => {
+    const retained = retainBrowserOneTimeValues({
+      initialValues: { token: initialToken }, storagePrefix: verificationStorage, cleanPath: "/verify-email",
+    });
+    setToken(retained.token || "");
+  }, [initialToken]);
 
   async function verify() {
     setStatus("working");
@@ -19,10 +29,18 @@ export function VerifyEmailClient({ token, tenantLoginUrl }: Readonly<{ token: s
       body: JSON.stringify({ token }),
     });
     const result = await response.json().catch(() => ({}));
-    if (response.ok && ["verified", "already_verified"].includes(result.status)) setStatus("verified");
+    if (response.ok && ["verified", "already_verified"].includes(result.status)) {
+      clearBrowserOneTimeValues(verificationStorage, ["token"]);
+      setToken("");
+      setStatus("verified");
+    }
     else {
       setStatus("error");
       setRetryable(response.status >= 500);
+      if (response.status < 500) {
+        clearBrowserOneTimeValues(verificationStorage, ["token"]);
+        setToken("");
+      }
       setErrorMessage(response.status >= 500 ? "Email verification is temporarily unavailable. Try again." : "This link is invalid or expired.");
     }
   }

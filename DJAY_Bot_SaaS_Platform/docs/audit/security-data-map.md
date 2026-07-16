@@ -61,6 +61,7 @@ Automated leak tests must scan tenant/public OpenAPI schemas, rendered HTML, wid
 |---|---|
 | Duplicate provisioning on retry | Signup intent/idempotency key and one atomic provisioning transaction |
 | Email verification takeover | Hashed single-use expiring token, normalized email uniqueness, rate limits, generic responses |
+| One-time link leakage | Put newly issued opaque values in URL fragments, send `no-referrer` on account-link routes, retain only same-tab continuation state, clean the address, and clear terminal state |
 | Session fixation/theft | Rotate on login/verification/recovery/role change; store token hashes; revoke family; secure cookies |
 | Last owner removal | Database-backed invariant plus serialized ownership transfer |
 | Platform/tenant confused deputy | Separate cookies, token audiences, middleware, route namespaces, DB roles, and UI apps |

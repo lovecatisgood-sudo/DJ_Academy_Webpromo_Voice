@@ -40,6 +40,9 @@ Finance roles. It verified:
 - same-origin post-authentication continuation after password and MFA login,
   including rejection of encoded backslash authority ambiguity and preservation
   of a valid ownership callback;
+- fragment-only issuance for one-time account links, legacy query cleanup,
+  route-specific `no-referrer`, same-tab retry state, terminal state removal,
+  and an existing-account invitation journey that survives Tenant sign-in;
 - a branded registration completion and invalid-link recovery journey with one
   anti-enumerating, retryable verification resend control;
 - correct permission-derived tenant and Platform navigation;

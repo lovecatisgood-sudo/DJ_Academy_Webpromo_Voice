@@ -25,6 +25,8 @@ for (const marker of [
 for (const forbidden of ["requested?.startsWith", "process.env.NEXT_PUBLIC_PUBLIC_APP_URL"]) {
   if (login.includes(forbidden)) failures.push(`Tenant login still trusts ${forbidden}`);
 }
+if (!login.includes("window.location.replace")) failures.push("Tenant login does not replace the credential-page history entry");
+if (login.includes("window.location.assign")) failures.push("Tenant login still retains the credential page in browser history");
 
 for (const [path, marker] of [
   ["apps/public-site/next.config.ts", 'import "./lib/application-environment"'],
@@ -42,6 +44,21 @@ for (const marker of [
   "tenant-mfa-malicious-continuation", "navigation escaped the Tenant origin",
 ]) {
   if (!browserGate.includes(marker)) failures.push(`Continuation browser gate is missing ${marker}`);
+}
+
+for (const [path, marker] of [
+  ["packages/auth/src/registration.ts", "verificationUrl.hash"],
+  ["packages/auth/src/recovery.ts", "recoveryUrl.hash"],
+  ["packages/auth/src/invitations.ts", "/invitations/accept#"],
+  ["packages/auth/src/ownership.ts", "/ownership/accept#"],
+  ["apps/tenant-web/app/invitations/accept/ExistingAccountInvitationClient.tsx", "retainBrowserOneTimeValues"],
+]) {
+  if (!read(path).includes(marker)) failures.push(`${path} does not keep one-time state out of HTTP query strings`);
+}
+
+const securityHeaders = read("config/next-security-headers.ts");
+for (const marker of ["oneTimeAccountRoutes", 'value: "no-referrer"', '"/verify-email"', '"/recovery/complete"']) {
+  if (!securityHeaders.includes(marker)) failures.push(`One-time account-route header policy is missing ${marker}`);
 }
 
 if (failures.length) {

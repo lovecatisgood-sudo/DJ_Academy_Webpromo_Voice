@@ -42,10 +42,13 @@ function auditSecurityHeaders(response, name, url) {
   for (const directive of ["default-src 'self'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'", "object-src 'none'"]) {
     if (!csp.includes(directive)) failures.push(`${name}: Content-Security-Policy is missing ${directive}`);
   }
+  const path = new URL(url).pathname;
+  const oneTimeAccountRoute = (url.startsWith(publicUrl) && ["/verify-email", "/invitations/accept"].includes(path))
+    || (url.startsWith(tenantUrl) && ["/recovery/complete", "/ownership/accept", "/invitations/accept"].includes(path));
   const expected = {
     "cross-origin-opener-policy": "same-origin",
     "origin-agent-cluster": "?1",
-    "referrer-policy": "strict-origin-when-cross-origin",
+    "referrer-policy": oneTimeAccountRoute ? "no-referrer" : "strict-origin-when-cross-origin",
     "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
     "x-content-type-options": "nosniff",
     "x-dns-prefetch-control": "off",
@@ -89,7 +92,7 @@ async function visit({ name, url, viewport = desktop, mock, ready = "h1", expect
   await context.close();
 }
 
-async function mockPublic(page, failedPaths, abortedMutationPaths, changedLegalPaths, requestCounts) {
+async function mockPublic(page, failedPaths, abortedMutationPaths, changedLegalPaths, requestCounts, invitationStatus = "accepted") {
   await page.route("**/public/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (route.request().method() !== "GET") requestCounts?.set(path, (requestCounts.get(path) || 0) + 1);
@@ -115,7 +118,8 @@ async function mockPublic(page, failedPaths, abortedMutationPaths, changedLegalP
     if (path === "/public/auth/register") return json(route, { accepted: true, message: "Check your email to continue. If an account already exists, use sign in or recovery." }, 202);
     if (path === "/public/auth/verify-email") return json(route, { status: "verified" });
     if (path === "/public/auth/resend-verification") return json(route, { accepted: true }, 202);
-    if (path === "/public/invitations/accept") return json(route, { status: "accepted" });
+    if (path === "/public/auth/recovery/complete") return json(route, { status: "completed" });
+    if (path === "/public/invitations/accept") return json(route, { status: invitationStatus }, invitationStatus === "sign_in_required" ? 401 : 200);
     return json(route, { status: "not_found" }, 404);
   });
 }
@@ -145,6 +149,7 @@ async function mockTenantRole(page, role, requestedPaths, failedPaths, abortedMu
     if (path === "/tenant/conversations/conversation/messages") return json(route, { messages: [] });
     if (path === "/tenant/team") return json(route, { team: { members: [], invitations: [], transfers: [] } });
     if (path === "/tenant/security/sessions") return json(route, { sessions: [] });
+    if (/^\/tenant\/ownership-transfers\/[^/]+\/accept$/.test(path)) return json(route, { status: "accepted" });
     if (path === "/tenant/privacy-jobs") return json(route, { jobs: [] });
     if (path === "/tenant/retention-policy") return json(route, { policy: { transcriptDays: 90, recordingDays: 0, voicePlanMaximumDays: 365, updatedAt: new Date().toISOString() } });
     if (path === "/tenant/flowbot/bots" && productDetail) return json(route, { bots: [{ id: "30000000-0000-4000-8000-000000000001", name: "Sales flow", status: "published", defaultLanguage: "en", currentPublishedVersionId: "40000000-0000-4000-8000-000000000001", draftRevision: 1, deploymentCount: 1 }], capabilities: { planKey: "flowbot_premium", accessMode: "active", advancedNodes: true, approvedWebhooks: true, teamRouting: true, brandingRemoval: true, limits: { activeBots: 10, nodesPerBot: 200, deployments: 10 } } });
@@ -251,7 +256,7 @@ await visit({ name: "tenant-login-malicious-continuation", url: `${tenantUrl}/?n
   await page.waitForURL(`${tenantUrl}/workspace`);
   if (new URL(page.url()).origin !== tenantUrl) failures.push("tenant-login-malicious-continuation: navigation escaped the Tenant origin");
 } });
-const ownershipContinuation = "/ownership/accept?transferId=transfer&token=qa-token";
+const ownershipContinuation = "/ownership/accept#transferId=transfer&token=qa-token";
 await visit({ name: "tenant-login-valid-continuation", url: `${tenantUrl}/?next=${encodeURIComponent(ownershipContinuation)}`, mock: async (page) => {
   await mockTenantRole(page, "tenant_master_admin");
   await mockTenantLogin(page);
@@ -259,8 +264,9 @@ await visit({ name: "tenant-login-valid-continuation", url: `${tenantUrl}/?next=
   await page.getByLabel("Email").fill("owner@example.test");
   await page.getByLabel("Password").fill("correct-horse-battery-staple");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(`${tenantUrl}${ownershipContinuation}`);
+  await page.waitForURL(`${tenantUrl}/ownership/accept`);
   await page.getByRole("heading", { name: "Confirm ownership transfer" }).waitFor();
+  if (await page.evaluate(() => sessionStorage.getItem("djay.ownership.token")) !== "qa-token") failures.push("tenant-login-valid-continuation: secure token state was not retained");
 } });
 await visit({ name: "tenant-mfa-malicious-continuation", url: `${tenantUrl}/?next=%2F%5C%5Cevil.test`, mock: async (page) => {
   await mockTenantRole(page, "tenant_master_admin");
@@ -337,12 +343,14 @@ await visit({ name: "public-registration-complete-mobile", url: publicUrl, viewp
   await page.getByRole("heading", { name: "Check your email" }).waitFor();
   await page.screenshot({ path: "/tmp/djay-registration-complete-mobile.png", fullPage: true });
 } });
-await visit({ name: "public-verification", url: `${publicUrl}/verify-email?token=qa-token`, mock: mockPublic, ready: "#verification-title", check: async (page) => {
+await visit({ name: "public-verification", url: `${publicUrl}/verify-email#token=qa-token`, mock: mockPublic, ready: "#verification-title", check: async (page) => {
   const link = page.getByRole("link", { name: "Continue to sign in" });
   await page.getByRole("button", { name: "Confirm email" }).click();
   await link.waitFor({ timeout: 5_000 }).catch(() => undefined);
   if (!await link.isVisible()) failures.push(`public-verification: verified continuation missing (${(await page.locator(".form-message").textContent().catch(() => "no status"))?.trim()})`);
   else if (await link.getAttribute("href") !== "https://app.djaybot.com") failures.push("public-verification: unsafe tenant sign-in URL");
+  if (page.url() !== `${publicUrl}/verify-email`) failures.push("public-verification: token remained in browser history after verification");
+  if (await page.evaluate(() => sessionStorage.getItem("djay.verification.token")) !== null) failures.push("public-verification: terminal token state was not cleared");
 } });
 await visit({ name: "public-verification-missing-token", url: `${publicUrl}/verify-email`, mock: mockPublic, ready: "#verification-title", check: async (page) => {
   if (await page.getByRole("button", { name: "Confirm email" }).count()) failures.push("public-verification-missing-token: dead confirmation control remained visible");
@@ -359,7 +367,7 @@ await visit({ name: "public-verification-missing-token-mobile", url: `${publicUr
   await page.getByText("If a pending account matches that email, a new verification link has been sent.", { exact: true }).waitFor();
   await page.screenshot({ path: "/tmp/djay-verification-recovery-mobile.png", fullPage: true });
 } });
-await visit({ name: "public-verification-network-failure", url: `${publicUrl}/verify-email?token=qa-token`, mock: (page) => mockPublic(page, undefined, new Set(["/public/auth/verify-email"])), ready: "#verification-title", check: async (page) => {
+await visit({ name: "public-verification-network-failure", url: `${publicUrl}/verify-email#token=qa-token`, mock: (page) => mockPublic(page, undefined, new Set(["/public/auth/verify-email"])), ready: "#verification-title", check: async (page) => {
   await page.getByRole("button", { name: "Confirm email" }).click();
   await page.getByText("Email verification is temporarily unavailable. Try again.", { exact: true }).waitFor();
   if (!await page.getByRole("button", { name: "Confirm email" }).isEnabled()) failures.push("public-verification-network-failure: retryable confirmation remained disabled");
@@ -371,8 +379,18 @@ await visit({ name: "public-verification-resend-network-failure", url: `${public
   await page.getByText("Verification email delivery is temporarily unavailable. Try again shortly.", { exact: true }).waitFor();
   if (!await page.getByRole("button", { name: "Send new link" }).isEnabled()) failures.push("public-verification-resend-network-failure: resend remained busy");
 } });
-await visit({ name: "public-invitation", url: `${publicUrl}/invitations/accept?token=qa-token`, mock: mockPublic, ready: "#invitation-title", check: async (page) => {
-  if (await page.getByRole("link", { name: "Sign in first" }).getAttribute("href") !== "https://app.djaybot.com") failures.push("public-invitation: unsafe tenant sign-in URL");
+await visit({ name: "public-invitation", url: `${publicUrl}/invitations/accept#token=qa-token`, mock: mockPublic, ready: "#invitation-title", check: async (page) => {
+  const href = await page.getByRole("link", { name: "Sign in first" }).getAttribute("href");
+  if (href !== "https://app.djaybot.com/invitations/accept#token=qa-token") failures.push(`public-invitation: unsafe existing-account continuation ${href}`);
+  if (page.url() !== `${publicUrl}/invitations/accept`) failures.push("public-invitation: token remained in the address after hydration");
+} });
+await visit({ name: "public-existing-account-invitation", url: `${publicUrl}/invitations/accept#token=qa-token`, mock: (page) => mockPublic(page, undefined, undefined, undefined, undefined, "sign_in_required"), ready: "#invitation-title", check: async (page) => {
+  await page.getByLabel("Your name").fill("Existing User");
+  await page.getByLabel("Password").fill("existing-account-password");
+  await page.getByRole("button", { name: "Accept invitation" }).click();
+  await page.getByText("This email already has an account. Continue to the secure sign-in journey to accept it.", { exact: true }).waitFor();
+  const href = await page.getByRole("link", { name: "Continue to sign in" }).getAttribute("href");
+  if (href !== "https://app.djaybot.com/invitations/accept#token=qa-token") failures.push("public-existing-account-invitation: token-safe Tenant continuation missing");
 } });
 const redirectContext = await browser.newContext();
 const loginRedirect = await redirectContext.request.get(`${publicUrl}/login`, { maxRedirects: 0 });
@@ -380,8 +398,43 @@ if (![307, 308].includes(loginRedirect.status()) || !["https://app.djaybot.com",
 await redirectContext.close();
 
 await visit({ name: "tenant-recovery", url: `${tenantUrl}/recovery`, ready: "#recovery-title" });
-await visit({ name: "tenant-recovery-complete", url: `${tenantUrl}/recovery/complete?token=qa-token`, ready: "#recovery-complete-title" });
-await visit({ name: "tenant-ownership", url: `${tenantUrl}/ownership/accept?transferId=transfer&token=qa-token`, mock: (page) => mockTenantRole(page, "tenant_master_admin"), ready: "#acceptance-title" });
+await visit({ name: "tenant-recovery-complete", url: `${tenantUrl}/recovery/complete#token=qa-token`, mock: mockPublic, ready: "#recovery-complete-title", check: async (page) => {
+  await page.getByLabel("New password", { exact: true }).fill("replacement-password-accepted");
+  await page.getByRole("button", { name: "Update password" }).click();
+  await page.getByText("Password updated. All previous sessions were signed out.", { exact: true }).waitFor();
+  if (page.url() !== `${tenantUrl}/recovery/complete`) failures.push("tenant-recovery-complete: token remained after completion");
+} });
+await visit({ name: "tenant-ownership", url: `${tenantUrl}/ownership/accept#transferId=transfer&token=qa-token`, mock: (page) => mockTenantRole(page, "tenant_master_admin"), ready: "#acceptance-title", check: async (page) => {
+  await page.getByRole("button", { name: "Accept ownership" }).click();
+  await page.getByText("Ownership transferred. Sign in again to start a new secure session.", { exact: true }).waitFor();
+  if (page.url() !== `${tenantUrl}/ownership/accept`) failures.push("tenant-ownership: sensitive state remained after acceptance");
+} });
+await visit({ name: "tenant-existing-account-invitation", url: `${tenantUrl}/invitations/accept#token=qa-token`, mock: async (page) => {
+  await mockTenantRole(page, "tenant_operator");
+  await mockPublic(page);
+}, ready: "#existing-invitation-title", check: async (page) => {
+  await page.getByRole("button", { name: "Accept invitation" }).click();
+  await page.getByText("Invitation accepted. Sign in again to start a session with your updated workspace access.", { exact: true }).waitFor();
+  if (page.url() !== `${tenantUrl}/invitations/accept`) failures.push("tenant-existing-account-invitation: token remained after acceptance");
+  if (await page.evaluate(() => sessionStorage.getItem("djay.invitation.token")) !== null) failures.push("tenant-existing-account-invitation: terminal token state was not cleared");
+} });
+await visit({ name: "tenant-existing-account-invitation-network-failure", url: `${tenantUrl}/invitations/accept#token=qa-token`, mock: async (page) => {
+  await mockTenantRole(page, "tenant_operator");
+  await mockPublic(page, undefined, new Set(["/public/invitations/accept"]));
+}, ready: "#existing-invitation-title", check: async (page) => {
+  await page.getByRole("button", { name: "Accept invitation" }).click();
+  await page.getByText("Invitation acceptance is temporarily unavailable. No workspace access changed.", { exact: true }).waitFor();
+  if (!await page.getByRole("button", { name: "Accept invitation" }).isEnabled()) failures.push("tenant-existing-account-invitation-network-failure: retry remained disabled");
+  if (await page.evaluate(() => sessionStorage.getItem("djay.invitation.token")) !== "qa-token") failures.push("tenant-existing-account-invitation-network-failure: retry token was discarded");
+} });
+await visit({ name: "tenant-existing-account-invitation-mobile", url: `${tenantUrl}/invitations/accept#token=qa-token`, viewport: mobile, mock: async (page) => {
+  await page.route("**/tenant/session", (route) => json(route, { status: "unauthenticated" }, 401));
+}, ready: "#existing-invitation-title", check: async (page) => {
+  const link = page.getByRole("link", { name: "Sign in to continue" });
+  if (await link.getAttribute("href") !== "/?next=%2Finvitations%2Faccept") failures.push("tenant-existing-account-invitation-mobile: same-origin continuation missing");
+  if (page.url() !== `${tenantUrl}/invitations/accept`) failures.push("tenant-existing-account-invitation-mobile: fragment was not removed");
+  if (await page.evaluate(() => sessionStorage.getItem("djay.invitation.token")) !== "qa-token") failures.push("tenant-existing-account-invitation-mobile: token was not retained for sign-in");
+} });
 await visit({ name: "tenant-ownership-session-failure", url: `${tenantUrl}/ownership/accept?transferId=transfer&token=qa-token`, mock: (page) => mockTenantRole(page, "tenant_master_admin", undefined, new Set(["/tenant/session"])), ready: "#acceptance-title", check: async (page) => {
   if (!await page.getByText("Your account session could not be checked. No ownership state changed.", { exact: true }).count()) failures.push("tenant-ownership-session-failure: safe explanation missing");
   if (!await page.getByRole("button", { name: "Try again" }).count()) failures.push("tenant-ownership-session-failure: retry action missing");

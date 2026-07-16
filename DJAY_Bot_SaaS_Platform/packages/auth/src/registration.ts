@@ -74,7 +74,7 @@ export function createRegistrationService(store: AuthStore, config: Registration
       const tokenId = randomUUID();
       const expiresAt = new Date(Date.now() + verificationTtlMs);
       const verificationUrl = new URL("/verify-email", config.publicAppUrl);
-      verificationUrl.searchParams.set("token", verificationToken);
+      verificationUrl.hash = new URLSearchParams({ token: verificationToken }).toString();
 
       await store.createSignupIntent({
         intentId,
@@ -132,7 +132,7 @@ export function createRegistrationService(store: AuthStore, config: Registration
       const token = createOpaqueToken();
       const expiresAt = new Date(Date.now() + verificationTtlMs);
       const verificationUrl = new URL("/verify-email", config.publicAppUrl);
-      verificationUrl.searchParams.set("token", token);
+      verificationUrl.hash = new URLSearchParams({ token }).toString();
       await store.resendVerification({
         emailNormalized,
         tokenId: randomUUID(),

@@ -56,6 +56,10 @@ proves that:
   independently of the evidence-backed readiness and resource states;
 - public login, verification, and invitation destinations never fall back to
   localhost in production output;
+- newly issued account-link tokens remain outside HTTP query strings, legacy
+  links are cleaned after hydration, terminal state is removed, and the branded
+  existing-account invitation route works before and after Tenant sign-in at
+  desktop and mobile breakpoints;
 - every exercised UI state passes the automated axe WCAG 2.2 A/AA rule set,
   including document titles, contrast, keyboard-scroll access, and ARIA
   structure;

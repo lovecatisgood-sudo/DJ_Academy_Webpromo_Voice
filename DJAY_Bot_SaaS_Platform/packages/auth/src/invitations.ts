@@ -46,7 +46,7 @@ export function createInvitationService(store: AuthStore, config: InvitationServ
         outboxPayloadCiphertext: sealJson({
           template: "tenant-invitation",
           to: parsed.email.trim().toLowerCase(),
-          invitationUrl: new URL(`/invitations/accept?token=${encodeURIComponent(rawToken)}`, config.publicAppUrl).toString(),
+          invitationUrl: new URL(`/invitations/accept#${new URLSearchParams({ token: rawToken })}`, config.publicAppUrl).toString(),
           expiresAt: expiresAt.toISOString(),
         }, config.emailEnvelopeKey),
       });

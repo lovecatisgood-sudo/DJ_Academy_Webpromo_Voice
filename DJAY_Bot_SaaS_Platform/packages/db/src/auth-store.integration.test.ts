@@ -73,7 +73,7 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
     `;
     expect(outboxRows).toHaveLength(1);
     const payload = openJson<{ verificationUrl: string }>(outboxRows[0]!.payload_ciphertext, emailEnvelopeKey);
-    const token = new URL(payload.verificationUrl).searchParams.get("token");
+    const token = new URLSearchParams(new URL(payload.verificationUrl).hash.slice(1)).get("token");
     expect(token).toBeTruthy();
 
     const verified = await service.verify({ token: token!, requestId: "integration-verify-1" });
@@ -153,7 +153,7 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
       ORDER BY created_at DESC LIMIT 1
     `;
     const recoveryPayload = openJson<{ recoveryUrl: string }>(recoveryRows[0]!.payload_ciphertext, emailEnvelopeKey);
-    const recoveryToken = new URL(recoveryPayload.recoveryUrl).searchParams.get("token");
+    const recoveryToken = new URLSearchParams(new URL(recoveryPayload.recoveryUrl).hash.slice(1)).get("token");
     expect(recoveryToken).toBeTruthy();
     await expect(recovery.complete({
       token: recoveryToken,
@@ -250,7 +250,7 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
       invitationOutbox[0]!.payload_ciphertext,
       emailEnvelopeKey,
     );
-    const invitationToken = new URL(invitationPayload.invitationUrl).searchParams.get("token");
+    const invitationToken = new URLSearchParams(new URL(invitationPayload.invitationUrl).hash.slice(1)).get("token");
     expect(invitationToken).toBeTruthy();
     const acceptedInvitation = await invitationService.accept({
       token: invitationToken,
@@ -277,6 +277,65 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
       FROM tenancy.memberships WHERE tenant_id = ${verified.tenantId}::uuid
     `;
     expect(invitationCounts[0]).toEqual({ owner_count: 1, operator_count: 1 });
+
+    const existingUserId = randomUUID();
+    const existingEmailId = randomUUID();
+    const existingEmail = `existing-${randomUUID()}@example.test`;
+    await adminClient!`
+      INSERT INTO identity.users (id, display_name, status, locale)
+      VALUES (${existingUserId}::uuid, 'Existing Account', 'active', 'en')
+    `;
+    await adminClient!`
+      INSERT INTO identity.email_addresses (
+        id, user_id, email, email_normalized, is_primary, verified_at
+      ) VALUES (
+        ${existingEmailId}::uuid, ${existingUserId}::uuid, ${existingEmail},
+        ${existingEmail}, true, now()
+      )
+    `;
+    await expect(invitationService.invite(invitationContext, {
+      email: existingEmail,
+      role: "tenant_analyst",
+      requestId: "integration-existing-invite-create",
+    })).resolves.toMatchObject({ status: "created" });
+    const existingInvitationOutbox = await adminClient!<{ payload_ciphertext: string }[]>`
+      SELECT payload_ciphertext FROM operations.outbox
+      WHERE topic = 'tenant.invitation'
+        AND aggregate_id IN (
+          SELECT id FROM tenancy.membership_invitations
+          WHERE tenant_id = ${verified.tenantId}::uuid AND email_normalized = ${existingEmail}
+        )
+    `;
+    const existingInvitationPayload = openJson<{ invitationUrl: string }>(
+      existingInvitationOutbox[0]!.payload_ciphertext,
+      emailEnvelopeKey,
+    );
+    const existingInvitationUrl = new URL(existingInvitationPayload.invitationUrl);
+    const existingInvitationToken = new URLSearchParams(existingInvitationUrl.hash.slice(1)).get("token");
+    expect(existingInvitationUrl.search).toBe("");
+    await expect(invitationService.accept({
+      token: existingInvitationToken,
+      requestId: "integration-existing-invite-without-session",
+    })).resolves.toEqual({ status: "sign_in_required" });
+    await expect(invitationService.accept({
+      token: existingInvitationToken,
+      requestId: "integration-existing-invite-wrong-session",
+    }, randomUUID())).resolves.toEqual({ status: "invalid_or_expired" });
+    await expect(invitationService.accept({
+      token: existingInvitationToken,
+      requestId: "integration-existing-invite-accept",
+    }, existingUserId)).resolves.toMatchObject({
+      status: "accepted",
+      tenantId: verified.tenantId,
+      userId: existingUserId,
+      createdUser: false,
+    });
+    const existingMembership = await adminClient!<{ role: string; status: string }[]>`
+      SELECT role, status FROM tenancy.memberships
+      WHERE tenant_id = ${verified.tenantId}::uuid AND user_id = ${existingUserId}::uuid
+    `;
+    expect(existingMembership).toEqual([{ role: "tenant_analyst", status: "active" }]);
+
     const targetLogin = await login({
       email: invitedEmail,
       password: "invited operator password",
@@ -360,7 +419,9 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
       emailEnvelopeKey,
     );
     const transferUrl = new URL(transferPayload.transferUrl);
-    const transferToken = transferUrl.searchParams.get("token");
+    const transferFragment = new URLSearchParams(transferUrl.hash.slice(1));
+    const transferToken = transferFragment.get("token");
+    expect(transferFragment.get("transferId")).toBe(initiated.transferId);
     expect(transferToken).toBeTruthy();
     const targetContext = createTenantContext({
       tenantId: verified.tenantId,

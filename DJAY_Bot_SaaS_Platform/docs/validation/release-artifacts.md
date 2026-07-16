@@ -22,13 +22,13 @@ document, and fetched every referenced static asset. Accepted static evidence
 was:
 
 - API: 132 files,
-  `e67bbe187ce2cd9688e1d2caaf68239140abf03c7355f413df88135a916ec278`
+  `2d2eccf2bf643ff9421ec2800d90f5e30fcac6cc836addf017cf35dc950fe810`
 - Platform Master: 24 files,
-  `4e8ec9eca48be9df22aeb5627644375c766536f02b4ca5aca799fe7a7d54688c`
+  `9e47dd9549a050ab9796cc24df284adf5479cd102e32560fbdfe35e015bde225`
 - Public site: 30 files,
-  `13e6456f6970f9099f502923a06260e107c984f0af2275afd1043ac385bf7fdb`
-- Tenant workspace: 41 files,
-  `ddb257b37b8f09b354263613cfd04637cbc0e523dae6a57d15fa841cacf034f4`
+  `fcc6e0aaf84521caa09a160fb4d548cec5cccf5098b7c90b9971e20353ac4831`
+- Tenant workspace: 42 files,
+  `03d20afdd56a4368c2de29f7505c879fa481bf222b8e087b9b72bd271b37ad33`
 
 The release audit found that all three Tenant install snippets referenced
 versioned CDN modules, but the release package did not archive those modules.
@@ -65,6 +65,11 @@ The isolated API artifact also exposes legal authority as a controlled,
 non-cacheable `503 unavailable` response when no approved bundle is mounted;
 it never falls back to invented Terms or Privacy versions.
 
+The Public and Tenant artifacts now issue one-time account links with fragment
+state instead of query credentials. Sensitive account-link routes send
+`Referrer-Policy: no-referrer`, legacy links clean themselves into same-tab
+state, and Tenant Web packages the dedicated existing-account invitation route.
+
 The first Voice artifact run exposed a production-only ESM failure: bundled
 `ws` attempted a dynamic CommonJS require of Node's `events` module. Source
 tests did not exercise the emitted bundle. The build now supplies an ESM
@@ -82,7 +87,7 @@ before execution, proving it does not resolve those packages from workspace
 `node_modules`. With database authority deliberately absent, startup fails
 closed, names only `WORKER_DATABASE_URL`, and exposes no connection URL. The
 accepted 56-file digest is
-`f86ee01bd08ae1af3178b224785124aad87b8eb4539c525c20d74e0a9ab16413`.
+`11bd2a67badca2c13bd865f55f7a25b09f946303d0220fd34b5e98f5a8c866f1`.
 
 These hashes describe the local generated build and are not target-deployment
 evidence. The immutable deployment system must archive its own package hashes,

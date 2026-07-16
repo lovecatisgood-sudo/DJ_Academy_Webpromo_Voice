@@ -111,8 +111,10 @@ describe("login and recovery services", () => {
     expect(requested.message).not.toContain("OWNER@example.test");
     expect(store.recovery?.tokenHash).toHaveLength(32);
     const payload = openJson<{ recoveryUrl: string }>(store.recovery!.outboxPayloadCiphertext, envelopeKey);
-    const token = new URL(payload.recoveryUrl).searchParams.get("token");
+    const recoveryLink = new URL(payload.recoveryUrl);
+    const token = new URLSearchParams(recoveryLink.hash.slice(1)).get("token");
     expect(token).toBeTruthy();
+    expect(recoveryLink.search).toBe("");
 
     const completed = await recovery.complete({
       token,

@@ -85,8 +85,8 @@ describe("registration service", () => {
     expect(store.signup?.outboxPayloadCiphertext).not.toContain("token=");
 
     const payload = openJson<{ verificationUrl: string }>(store.signup!.outboxPayloadCiphertext, envelopeKey);
-    expect(payload.verificationUrl).toContain("/verify-email?token=");
-    const rawToken = new URL(payload.verificationUrl).searchParams.get("token");
+    expect(payload.verificationUrl).toContain("/verify-email#token=");
+    const rawToken = new URLSearchParams(new URL(payload.verificationUrl).hash.slice(1)).get("token");
     expect(rawToken).toBeTruthy();
     expect(Buffer.from(rawToken!, "utf8").equals(store.signup!.tokenHash)).toBe(false);
   });

@@ -1,14 +1,33 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
+import { clearBrowserOneTimeValues, retainBrowserOneTimeValues, safeMutationFetch } from "@djay/shared";
+
+const invitationStorage = "djay.invitation";
 
 export function InvitationAcceptanceClient({
-  token,
+  token: initialToken,
   tenantLoginUrl,
 }: Readonly<{ token: string; tenantLoginUrl: string }>) {
+  const [token, setToken] = useState(initialToken);
   const [status, setStatus] = useState<"idle" | "submitting" | "accepted" | "error" | "sign_in">("idle");
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const retained = retainBrowserOneTimeValues({
+      initialValues: { token: initialToken }, storagePrefix: invitationStorage, cleanPath: "/invitations/accept",
+    });
+    setToken(retained.token || "");
+  }, [initialToken]);
+
+  const tenantInvitationUrl = new URL("/invitations/accept", tenantLoginUrl);
+  if (token) tenantInvitationUrl.hash = new URLSearchParams({ token }).toString();
+  const existingAccountUrl = tenantInvitationUrl.toString();
+
+  function continueExistingAccount(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    window.location.replace(existingAccountUrl);
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,10 +47,18 @@ export function InvitationAcceptanceClient({
       const result = await response.json().catch(() => ({}));
       if (result.status === "sign_in_required") {
         setStatus("sign_in");
-        setMessage("This email already has an account. Sign in, then open this invitation again.");
+        setMessage("This email already has an account. Continue to the secure sign-in journey to accept it.");
         return;
       }
-      if (!response.ok) throw new Error(response.status >= 500 ? "Invitation acceptance is temporarily unavailable. Try again." : "This invitation is invalid or has expired.");
+      if (!response.ok) {
+        if (response.status < 500) {
+          clearBrowserOneTimeValues(invitationStorage, ["token"]);
+          setToken("");
+        }
+        throw new Error(response.status >= 500 ? "Invitation acceptance is temporarily unavailable. Try again." : "This invitation is invalid or has expired.");
+      }
+      clearBrowserOneTimeValues(invitationStorage, ["token"]);
+      setToken("");
       setStatus("accepted");
       setMessage("Your team access is ready. Sign in to continue.");
     } catch (error) {
@@ -48,7 +75,9 @@ export function InvitationAcceptanceClient({
       {status === "accepted" || status === "sign_in" ? (
         <>
           <p className="verification-copy" role="status">{message}</p>
-          <a className="primary-link" href={tenantLoginUrl}>Sign in</a>
+          {status === "sign_in"
+            ? <a className="primary-link" href={existingAccountUrl} onClick={continueExistingAccount}>Continue to sign in</a>
+            : <a className="primary-link" href={tenantLoginUrl}>Sign in</a>}
         </>
       ) : (
         <>
@@ -61,7 +90,9 @@ export function InvitationAcceptanceClient({
             </button>
           </form>
           {message ? <p className="form-message error" role="alert">{message}</p> : null}
-          <p className="sign-in">Already registered? <a href={tenantLoginUrl}>Sign in first</a></p>
+          <p className="sign-in">Already registered? {token
+            ? <a href={existingAccountUrl} onClick={continueExistingAccount}>Sign in first</a>
+            : <span>Secure link loading...</span>}</p>
         </>
       )}
     </section>

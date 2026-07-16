@@ -52,6 +52,16 @@ cross-realm origins. Production Chromium proves malicious continuations fall
 back to `/workspace` on the Tenant origin and a valid ownership callback is
 preserved.
 
+The one-time-link audit moved newly issued verification, recovery, invitation,
+and ownership credentials from query strings to fragments, preventing them from
+entering HTTP request targets or referrers. Legacy query links remain usable and
+are immediately cleaned into same-tab state. Production Chromium proves clean
+addresses, `no-referrer` headers, retry preservation, terminal cleanup, and the
+new desktop/mobile existing-account invitation continuation through Tenant
+sign-in. PostgreSQL integration proves the unauthenticated invitation attempt
+returns `sign_in_required`, a different identity cannot be substituted, and the
+matching identity receives the invited role without creating another user.
+
 Visual evidence:
 
 - `/tmp/djay-registration-complete-desktop.png`

@@ -126,10 +126,20 @@ continuation through `safeSameOriginPath`; do not replace it with prefix checks
 or direct `window.location` assignment. The resolver deliberately rejects raw
 and encoded separator ambiguity and falls back to `/workspace`.
 
+New verification, recovery, invitation, and ownership email links must encode
+opaque values in the URL fragment, never the query. The account-link clients
+support old query links only for compatibility: they immediately move values to
+same-tab `sessionStorage`, replace the visible address with the clean route, and
+clear storage after success or permanent invalidity. Do not use persistent
+storage. Existing-account invitations cross from Public to Tenant in a fragment,
+then continue through `/?next=%2Finvitations%2Faccept`; the login page must use
+`window.location.replace` so the credential page is not retained in history.
+
 `config/next-security-headers.ts` is the single application-level browser
 policy for API, Public Site, Tenant Web, and Platform Master. It limits content,
 forms, frames, objects, connections, workers, and media to the minimum origins
-needed by the current product; sends HSTS, strict referrer, MIME-sniffing,
+needed by the current product; sends HSTS, strict referrer (and `no-referrer` on
+one-time account-link routes), MIME-sniffing,
 opener-isolation, frame, DNS-prefetch, and cross-domain-policy protections; and
 denies camera, geolocation, payment, and USB access. Microphone access is denied
 in every realm except same-origin Tenant Web, where Voice testing requires it.

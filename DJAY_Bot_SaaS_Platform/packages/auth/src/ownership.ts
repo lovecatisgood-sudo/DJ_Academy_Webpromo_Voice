@@ -54,7 +54,7 @@ export function createOwnershipService(store: AuthStore, config: OwnershipServic
           template: "ownership-transfer",
           to: targetEmail,
           transferUrl: new URL(
-            `/ownership/accept?transferId=${transferId}&token=${encodeURIComponent(token)}`,
+            `/ownership/accept#${new URLSearchParams({ transferId, token })}`,
             config.tenantAppUrl,
           ).toString(),
           expiresAt: expiresAt.toISOString(),

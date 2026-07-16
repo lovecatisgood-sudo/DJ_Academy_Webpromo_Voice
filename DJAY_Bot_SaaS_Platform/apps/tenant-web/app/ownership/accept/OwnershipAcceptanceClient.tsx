@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import { useEffect, useState, type MouseEvent } from "react";
+import { clearBrowserOneTimeValues, retainBrowserOneTimeValues, safeMutationFetch } from "@djay/shared";
 
-export function OwnershipAcceptanceClient({ transferId, token }: Readonly<{ transferId: string; token: string }>) {
+const ownershipStorage = "djay.ownership";
+
+export function OwnershipAcceptanceClient({ transferId: initialTransferId, token: initialToken }: Readonly<{ transferId: string; token: string }>) {
+  const [transferId, setTransferId] = useState(initialTransferId);
+  const [token, setToken] = useState(initialToken);
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [sessionError, setSessionError] = useState(false);
   const [status, setStatus] = useState<"idle" | "working" | "accepted" | "error">("idle");
@@ -20,7 +24,16 @@ export function OwnershipAcceptanceClient({ transferId, token }: Readonly<{ tran
     } catch { setSessionError(true); }
   }
 
-  useEffect(() => { void loadSession(); }, []);
+  useEffect(() => {
+    const retained = retainBrowserOneTimeValues({
+      initialValues: { transferId: initialTransferId, token: initialToken },
+      storagePrefix: ownershipStorage,
+      cleanPath: "/ownership/accept",
+    });
+    setTransferId(retained.transferId || "");
+    setToken(retained.token || "");
+    void loadSession();
+  }, [initialToken, initialTransferId]);
 
   async function accept() {
     setStatus("working");
@@ -31,19 +44,33 @@ export function OwnershipAcceptanceClient({ transferId, token }: Readonly<{ tran
     });
     const result = await response.json().catch(() => ({}));
     if (response.ok) {
+      clearBrowserOneTimeValues(ownershipStorage, ["transferId", "token"]);
+      setTransferId("");
+      setToken("");
       setStatus("accepted");
       setMessage("Ownership transferred. Sign in again to start a new secure session.");
     } else {
+      if (response.status < 500 && result.status !== "reauthentication_required") {
+        clearBrowserOneTimeValues(ownershipStorage, ["transferId", "token"]);
+        setTransferId("");
+        setToken("");
+      }
       setStatus("error");
       setMessage(response.status >= 500
         ? "Ownership acceptance is temporarily unavailable. No ownership state changed."
         : result.status === "reauthentication_required"
         ? "Sign in again before accepting this transfer."
         : "This ownership transfer is invalid or has expired.");
+      if (result.status === "reauthentication_required") setAuthenticated(false);
     }
   }
 
-  const returnPath = `/ownership/accept?transferId=${encodeURIComponent(transferId)}&token=${encodeURIComponent(token)}`;
+  const returnPath = "/ownership/accept";
+  const signInUrl = `/?next=${encodeURIComponent(returnPath)}`;
+  function replaceWithSignIn(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    window.location.replace(signInUrl);
+  }
   return (
     <main>
       <header><span className="mark">D</span><strong>DJAY BOT</strong><span className="realm">Ownership</span></header>
@@ -54,12 +81,12 @@ export function OwnershipAcceptanceClient({ transferId, token }: Readonly<{ tran
         {sessionError ? (
           <><p role="alert">Your account session could not be checked. No ownership state changed.</p><button type="button" onClick={() => void loadSession()}>Try again</button></>
         ) : authenticated === false ? (
-          <a className="primary-link" href={`/?next=${encodeURIComponent(returnPath)}`}>Sign in to continue</a>
+          <><p>{message || "Sign in with the invited account to continue."}</p><a className="primary-link" href={signInUrl} onClick={replaceWithSignIn}>Sign in to continue</a></>
         ) : status === "accepted" ? (
           <><p role="status">{message}</p><a className="primary-link" href="/">Sign in</a></>
         ) : (
           <>
-            <p>{message || "Accepting makes you the Tenant Master Admin for this workspace."}</p>
+            <p role={status === "error" ? "alert" : undefined}>{message || "Accepting makes you the Tenant Master Admin for this workspace."}</p>
             <button type="button" disabled={authenticated !== true || !transferId || !token || status === "working"} onClick={() => void accept()}>
               {status === "working" ? "Confirming..." : "Accept ownership"}
             </button>
