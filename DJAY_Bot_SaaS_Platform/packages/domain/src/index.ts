@@ -1,4 +1,4 @@
-import { productKeySchema, publicPlanKeySchema } from "@djay/shared";
+import { contactFieldLimits, productKeySchema, publicPlanKeySchema } from "@djay/shared";
 import { z } from "zod";
 
 export const leadStatuses = [
@@ -23,9 +23,9 @@ export const messageActorTypes = ["customer", "flowbot", "ai", "human", "system"
 export const messageActorTypeSchema = z.enum(messageActorTypes);
 
 export const contactInputSchema = z.object({
-  displayName: z.string().trim().min(1).max(200),
+  displayName: z.string().trim().min(contactFieldLimits.displayName.minLength).max(contactFieldLimits.displayName.maxLength),
   email: z.email().max(320).optional(),
-  phone: z.string().trim().min(7).max(32).optional(),
+  phone: z.string().trim().min(contactFieldLimits.phone.minLength).max(contactFieldLimits.phone.maxLength).optional(),
   locale: z.enum(["en", "th"]).default("en"),
   consentStatus: z.enum(["unknown", "granted", "denied", "withdrawn"]).default("unknown"),
 }).strict().refine((value) => value.email || value.phone, { message: "At least one contact identity is required." });

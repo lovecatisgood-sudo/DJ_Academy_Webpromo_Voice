@@ -135,6 +135,10 @@ Registration and new-user invitation validate normalized person and business
 names on the originating field, reject whitespace-only values locally, preserve
 correctable form/token state, and send trimmed values within the server's
 2–160 and 2–200-character boundaries.
+Contact creation likewise requires at least one email or phone before transport,
+uses the domain's normalized name/phone limits, and distinguishes assertive
+field-specific failures from polite success feedback. Invalid forms preserve
+customer data and never issue a contact mutation.
 
 ## Local commands
 

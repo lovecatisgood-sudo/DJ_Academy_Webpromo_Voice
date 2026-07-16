@@ -49,6 +49,9 @@ Finance roles. It verified:
 - shared email, person-name, and business-name browser boundaries matching the
   API; whitespace-only normalized names remain correctable and send zero
   registration or invitation mutations;
+- Contact creation requires at least one email or phone and shares normalized
+  name/phone limits with the domain schema; three field-specific failures send
+  zero mutations while one valid form sends one trimmed request;
 - a branded registration completion and invalid-link recovery journey with one
   anti-enumerating, retryable verification resend control;
 - correct permission-derived tenant and Platform navigation;

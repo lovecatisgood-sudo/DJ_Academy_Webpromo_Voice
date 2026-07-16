@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canTransitionMode, decideIdentityMatch, leadStatuses, legacyLeadStatusMap } from "./index";
+import { canTransitionMode, contactInputSchema, decideIdentityMatch, leadStatuses, legacyLeadStatusMap } from "./index";
 
 describe("shared domain contracts", () => {
   it("uses the accepted canonical lead stages", () => {
@@ -18,6 +18,13 @@ describe("shared domain contracts", () => {
       kind: "email", normalizedValue: "person@example.test",
       candidates: [{ contactId: "a", kind: "email", normalizedValue: "person@example.test", verified: false }],
     })).toEqual({ decision: "review_candidate" });
+  });
+
+  it("requires one bounded contact identity after normalization", () => {
+    expect(contactInputSchema.safeParse({ displayName: "Customer", locale: "en", consentStatus: "unknown" }).success).toBe(false);
+    expect(contactInputSchema.safeParse({ displayName: "Customer", phone: "123", locale: "en", consentStatus: "unknown" }).success).toBe(false);
+    expect(contactInputSchema.parse({ displayName: "  Customer  ", phone: "  +66812345678  ", locale: "en", consentStatus: "unknown" }))
+      .toMatchObject({ displayName: "Customer", phone: "+66812345678" });
   });
 
   it("keeps closed conversations terminal", () => {

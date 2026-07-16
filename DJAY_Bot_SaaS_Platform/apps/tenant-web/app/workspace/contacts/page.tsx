@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import {
+  contactCreationError,
+  contactDisplayNameFieldConstraints,
+  contactPhoneFieldConstraints,
+  emailFieldConstraints,
+  normalizeContactText,
+  safeMutationFetch,
+} from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
@@ -16,6 +23,7 @@ export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [identityReviews, setIdentityReviews] = useState<IdentityReview[]>([]);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"success" | "error">("success");
   const [working, setWorking] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
@@ -32,18 +40,41 @@ export default function ContactsPage() {
   }
   useEffect(() => { if (session.selectedTenantId) void load(); }, [session.selectedTenantId]);
 
+  function clearContactValidity(form: HTMLFormElement | null) {
+    if (!form) return;
+    for (const field of ["displayName", "email", "phone"]) {
+      const input = form.elements.namedItem(field);
+      if (input instanceof HTMLInputElement) input.setCustomValidity("");
+    }
+  }
+
   async function createContact(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!canWrite) return; setWorking(true); setMessage("");
+    event.preventDefault(); if (!canWrite) return;
     const form = event.currentTarget; const data = new FormData(form);
-    const email = String(data.get("email") || "").trim(); const phone = String(data.get("phone") || "").trim();
+    const validationError = contactCreationError({
+      displayName: data.get("displayName"), email: data.get("email"), phone: data.get("phone"),
+    });
+    if (validationError) {
+      const input = form.elements.namedItem(validationError.field);
+      if (input instanceof HTMLInputElement) {
+        input.setCustomValidity(validationError.message);
+        input.reportValidity();
+      }
+      setMessageTone("error");
+      setMessage(validationError.message);
+      return;
+    }
+    setWorking(true); setMessage("");
+    const displayName = normalizeContactText(data.get("displayName"));
+    const email = normalizeContactText(data.get("email")); const phone = normalizeContactText(data.get("phone"));
     const response = await safeMutationFetch("/tenant/contacts", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ displayName: data.get("displayName"), ...(email ? { email } : {}), ...(phone ? { phone } : {}), locale: data.get("locale"), consentStatus: data.get("consentStatus") }),
+      body: JSON.stringify({ displayName, ...(email ? { email } : {}), ...(phone ? { phone } : {}), locale: data.get("locale"), consentStatus: data.get("consentStatus") }),
     });
     const result = await response.json(); setWorking(false);
-    if (response.status === 409) { setMessage(`Possible duplicate found. Review existing contact${result.candidateContactIds?.length === 1 ? "" : "s"} before merging.`); return; }
-    if (!response.ok) { setMessage("Contact could not be created."); return; }
-    form.reset(); setMessage("Contact created."); await load();
+    if (response.status === 409) { setMessageTone("error"); setMessage(`Possible duplicate found. Review existing contact${result.candidateContactIds?.length === 1 ? "" : "s"} before merging.`); return; }
+    if (!response.ok) { setMessageTone("error"); setMessage("Contact could not be created."); return; }
+    form.reset(); setMessageTone("success"); setMessage("Contact created."); await load();
   }
 
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
@@ -59,14 +90,15 @@ export default function ContactsPage() {
         {canWrite ? <section className="tool-band">
           <div className="band-heading"><div><p>New record</p><h2>Create contact</h2></div></div>
           <form className="record-form" onSubmit={createContact}>
-            <label>Name<input name="displayName" maxLength={200} required /></label>
-            <label>Email<input name="email" type="email" maxLength={320} /></label>
-            <label>Phone<input name="phone" type="tel" maxLength={32} /></label>
+            <label>Name<input name="displayName" {...contactDisplayNameFieldConstraints} required onInput={(event) => clearContactValidity(event.currentTarget.form)} /></label>
+            <label>Email<input name="email" type="email" aria-describedby="contact-identity-help" {...emailFieldConstraints} onInput={(event) => clearContactValidity(event.currentTarget.form)} /></label>
+            <label>Phone<input name="phone" type="tel" aria-describedby="contact-identity-help" {...contactPhoneFieldConstraints} onInput={(event) => clearContactValidity(event.currentTarget.form)} /></label>
+            <p className="field-help" id="contact-identity-help">Enter at least one customer contact method: email or phone.</p>
             <label>Language<select name="locale" defaultValue="en"><option value="en">English</option><option value="th">Thai</option></select></label>
             <label>Consent<select name="consentStatus" defaultValue="unknown"><option value="unknown">Unknown</option><option value="granted">Granted</option><option value="denied">Denied</option><option value="withdrawn">Withdrawn</option></select></label>
             <button type="submit" disabled={working}>{working ? "Creating..." : "Create contact"}</button>
           </form>
-          {message ? <p className="inline-message" role="status">{message}</p> : null}
+          {message ? <p className={`inline-message ${messageTone}`} role={messageTone === "error" ? "alert" : "status"}>{message}</p> : null}
         </section> : null}
         <section className="tool-band">
           <div className="band-heading"><div><p>Suggestions only</p><h2>Possible contact matches</h2></div><span>{identityReviews.length}</span></div>

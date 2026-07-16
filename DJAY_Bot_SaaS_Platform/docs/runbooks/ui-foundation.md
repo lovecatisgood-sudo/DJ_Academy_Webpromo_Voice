@@ -154,6 +154,15 @@ mutation until corrected. Person names are 2–160 characters and business names
 are 2–200 characters after surrounding space is removed. Do not rely only on
 raw HTML `minlength`, because a whitespace-only value can satisfy that check.
 
+Contact creation must call the shared `contactCreationError` before setting a
+busy state or sending a request. At least one email or phone is required;
+display names are 1–200 normalized characters and a supplied phone is 7–32.
+Associate the shared guidance with both identity fields, report the error on the
+originating control, preserve every value, and use `role="alert"` for correction
+failures. A successful contact mutation uses a polite status and transports
+trimmed values. The server schema imports the same numeric limits; changing one
+side without the other is not accepted.
+
 `config/next-security-headers.ts` is the single application-level browser
 policy for API, Public Site, Tenant Web, and Platform Master. It limits content,
 forms, frames, objects, connections, workers, and media to the minimum origins

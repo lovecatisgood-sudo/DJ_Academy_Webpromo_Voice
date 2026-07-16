@@ -66,6 +66,9 @@ proves that:
 - every rendered email input enforces the API maximum; registration and
   new-user invitation reject whitespace-only normalized names on the exact
   field, preserve correctable state, and issue no API mutation;
+- Contact creation rejects a missing identity, short phone, or whitespace-only
+  name on the exact field with assertive feedback and zero mutations; accepted
+  values are trimmed and success is announced politely;
 - every exercised UI state passes the automated axe WCAG 2.2 A/AA rule set,
   including document titles, contrast, keyboard-scroll access, and ARIA
   structure;

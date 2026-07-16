@@ -155,6 +155,15 @@ person-name and 2–200-character business-name contracts. Whitespace-only or
 out-of-bound normalized names are announced on the exact field before any
 mutation, while valid values are trimmed before transport. A workspace guard
 prevents future account forms from dropping these boundaries.
+Contact creation now enforces the domain's required email-or-phone invariant in
+the browser instead of accepting an identity-less customer and returning a
+generic API failure. Contact names and optional phone values use the same
+normalized 1–200 and 7–32-character limits as the server. Field-specific errors
+are announced assertively on the originating control, correctable input is
+preserved, accepted values are trimmed before transport, and successful
+feedback remains a polite status. Production Chromium proves all three local
+failure paths send zero contact mutations and one valid submission sends one
+normalized mutation.
 
 ## P6 LINE, WhatsApp, and Messenger runtime checkpoint
 

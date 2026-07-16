@@ -46,6 +46,15 @@ overflow, page/console error, and restricted provider/model text checks. Visual
 inspection confirmed the support banner, ordered message workspace, forms,
 privacy download state, and mobile navigation.
 
+The 2026-07-16 contact-entry audit moved the domain's required email-or-phone
+invariant and normalized name/phone boundaries into a shared browser/server
+contract. Production Chromium proves an identity-less contact, a short phone,
+and a whitespace-only name each produce a field-specific alert, preserve the
+form, leave the command enabled, and send zero mutations. One accepted form
+sends exactly one request with trimmed name and phone values and announces
+success through a polite status region. A workspace lint gate prevents the
+domain schema or Contact UI from dropping the shared contract.
+
 ## Residual program blockers
 
 - P4-P6 product engines are not yet migrated into this SaaS workspace.

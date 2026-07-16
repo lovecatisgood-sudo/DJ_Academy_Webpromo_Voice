@@ -136,10 +136,14 @@ async function mockPublic(page, failedPaths, abortedMutationPaths, changedLegalP
   });
 }
 
-async function mockTenantRole(page, role, requestedPaths, failedPaths, abortedMutationPaths, productDetail = false) {
+async function mockTenantRole(page, role, requestedPaths, failedPaths, abortedMutationPaths, productDetail = false, mutationCounts, requestBodies) {
   await page.route("**/tenant/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     requestedPaths?.add(path);
+    if (route.request().method() !== "GET") {
+      mutationCounts?.set(path, (mutationCounts.get(path) || 0) + 1);
+      try { requestBodies?.set(path, route.request().postDataJSON()); } catch { /* body evidence is optional */ }
+    }
     if (abortedMutationPaths?.has(path) && route.request().method() !== "GET") return route.abort("connectionfailed");
     if (failedPaths?.has(path)) return json(route, { status: "temporarily_unavailable" }, 503);
     if (path === "/tenant/session") return json(route, { user: { id: "user", displayName: "QA user" }, workspaces: [{ tenantId, slug: "qa-workspace", businessName: "Bangkok Service Studio", role }], selectedTenantId: tenantId, mfaVerifiedAt: new Date().toISOString() });
@@ -608,10 +612,46 @@ await visit({ name: "operator-knowledge", url: `${tenantUrl}/workspace/knowledge
 await visit({ name: "operator-inbox", url: `${tenantUrl}/workspace/inbox`, mock: (page) => mockTenantRole(page, "tenant_operator"), ready: ".conversation-panel", check: async (page) => {
   if (!await page.getByRole("button", { name: "Send reply" }).count()) failures.push("operator-inbox: reply control missing");
 } });
+const contactValidationMutations = new Map();
+await visit({ name: "tenant-contact-identity-boundary", url: `${tenantUrl}/workspace/contacts`, mock: (page) => mockTenantRole(page, "tenant_master_admin", undefined, undefined, undefined, false, contactValidationMutations), ready: ".record-form", check: async (page) => {
+  await auditFieldBoundary(page, "Name", { maxlength: 200 }, "tenant-contact-identity-boundary");
+  await auditFieldBoundary(page, "Email", { maxlength: 320 }, "tenant-contact-identity-boundary");
+  await auditFieldBoundary(page, "Phone", { maxlength: 32 }, "tenant-contact-identity-boundary");
+  if (await page.getByLabel("Email").getAttribute("aria-describedby") !== "contact-identity-help"
+    || await page.getByLabel("Phone").getAttribute("aria-describedby") !== "contact-identity-help") {
+    failures.push("tenant-contact-identity-boundary: shared identity guidance is not associated with both fields");
+  }
+  await page.getByLabel("Name").fill("Customer");
+  await page.getByRole("button", { name: "Create contact" }).click();
+  await page.getByRole("alert").getByText("Enter an email address or phone number.", { exact: true }).waitFor();
+  await page.getByLabel("Phone").fill("123");
+  await page.getByRole("button", { name: "Create contact" }).click();
+  await page.getByRole("alert").getByText("Phone number must be 7–32 characters after removing leading and trailing spaces.", { exact: true }).waitFor();
+  await page.getByLabel("Phone").fill("");
+  await page.getByLabel("Email").fill("customer@example.test");
+  await page.getByLabel("Name").fill("  ");
+  await page.getByRole("button", { name: "Create contact" }).click();
+  await page.getByRole("alert").getByText("Contact name must be 1–200 characters after removing leading and trailing spaces.", { exact: true }).waitFor();
+  if (contactValidationMutations.has("/tenant/contacts")) failures.push("tenant-contact-identity-boundary: invalid contact data reached the API");
+  if (!await page.getByRole("button", { name: "Create contact" }).isEnabled()) failures.push("tenant-contact-identity-boundary: correction remained disabled");
+} });
+const contactSuccessMutations = new Map();
+const contactSuccessBodies = new Map();
+await visit({ name: "tenant-contact-normalization", url: `${tenantUrl}/workspace/contacts`, mock: (page) => mockTenantRole(page, "tenant_master_admin", undefined, undefined, undefined, false, contactSuccessMutations, contactSuccessBodies), ready: ".record-form", check: async (page) => {
+  await page.getByLabel("Name").fill("  QA Contact  ");
+  await page.getByLabel("Phone").fill("  +66812345678  ");
+  await page.getByRole("button", { name: "Create contact" }).click();
+  await page.getByRole("status").getByText("Contact created.", { exact: true }).waitFor();
+  const body = contactSuccessBodies.get("/tenant/contacts");
+  if (contactSuccessMutations.get("/tenant/contacts") !== 1 || body?.displayName !== "QA Contact" || body?.phone !== "+66812345678") {
+    failures.push("tenant-contact-normalization: one normalized contact mutation was not transported");
+  }
+} });
 await visit({ name: "tenant-mutation-network-failure", url: `${tenantUrl}/workspace/contacts`, mock: (page) => mockTenantRole(page, "tenant_master_admin", undefined, undefined, new Set(["/tenant/contacts"])), ready: ".record-form", check: async (page) => {
   await page.getByLabel("Name").fill("QA Contact");
+  await page.getByLabel("Email").fill("qa@example.test");
   await page.getByRole("button", { name: "Create contact" }).click();
-  await page.getByText("Contact could not be created.", { exact: true }).waitFor();
+  await page.getByRole("alert").getByText("Contact could not be created.", { exact: true }).waitFor();
   if (!await page.getByRole("button", { name: "Create contact" }).isEnabled()) failures.push("tenant-mutation-network-failure: control remained busy");
 } });
 await visit({ name: "tenant-support-status-failure", url: `${tenantUrl}/workspace/contacts`, mock: (page) => mockTenantRole(page, "tenant_master_admin", undefined, new Set(["/tenant/support-access"])), ready: ".support-access-banner.error", check: async (page) => {
