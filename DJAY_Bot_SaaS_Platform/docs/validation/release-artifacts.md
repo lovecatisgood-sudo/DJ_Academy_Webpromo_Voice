@@ -22,13 +22,13 @@ document, and fetched every referenced static asset. Accepted static evidence
 was:
 
 - API: 130 files,
-  `ee076f16979e3312b4642573c69508a36b62e36820b9bdcc4cc3879b677df91a`
+  `c2cb54bbd2c2be1ac9625f4117612f3498e61360645decd6c9eb1ed3752bb699`
 - Platform Master: 24 files,
-  `cde94a5b2a839cb89be10002a0d0ab319eb74f0d0419f3e94c339b341bd99197`
+  `c89e117be85c2ab0f11cee3d5b733418a134efff7360b40ce9fc466b2403127d`
 - Public site: 28 files,
-  `8777023704c3ed0f36608afb1b917c24c81a1759852617264d264702068233fa`
+  `34bafeb5066777c1281e836ea30fd705d8b4e207d880809725b00b662cfeea66`
 - Tenant workspace: 41 files,
-  `b7210d00baf1e9dcddb178ff04631e2d3fccea193875e45d0af588d3cc79f818`
+  `843b174c81282cd6e7dd6894803c8300f153ac2a6fa37fccacee868fa22d816f`
 
 The release audit found that all three Tenant install snippets referenced
 versioned CDN modules, but the release package did not archive those modules.
@@ -39,6 +39,12 @@ Its manifest records each public path and SHA-384 integrity value, plus the
 bounded cache, cross-origin module, resource-policy, and nosniff contracts.
 Artifact QA copies the static root outside the workspace and rejects a missing,
 unbranded, inaccessible, non-integrity-recorded, or restricted-identity bundle.
+The public paths now come from the same checked contract used by the Tenant
+snippet generator. A production Tenant build also fails before compilation when
+an explicitly configured public API or widget CDN origin is not exact HTTPS.
+FlowBot, AI Chat, and Voice browser acceptance creates a deployment and compares
+the displayed module path, mount function, opaque key, and API origin against
+that contract.
 
 The previous standalone manifests contained a build-time
 `http://127.0.0.1:3103` rewrite. A separately deployed web service could not

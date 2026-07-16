@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { safeMutationFetch } from "@djay/shared";
+import { createWidgetInstallSnippet } from "@djay/shared/widget-install";
+import { tenantWidgetInstallEnvironment } from "../../../lib/widget-install-environment";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
@@ -105,8 +107,9 @@ export default function VoicePage() {
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session.workspaces, session.selectedTenantId]);
   const canDeploy = workspace?.role === "tenant_master_admin" || workspace?.role === "tenant_admin";
   const canEdit = Boolean(canDeploy && studio?.editable && studio.deployment.status !== "revoked");
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_APP_URL || "https://api.djaybot.com";
-  const installSnippet = deploymentKey ? `<script type="module">\n  import { mountVoiceWidget } from "https://cdn.djaybot.com/voice/v1/index.js";\n  mountVoiceWidget({ deploymentKey: "${deploymentKey}", apiBaseUrl: "${apiBaseUrl}" });\n</script>` : "";
+  const installSnippet = deploymentKey
+    ? createWidgetInstallSnippet("voice", deploymentKey, tenantWidgetInstallEnvironment)
+    : "";
 
   async function loadStudio(id: string) {
     if (!id) { setStudio(null); setAnalytics(null); setKnowledgeLoadError(false); setNotificationLoadError(false); setAnalyticsLoadError(false); return; }

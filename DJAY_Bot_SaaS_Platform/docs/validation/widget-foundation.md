@@ -38,6 +38,21 @@ non-destructive. AI terminal states expose an explicit new-conversation action.
 Voice updates elapsed time in place and restores the focused call control across
 state renders.
 
+Merchant copy-paste code now comes from one shared, typed install contract.
+The contract owns the canonical API/CDN defaults, versioned module path, and
+mount function for every product. It validates the product-specific opaque key,
+normalizes exact HTTP(S) origins for local work, requires HTTPS in production,
+and serializes script values without permitting an HTML script close. AI social
+callback URLs use the same validated API authority and a qualified one-time
+webhook key. Tenant production configuration is evaluated from
+`NEXT_PUBLIC_API_APP_URL` and `NEXT_PUBLIC_WIDGET_CDN_URL` while loading the
+Next.js configuration, so an insecure explicit value fails the build.
+
+The full dashboard paths also created one deployment per product and accepted
+the exact contract-derived install snippet. Unit and static checks reject a
+product-mismatched key, malformed social key, path-bearing origin, insecure
+production origin, duplicated dashboard origin, or CDN/package path drift.
+
 Chromium accepted the minified bundles at 390x844 and representative desktop
 sizes. The gates prove canonical computed colors, 44px minimum controls, panel
 containment, labelled buttons, draft survival through durable handover sync,

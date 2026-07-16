@@ -10,6 +10,7 @@ const restricted = /\b(openai|anthropic|claude|gemini|gpt-[0-9]|provider[_ -]?ke
 const botId = "40000000-0000-4000-8000-000000000001";
 const versionId = "41000000-0000-4000-8000-000000000001";
 const deploymentId = "42000000-0000-4000-8000-000000000001";
+const deploymentKey = "djay_flow_" + "a".repeat(48);
 const workspace = { tenantId: "20000000-0000-4000-8000-000000000001", slug: "flowbot-browser", businessName: "FlowBot Browser Studio", role: "tenant_master_admin" };
 
 function definition() {
@@ -34,7 +35,9 @@ async function mockFlowbot(page, planKey) {
     if (path === "/tenant/flowbot/bots" && method === "GET") return json(route, { bots: [{ id: botId, name: `${planKey} assistant`, status: "active", defaultLanguage: "en", currentPublishedVersionId: versionId, draftRevision: 3, deploymentCount: 1 }], capabilities: { planKey, accessMode: "active", advancedNodes: planKey === "flowbot_premium", approvedWebhooks: planKey === "flowbot_premium", teamRouting: planKey === "flowbot_premium", brandingRemoval: planKey === "flowbot_premium", limits: { activeBots: planKey === "flowbot_premium" ? 3 : 1, nodesPerBot: planKey === "flowbot_premium" ? 500 : 100, deployments: planKey === "flowbot_premium" ? 5 : 1 } } });
     if (path.endsWith("/draft")) return json(route, method === "GET" ? { draft: { revision: 3, definition: definition(), updatedAt: new Date().toISOString() } } : { status: "updated", revision: 4 });
     if (path.endsWith("/versions")) return json(route, { versions: [{ id: versionId, version: 1, sourceVersionId: null, publishedAt: new Date().toISOString() }] });
-    if (path.endsWith("/deployments")) return json(route, { deployments: [{ id: deploymentId, name: "Website", keyPrefix: "djay_flow_demo", status: "active", allowedOrigins: ["https://merchant.example"], createdAt: new Date().toISOString() }] });
+    if (path.endsWith("/deployments")) return json(route, method === "GET"
+      ? { deployments: [{ id: deploymentId, name: "Website", keyPrefix: "djay_flow_demo", status: "active", allowedOrigins: ["https://merchant.example"], createdAt: new Date().toISOString() }] }
+      : { status: "created", deploymentId: crypto.randomUUID(), deploymentKey }, method === "GET" ? 200 : 201);
     if (path.endsWith("/publish")) return json(route, { status: "published", versionId: crypto.randomUUID(), version: 2 });
     if (path === "/tenant/flowbot/analytics") return json(route, { analytics: { periodDays: 30, level: planKey === "flowbot_premium" ? "advanced" : "core", executions: 18, completed: 13, handovers: 2, leads: 7, messages: 64, nodeEvents: [] } });
     if (path === "/tenant/flowbot/install-checks") return json(route, method === "GET" ? { checks: [{ id: "45000000-0000-4000-8000-000000000001", deploymentId, targetOrigin: "https://merchant.example", status: "verified", safeResultCode: "widget_seen", createdAt: new Date().toISOString() }] } : { status: "requested", checkId: crypto.randomUUID() }, method === "GET" ? 200 : 201);
@@ -63,6 +66,15 @@ async function inspectPlan(planKey, viewport, suffix) {
     await page.locator(".flow-node-card").nth(2).waitFor();
     await page.getByRole("button", { name: "Save draft" }).click();
     await page.getByRole("button", { name: "Publish", exact: true }).click();
+    const deploymentForm = page.locator("form.flowbot-deploy").filter({ has: page.getByLabel("Allowed origin") });
+    await deploymentForm.getByLabel("Name").fill("Install contract");
+    await deploymentForm.getByLabel("Allowed origin").fill("https://merchant.example");
+    await deploymentForm.getByRole("button", { name: "Create deployment" }).click();
+    await page.getByText("One-time deployment key", { exact: true }).waitFor();
+    const snippet = await page.locator(".deployment-secret pre").innerText();
+    const expected = 'import { mountFlowbotWidget } from "https://cdn.djaybot.com/flowbot/v1/index.js";'
+      + '\n  mountFlowbotWidget({ deploymentKey: "' + deploymentKey + '", apiBaseUrl: "https://api.djaybot.com" });';
+    if (!snippet.includes(expected)) failures.push(`${planKey}-${suffix}: install snippet drifted from the release contract`);
   }
   const dimensions = await page.evaluate(() => ({ body: document.body.innerText, width: document.documentElement.scrollWidth, viewport: innerWidth }));
   if (dimensions.width > dimensions.viewport + 1) failures.push(`${planKey}-${suffix}: horizontal overflow ${dimensions.width}/${dimensions.viewport}`);

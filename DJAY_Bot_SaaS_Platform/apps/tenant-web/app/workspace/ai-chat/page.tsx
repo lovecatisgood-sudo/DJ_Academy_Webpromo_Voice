@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { safeMutationFetch } from "@djay/shared";
+import { createSocialCallbackUrl, createWidgetInstallSnippet } from "@djay/shared/widget-install";
+import { tenantWidgetInstallEnvironment } from "../../../lib/widget-install-environment";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
@@ -40,6 +42,12 @@ export default function AiChatPage() {
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canAuthor = workspace?.role === "tenant_master_admin" || workspace?.role === "tenant_admin";
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
+  const installSnippet = newDeploymentKey
+    ? createWidgetInstallSnippet("ai-chat", newDeploymentKey, tenantWidgetInstallEnvironment)
+    : "";
+  const socialCallbackUrl = newSocialWebhookKey && newSocialChannel
+    ? createSocialCallbackUrl(newSocialChannel, newSocialWebhookKey, tenantWidgetInstallEnvironment)
+    : "";
 
   async function loadAgents() {
     try {
@@ -242,7 +250,7 @@ export default function AiChatPage() {
         </section>
         <section className="tool-band muted-band"><div className="band-heading"><div><p>Basic channel</p><h2>Website deployments</h2></div><span>{deployments.length}{capabilities?.limits.deployments ? ` / ${capabilities.limits.deployments}` : ""}</span></div>
           {canAuthor && selectedAgent.currentPublishedPlaybookVersionId ? <form className="flowbot-deploy" onSubmit={createDeployment}><label>Name<input name="name" minLength={2} maxLength={160} required /></label><label>Exact allowed origin<input name="origin" type="url" placeholder="https://www.example.com" required /></label><button disabled={working}>Create web deployment</button></form> : null}
-          {newDeploymentKey ? <div className="deployment-secret"><strong>One-time deployment key</strong><code>{newDeploymentKey}</code><pre>{`<script type="module">\n  import { mountAiChatWidget } from "https://cdn.djaybot.com/ai-chat/v1/index.js";\n  mountAiChatWidget({ deploymentKey: "${newDeploymentKey}", apiBaseUrl: "${process.env.NEXT_PUBLIC_API_APP_URL || "https://api.djaybot.com"}" });\n</script>`}</pre></div> : null}
+          {newDeploymentKey ? <div className="deployment-secret"><strong>One-time deployment key</strong><code>{newDeploymentKey}</code><pre>{installSnippet}</pre></div> : null}
           <div className="data-table">{deployments.map((item) => <div className="data-row" key={item.id}><div><strong>{item.name}</strong><span>{item.allowedOrigins.join(", ")}</span></div><span>{item.channel}</span><span>{item.status}</span></div>)}{!deployments.length ? <div className="pending-line"><strong>No deployments</strong><span>Publish before creating a web deployment.</span></div> : null}</div>
         </section>
         <section className="tool-band"><div className="band-heading"><div><p>Premium social channels</p><h2>LINE connections</h2></div><span>{socialLoadError ? "Unavailable" : `${socialConnections.filter((item) => item.agentId === selectedAgentId && item.channel === "line" && item.status !== "revoked").length} active`}</span></div>
@@ -251,7 +259,7 @@ export default function AiChatPage() {
             <form className="flowbot-deploy" onSubmit={createLineConnection}><label>Connection name<input name="name" minLength={2} maxLength={160} required /></label><label>LINE account reference<input name="externalAccountRef" minLength={3} maxLength={200} required /></label><label>Channel access token<input name="channelAccessToken" type="password" minLength={16} maxLength={4096} autoComplete="off" required /></label><label>Channel secret<input name="channelSecret" type="password" minLength={16} maxLength={4096} autoComplete="off" required /></label><button disabled={working}>Connect LINE</button></form>
             <p className="field-help">Credentials are encrypted and never shown again. Use a stable internal account reference, not a secret.</p>
           </details> : null}
-          {newSocialWebhookKey && newSocialChannel === "line" ? <div className="deployment-secret"><strong>One-time LINE webhook URL</strong><code>{`${process.env.NEXT_PUBLIC_API_APP_URL || "https://api.djaybot.com"}/public/ai-chat/social/line/${newSocialWebhookKey}`}</code><p className="field-help">Paste this into LINE Developers, enable webhooks, then run a health check below.</p></div> : null}
+          {newSocialWebhookKey && newSocialChannel === "line" ? <div className="deployment-secret"><strong>One-time LINE webhook URL</strong><code>{socialCallbackUrl}</code><p className="field-help">Paste this into LINE Developers, enable webhooks, then run a health check below.</p></div> : null}
           <div className="data-table social-connection-list">{socialConnections.filter((item) => item.agentId === selectedAgentId && item.channel === "line").map((item) => <div className="social-connection-row" key={item.id}><div className="social-connection-summary"><div><strong>{item.name}</strong><span>{item.externalAccountRef}</span></div><div><span className={`health-pill health-${item.healthStatus}`}>{item.healthStatus}</span><span>{item.status}</span></div></div>
             {item.safeErrorCode ? <p className="field-help">Action needed: {item.safeErrorCode.replaceAll("_", " ")}</p> : null}
             {item.lastHealthAt ? <p className="field-help">Last checked {new Date(item.lastHealthAt).toLocaleString()}</p> : null}
@@ -266,7 +274,7 @@ export default function AiChatPage() {
             <form className="flowbot-deploy" onSubmit={createWhatsAppConnection}><label>Connection name<input name="name" minLength={2} maxLength={160} required /></label><label>Business account reference<input name="externalAccountRef" minLength={3} maxLength={200} required /></label><label>Access token<input name="accessToken" type="password" minLength={16} maxLength={4096} autoComplete="off" required /></label><label>App secret<input name="appSecret" type="password" minLength={16} maxLength={4096} autoComplete="off" required /></label><label>Verify token<input name="verifyToken" type="password" minLength={16} maxLength={4096} autoComplete="off" required /></label><label>Phone number ID<input name="phoneNumberId" minLength={3} maxLength={200} required /></label><label>Business account ID<input name="businessAccountId" minLength={3} maxLength={200} required /></label><button disabled={working}>Connect WhatsApp</button></form>
             <p className="field-help">Credentials and the verify token are encrypted and never shown again. Replies are allowed only inside the customer-service window.</p>
           </details> : null}
-          {newSocialWebhookKey && newSocialChannel === "whatsapp" ? <div className="deployment-secret"><strong>One-time WhatsApp callback URL</strong><code>{`${process.env.NEXT_PUBLIC_API_APP_URL || "https://api.djaybot.com"}/public/ai-chat/social/whatsapp/${newSocialWebhookKey}`}</code><p className="field-help">Use this callback URL and the verify token entered above, subscribe to messages, then run a health check.</p></div> : null}
+          {newSocialWebhookKey && newSocialChannel === "whatsapp" ? <div className="deployment-secret"><strong>One-time WhatsApp callback URL</strong><code>{socialCallbackUrl}</code><p className="field-help">Use this callback URL and the verify token entered above, subscribe to messages, then run a health check.</p></div> : null}
           <div className="data-table social-connection-list">{socialConnections.filter((item) => item.agentId === selectedAgentId && item.channel === "whatsapp").map((item) => <div className="social-connection-row" key={item.id}><div className="social-connection-summary"><div><strong>{item.name}</strong><span>{item.externalAccountRef}</span></div><div><span className={`health-pill health-${item.healthStatus}`}>{item.healthStatus}</span><span>{item.status}</span></div></div>
             {item.safeErrorCode ? <p className="field-help">Action needed: {item.safeErrorCode.replaceAll("_", " ")}</p> : null}
             {item.lastHealthAt ? <p className="field-help">Last checked {new Date(item.lastHealthAt).toLocaleString()}</p> : null}
@@ -281,7 +289,7 @@ export default function AiChatPage() {
             <form className="flowbot-deploy" onSubmit={createMessengerConnection}><label>Connection name<input name="name" minLength={2} maxLength={160} required /></label><label>Page account reference<input name="externalAccountRef" minLength={3} maxLength={200} required /></label><label>Page access token<input name="pageAccessToken" type="password" minLength={16} maxLength={4096} autoComplete="off" required /></label><label>App secret<input name="appSecret" type="password" minLength={16} maxLength={4096} autoComplete="off" required /></label><label>Verify token<input name="verifyToken" type="password" minLength={16} maxLength={4096} autoComplete="off" required /></label><label>Page ID<input name="pageId" minLength={3} maxLength={200} required /></label><button disabled={working}>Connect Messenger</button></form>
             <p className="field-help">Credentials and the verify token are encrypted and never shown again. Replies are allowed only inside the customer-service window.</p>
           </details> : null}
-          {newSocialWebhookKey && newSocialChannel === "messenger" ? <div className="deployment-secret"><strong>One-time Messenger callback URL</strong><code>{`${process.env.NEXT_PUBLIC_API_APP_URL || "https://api.djaybot.com"}/public/ai-chat/social/messenger/${newSocialWebhookKey}`}</code><p className="field-help">Use this callback URL and the verify token entered above, subscribe to messages and messaging events, then run a health check.</p></div> : null}
+          {newSocialWebhookKey && newSocialChannel === "messenger" ? <div className="deployment-secret"><strong>One-time Messenger callback URL</strong><code>{socialCallbackUrl}</code><p className="field-help">Use this callback URL and the verify token entered above, subscribe to messages and messaging events, then run a health check.</p></div> : null}
           <div className="data-table social-connection-list">{socialConnections.filter((item) => item.agentId === selectedAgentId && item.channel === "messenger").map((item) => <div className="social-connection-row" key={item.id}><div className="social-connection-summary"><div><strong>{item.name}</strong><span>{item.externalAccountRef}</span></div><div><span className={`health-pill health-${item.healthStatus}`}>{item.healthStatus}</span><span>{item.status}</span></div></div>
             {item.safeErrorCode ? <p className="field-help">Action needed: {item.safeErrorCode.replaceAll("_", " ")}</p> : null}
             {item.lastHealthAt ? <p className="field-help">Last checked {new Date(item.lastHealthAt).toLocaleString()}</p> : null}

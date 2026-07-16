@@ -1,0 +1,18 @@
+{
+  "defaultApiOrigin": "https://api.djaybot.com",
+  "defaultCdnOrigin": "https://cdn.djaybot.com",
+  "products": {
+    "flowbot": {
+      "publicPath": "/flowbot/v1/index.js",
+      "mountFunction": "mountFlowbotWidget"
+    },
+    "ai-chat": {
+      "publicPath": "/ai-chat/v1/index.js",
+      "mountFunction": "mountAiChatWidget"
+    },
+    "voice": {
+      "publicPath": "/voice/v1/index.js",
+      "mountFunction": "mountVoiceWidget"
+    }
+  }
+}

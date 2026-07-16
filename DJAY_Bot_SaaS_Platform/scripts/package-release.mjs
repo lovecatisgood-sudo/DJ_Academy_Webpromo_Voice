@@ -7,6 +7,9 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const nextApps = ["api", "platform-master", "public-site", "tenant-web"];
+const widgetInstallContract = JSON.parse(
+  readFileSync(resolve(root, "packages", "shared", "src", "widget-install-contract.json"), "utf8"),
+);
 
 function fail(message) {
   throw new Error(`release_package_invalid: ${message}`);
@@ -89,18 +92,21 @@ for (const app of nextApps) {
 
 const widgetCdnRoot = resolve(root, "apps", "widget-cdn", "dist");
 rmSync(widgetCdnRoot, { recursive: true, force: true });
-const widgetAssets = [
-  ["flowbot", "packages/flowbot-widget/dist/index.js"],
-  ["ai-chat", "packages/ai-chat-widget/dist/index.js"],
-  ["voice", "packages/voice-widget/dist/index.js"],
-].map(([product, source]) => {
-  const publicPath = `${product}/v1/index.js`;
+const widgetSources = {
+  flowbot: "packages/flowbot-widget/dist/index.js",
+  "ai-chat": "packages/ai-chat-widget/dist/index.js",
+  voice: "packages/voice-widget/dist/index.js",
+};
+const widgetAssets = Object.entries(widgetInstallContract.products).map(([product, productContract]) => {
+  const source = widgetSources[product];
+  if (!source) fail(`missing source contract for ${product}`);
+  const publicPath = productContract.publicPath;
   const sourcePath = resolve(root, source);
   if (!existsSync(sourcePath)) fail(`missing ${source}`);
-  const destination = resolve(widgetCdnRoot, publicPath);
+  const destination = resolve(widgetCdnRoot, publicPath.slice(1));
   mkdirSync(dirname(destination), { recursive: true });
   cpSync(sourcePath, destination);
-  return { product, publicPath: `/${publicPath}`, contentType: "text/javascript; charset=utf-8", integrity: sriSha384(destination) };
+  return { product, publicPath, contentType: "text/javascript; charset=utf-8", integrity: sriSha384(destination) };
 });
 const widgetEvidence = treeEvidence(widgetCdnRoot);
 writeManifest(widgetCdnRoot, {

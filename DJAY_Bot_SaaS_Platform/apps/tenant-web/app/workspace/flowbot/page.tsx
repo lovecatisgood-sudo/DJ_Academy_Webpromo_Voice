@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { safeMutationFetch } from "@djay/shared";
+import { createWidgetInstallSnippet } from "@djay/shared/widget-install";
+import { tenantWidgetInstallEnvironment } from "../../../lib/widget-install-environment";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
@@ -63,6 +65,9 @@ export default function FlowBotPage() {
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canAuthor = workspace?.role === "tenant_master_admin" || workspace?.role === "tenant_admin";
   const selectedBot = bots.find((bot) => bot.id === selectedBotId);
+  const installSnippet = newDeploymentKey
+    ? createWidgetInstallSnippet("flowbot", newDeploymentKey, tenantWidgetInstallEnvironment)
+    : "";
 
   async function loadBots() {
     try {
@@ -201,7 +206,7 @@ export default function FlowBotPage() {
         <section className="tool-band muted-band"><div className="band-heading"><div><p>Deployments</p><h2>Website origins</h2></div><span>{deployments.length}{capabilities?.limits.deployments ? ` / ${capabilities.limits.deployments}` : ""}</span></div>
           {installChecksLoadError ? <div className="inline-message inline-retry" role="alert"><span>Install verification status could not be loaded. Deployment records remain available.</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>Try again</button></div> : null}
           {canAuthor && selectedBot.currentPublishedVersionId ? <form className="flowbot-deploy" onSubmit={createDeployment}><label>Name<input name="name" minLength={2} maxLength={160} required /></label><label>Allowed origin<input name="origin" type="url" placeholder="https://www.example.com" required /></label><button type="submit" disabled={working}>Create deployment</button></form> : null}
-          {newDeploymentKey ? <div className="deployment-secret"><strong>One-time deployment key</strong><code>{newDeploymentKey}</code><pre>{`<script type="module">\n  import { mountFlowbotWidget } from "https://cdn.djaybot.com/flowbot/v1/index.js";\n  mountFlowbotWidget({ deploymentKey: "${newDeploymentKey}", apiBaseUrl: "${process.env.NEXT_PUBLIC_API_APP_URL || "https://api.djaybot.com"}" });\n</script>`}</pre></div> : null}
+          {newDeploymentKey ? <div className="deployment-secret"><strong>One-time deployment key</strong><code>{newDeploymentKey}</code><pre>{installSnippet}</pre></div> : null}
           <div className="data-table">{deployments.map((item) => { const check = installChecks.find((candidate) => candidate.deploymentId === item.id); return <div className="data-row" key={item.id}><div><strong>{item.name}</strong><span>{item.allowedOrigins.join(", ")}</span></div><span>{check?.status || item.status}</span>{canAuthor ? <button type="button" className="secondary-command" disabled={working} onClick={() => void requestInstallCheck(item)}>Verify install</button> : <code>{item.keyPrefix}...</code>}</div>; })}{!deployments.length ? <div className="pending-line"><strong>No deployments</strong><span>Publish before creating a website deployment.</span></div> : null}</div>
         </section>
         {capabilities?.advancedNodes && canAuthor ? <section className="tool-band"><div className="band-heading"><div><p>Premium operations</p><h2>Schedules and routing</h2></div><span>Deterministic</span></div>

@@ -71,7 +71,9 @@ proves request, response, streaming-header, and multi-cookie forwarding. Each
 web artifact's readiness endpoint also depends on API readiness, preventing a
 disconnected frontend from receiving traffic. FlowBot, AI Chat, and Voice now
 share the same accessible DJAY customer-widget shell and ship as one hashed
-static CDN artifact alongside the six runtime artifacts. Read-only roles no longer
+static CDN artifact alongside the six runtime artifacts. Merchant install code
+is generated from the same checked product/path contract as that artifact, and
+production Tenant builds reject insecure public API or CDN origins. Read-only roles no longer
 receive misleading mutation controls, and forbidden direct
 routes fail closed with a recovery path. Unexpected URLs and render failures in
 every web realm now use the same accessible branded recovery system with

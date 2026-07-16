@@ -30,6 +30,15 @@ missing or malformed authority returns a safe non-cacheable 503. The API itself
 requires exact HTTPS Public/Tenant/Platform origins on distinct hostnames in
 production, HTTPS social-provider endpoints, and WSS whenever Voice is enabled.
 
+Tenant install code also contains public browser authorities fixed into its
+JavaScript build. Set `NEXT_PUBLIC_API_APP_URL` and
+`NEXT_PUBLIC_WIDGET_CDN_URL` to exact HTTPS origins for a custom production
+deployment, or leave them unset to use `https://api.djaybot.com` and
+`https://cdn.djaybot.com`. An explicit HTTP, path-bearing, credential-bearing,
+query-bearing, or fragment-bearing value fails the production Tenant build.
+Changing either public origin requires rebuilding Tenant Web; changing only the
+runtime `API_APP_URL` does not update merchant snippets.
+
 Deploy these roots without rearranging their internal paths:
 
 - `apps/api/.next/standalone` with entrypoint `apps/api/server.js`
@@ -69,6 +78,8 @@ The gate also copies the widget CDN artifact outside the workspace and proves
 all three versioned bundles match their tree hash and SHA-384 records, contain
 the canonical DJAY shell, expose accessible dialog controls, preserve the
 cross-origin static-host contract, and contain no restricted runtime identity.
+Its asset paths must exactly match the shared install contract used by Tenant
+Web.
 It starts Voice without media authority and requires liveness plus
 provider-neutral `503 not_ready` readiness. It also proves the worker rejects
 missing database authority without printing a connection URL.

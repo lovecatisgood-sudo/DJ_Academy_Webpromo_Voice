@@ -11,6 +11,7 @@ const workspace = { tenantId: "20000000-0000-4000-8000-000000000001", slug: "ai-
 const agentId = "51000000-0000-4000-8000-000000000001";
 const revisionId = "52000000-0000-4000-8000-000000000001";
 const profileId = "53000000-0000-4000-8000-000000000001";
+const deploymentKey = "djay_ai_" + "b".repeat(48);
 
 function playbook() {
   return {
@@ -35,7 +36,9 @@ async function mockTenant(page) {
     if (path === "/tenant/knowledge") return json(route, { sources: [{ id: "source", revisionId, name: "Approved service guide", sourceKind: "text", status: "active", version: 2 }] });
     if (path === "/tenant/ai-chat/agents" && method === "GET") return json(route, { agents: [{ id: agentId, name: "Mali", status: "active", defaultLanguage: "en", currentPublishedPlaybookVersionId: playbook().playbookVersionId, draftRevision: 3, deploymentCount: 1 }], capabilities: { planKey: "ai_chat_basic", accessMode: "active", web: true, social: { line: false, whatsapp: false, messenger: false }, limits: { deployments: 1, knowledgeDocuments: 10 } } });
     if (path.endsWith("/draft")) return json(route, method === "GET" ? { draft: { revision: 3, definition: playbook(), knowledgeRevisionIds: [revisionId], updatedAt: new Date().toISOString() } } : { status: "updated", revision: 4 });
-    if (path.endsWith("/deployments")) return json(route, { deployments: [{ id: "deployment", name: "Main website", channel: "web", keyPrefix: "djay_ai_demo", allowedOrigins: ["https://merchant.example"], status: "active", createdAt: new Date().toISOString() }] });
+    if (path.endsWith("/deployments")) return json(route, method === "GET"
+      ? { deployments: [{ id: "deployment", name: "Main website", channel: "web", keyPrefix: "djay_ai_demo", allowedOrigins: ["https://merchant.example"], status: "active", createdAt: new Date().toISOString() }] }
+      : { status: "created", deploymentId: crypto.randomUUID(), deploymentKey }, method === "GET" ? 200 : 201);
     if (path.endsWith("/publish")) return json(route, { status: "published", playbookVersionId: crypto.randomUUID(), version: 2 });
     if (path.endsWith("/test")) return json(route, { preview: { stage: "S2_DISCOVERY", text: "The approved consultation is 30 minutes. What would you like to improve?", proposedActionTypes: [], citationCount: 1, handover: false } });
     if (path === "/tenant/ai-chat/notifications") return json(route, { notifications: [{ id: profileId, name: "Sales inbox", allowedTemplateKeys: ["ai_chat.lead_qualified"], status: "active" }] });
@@ -60,6 +63,15 @@ async function inspectDashboard(viewport, suffix) {
     await page.getByText("The approved consultation is 30 minutes.", { exact: false }).waitFor();
     await page.getByRole("button", { name: "Save draft" }).click();
     await page.getByRole("button", { name: "Publish immutable version" }).click();
+    const deploymentForm = page.locator("form.flowbot-deploy").filter({ has: page.getByLabel("Exact allowed origin") });
+    await deploymentForm.getByLabel("Name").fill("Install contract");
+    await deploymentForm.getByLabel("Exact allowed origin").fill("https://merchant.example");
+    await deploymentForm.getByRole("button", { name: "Create web deployment" }).click();
+    await page.getByText("One-time deployment key", { exact: true }).waitFor();
+    const snippet = await page.locator(".deployment-secret pre").innerText();
+    const expected = 'import { mountAiChatWidget } from "https://cdn.djaybot.com/ai-chat/v1/index.js";'
+      + '\n  mountAiChatWidget({ deploymentKey: "' + deploymentKey + '", apiBaseUrl: "https://api.djaybot.com" });';
+    if (!snippet.includes(expected)) failures.push(`dashboard-${suffix}: install snippet drifted from the release contract`);
   }
   const dimensions = await page.evaluate(() => ({ body: document.body.innerText, width: document.documentElement.scrollWidth, viewport: innerWidth }));
   if (dimensions.width > dimensions.viewport + 1) failures.push(`dashboard-${suffix}: horizontal overflow ${dimensions.width}/${dimensions.viewport}`);

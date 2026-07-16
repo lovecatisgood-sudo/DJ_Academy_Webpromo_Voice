@@ -216,6 +216,9 @@ await new Promise((done) => proxyUpstream.close(done));
 
 const isolationRoot = mkdtempSync(resolve(tmpdir(), "djay-release-artifact-"));
 process.once("exit", () => rmSync(isolationRoot, { recursive: true, force: true }));
+const widgetInstallContract = JSON.parse(
+  readFileSync(resolve(root, "packages", "shared", "src", "widget-install-contract.json"), "utf8"),
+);
 const widgetRoot = resolve(isolationRoot, "widget-cdn");
 cpSync(resolve(root, "apps", "widget-cdn", "dist"), widgetRoot, { recursive: true });
 const widgetManifest = manifest(widgetRoot);
@@ -233,7 +236,7 @@ const widgetSources = {
 };
 for (const asset of widgetManifest.assets) {
   assert(["flowbot", "ai-chat", "voice"].includes(asset.product), `unknown widget product ${asset.product}`);
-  assert(asset.publicPath === `/${asset.product}/v1/index.js`, `${asset.product} public path contract`);
+  assert(asset.publicPath === widgetInstallContract.products[asset.product]?.publicPath, `${asset.product} public path contract`);
   assert(asset.contentType === "text/javascript; charset=utf-8", `${asset.product} content type contract`);
   assert(/^sha384-[A-Za-z0-9+/]{64}$/.test(asset.integrity), `${asset.product} integrity contract`);
   const bundlePath = resolve(widgetRoot, asset.publicPath.slice(1));

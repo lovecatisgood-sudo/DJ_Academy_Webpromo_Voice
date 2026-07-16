@@ -279,7 +279,9 @@ async function inspectTenantWorkspace() {
   await page.getByText("One-time Voice deployment key and install snippet", { exact: true }).waitFor();
   if (createCalls !== 1) failures.push(`tenant: expected one create call, received ${createCalls}`);
   const snippet = await page.locator(".deployment-secret pre").innerText();
-  if (!snippet.includes("mountVoiceWidget") || !snippet.includes("cdn.djaybot.com/voice/v1/index.js")) failures.push("tenant: install snippet is incomplete");
+  const expectedSnippet = 'import { mountVoiceWidget } from "https://cdn.djaybot.com/voice/v1/index.js";'
+    + '\n  mountVoiceWidget({ deploymentKey: "djay_voice_deploy_' + "a".repeat(48) + '", apiBaseUrl: "https://api.djaybot.com" });';
+  if (!snippet.includes(expectedSnippet)) failures.push("tenant: install snippet drifted from the release contract");
   page.once("dialog", (dialog) => void dialog.dismiss());
   await page.getByRole("button", { name: "Revoke permanently" }).click();
   await page.waitForTimeout(50); if (revokeCalls !== 0) failures.push("tenant: dismissed revocation still reached the API");
