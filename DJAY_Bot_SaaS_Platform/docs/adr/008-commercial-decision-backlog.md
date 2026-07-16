@@ -4,6 +4,15 @@
 - Date: 2026-07-14
 - Phase: P0 decision boundary
 
+## Owner direction recorded 2026-07-17
+
+The business owner selected Stripe as the payment-provider direction. This
+resolves the preferred-provider name only; it does not accept this ADR or
+authorize checkout. Stripe Thailand account verification, contract/test
+credentials, cards-versus-PromptPay collection behavior, and all remaining
+values below are still required. See proposed ADR-013 for the wider provider
+stack and implementation-state record.
+
 ## Context
 
 Implementation can build provider-neutral billing primitives before final commercial values are chosen, but paid launch cannot infer payment, tax, refund, trial, allowance, or overage policy.
@@ -39,4 +48,3 @@ Legal/accounting review is required for Thai tax invoices, VAT, consumer/busines
 ## Implementation constraint
 
 P1-P3 may define catalog/subscription/ledger schemas and test providers. P4-P8 may meter non-paid staging usage. No real charge, public price promise, paid activation, invoice, or overage collection launches until this ADR is superseded by an Accepted commercial ADR with exact values, provider contracts, test fixtures, reconciliation, migration, and rollback.
-

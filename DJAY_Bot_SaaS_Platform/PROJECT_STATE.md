@@ -340,3 +340,29 @@ The final packaged AI Chat gate also proves guided field boundaries, invalid
 timezone focus with zero PATCHes, Advanced JSON preservation/recovery, exactly
 one normalized corrected update, unsaved-publish denial, desktop/mobile
 responsiveness, and the existing provider-confidentiality boundary.
+
+## Production Provider Recommendation Checkpoint - 2026-07-17
+
+- Added proposed ADR-013 so provider recommendations survive recovery without
+  being mistaken for accepted production authority.
+- The business owner selected Stripe as the payment-provider direction. Paid GA
+  remains blocked until the Thailand account/provider contract is verified and
+  ADR-008 receives exact prices, allowances, VAT/tax-invoice, billing interval,
+  trial, proration, overage, dunning, refund, cancellation, retention, and
+  reconciliation decisions with legal/accounting approval.
+- Recommended stack awaiting owner/acceptance approval: AWS ECS Fargate, ALB,
+  RDS PostgreSQL Multi-AZ, S3/CloudFront, Route 53/ACM, Secrets Manager/KMS, and
+  CloudWatch/Synthetics; Resend email; OpenAI Responses for AI text; OpenAI
+  Realtime as the production Voice candidate; the implemented Gemini Live
+  adapter as a restricted evaluated candidate; FlowAccount for Thai accounting
+  documents; direct LINE and Meta Cloud APIs; GitHub Actions and ECR delivery.
+- AWS Thailand `ap-southeast-7` is only the preferred primary candidate pending
+  exact service/quota/cost/privacy review. Singapore is the fallback/recovery
+  candidate, subject to proven cross-region backup support.
+- Current gaps are explicit: OpenAI text and Realtime provider adapters/routing,
+  Stripe Checkout/Billing/Portal lifecycle, FlowAccount synchronization,
+  target-environment infrastructure, secrets, live provider evaluation,
+  managed drills, legal/commercial approval, named on-call, and named-merchant
+  acceptance.
+- No production account, credential, price, tax policy, external deployment,
+  charge, or customer activation was supplied or authorized in this checkpoint.

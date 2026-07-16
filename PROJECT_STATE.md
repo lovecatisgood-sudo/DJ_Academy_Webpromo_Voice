@@ -714,3 +714,23 @@ export const buildVersion = "voice-behavior-restore-2026-07-14";
   Platform data or operational drafts from crossing identities.
 - No schema, event, permission, provider-routing, or production-admission policy
   changed; external Voice release gates remain mandatory.
+
+## DJAY Bot SaaS Provider Recommendation Memory - 2026-07-17
+
+- Persisted the production provider discussion in
+  `DJAY_Bot_SaaS_Platform/docs/adr/013-production-provider-selection.md` and
+  synchronized the SaaS state ledger and ADR index.
+- Owner-selected direction: Stripe for payments. This is not paid-launch
+  approval; ADR-008 remains Proposed until exact commercial, Thai VAT/tax,
+  invoice, trial, usage, overage, dunning, refund, cancellation, retention, and
+  reconciliation rules are approved.
+- Recommended stack awaiting approval: AWS managed container/PostgreSQL/CDN/DNS/
+  secrets/monitoring services, Resend, OpenAI Responses, OpenAI Realtime,
+  evaluated Gemini Live, FlowAccount, direct LINE/Meta APIs, and GitHub
+  Actions/ECR.
+- The current SaaS code has a Gemini Live adapter and provider-neutral AI text
+  gateway boundary. OpenAI text/Realtime adapters, Stripe paid lifecycle,
+  FlowAccount synchronization, infrastructure-as-code, production secrets,
+  managed exercises, and external acceptance remain next work.
+- No provider account, credential, production deployment, charge, or customer
+  activation was created or authorized while recording this memory.
