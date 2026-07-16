@@ -35,6 +35,11 @@ Finance roles. It verified:
   404 and passing the same accessibility, header, focus, and overflow gates;
 - visible keyboard focus and no horizontal document overflow;
 - no localhost registration link in the Tenant production build;
+- exact HTTPS Public/Tenant cross-realm origins with build-time rejection of
+  malformed production configuration without value disclosure;
+- same-origin post-authentication continuation after password and MFA login,
+  including rejection of encoded backslash authority ambiguity and preservation
+  of a valid ownership callback;
 - a branded registration completion and invalid-link recovery journey with one
   anti-enumerating, retryable verification resend control;
 - correct permission-derived tenant and Platform navigation;

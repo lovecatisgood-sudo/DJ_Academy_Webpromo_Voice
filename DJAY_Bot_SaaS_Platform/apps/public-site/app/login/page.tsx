@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
+import { publicApplicationEnvironment } from "../../lib/application-environment";
 
 export default function LoginRedirect() {
-  redirect(process.env.TENANT_APP_URL || "https://app.djaybot.com");
+  redirect(publicApplicationEnvironment.tenantAppUrl);
 }

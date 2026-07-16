@@ -22,13 +22,13 @@ document, and fetched every referenced static asset. Accepted static evidence
 was:
 
 - API: 132 files,
-  `dd4bffa5230671bf4e93825455e3aeae1e631e519ca1d234c9e142b75e0fa44b`
+  `e67bbe187ce2cd9688e1d2caaf68239140abf03c7355f413df88135a916ec278`
 - Platform Master: 24 files,
-  `c6e5f56559f8fe14a624cb1efdc3f67ac7b5aa1a4d3812bca365c825b17c538d`
+  `4e8ec9eca48be9df22aeb5627644375c766536f02b4ca5aca799fe7a7d54688c`
 - Public site: 30 files,
-  `f031a15ea4bbd502123eb34630972f975e0eacb5ff71e37579c0df61774b28c2`
+  `13e6456f6970f9099f502923a06260e107c984f0af2275afd1043ac385bf7fdb`
 - Tenant workspace: 41 files,
-  `2cadd4957e4801692b48b139bff160a275321ac066dee4eed8a65e8f2d350aaa`
+  `ddb257b37b8f09b354263613cfd04637cbc0e523dae6a57d15fa841cacf034f4`
 
 The release audit found that all three Tenant install snippets referenced
 versioned CDN modules, but the release package did not archive those modules.

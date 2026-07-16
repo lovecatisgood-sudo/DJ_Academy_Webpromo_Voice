@@ -1,12 +1,17 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import { safeMutationFetch, safeSameOriginPath } from "@djay/shared";
+import { tenantApplicationEnvironment } from "../lib/application-environment";
 
 export default function TenantLoginPage() {
   const [status, setStatus] = useState<"idle" | "working" | "mfa_required" | "authenticated" | "error">("idle");
   const [mfaStage, setMfaStage] = useState(false);
   const [message, setMessage] = useState("");
+
+  function continuationDestination() {
+    return safeSameOriginPath(new URLSearchParams(window.location.search).get("next"), "/workspace");
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,9 +33,7 @@ export default function TenantLoginPage() {
       if (!response.ok || result.status !== "authenticated") throw new Error(response.status >= 500 ? "Sign in is temporarily unavailable. Try again." : "Email or password is incorrect.");
       setStatus("authenticated");
       setMessage(result.selectedTenantId ? "Signed in. Opening your workspace..." : "Signed in. Choose a workspace to continue.");
-      const requested = new URLSearchParams(window.location.search).get("next");
-      const destination = requested?.startsWith("/") && !requested.startsWith("//") ? requested : "/workspace";
-      window.setTimeout(() => window.location.assign(destination), 350);
+      window.setTimeout(() => window.location.assign(continuationDestination()), 350);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Sign in is unavailable.");
@@ -54,9 +57,7 @@ export default function TenantLoginPage() {
       return;
     }
     setStatus("authenticated");
-    const requested = new URLSearchParams(window.location.search).get("next");
-    const destination = requested?.startsWith("/") && !requested.startsWith("//") ? requested : "/workspace";
-    window.location.assign(destination);
+    window.location.assign(continuationDestination());
   }
 
   return (
@@ -80,7 +81,7 @@ export default function TenantLoginPage() {
           </form>
         )}
         {message ? <p className={`message ${status}`} role="status">{message}</p> : null}
-        <nav><a href="/recovery">Forgot password?</a><a href={process.env.NEXT_PUBLIC_PUBLIC_APP_URL || "https://djaybot.com"}>Create workspace</a></nav>
+        <nav><a href="/recovery">Forgot password?</a><a href={tenantApplicationEnvironment.publicAppUrl}>Create workspace</a></nav>
       </section>
     </main>
   );

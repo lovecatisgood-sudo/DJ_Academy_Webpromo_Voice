@@ -42,6 +42,16 @@ cannot enumerate accounts. Production Chromium proves one registration and one
 resend request, missing-token recovery, a retryable dropped resend transport,
 responsive layout, and automated WCAG 2.2 A/AA acceptance.
 
+The authentication continuation audit found that a prefix-only path check could
+accept an encoded backslash sequence that browser URL normalization interpreted
+as an external authority. The shared navigation policy now rejects raw and
+encoded slash/backslash ambiguity, control characters, credentials, and
+external schemes. Both password and MFA completion use the same resolver.
+Twenty-three focused tests cover accepted and rejected paths and exact
+cross-realm origins. Production Chromium proves malicious continuations fall
+back to `/workspace` on the Tenant origin and a valid ownership callback is
+preserved.
+
 Visual evidence:
 
 - `/tmp/djay-registration-complete-desktop.png`

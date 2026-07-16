@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./legal-documents": "./src/legal-documents.ts",
+    "./navigation": "./src/navigation.ts",
     "./production-config": "./src/production-config.ts",
     "./widget-install": "./src/widget-install.ts",
     "./widget-ui": "./src/widget-ui.ts"

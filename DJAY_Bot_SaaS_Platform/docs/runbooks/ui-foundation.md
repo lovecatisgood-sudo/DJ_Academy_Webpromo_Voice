@@ -115,8 +115,16 @@ Next.js embeds this public value at build time, so changing only the runtime
 environment does not update an existing artifact. `TENANT_APP_URL` controls
 public login, verification, and invitation destinations at server runtime. The
 safe production fallback is `https://app.djaybot.com`; local development uses
-the explicit value in `.env.example`. Never ship a localhost URL in a public
-artifact.
+the explicit value in `.env.example`. Both values must be exact origins: HTTPS
+in production, with no credentials, path, query, fragment, or trailing slash.
+Local HTTP is accepted only for loopback hosts outside production. Invalid
+configuration fails closed and logs only the field name. Never ship a localhost
+URL in a public artifact.
+
+Authentication `next` values are untrusted input. Route every password and MFA
+continuation through `safeSameOriginPath`; do not replace it with prefix checks
+or direct `window.location` assignment. The resolver deliberately rejects raw
+and encoded separator ambiguity and falls back to `/workspace`.
 
 `config/next-security-headers.ts` is the single application-level browser
 policy for API, Public Site, Tenant Web, and Platform Master. It limits content,

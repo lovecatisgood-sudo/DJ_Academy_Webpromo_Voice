@@ -1,4 +1,5 @@
 import { VerifyEmailClient } from "./VerifyEmailClient";
+import { publicApplicationEnvironment } from "../../lib/application-environment";
 
 export default async function VerifyEmailPage({
   searchParams,
@@ -8,7 +9,7 @@ export default async function VerifyEmailPage({
     <main className="verification-layout">
       <VerifyEmailClient
         token={token}
-        tenantLoginUrl={process.env.TENANT_APP_URL || "https://app.djaybot.com"}
+        tenantLoginUrl={publicApplicationEnvironment.tenantAppUrl}
       />
     </main>
   );

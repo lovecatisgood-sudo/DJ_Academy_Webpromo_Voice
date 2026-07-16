@@ -1,4 +1,5 @@
 import { InvitationAcceptanceClient } from "./InvitationAcceptanceClient";
+import { publicApplicationEnvironment } from "../../../lib/application-environment";
 
 export default async function InvitationAcceptancePage({
   searchParams,
@@ -8,7 +9,7 @@ export default async function InvitationAcceptancePage({
     <main className="verification-layout">
       <InvitationAcceptanceClient
         token={token}
-        tenantLoginUrl={process.env.TENANT_APP_URL || "https://app.djaybot.com"}
+        tenantLoginUrl={publicApplicationEnvironment.tenantAppUrl}
       />
     </main>
   );

@@ -113,6 +113,12 @@ Registration completion and invalid/expired verification links now expose the
 same privacy-preserving verification resend flow. The accepted registration
 form is removed after success so repeated clicks cannot create confusing extra
 requests.
+Login continuation is resolved by one shared fail-closed policy after both
+password and MFA authentication. Ambiguous encoded separators, backslashes,
+control characters, credentials, and external URLs fall back to Workspace;
+valid same-origin callbacks are retained. Public/Tenant cross-realm links also
+require exact production HTTPS origins and invalid configuration fails during
+the production build without echoing the supplied value.
 
 ## Local commands
 

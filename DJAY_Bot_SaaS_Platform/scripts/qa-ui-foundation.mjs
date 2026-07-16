@@ -169,6 +169,15 @@ async function mockTenantRole(page, role, requestedPaths, failedPaths, abortedMu
   });
 }
 
+async function mockTenantLogin(page, loginStatus = "authenticated") {
+  await page.route("**/public/auth/login", (route) => json(route, loginStatus === "mfa_required"
+    ? { status: "mfa_required" }
+    : { status: "authenticated", selectedTenantId: tenantId, workspaces: [] }));
+  await page.route("**/public/auth/mfa/challenge", (route) => json(route, {
+    status: "authenticated", selectedTenantId: tenantId, workspaces: [],
+  }));
+}
+
 async function mockPlatformRole(page, role, failedPaths, abortedMutationPaths) {
   await page.route("**/platform/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -231,6 +240,40 @@ for (const [name, viewport] of [["desktop", desktop], ["mobile", mobile]]) {
     } });
   }
 }
+
+await visit({ name: "tenant-login-malicious-continuation", url: `${tenantUrl}/?next=%2F%5C%5Cevil.test`, mock: async (page) => {
+  await mockTenantRole(page, "tenant_master_admin");
+  await mockTenantLogin(page);
+}, ready: "#tenant-login-title", check: async (page) => {
+  await page.getByLabel("Email").fill("owner@example.test");
+  await page.getByLabel("Password").fill("correct-horse-battery-staple");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(`${tenantUrl}/workspace`);
+  if (new URL(page.url()).origin !== tenantUrl) failures.push("tenant-login-malicious-continuation: navigation escaped the Tenant origin");
+} });
+const ownershipContinuation = "/ownership/accept?transferId=transfer&token=qa-token";
+await visit({ name: "tenant-login-valid-continuation", url: `${tenantUrl}/?next=${encodeURIComponent(ownershipContinuation)}`, mock: async (page) => {
+  await mockTenantRole(page, "tenant_master_admin");
+  await mockTenantLogin(page);
+}, ready: "#tenant-login-title", check: async (page) => {
+  await page.getByLabel("Email").fill("owner@example.test");
+  await page.getByLabel("Password").fill("correct-horse-battery-staple");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(`${tenantUrl}${ownershipContinuation}`);
+  await page.getByRole("heading", { name: "Confirm ownership transfer" }).waitFor();
+} });
+await visit({ name: "tenant-mfa-malicious-continuation", url: `${tenantUrl}/?next=%2F%5C%5Cevil.test`, mock: async (page) => {
+  await mockTenantRole(page, "tenant_master_admin");
+  await mockTenantLogin(page, "mfa_required");
+}, ready: "#tenant-login-title", check: async (page) => {
+  await page.getByLabel("Email").fill("owner@example.test");
+  await page.getByLabel("Password").fill("correct-horse-battery-staple");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByLabel("Authenticator code").fill("123456");
+  await page.getByRole("button", { name: "Verify" }).click();
+  await page.waitForURL(`${tenantUrl}/workspace`);
+  if (new URL(page.url()).origin !== tenantUrl) failures.push("tenant-mfa-malicious-continuation: navigation escaped the Tenant origin");
+} });
 
 await visit({ name: "public-status", url: `${publicUrl}/status`, mock: mockPublic, ready: "#status-title", check: async (page) => {
   await page.getByText("All systems operational").waitFor();

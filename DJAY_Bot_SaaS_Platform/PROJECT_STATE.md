@@ -121,6 +121,15 @@ Public registration now ends in a dedicated confirmation state instead of
 leaving a live duplicate-submit form. Successful registration and invalid or
 expired verification links share a rate-limited, anti-enumerating resend flow
 with explicit transport recovery.
+Authentication continuation is now fail-closed across the Public and Tenant
+realms. A shared resolver accepts only unambiguous same-origin paths, rejects
+raw or encoded slash/backslash ambiguity, controls, credentials, and external
+schemes, and falls back to Workspace after both password and MFA login. Public
+and Tenant cross-realm application origins are also parsed as exact HTTPS
+origins in production; malformed configuration stops the build without
+disclosing its value. Production-browser acceptance proves malicious login and
+MFA continuations remain on the Tenant origin while a valid ownership callback
+is preserved.
 
 ## P6 LINE, WhatsApp, and Messenger runtime checkpoint
 
