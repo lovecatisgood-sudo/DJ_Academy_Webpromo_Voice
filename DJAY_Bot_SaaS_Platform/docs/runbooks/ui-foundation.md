@@ -163,6 +163,16 @@ failures. A successful contact mutation uses a polite status and transports
 trimmed values. The server schema imports the same numeric limits; changing one
 side without the other is not accepted.
 
+Both Voice deployment creation locations must render `VoiceDeploymentForm`;
+never copy its fields back into `page.tsx`. Creation routes and Studio updates
+must use `voiceDeploymentFieldLimits`. The 500-character bilingual greeting
+maximum comes from the immutable Sales Core playbook and is authoritative over
+older 1,000-character route/UI declarations. Before a Studio save,
+`voiceDeploymentValidationError` must validate normalized names, greetings,
+disclosures, 1–20 bounded origins, whole-number call duration, and reconnect
+window. Invalid drafts remain local, switch to the relevant Studio tab, and use
+an assertive error without sending a mutation.
+
 `config/next-security-headers.ts` is the single application-level browser
 policy for API, Public Site, Tenant Web, and Platform Master. It limits content,
 forms, frames, objects, connections, workers, and media to the minimum origins

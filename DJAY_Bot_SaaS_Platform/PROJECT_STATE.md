@@ -164,6 +164,15 @@ preserved, accepted values are trimmed before transport, and successful
 feedback remains a polite status. Production Chromium proves all three local
 failure paths send zero contact mutations and one valid submission sends one
 normalized mutation.
+The Voice configuration audit removed two duplicated deployment forms that had
+drifted apart. One shared form now owns creation limits for first and additional
+deployments. It also corrected a hidden contract conflict: the browser and
+Voice API admitted 1,000-character greetings while the immutable Sales Core
+playbook accepts 500, causing late validation failures. Creation, Studio update,
+and immutable playbook authority now share the 1–500 boundary, plus the same
+name, origin-count/length, disclosure, call-duration, and reconnect limits.
+Studio validates these fields before mutation, switches to the relevant tab,
+announces the correction assertively, and preserves the draft.
 
 ## P6 LINE, WhatsApp, and Messenger runtime checkpoint
 

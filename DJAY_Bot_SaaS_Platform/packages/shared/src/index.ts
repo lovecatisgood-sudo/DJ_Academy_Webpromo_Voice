@@ -7,4 +7,5 @@ export * from "./browser-one-time-state";
 export * from "./passwords";
 export * from "./identity-fields";
 export * from "./contact-fields";
+export * from "./voice-deployment-fields";
 export * from "./api-proxy";

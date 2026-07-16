@@ -69,6 +69,9 @@ proves that:
 - Contact creation rejects a missing identity, short phone, or whitespace-only
   name on the exact field with assertive feedback and zero mutations; accepted
   values are trimmed and success is announced politely;
+- first and additional Voice deployment creation use identical bounded fields;
+  Studio rejects a greeting outside the immutable 500-character playbook limit
+  before transport and switches to the Voice tab for correction;
 - every exercised UI state passes the automated axe WCAG 2.2 A/AA rule set,
   including document titles, contrast, keyboard-scroll access, and ARIA
   structure;

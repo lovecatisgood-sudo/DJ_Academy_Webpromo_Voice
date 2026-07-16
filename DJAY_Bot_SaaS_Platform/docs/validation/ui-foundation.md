@@ -52,6 +52,9 @@ Finance roles. It verified:
 - Contact creation requires at least one email or phone and shares normalized
   name/phone limits with the domain schema; three field-specific failures send
   zero mutations while one valid form sends one trimmed request;
+- first/additional Voice deployment forms share one component and the API,
+  Studio, and immutable playbook share the actual 500-character greeting
+  maximum; invalid Studio fields remain local and open the relevant tab;
 - a branded registration completion and invalid-link recovery journey with one
   anti-enumerating, retryable verification resend control;
 - correct permission-derived tenant and Platform navigation;

@@ -253,6 +253,21 @@ async function inspectTenantWorkspace() {
   await page.goto(`${tenantUrl}/workspace/voice`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Mali" }).waitFor();
   if ((await page.getByRole("tab").count()) !== 10) failures.push("tenant: Voice Studio does not expose all ten approved sections");
+  if (await page.getByLabel("English greeting").getAttribute("maxlength") !== "500"
+    || await page.getByLabel("Thai greeting").getAttribute("maxlength") !== "500") {
+    failures.push("tenant: Voice Studio greeting controls drifted from the immutable playbook maximum");
+  }
+  // Browser typing correctly stops at maxlength. Inject a legacy/corrupt draft
+  // through the native setter to prove the application guard still blocks it.
+  await page.getByLabel("English greeting").evaluate((element) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+    setter?.call(element, "a".repeat(501));
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.getByRole("alert").getByText("Each greeting must be 1–500 characters.", { exact: true }).waitFor();
+  if (studioSaveCalls !== 0) failures.push("tenant: invalid Studio greeting reached the API");
+  await page.getByLabel("English greeting").fill("Hello");
   await page.getByRole("tab", { name: /Sales Playbook/ }).click();
   await page.getByLabel("Tone").fill("Warm and direct");
   await page.getByRole("button", { name: "Save draft" }).click();
@@ -267,6 +282,11 @@ async function inspectTenantWorkspace() {
   await page.screenshot({ path: "/tmp/djay-p7-voice-analytics-core-desktop.png", fullPage: true });
   await page.getByRole("tab", { name: /^Deploy / }).click();
   await page.getByText("Create another Voice Agent deployment").click();
+  if (await page.getByLabel("English greeting").getAttribute("maxlength") !== "500"
+    || await page.getByLabel("English disclosure").getAttribute("maxlength") !== "500"
+    || await page.getByLabel("Allowed website origin").getAttribute("maxlength") !== "2048") {
+    failures.push("tenant: repeated Voice deployment form drifted from the shared field contract");
+  }
   await page.getByLabel("Deployment name").fill("Storefront voice");
   await page.getByLabel("Business name").fill("Merchant Store");
   await page.getByLabel("Voice agent name").fill("Mali");

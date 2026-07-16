@@ -566,6 +566,12 @@ for (const [viewportName, viewport] of [["desktop", desktop], ["mobile", mobile]
     await visit({ name: `workspace-${routeName}-${viewportName}`, url: `${tenantUrl}/workspace${route ? `/${route}` : ""}`, viewport, mock: (page) => mockTenantRole(page, "tenant_master_admin"), ready: "h1", check: async (page) => {
       if (!await page.locator(".workspace-main").count()) failures.push(`workspace-${routeName}-${viewportName}: workspace shell missing`);
       if (route === "team") await auditFieldBoundary(page, "Email", { maxlength: 320 }, `workspace-${routeName}-${viewportName}`);
+      if (route === "voice") {
+        await auditFieldBoundary(page, "English greeting", { minlength: 1, maxlength: 500 }, `workspace-${routeName}-${viewportName}`);
+        await auditFieldBoundary(page, "Thai greeting", { minlength: 1, maxlength: 500 }, `workspace-${routeName}-${viewportName}`);
+        await auditFieldBoundary(page, "English disclosure", { minlength: 8, maxlength: 500 }, `workspace-${routeName}-${viewportName}`);
+        await auditFieldBoundary(page, "Allowed website origin", { maxlength: 2048 }, `workspace-${routeName}-${viewportName}`);
+      }
     } });
   }
 }

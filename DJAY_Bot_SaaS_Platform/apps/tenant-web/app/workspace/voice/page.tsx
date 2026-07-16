@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import { safeMutationFetch, voiceDeploymentFieldConstraints, voiceDeploymentValidationError } from "@djay/shared";
 import { createWidgetInstallSnippet } from "@djay/shared/widget-install";
 import { tenantWidgetInstallEnvironment } from "../../../lib/widget-install-environment";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
+import { VoiceDeploymentForm } from "./VoiceDeploymentForm";
 
 type Playbook = {
   schemaVersion: 1; playbookVersionId: string; businessName: string; agentName: string;
@@ -100,6 +101,7 @@ export default function VoicePage() {
   const [notifications, setNotifications] = useState<Notification[]>([]); const [deploymentKey, setDeploymentKey] = useState("");
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [message, setMessage] = useState(""); const [working, setWorking] = useState(false);
+  const [studioValidationMessage, setStudioValidationMessage] = useState("");
   const [loadError, setLoadError] = useState(false);
   const [knowledgeLoadError, setKnowledgeLoadError] = useState(false);
   const [notificationLoadError, setNotificationLoadError] = useState(false);
@@ -143,9 +145,11 @@ export default function VoicePage() {
   useEffect(() => { if (session.selectedTenantId) void load(); }, [session.selectedTenantId]);
 
   function patchDeployment(patch: Partial<Studio["deployment"]>) {
+    setStudioValidationMessage("");
     setStudio((current) => current ? { ...current, deployment: { ...current.deployment, ...patch } } : current);
   }
   function patchDefinition(patch: Partial<Playbook>) {
+    setStudioValidationMessage("");
     setStudio((current) => current ? {
       ...current, deployment: { ...current.deployment, definition: { ...current.deployment.definition, ...patch } },
     } : current);
@@ -166,13 +170,31 @@ export default function VoicePage() {
 
   async function saveStudio() {
     if (!studio || !canEdit) return;
+    const validationError = voiceDeploymentValidationError({
+      name: studio.deployment.name,
+      agentName: studio.deployment.agentName,
+      businessName: studio.deployment.definition.businessName,
+      allowedOrigins: studio.deployment.allowedOrigins,
+      greetingTh: studio.deployment.greetingTh,
+      greetingEn: studio.deployment.greetingEn,
+      automatedDisclosureTh: studio.deployment.automatedDisclosureTh,
+      automatedDisclosureEn: studio.deployment.automatedDisclosureEn,
+      maxCallSeconds: studio.deployment.maxCallSeconds,
+      reconnectWindowSeconds: studio.deployment.reconnectWindowSeconds,
+    });
+    if (validationError) {
+      setActiveTab(validationError.tab);
+      setMessage("");
+      setStudioValidationMessage(validationError.message);
+      return;
+    }
     for (const origin of studio.deployment.allowedOrigins) {
       try {
         const parsed = new URL(origin);
         if (parsed.origin !== origin || (parsed.protocol !== "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1")) throw new Error();
-      } catch { setMessage("Every website entry must be an exact HTTPS origin without a path, query, or fragment."); return; }
+      } catch { setStudioValidationMessage("Every website entry must be an exact HTTPS origin without a path, query, or fragment."); setMessage(""); setActiveTab("entry"); return; }
     }
-    setWorking(true); setMessage("");
+    setWorking(true); setMessage(""); setStudioValidationMessage("");
     const response = await safeMutationFetch(`/tenant/voice/deployments/${studio.deployment.id}/studio`, {
       method: "PATCH", headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -220,10 +242,10 @@ export default function VoicePage() {
     const response = await safeMutationFetch("/tenant/voice/deployments", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        name: data.get("name"), agentName: data.get("agentName"), businessName: data.get("businessName"),
+        name: String(data.get("name") || "").trim(), agentName: String(data.get("agentName") || "").trim(), businessName: String(data.get("businessName") || "").trim(),
         allowedOrigins: [origin], defaultLocale: data.get("defaultLocale"),
-        greetingTh: data.get("greetingTh"), greetingEn: data.get("greetingEn"),
-        automatedDisclosureTh: data.get("automatedDisclosureTh"), automatedDisclosureEn: data.get("automatedDisclosureEn"),
+        greetingTh: String(data.get("greetingTh") || "").trim(), greetingEn: String(data.get("greetingEn") || "").trim(),
+        automatedDisclosureTh: String(data.get("automatedDisclosureTh") || "").trim(), automatedDisclosureEn: String(data.get("automatedDisclosureEn") || "").trim(),
         maxCallSeconds: Number(data.get("maxCallSeconds")), reconnectWindowSeconds: Number(data.get("reconnectWindowSeconds")),
       }),
     });
@@ -260,17 +282,17 @@ export default function VoicePage() {
           <div><strong>v{studio.deployment.currentPublishedVersion || "—"}</strong><span>Published playbook</span><small>{studio.deployment.status}</small></div>
         </section>
         <nav className="voice-studio-tabs" aria-label="Voice Agent Studio sections">{tabs.map((tab) => <button type="button" role="tab" aria-selected={activeTab === tab.id} className={activeTab === tab.id ? "selected" : ""} key={tab.id} onClick={() => { setActiveTab(tab.id); setMessage(""); }}><strong>{tab.label}</strong><span>{tab.hint}</span></button>)}</nav>
-        {message ? <p className="studio-message" role="status">{message}</p> : null}
+        {studioValidationMessage ? <p className="studio-message error" role="alert">{studioValidationMessage}</p> : message ? <p className="studio-message" role="status">{message}</p> : null}
 
         {activeTab === "voice" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Identity and conversation opening</p><h2>Voice & Languages</h2></div><span>English + Thai</span></div><div className="studio-form-grid">
-          <label>Public agent name<input disabled={!canEdit} value={studio.deployment.agentName} onChange={(event) => patchDeployment({ agentName: event.target.value })} /></label>
+          <label>Public agent name<input disabled={!canEdit} value={studio.deployment.agentName} {...voiceDeploymentFieldConstraints.agentName} onChange={(event) => patchDeployment({ agentName: event.target.value })} /></label>
           <label>Default language<select disabled={!canEdit} value={studio.deployment.defaultLocale} onChange={(event) => patchDeployment({ defaultLocale: event.target.value as "th" | "en" })}><option value="en">English</option><option value="th">Thai</option></select></label>
-          <label className="wide-field">English greeting<textarea disabled={!canEdit} rows={3} value={studio.deployment.greetingEn} onChange={(event) => { patchDeployment({ greetingEn: event.target.value }); patchDefinition({ greeting: { ...studio.deployment.definition.greeting, en: event.target.value } }); }} /></label>
-          <label className="wide-field">Thai greeting<textarea disabled={!canEdit} rows={3} value={studio.deployment.greetingTh} onChange={(event) => { patchDeployment({ greetingTh: event.target.value }); patchDefinition({ greeting: { ...studio.deployment.definition.greeting, th: event.target.value } }); }} /></label>
+          <label className="wide-field">English greeting<textarea disabled={!canEdit} rows={3} value={studio.deployment.greetingEn} {...voiceDeploymentFieldConstraints.greeting} onChange={(event) => { patchDeployment({ greetingEn: event.target.value }); patchDefinition({ greeting: { ...studio.deployment.definition.greeting, en: event.target.value } }); }} /></label>
+          <label className="wide-field">Thai greeting<textarea disabled={!canEdit} rows={3} value={studio.deployment.greetingTh} {...voiceDeploymentFieldConstraints.greeting} onChange={(event) => { patchDeployment({ greetingTh: event.target.value }); patchDefinition({ greeting: { ...studio.deployment.definition.greeting, th: event.target.value } }); }} /></label>
         </div>{saveBar}</section> : null}
 
         {activeTab === "playbook" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Published sales behavior</p><h2>Sales Playbook</h2></div><span>Immutable on publish</span></div><div className="studio-form-grid">
-          <label>Business name<input disabled={!canEdit} value={studio.deployment.definition.businessName} onChange={(event) => patchDefinition({ businessName: event.target.value })} /></label>
+          <label>Business name<input disabled={!canEdit} value={studio.deployment.definition.businessName} {...voiceDeploymentFieldConstraints.businessName} onChange={(event) => patchDefinition({ businessName: event.target.value })} /></label>
           <label>Timezone<input disabled={!canEdit} value={studio.deployment.definition.timezone} onChange={(event) => patchDefinition({ timezone: event.target.value })} /></label>
           <label className="wide-field">Tone<input disabled={!canEdit} value={studio.deployment.definition.tone} onChange={(event) => patchDefinition({ tone: event.target.value })} /></label>
           <label className="wide-field">Sales goal<textarea disabled={!canEdit} rows={3} value={studio.deployment.definition.salesGoal} onChange={(event) => patchDefinition({ salesGoal: event.target.value })} /></label>
@@ -284,15 +306,15 @@ export default function VoicePage() {
         {activeTab === "knowledge" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Grounded business facts</p><h2>Knowledge</h2></div><span>{studio.deployment.knowledgeRevisionIds.length} pinned</span></div><p className="control-copy">Only selected ready revisions are copied into the next immutable playbook. Existing calls remain pinned to their original knowledge.</p><div className="knowledge-picker studio-knowledge">{knowledge.map((source) => <label key={source.revisionId}><input type="checkbox" disabled={!canEdit || source.status !== "ready"} checked={studio.deployment.knowledgeRevisionIds.includes(source.revisionId)} onChange={(event) => patchDeployment({ knowledgeRevisionIds: event.target.checked ? [...studio.deployment.knowledgeRevisionIds, source.revisionId] : studio.deployment.knowledgeRevisionIds.filter((id) => id !== source.revisionId) })} /><span>{source.name}</span><small>{source.sourceKind} · v{source.version} · {source.status}</small></label>)}{knowledgeLoadError ? <div className="pending-line inline-retry" role="alert"><span>Knowledge options could not be loaded.</span><button className="secondary-command" type="button" onClick={() => void load(selectedId)}>Try again</button></div> : !knowledge.length ? <div className="pending-line"><strong>No approved knowledge</strong><span>Add a source in Knowledge & Sales Setup.</span></div> : null}</div><a className="secondary-link studio-link" href="/workspace/knowledge">Open Knowledge & Sales Setup</a>{saveBar}</section> : null}
 
         {activeTab === "entry" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Browser admission boundary</p><h2>Call / Session Entry</h2></div><span>{studio.deployment.allowedOrigins.length} origins</span></div><div className="studio-form-grid">
-          <label>Deployment name<input disabled={!canEdit} value={studio.deployment.name} onChange={(event) => patchDeployment({ name: event.target.value })} /></label>
-          <label>Maximum call seconds<input disabled={!canEdit} type="number" min={30} max={14400} value={studio.deployment.maxCallSeconds} onChange={(event) => patchDeployment({ maxCallSeconds: Number(event.target.value) })} /></label>
-          <label>Reconnect window seconds<input disabled={!canEdit} type="number" min={0} max={300} value={studio.deployment.reconnectWindowSeconds} onChange={(event) => patchDeployment({ reconnectWindowSeconds: Number(event.target.value) })} /></label>
+          <label>Deployment name<input disabled={!canEdit} value={studio.deployment.name} {...voiceDeploymentFieldConstraints.name} onChange={(event) => patchDeployment({ name: event.target.value })} /></label>
+          <label>Maximum call seconds<input disabled={!canEdit} type="number" value={studio.deployment.maxCallSeconds} {...voiceDeploymentFieldConstraints.maxCallSeconds} onChange={(event) => patchDeployment({ maxCallSeconds: Number(event.target.value) })} /></label>
+          <label>Reconnect window seconds<input disabled={!canEdit} type="number" value={studio.deployment.reconnectWindowSeconds} {...voiceDeploymentFieldConstraints.reconnectWindowSeconds} onChange={(event) => patchDeployment({ reconnectWindowSeconds: Number(event.target.value) })} /></label>
           <label className="wide-field">Allowed website origins <small>Exact HTTPS origins, one per line</small><textarea disabled={!canEdit} rows={5} value={listText(studio.deployment.allowedOrigins)} onChange={(event) => patchDeployment({ allowedOrigins: lineList(event.target.value) })} /></label>
         </div>{saveBar}</section> : null}
 
         {activeTab === "disclosure" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Mandatory opening policy</p><h2>Disclosure & Recording</h2></div><span>Recording off</span></div><div className="policy-callout"><strong>Automated-agent disclosure is required before ordinary assistant speech.</strong><span>Recording remains disabled until consent, jurisdiction, retention, erasure, and legal review are configured and accepted.</span></div><div className="studio-form-grid">
-          <label className="wide-field">English automated-agent disclosure<textarea disabled={!canEdit} rows={3} value={studio.deployment.automatedDisclosureEn} onChange={(event) => patchDeployment({ automatedDisclosureEn: event.target.value })} /></label>
-          <label className="wide-field">Thai automated-agent disclosure<textarea disabled={!canEdit} rows={3} value={studio.deployment.automatedDisclosureTh} onChange={(event) => patchDeployment({ automatedDisclosureTh: event.target.value })} /></label>
+          <label className="wide-field">English automated-agent disclosure<textarea disabled={!canEdit} rows={3} value={studio.deployment.automatedDisclosureEn} {...voiceDeploymentFieldConstraints.disclosure} onChange={(event) => patchDeployment({ automatedDisclosureEn: event.target.value })} /></label>
+          <label className="wide-field">Thai automated-agent disclosure<textarea disabled={!canEdit} rows={3} value={studio.deployment.automatedDisclosureTh} {...voiceDeploymentFieldConstraints.disclosure} onChange={(event) => patchDeployment({ automatedDisclosureTh: event.target.value })} /></label>
         </div>{saveBar}</section> : null}
 
         {activeTab === "transfer" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Graceful escalation</p><h2>Transfer & Callback</h2></div><span>{studio.actions.humanHandover ? "Enabled" : "Unavailable"}</span></div><div className="policy-callout"><strong>Human handover changes the shared conversation to human mode.</strong><span>Callback intent is captured as an authorized follow-up with customer-provided contact details and time preference. The agent never promises an unconfirmed appointment.</span></div><div className="studio-form-grid">
@@ -332,11 +354,9 @@ export default function VoicePage() {
 
         {activeTab === "deploy" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Immutable release and browser install</p><h2>Deploy</h2></div><span>{studio.deployment.status}</span></div><div className="deploy-command-row"><button type="button" disabled={!canEdit || working} onClick={() => void publish()}>Publish immutable version</button>{canDeploy && studio.deployment.status !== "revoked" ? <><button type="button" className="secondary-command" disabled={working} onClick={() => void changeStatus(studio.deployment.id, studio.deployment.status === "active" ? "disable" : "enable")}>{studio.deployment.status === "active" ? "Disable deployment" : "Enable deployment"}</button><button type="button" className="secondary-command danger-command" disabled={working} onClick={() => void changeStatus(studio.deployment.id, "revoke")}>Revoke permanently</button></> : null}</div><div className="deployment-identity"><strong>Safe deployment key prefix</strong><code>{studio.deployment.keyPrefix}…</code><span>The full key is never stored or displayed again.</span></div>
           {deploymentKey ? <div className="deployment-secret"><strong>One-time Voice deployment key and install snippet</strong><code>{deploymentKey}</code><p className="field-help">Add this snippet only to the approved website origin.</p><pre>{installSnippet}</pre><button type="button" className="secondary-command" onClick={() => { if (!navigator.clipboard) { setMessage("Select the snippet and copy it manually."); return; } void navigator.clipboard.writeText(installSnippet).then(() => setMessage("Install snippet copied."), () => setMessage("Copy was blocked. Select the snippet and copy it manually.")); }}>Copy install snippet</button></div> : null}
-          {canDeploy && result.capability ? <details className="advanced-definition create-voice-deployment"><summary>Create another Voice Agent deployment</summary><form className="voice-deploy" onSubmit={create}>
-            <label>Deployment name<input name="name" minLength={2} maxLength={160} required /></label><label>Business name<input name="businessName" minLength={2} maxLength={200} required /></label><label>Voice agent name<input name="agentName" minLength={2} maxLength={100} required /></label><label>Allowed website origin<input name="origin" type="url" placeholder="https://www.example.com" required /></label><label>Default language<select name="defaultLocale" defaultValue="en"><option value="en">English</option><option value="th">Thai</option></select></label><label>English greeting<input name="greetingEn" defaultValue="Hello, how can I help?" maxLength={1000} required /></label><label>Thai greeting<input name="greetingTh" defaultValue="สวัสดีครับ มีอะไรให้ช่วยได้บ้าง?" maxLength={1000} required /></label><label>English disclosure<input name="automatedDisclosureEn" defaultValue="This is our automated voice assistant." minLength={8} maxLength={500} required /></label><label>Thai disclosure<input name="automatedDisclosureTh" defaultValue="นี่คือผู้ช่วยเสียงอัตโนมัติของเรา" minLength={8} maxLength={500} required /></label><label>Maximum call seconds<input name="maxCallSeconds" type="number" min={30} max={14400} defaultValue={900} required /></label><label>Reconnect window seconds<input name="reconnectWindowSeconds" type="number" min={0} max={300} defaultValue={30} required /></label><button disabled={working}>Create deployment</button>
-          </form></details> : null}
+          {canDeploy && result.capability ? <details className="advanced-definition create-voice-deployment"><summary>Create another Voice Agent deployment</summary><VoiceDeploymentForm className="voice-deploy" onSubmit={create} working={working} /></details> : null}
         </section> : null}
-      </> : <section className="tool-band"><div className="band-heading"><div><p>Voice Agent Studio</p><h2>No Voice deployment</h2></div></div><p className="control-copy">{result.capability ? `Create the first exact-origin ${result.capability.publicLabel} deployment to open the Studio.` : "Voice Agent is not active for this workspace."}</p>{canDeploy && result.capability ? <form className="voice-deploy first-voice-deploy" onSubmit={create}><label>Deployment name<input name="name" minLength={2} maxLength={160} required /></label><label>Business name<input name="businessName" minLength={2} maxLength={200} required /></label><label>Voice agent name<input name="agentName" minLength={2} maxLength={100} required /></label><label>Allowed website origin<input name="origin" type="url" placeholder="https://www.example.com" required /></label><label>Default language<select name="defaultLocale" defaultValue="en"><option value="en">English</option><option value="th">Thai</option></select></label><label>English greeting<input name="greetingEn" defaultValue="Hello, how can I help?" required /></label><label>Thai greeting<input name="greetingTh" defaultValue="สวัสดีครับ มีอะไรให้ช่วยได้บ้าง?" required /></label><label>English disclosure<input name="automatedDisclosureEn" defaultValue="This is our automated voice assistant." minLength={8} required /></label><label>Thai disclosure<input name="automatedDisclosureTh" defaultValue="นี่คือผู้ช่วยเสียงอัตโนมัติของเรา" minLength={8} required /></label><label>Maximum call seconds<input name="maxCallSeconds" type="number" min={30} max={14400} defaultValue={900} required /></label><label>Reconnect window seconds<input name="reconnectWindowSeconds" type="number" min={0} max={300} defaultValue={30} required /></label><button disabled={working}>Create deployment</button></form> : null}</section>}
+      </> : <section className="tool-band"><div className="band-heading"><div><p>Voice Agent Studio</p><h2>No Voice deployment</h2></div></div><p className="control-copy">{result.capability ? `Create the first exact-origin ${result.capability.publicLabel} deployment to open the Studio.` : "Voice Agent is not active for this workspace."}</p>{canDeploy && result.capability ? <VoiceDeploymentForm className="voice-deploy first-voice-deploy" onSubmit={create} working={working} /> : null}</section>}
     </section>
   </main>;
 }

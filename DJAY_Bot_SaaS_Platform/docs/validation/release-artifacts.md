@@ -22,13 +22,13 @@ document, and fetched every referenced static asset. Accepted static evidence
 was:
 
 - API: 132 files,
-  `ce137cdd83cfeeb60a6dd1d5d19f37a1eacc3bc4fd52ed6dddea11197ae2e635`
+  `6101dc2255e0fcc7330e48c9aabc47f61a7830bf4cbb787ec5b4fce7e54f97e5`
 - Platform Master: 24 files,
-  `0a682eeabd2f9a161b6c1acaf259a70fa5793578feeae3ab18771f9867c182ec`
-- Public site: 30 files,
-  `6f431313f21e566c05cfc004249be068f80086a8b17ff59242510617da5c7135`
+  `8d143ca185f32b82009d3cb346eea61d69caf7867c776ace812bb60724c897a7`
+- Public site: 31 files,
+  `a98e9921906475f728b3c90619d00f3515425d85cea20a870fb794aaeacfbf63`
 - Tenant workspace: 42 files,
-  `1c4a4114dd6825007b4f17ee40eae2c8d56c67db790d211a322dbc2678959269`
+  `a27586833d2cbe8b4037ce06f06d21b0bb64148cdf5bdd6bf8356a6345e4fd80`
 
 The release audit found that all three Tenant install snippets referenced
 versioned CDN modules, but the release package did not archive those modules.
@@ -80,6 +80,11 @@ The packaged Contact form also requires an email or phone and shares its
 normalized name/phone limits with the domain schema. Invalid identity data is
 announced on the exact field without a request; an accepted form transports one
 trimmed mutation.
+The two Voice deployment creation journeys now render one shared form contract,
+including exact origin, disclosure, and bilingual greeting limits. Studio uses
+the same limits before transport; a greeting over the immutable Sales Core
+500-character boundary produces an accessible local error, preserves the draft,
+and sends no save mutation.
 
 The first Voice artifact run exposed a production-only ESM failure: bundled
 `ws` attempted a dynamic CommonJS require of Node's `events` module. Source
@@ -87,7 +92,7 @@ tests did not exercise the emitted bundle. The build now supplies an ESM
 `createRequire` bridge; the isolated bundle starts, reports liveness, and fails
 readiness closed with provider-neutral `503 not_ready` when media authority is
 absent. Its accepted bundle digest is
-`3d23bbd5c9009e752a08a6d3568f7fe3c865aeb597459eacf54e9086d868e9a4`.
+`71d53ec1da5008f1883ffe06df44a9e615ca1ff606cdc757e4d9d8d8ea238a9f`.
 The artifact is also started with a copied example production authority token;
 it must exit before listening, name only the affected field, and never echo the
 token value.
@@ -98,7 +103,7 @@ before execution, proving it does not resolve those packages from workspace
 `node_modules`. With database authority deliberately absent, startup fails
 closed, names only `WORKER_DATABASE_URL`, and exposes no connection URL. The
 accepted 56-file digest is
-`bb4ee881decde4bfecc39a8ca9848b2c7c778d78e5e92314bc0ecf5a2b4fb772`.
+`8cca6f56c008a604d50a71c7560d1d23129874d69acc1e116c89792af6bbf46c`.
 
 These hashes describe the local generated build and are not target-deployment
 evidence. The immutable deployment system must archive its own package hashes,

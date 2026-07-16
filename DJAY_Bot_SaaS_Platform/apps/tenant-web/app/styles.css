@@ -272,6 +272,7 @@ a { color: var(--djay-green-700); text-underline-offset: 3px; }
 .voice-studio-tabs strong { font-size: 12px; }
 .voice-studio-tabs span { color: #69736f; font-size: 10px; font-weight: 500; }
 .studio-message { margin: 0; padding: 11px clamp(22px, 4vw, 52px); border-bottom: 1px solid #b9d7cc; background: #ebf6f2; color: #265546; font-size: 12px; text-transform: none; }
+.studio-message.error { border-bottom-color: #e0aaa6; background: #fff1f0; color: #7d2824; }
 .studio-panel { min-height: 420px; background: #fff; }
 .studio-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 22px; }
 .studio-form-grid .wide-field { grid-column: 1 / -1; }

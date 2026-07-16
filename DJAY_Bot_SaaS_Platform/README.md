@@ -139,6 +139,11 @@ Contact creation likewise requires at least one email or phone before transport,
 uses the domain's normalized name/phone limits, and distinguishes assertive
 field-specific failures from polite success feedback. Invalid forms preserve
 customer data and never issue a contact mutation.
+Voice deployment creation now uses one form for first and additional agents.
+Its browser and API limits match the immutable Sales Core playbook, including
+the actual 500-character bilingual greeting maximum. Studio rejects invalid
+draft boundaries locally, preserves the draft, and opens the relevant section
+before any save request is sent.
 
 ## Local commands
 

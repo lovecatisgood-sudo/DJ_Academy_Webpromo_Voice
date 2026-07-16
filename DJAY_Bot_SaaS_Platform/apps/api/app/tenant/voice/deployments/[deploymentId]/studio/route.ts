@@ -1,5 +1,6 @@
 import { tenantRoleAllows } from "@djay/authorization";
 import { aiPlaybookSchema } from "@djay/sales-core";
+import { voiceDeploymentFieldLimits } from "@djay/shared";
 import type { NextRequest } from "next/server";
 import { ZodError, z } from "zod";
 import { hasTrustedOrigin, readJson, safeJson } from "../../../../../../lib/http";
@@ -7,17 +8,17 @@ import { resolveTenantRequest } from "../../../../../../lib/tenant-context";
 
 const updateSchema = z.object({
   revision: z.number().int().positive(),
-  name: z.string().trim().min(2).max(160),
-  agentName: z.string().trim().min(2).max(100),
-  businessName: z.string().trim().min(2).max(200),
+  name: z.string().trim().min(voiceDeploymentFieldLimits.name.minLength).max(voiceDeploymentFieldLimits.name.maxLength),
+  agentName: z.string().trim().min(voiceDeploymentFieldLimits.agentName.minLength).max(voiceDeploymentFieldLimits.agentName.maxLength),
+  businessName: z.string().trim().min(voiceDeploymentFieldLimits.businessName.minLength).max(voiceDeploymentFieldLimits.businessName.maxLength),
   defaultLocale: z.enum(["th", "en"]),
-  allowedOrigins: z.array(z.string().max(2048)).min(1).max(20),
-  greetingTh: z.string().trim().min(1).max(1000),
-  greetingEn: z.string().trim().min(1).max(1000),
-  automatedDisclosureTh: z.string().trim().min(8).max(500),
-  automatedDisclosureEn: z.string().trim().min(8).max(500),
-  maxCallSeconds: z.number().int().min(30).max(14_400),
-  reconnectWindowSeconds: z.number().int().min(0).max(300),
+  allowedOrigins: z.array(z.string().max(voiceDeploymentFieldLimits.origin.maxLength)).min(1).max(voiceDeploymentFieldLimits.origin.maximumCount),
+  greetingTh: z.string().trim().min(voiceDeploymentFieldLimits.greeting.minLength).max(voiceDeploymentFieldLimits.greeting.maxLength),
+  greetingEn: z.string().trim().min(voiceDeploymentFieldLimits.greeting.minLength).max(voiceDeploymentFieldLimits.greeting.maxLength),
+  automatedDisclosureTh: z.string().trim().min(voiceDeploymentFieldLimits.disclosure.minLength).max(voiceDeploymentFieldLimits.disclosure.maxLength),
+  automatedDisclosureEn: z.string().trim().min(voiceDeploymentFieldLimits.disclosure.minLength).max(voiceDeploymentFieldLimits.disclosure.maxLength),
+  maxCallSeconds: z.number().int().min(voiceDeploymentFieldLimits.maxCallSeconds.min).max(voiceDeploymentFieldLimits.maxCallSeconds.max),
+  reconnectWindowSeconds: z.number().int().min(voiceDeploymentFieldLimits.reconnectWindowSeconds.min).max(voiceDeploymentFieldLimits.reconnectWindowSeconds.max),
   definition: aiPlaybookSchema,
   knowledgeRevisionIds: z.array(z.uuid()).max(1000),
 }).strict();

@@ -89,6 +89,13 @@ All passed across 31 packages/apps. Coverage proves that:
 - Chromium tenant-workspace journeys reject path-bearing origins before an API
   call, expose the correct one-time install snippet, require confirmation before
   irreversible revocation, and remain responsive on desktop and mobile.
+- first and additional Voice deployments render one shared creation form with
+  identical field limits; the route and Studio now use the immutable Sales Core
+  1–500-character greeting boundary instead of the former late-failing 1,000;
+- production Chromium proves a 501-character Studio greeting is announced on
+  the Voice tab, preserves the draft, and sends zero save mutations, while both
+  deployment creation locations expose the same greeting, disclosure, and
+  exact-origin maximums;
 - PCM16 16 kHz AudioWorklet capture and its fallback produce strict public
   media frames, while malformed formats and provider-identifying fields are
   rejected before the restricted adapter.
