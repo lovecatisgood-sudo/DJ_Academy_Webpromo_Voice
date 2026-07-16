@@ -635,7 +635,7 @@ export default function PlatformMasterPage() {
         ) : (
           <form onSubmit={passwordLogin}>
             <label>Platform email<input type="email" name="email" autoComplete="email" required /></label>
-            <label>Password<input type="password" name="password" autoComplete="current-password" required /></label>
+            <label>Password<input type="password" name="password" autoComplete="current-password" maxLength={128} required /></label>
             <button type="submit" disabled={controlsBusy}>{working ? "Checking..." : "Continue"}</button>
           </form>
         )}

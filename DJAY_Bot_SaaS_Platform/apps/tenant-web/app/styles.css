@@ -13,6 +13,7 @@ section > p { color: #126149; font-size: 12px; font-weight: 800; text-transform:
 h1 { margin: 0 0 28px; font-size: 30px; letter-spacing: 0; }
 form { display: grid; gap: 18px; }
 label { display: grid; gap: 8px; font-size: 14px; font-weight: 700; }
+.field-help { margin: -8px 0 0; color: #626b68; font-size: 12px; font-weight: 500; line-height: 1.45; text-transform: none; }
 input { height: 46px; border: 1px solid #b9c1be; border-radius: 6px; padding: 0 12px; font: inherit; background: #fff; }
 select, textarea { border: 1px solid #b9c1be; border-radius: 6px; padding: 10px 12px; font: inherit; background: #fff; }
 textarea { resize: vertical; line-height: 1.45; }

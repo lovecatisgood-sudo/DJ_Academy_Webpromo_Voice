@@ -125,6 +125,11 @@ are migrated into same-tab state and cleaned from the address, while successful
 or permanently invalid journeys clear the retained value. Existing-account team
 invitations continue through Tenant sign-in to a dedicated acceptance page, so
 users no longer need to reopen the email after authentication.
+Workspace registration, new-account invitation acceptance, and password
+recovery now use one 12–128-character passphrase contract with confirmation.
+Mismatches are announced before any network request, preserve all entered data
+and one-time state, and remain immediately correctable. Tenant and Platform
+sign-in fields also enforce the corresponding server maximum.
 
 ## Local commands
 

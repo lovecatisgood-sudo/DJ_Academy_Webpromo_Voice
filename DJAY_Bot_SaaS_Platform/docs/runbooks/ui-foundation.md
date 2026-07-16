@@ -135,6 +135,16 @@ storage. Existing-account invitations cross from Public to Tenant in a fragment,
 then continue through `/?next=%2Finvitations%2Faccept`; the login page must use
 `window.location.replace` so the credential page is not retained in history.
 
+Every password-creation form must import `newPasswordConstraints` and
+`passwordConfirmationError` from `@djay/shared`. Registration, new-user
+invitation, and recovery use the same 12–128-character guidance and require a
+second `autocomplete="new-password"` field. A mismatch is a local validation
+error: call `reportValidity`, announce the shared message, preserve fields and
+one-time state, and do not create an idempotency key or call the API. Current
+Tenant and Platform password fields retain `autocomplete="current-password"`
+and the server maximum of 128 characters. Do not add composition rules that
+would reject long passphrases without an accepted identity-policy change.
+
 `config/next-security-headers.ts` is the single application-level browser
 policy for API, Public Site, Tenant Web, and Platform Master. It limits content,
 forms, frames, objects, connections, workers, and media to the minimum origins

@@ -251,7 +251,7 @@ await visit({ name: "tenant-login-malicious-continuation", url: `${tenantUrl}/?n
   await mockTenantLogin(page);
 }, ready: "#tenant-login-title", check: async (page) => {
   await page.getByLabel("Email").fill("owner@example.test");
-  await page.getByLabel("Password").fill("correct-horse-battery-staple");
+  await page.getByLabel("Password", { exact: true }).fill("correct-horse-battery-staple");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(`${tenantUrl}/workspace`);
   if (new URL(page.url()).origin !== tenantUrl) failures.push("tenant-login-malicious-continuation: navigation escaped the Tenant origin");
@@ -262,7 +262,7 @@ await visit({ name: "tenant-login-valid-continuation", url: `${tenantUrl}/?next=
   await mockTenantLogin(page);
 }, ready: "#tenant-login-title", check: async (page) => {
   await page.getByLabel("Email").fill("owner@example.test");
-  await page.getByLabel("Password").fill("correct-horse-battery-staple");
+  await page.getByLabel("Password", { exact: true }).fill("correct-horse-battery-staple");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(`${tenantUrl}/ownership/accept`);
   await page.getByRole("heading", { name: "Confirm ownership transfer" }).waitFor();
@@ -273,7 +273,7 @@ await visit({ name: "tenant-mfa-malicious-continuation", url: `${tenantUrl}/?nex
   await mockTenantLogin(page, "mfa_required");
 }, ready: "#tenant-login-title", check: async (page) => {
   await page.getByLabel("Email").fill("owner@example.test");
-  await page.getByLabel("Password").fill("correct-horse-battery-staple");
+  await page.getByLabel("Password", { exact: true }).fill("correct-horse-battery-staple");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.getByLabel("Authenticator code").fill("123456");
   await page.getByRole("button", { name: "Verify" }).click();
@@ -300,17 +300,33 @@ await visit({ name: "public-mutation-network-failure", url: publicUrl, mock: (pa
   await page.getByLabel("Your name").fill("QA Owner");
   await page.getByLabel("Work email").fill("owner@example.test");
   await page.getByLabel("Business name").fill("QA Studio");
-  await page.getByLabel("Password").fill("correct-horse-battery-staple");
+  await page.getByLabel("Password", { exact: true }).fill("correct-horse-battery-staple");
+  await page.getByLabel("Confirm password", { exact: true }).fill("correct-horse-battery-staple");
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Create workspace" }).click();
   await page.getByText("Registration could not be completed.", { exact: true }).waitFor();
   if (!await page.getByRole("button", { name: "Create workspace" }).isEnabled()) failures.push("public-mutation-network-failure: submit remained busy");
 } });
+const registrationMismatchRequests = new Map();
+await visit({ name: "public-registration-password-mismatch", url: publicUrl, mock: (page) => mockPublic(page, undefined, undefined, undefined, registrationMismatchRequests), ready: "#register-title", check: async (page) => {
+  await page.getByLabel("Your name").fill("Preserved Owner");
+  await page.getByLabel("Work email").fill("preserved@example.test");
+  await page.getByLabel("Business name").fill("Preserved Studio");
+  await page.getByLabel("Password", { exact: true }).fill("correct-horse-battery-staple");
+  await page.getByLabel("Confirm password", { exact: true }).fill("different-horse-battery-staple");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Create workspace" }).click();
+  await page.getByText("Passwords do not match. Enter the same password in both fields.", { exact: true }).waitFor();
+  if (registrationMismatchRequests.has("/public/auth/register")) failures.push("public-registration-password-mismatch: mismatched password reached the API");
+  if (await page.getByLabel("Your name").inputValue() !== "Preserved Owner") failures.push("public-registration-password-mismatch: account fields were erased");
+  if (!await page.getByRole("button", { name: "Create workspace" }).isEnabled()) failures.push("public-registration-password-mismatch: correction remained disabled");
+} });
 await visit({ name: "public-legal-version-change", url: publicUrl, mock: (page) => mockPublic(page, undefined, undefined, new Set(["/public/auth/register"])), ready: "#register-title", check: async (page) => {
   await page.getByLabel("Your name").fill("Preserved Owner");
   await page.getByLabel("Work email").fill("preserved@example.test");
   await page.getByLabel("Business name").fill("Preserved Studio");
-  await page.getByLabel("Password").fill("correct-horse-battery-staple");
+  await page.getByLabel("Password", { exact: true }).fill("correct-horse-battery-staple");
+  await page.getByLabel("Confirm password", { exact: true }).fill("correct-horse-battery-staple");
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Create workspace" }).click();
   await page.getByText("The service terms or privacy notice changed.", { exact: false }).waitFor();
@@ -322,7 +338,8 @@ await visit({ name: "public-registration-complete", url: publicUrl, mock: (page)
   await page.getByLabel("Your name").fill("Completed Owner");
   await page.getByLabel("Work email").fill("completed@example.test");
   await page.getByLabel("Business name").fill("Completed Studio");
-  await page.getByLabel("Password").fill("correct-horse-battery-staple");
+  await page.getByLabel("Password", { exact: true }).fill("correct-horse-battery-staple");
+  await page.getByLabel("Confirm password", { exact: true }).fill("correct-horse-battery-staple");
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Create workspace" }).click();
   await page.getByRole("heading", { name: "Check your email" }).waitFor();
@@ -337,7 +354,8 @@ await visit({ name: "public-registration-complete-mobile", url: publicUrl, viewp
   await page.getByLabel("Your name").fill("Mobile Owner");
   await page.getByLabel("Work email").fill("mobile@example.test");
   await page.getByLabel("Business name").fill("Mobile Studio");
-  await page.getByLabel("Password").fill("correct-horse-battery-staple");
+  await page.getByLabel("Password", { exact: true }).fill("correct-horse-battery-staple");
+  await page.getByLabel("Confirm password", { exact: true }).fill("correct-horse-battery-staple");
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Create workspace" }).click();
   await page.getByRole("heading", { name: "Check your email" }).waitFor();
@@ -384,9 +402,20 @@ await visit({ name: "public-invitation", url: `${publicUrl}/invitations/accept#t
   if (href !== "https://app.djaybot.com/invitations/accept#token=qa-token") failures.push(`public-invitation: unsafe existing-account continuation ${href}`);
   if (page.url() !== `${publicUrl}/invitations/accept`) failures.push("public-invitation: token remained in the address after hydration");
 } });
+const invitationMismatchRequests = new Map();
+await visit({ name: "public-invitation-password-mismatch", url: `${publicUrl}/invitations/accept#token=qa-token`, mock: (page) => mockPublic(page, undefined, undefined, undefined, invitationMismatchRequests), ready: "#invitation-title", check: async (page) => {
+  await page.getByLabel("Your name").fill("New Team Member");
+  await page.getByLabel("Password", { exact: true }).fill("correct-horse-battery-staple");
+  await page.getByLabel("Confirm password", { exact: true }).fill("different-horse-battery-staple");
+  await page.getByRole("button", { name: "Accept invitation" }).click();
+  await page.getByText("Passwords do not match. Enter the same password in both fields.", { exact: true }).waitFor();
+  if (invitationMismatchRequests.has("/public/invitations/accept")) failures.push("public-invitation-password-mismatch: mismatched password reached the API");
+  if (await page.evaluate(() => sessionStorage.getItem("djay.invitation.token")) !== "qa-token") failures.push("public-invitation-password-mismatch: invitation token was discarded");
+} });
 await visit({ name: "public-existing-account-invitation", url: `${publicUrl}/invitations/accept#token=qa-token`, mock: (page) => mockPublic(page, undefined, undefined, undefined, undefined, "sign_in_required"), ready: "#invitation-title", check: async (page) => {
   await page.getByLabel("Your name").fill("Existing User");
-  await page.getByLabel("Password").fill("existing-account-password");
+  await page.getByLabel("Password", { exact: true }).fill("existing-account-password");
+  await page.getByLabel("Confirm password", { exact: true }).fill("existing-account-password");
   await page.getByRole("button", { name: "Accept invitation" }).click();
   await page.getByText("This email already has an account. Continue to the secure sign-in journey to accept it.", { exact: true }).waitFor();
   const href = await page.getByRole("link", { name: "Continue to sign in" }).getAttribute("href");
@@ -398,8 +427,18 @@ if (![307, 308].includes(loginRedirect.status()) || !["https://app.djaybot.com",
 await redirectContext.close();
 
 await visit({ name: "tenant-recovery", url: `${tenantUrl}/recovery`, ready: "#recovery-title" });
+const recoveryMismatchRequests = new Map();
+await visit({ name: "tenant-recovery-password-mismatch", url: `${tenantUrl}/recovery/complete#token=qa-token`, mock: (page) => mockPublic(page, undefined, undefined, undefined, recoveryMismatchRequests), ready: "#recovery-complete-title", check: async (page) => {
+  await page.getByLabel("New password", { exact: true }).fill("replacement-password-accepted");
+  await page.getByLabel("Confirm new password", { exact: true }).fill("replacement-password-different");
+  await page.getByRole("button", { name: "Update password" }).click();
+  await page.getByText("Passwords do not match. Enter the same password in both fields.", { exact: true }).waitFor();
+  if (recoveryMismatchRequests.has("/public/auth/recovery/complete")) failures.push("tenant-recovery-password-mismatch: mismatched password reached the API");
+  if (await page.evaluate(() => sessionStorage.getItem("djay.recovery.token")) !== "qa-token") failures.push("tenant-recovery-password-mismatch: retry token was discarded");
+} });
 await visit({ name: "tenant-recovery-complete", url: `${tenantUrl}/recovery/complete#token=qa-token`, mock: mockPublic, ready: "#recovery-complete-title", check: async (page) => {
   await page.getByLabel("New password", { exact: true }).fill("replacement-password-accepted");
+  await page.getByLabel("Confirm new password", { exact: true }).fill("replacement-password-accepted");
   await page.getByRole("button", { name: "Update password" }).click();
   await page.getByText("Password updated. All previous sessions were signed out.", { exact: true }).waitFor();
   if (page.url() !== `${tenantUrl}/recovery/complete`) failures.push("tenant-recovery-complete: token remained after completion");

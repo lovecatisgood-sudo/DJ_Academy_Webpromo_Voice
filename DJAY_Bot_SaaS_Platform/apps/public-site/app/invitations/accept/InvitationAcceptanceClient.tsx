@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
-import { clearBrowserOneTimeValues, retainBrowserOneTimeValues, safeMutationFetch } from "@djay/shared";
+import { clearBrowserOneTimeValues, newPasswordConstraints, passwordConfirmationError, retainBrowserOneTimeValues, safeMutationFetch } from "@djay/shared";
 
 const invitationStorage = "djay.invitation";
 
@@ -31,9 +31,20 @@ export function InvitationAcceptanceClient({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const confirmationError = passwordConfirmationError(data.get("password"), data.get("passwordConfirmation"));
+    if (confirmationError) {
+      const confirmation = event.currentTarget.elements.namedItem("passwordConfirmation");
+      if (confirmation instanceof HTMLInputElement) {
+        confirmation.setCustomValidity(confirmationError);
+        confirmation.reportValidity();
+      }
+      setStatus("error");
+      setMessage(confirmationError);
+      return;
+    }
     setStatus("submitting");
     setMessage("");
-    const data = new FormData(event.currentTarget);
     try {
       const response = await safeMutationFetch("/public/invitations/accept", {
         method: "POST",
@@ -84,7 +95,9 @@ export function InvitationAcceptanceClient({
           <p className="verification-copy">Set your account details to accept this invitation.</p>
           <form onSubmit={submit}>
             <label>Your name<input className="field" name="name" autoComplete="name" minLength={2} required /></label>
-            <label>Password<input className="field" type="password" name="password" autoComplete="new-password" minLength={12} required /></label>
+            <label>Password<input className="field" type="password" name="password" autoComplete="new-password" aria-describedby="invitation-password-help" {...newPasswordConstraints} required /></label>
+            <label>Confirm password<input className="field" type="password" name="passwordConfirmation" autoComplete="new-password" aria-describedby="invitation-password-help" {...newPasswordConstraints} required onInput={(event) => event.currentTarget.setCustomValidity("")} /></label>
+            <p className="field-help" id="invitation-password-help">Use 12–128 characters. A long, unique passphrase is recommended.</p>
             <button type="submit" disabled={!token || status === "submitting"}>
               {status === "submitting" ? "Joining..." : "Accept invitation"}
             </button>

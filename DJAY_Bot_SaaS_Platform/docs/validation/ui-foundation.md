@@ -43,6 +43,9 @@ Finance roles. It verified:
 - fragment-only issuance for one-time account links, legacy query cleanup,
   route-specific `no-referrer`, same-tab retry state, terminal state removal,
   and an existing-account invitation journey that survives Tenant sign-in;
+- one accessible 12–128-character password/confirmation contract across
+  registration, new-user invitation, and recovery, with mismatch correction
+  preserving form and token state while sending zero mutations;
 - a branded registration completion and invalid-link recovery journey with one
   anti-enumerating, retryable verification resend control;
 - correct permission-derived tenant and Platform navigation;

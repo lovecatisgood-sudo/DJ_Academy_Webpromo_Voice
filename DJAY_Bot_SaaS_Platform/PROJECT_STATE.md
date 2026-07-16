@@ -139,6 +139,14 @@ now carry a team invitation through Tenant sign-in and accept it on a dedicated
 branded route instead of reopening the original email; the transactional gate
 proves an unauthenticated attempt requires sign-in and the matching authenticated
 identity receives only the invited tenant role.
+Registration, new-user invitation, and password recovery now share the exact
+12–128-character browser/server password boundary, a second accessible
+confirmation field, and one correction message. A mismatch never allocates a
+registration idempotency key or sends a mutation, preserves every entered field
+and one-time token, and leaves the action available after correction. Tenant and
+Platform current-password inputs enforce the same server maximum. Production
+Chromium proves the three mismatch paths, responsive layout, live error
+announcement, and zero mutation requests.
 
 ## P6 LINE, WhatsApp, and Messenger runtime checkpoint
 

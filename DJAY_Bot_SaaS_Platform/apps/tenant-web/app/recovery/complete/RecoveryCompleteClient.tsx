@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { clearBrowserOneTimeValues, retainBrowserOneTimeValues, safeMutationFetch } from "@djay/shared";
+import { clearBrowserOneTimeValues, newPasswordConstraints, passwordConfirmationError, retainBrowserOneTimeValues, safeMutationFetch } from "@djay/shared";
 
 const recoveryStorage = "djay.recovery";
 
@@ -19,8 +19,19 @@ export function RecoveryCompleteClient({ token: initialToken }: Readonly<{ token
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setStatus("working");
     const data = new FormData(event.currentTarget);
+    const confirmationError = passwordConfirmationError(data.get("newPassword"), data.get("passwordConfirmation"));
+    if (confirmationError) {
+      const confirmation = event.currentTarget.elements.namedItem("passwordConfirmation");
+      if (confirmation instanceof HTMLInputElement) {
+        confirmation.setCustomValidity(confirmationError);
+        confirmation.reportValidity();
+      }
+      setStatus("error");
+      setErrorMessage(confirmationError);
+      return;
+    }
+    setStatus("working");
     setErrorMessage("");
     const response = await safeMutationFetch("/public/auth/recovery/complete", {
       method: "POST",
@@ -48,7 +59,9 @@ export function RecoveryCompleteClient({ token: initialToken }: Readonly<{ token
   return (
     <>
       <form onSubmit={submit}>
-        <label>New password<input type="password" name="newPassword" autoComplete="new-password" minLength={12} required /></label>
+        <label>New password<input type="password" name="newPassword" autoComplete="new-password" aria-describedby="recovery-password-help" {...newPasswordConstraints} required /></label>
+        <label>Confirm new password<input type="password" name="passwordConfirmation" autoComplete="new-password" aria-describedby="recovery-password-help" {...newPasswordConstraints} required onInput={(event) => event.currentTarget.setCustomValidity("")} /></label>
+        <p className="field-help" id="recovery-password-help">Use 12–128 characters. A long, unique passphrase is recommended.</p>
         <button type="submit" disabled={status === "working" || !token}>{status === "working" ? "Updating..." : "Update password"}</button>
       </form>
       {status === "error" || !token ? <p className="message error" role="alert">{errorMessage || "This recovery link is invalid or expired."}</p> : null}

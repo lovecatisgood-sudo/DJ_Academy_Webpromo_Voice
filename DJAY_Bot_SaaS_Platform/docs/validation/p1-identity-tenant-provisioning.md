@@ -62,6 +62,15 @@ sign-in. PostgreSQL integration proves the unauthenticated invitation attempt
 returns `sign_in_required`, a different identity cannot be substituted, and the
 matching identity receives the invited role without creating another user.
 
+The credential-entry audit aligned registration, new-user invitation, and
+password recovery with the server's 12–128-character boundary and added an
+accessible confirmation field to all three. Production Chromium submits three
+different confirmations and proves the shared error is announced, fields and
+one-time state remain intact, the command becomes correctable, and the relevant
+API request count stays zero. Tenant and Platform current-password inputs also
+enforce the server maximum. A workspace lint gate prevents any of these forms
+from silently dropping the shared contract.
+
 Visual evidence:
 
 - `/tmp/djay-registration-complete-desktop.png`

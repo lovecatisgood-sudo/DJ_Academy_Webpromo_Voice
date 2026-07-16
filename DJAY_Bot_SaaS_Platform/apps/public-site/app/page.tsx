@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import { newPasswordConstraints, passwordConfirmationError, safeMutationFetch } from "@djay/shared";
 import { VerificationResendForm } from "./VerificationResendForm";
 
 const fieldClass = "field";
@@ -69,10 +69,21 @@ export default function RegistrationPage() {
       setMessage("Review and accept the current service terms and privacy notice before registering.");
       return;
     }
+    const data = new FormData(event.currentTarget);
+    const confirmationError = passwordConfirmationError(data.get("password"), data.get("passwordConfirmation"));
+    if (confirmationError) {
+      const confirmation = event.currentTarget.elements.namedItem("passwordConfirmation");
+      if (confirmation instanceof HTMLInputElement) {
+        confirmation.setCustomValidity(confirmationError);
+        confirmation.reportValidity();
+      }
+      setStatus("error");
+      setMessage(confirmationError);
+      return;
+    }
     setStatus("submitting");
     setMessage("");
     idempotencyKey.current ??= crypto.randomUUID();
-    const data = new FormData(event.currentTarget);
     try {
       const response = await safeMutationFetch("/public/auth/register", {
         method: "POST",
@@ -146,8 +157,13 @@ export default function RegistrationPage() {
             </label>
             <label>
               Password
-              <input className={fieldClass} type="password" name="password" autoComplete="new-password" minLength={12} required />
+              <input className={fieldClass} type="password" name="password" autoComplete="new-password" aria-describedby="registration-password-help" {...newPasswordConstraints} required />
             </label>
+            <label>
+              Confirm password
+              <input className={fieldClass} type="password" name="passwordConfirmation" autoComplete="new-password" aria-describedby="registration-password-help" {...newPasswordConstraints} required onInput={(event) => event.currentTarget.setCustomValidity("")} />
+            </label>
+            <p className="field-help" id="registration-password-help">Use 12–128 characters. A long, unique passphrase is recommended.</p>
             <fieldset className="plan-selection">
               <legend>Start with a product</legend>
               <div className="plan-options">
