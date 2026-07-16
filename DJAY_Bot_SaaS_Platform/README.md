@@ -60,7 +60,10 @@ tenant and Platform role. All four web realms also share an enforced browser
 security-header policy, and the resolved dependency graph has no known registry
 advisories. Every browser mutation is statically required to validate its
 origin, and Public, Tenant, Platform, API, widget, webhook, and internal-service
-realms cannot authorize one another's mutation paths. Read-only
+realms cannot authorize one another's mutation paths. Tenant and Platform
+sessions and MFA challenges also use one tested host-only cookie policy with
+secure issuance, matching secure deletion, and narrowly scoped challenge paths.
+Read-only
 roles no longer receive misleading mutation controls, and forbidden direct
 routes fail closed with a recovery path. Unexpected URLs and render failures in
 every web realm now use the same accessible branded recovery system with

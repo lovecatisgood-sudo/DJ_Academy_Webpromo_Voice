@@ -50,6 +50,17 @@ trees and fails when the check is absent. Add a new browser mutation realm to
 `expectedBrowserMutationOrigin` and its tests deliberately; do not broaden the
 shared allow-list.
 
+All authentication cookie writes go through `apps/api/lib/auth-cookies.ts`.
+Tenant sessions use host-only `HttpOnly`, production `Secure`, `SameSite=Lax`,
+and `Path=/`; Platform sessions use the same base protections with
+`SameSite=Strict`. Tenant and Platform MFA challenges are restricted to their
+respective challenge endpoints. Expiration repeats the exact path and security
+attributes used at issuance. `pnpm run lint:auth-cookies` rejects direct route
+cookie writes, while the focused API tests inspect the emitted `Set-Cookie`
+headers, TTL, absence of `Domain`, and explicit secure deletion. Change cookie
+names, paths, or cross-site behavior only through a reviewed identity ADR and a
+session migration plan.
+
 Public Site, Tenant Web, Platform Master, and API must each keep an app-level
 `not-found.tsx` and client `error.tsx`. Both use the shared structure in
 `packages/shared/recovery.css`: an unexpected URL explains that no state was

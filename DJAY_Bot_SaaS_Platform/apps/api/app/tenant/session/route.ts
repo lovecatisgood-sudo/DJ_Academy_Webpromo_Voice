@@ -1,9 +1,10 @@
 import type { NextRequest } from "next/server";
+import { authCookieNames } from "../../../lib/auth-cookies";
 import { getServices } from "../../../lib/container";
 import { safeJson } from "../../../lib/http";
 
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get("djay_tenant_session")?.value;
+  const token = request.cookies.get(authCookieNames.tenantSession)?.value;
   if (!token) return safeJson({ status: "unauthenticated" }, 401);
   const { session } = await getServices();
   const current = await session.current(token);

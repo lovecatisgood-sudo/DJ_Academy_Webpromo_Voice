@@ -1,6 +1,7 @@
 import { createPlatformContext, type PlatformContext } from "@djay/tenancy";
 import type { PlatformSession } from "@djay/platform-auth";
 import type { NextRequest } from "next/server";
+import { authCookieNames } from "./auth-cookies";
 import { getServices, type Services } from "./container";
 import { requestId } from "./http";
 
@@ -9,7 +10,7 @@ export async function resolvePlatformRequest(request: NextRequest): Promise<Read
   session: PlatformSession;
   context: PlatformContext;
 }> | null> {
-  const token = request.cookies.get("djay_platform_session")?.value;
+  const token = request.cookies.get(authCookieNames.platformSession)?.value;
   if (!token) return null;
   const services = await getServices();
   const session = await services.platformAuth.current(token);

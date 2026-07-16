@@ -18,6 +18,14 @@ workspace lint gate also scans all browser route files and currently proves that
 all 66 exported POST, PUT, PATCH, and DELETE handlers invoke
 `hasTrustedOrigin(request)`.
 
+The same 2026-07-16 hardening pass centralized every authentication cookie
+write. Seven focused serialization tests prove distinct Tenant/Platform names,
+host-only scope, `HttpOnly`, production `Secure`, Tenant `SameSite=Lax`,
+Platform `SameSite=Strict`, session `Path=/`, endpoint-only MFA challenge paths,
+bounded TTLs, and deletion with the matching issuance attributes. A workspace
+lint gate reports zero direct cookie writes in API route files, preventing a new
+handler from bypassing the reviewed policy.
+
 ## Implemented scope
 
 - Public registration, email verification, login, logout, recovery, resend, and

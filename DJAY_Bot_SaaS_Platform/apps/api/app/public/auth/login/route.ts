@@ -1,5 +1,6 @@
 import { loginInputSchema } from "@djay/auth";
 import { ZodError } from "zod";
+import { clearTenantChallengeCookie, setTenantChallengeCookie, setTenantSessionCookie } from "../../../../lib/auth-cookies";
 import { getServices } from "../../../../lib/container";
 import { clientAddress, enforceRateLimit, hasTrustedOrigin, readJson, requestId, safeJson } from "../../../../lib/http";
 
@@ -24,13 +25,7 @@ export async function POST(request: Request) {
     const result = await login(body);
     if (result.status === "mfa_required") {
       const response = safeJson({ status: result.status });
-      response.cookies.set("djay_tenant_mfa_challenge", result.challengeToken, {
-        httpOnly: true,
-        secure: env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: Math.max(1, Math.floor((result.challengeExpiresAt.getTime() - Date.now()) / 1000)),
-      });
+      setTenantChallengeCookie(response, result.challengeToken, result.challengeExpiresAt, env.NODE_ENV === "production");
       return response;
     }
     if (result.status !== "authenticated") return safeJson(result, 401);
@@ -39,14 +34,8 @@ export async function POST(request: Request) {
       selectedTenantId: result.selectedTenantId,
       workspaces: result.workspaces,
     });
-    response.cookies.set("djay_tenant_session", result.sessionToken, {
-      httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: Math.max(1, Math.floor((result.idleExpiresAt.getTime() - Date.now()) / 1000)),
-    });
-    response.cookies.delete("djay_tenant_mfa_challenge");
+    setTenantSessionCookie(response, result.sessionToken, result.idleExpiresAt, env.NODE_ENV === "production");
+    clearTenantChallengeCookie(response, env.NODE_ENV === "production");
     return response;
   } catch (error) {
     if (error instanceof ZodError || error instanceof SyntaxError) {

@@ -87,6 +87,9 @@ Table owners are not runtime roles. RLS is enabled and forced on every tenant ta
 - every Public, Tenant, and Platform mutation validates the exact application
   origin assigned to that route realm; API, widget, webhook, internal-service,
   missing, malformed, and sibling-realm origins fail closed;
+- Tenant and Platform session cookies are host-only, `HttpOnly`, production
+  `Secure`, and realm-specific `SameSite`; MFA challenges are restricted to
+  their verification paths and every deletion repeats the issuance attributes;
 - webhook signature verification precedes tenant/domain mutation;
 - external event IDs are unique per provider/binding;
 - OAuth/API credentials are encrypted and never returned after write;

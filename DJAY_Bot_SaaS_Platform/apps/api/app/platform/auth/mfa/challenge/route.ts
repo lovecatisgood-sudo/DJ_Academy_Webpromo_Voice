@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { z, ZodError } from "zod";
+import { authCookieNames, clearPlatformChallengeCookie, setPlatformSessionCookie } from "../../../../../lib/auth-cookies";
 import { getServices } from "../../../../../lib/container";
 import { clientAddress, enforceRateLimit, hasTrustedOrigin, readJson, requestId, safeJson } from "../../../../../lib/http";
 
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
   const limit = await enforceRateLimit("platform-mfa", clientAddress(request), 15, 15 * 60 * 1000);
   if (!limit.allowed) return safeJson({ status: "invalid_challenge" }, 401);
   try {
-    const challengeToken = request.cookies.get("djay_platform_challenge")?.value;
+    const challengeToken = request.cookies.get(authCookieNames.platformChallenge)?.value;
     if (!challengeToken) return safeJson({ status: "invalid_challenge" }, 401);
     const body = bodySchema.parse(await readJson(request));
     const services = await getServices();
@@ -21,14 +22,8 @@ export async function POST(request: NextRequest) {
     });
     if (result.status !== "authenticated") return safeJson(result, 401);
     const response = safeJson({ status: result.status });
-    response.cookies.delete("djay_platform_challenge");
-    response.cookies.set("djay_platform_session", result.sessionToken, {
-      httpOnly: true,
-      secure: services.env.NODE_ENV === "production",
-      sameSite: "strict",
-      path: "/",
-      maxAge: Math.max(1, Math.floor((result.idleExpiresAt.getTime() - Date.now()) / 1000)),
-    });
+    clearPlatformChallengeCookie(response, services.env.NODE_ENV === "production");
+    setPlatformSessionCookie(response, result.sessionToken, result.idleExpiresAt, services.env.NODE_ENV === "production");
     return response;
   } catch (error) {
     return error instanceof ZodError || error instanceof SyntaxError

@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { z, ZodError } from "zod";
+import { clearTenantSessionCookie } from "../../../../../lib/auth-cookies";
 import { hasTrustedOrigin, readJson, safeJson } from "../../../../../lib/http";
 import { resolveTenantRequest } from "../../../../../lib/tenant-context";
 
@@ -26,7 +27,7 @@ export async function POST(
       return safeJson({ status: result.status }, result.status === "reauthentication_required" ? 403 : 404);
     }
     const response = safeJson(result);
-    response.cookies.delete("djay_tenant_session");
+    clearTenantSessionCookie(response, resolved.services.env.NODE_ENV === "production");
     return response;
   } catch (error) {
     return error instanceof ZodError || error instanceof SyntaxError

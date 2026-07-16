@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { ZodError } from "zod";
+import { authCookieNames, clearTenantSessionCookie } from "../../../../lib/auth-cookies";
 import { getServices } from "../../../../lib/container";
 import { clientAddress, enforceRateLimit, hasTrustedOrigin, readJson, requestId, safeJson } from "../../../../lib/http";
 
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
   if (!limit.allowed) return safeJson({ status: "invalid_or_expired" }, 404);
   try {
     const services = await getServices();
-    const sessionToken = request.cookies.get("djay_tenant_session")?.value;
+    const sessionToken = request.cookies.get(authCookieNames.tenantSession)?.value;
     const current = sessionToken ? await services.session.current(sessionToken) : null;
     const raw = await readJson(request);
     const body = { ...(typeof raw === "object" && raw !== null ? raw : {}), requestId: id };
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
       tenantId: result.tenantId,
       requiresLogin: true,
     });
-    if (sessionToken) response.cookies.delete("djay_tenant_session");
+    if (sessionToken) clearTenantSessionCookie(response, services.env.NODE_ENV === "production");
     return response;
   } catch (error) {
     return error instanceof ZodError || error instanceof SyntaxError

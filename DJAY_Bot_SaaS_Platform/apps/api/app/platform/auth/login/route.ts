@@ -1,4 +1,5 @@
 import { ZodError } from "zod";
+import { setPlatformChallengeCookie } from "../../../../lib/auth-cookies";
 import { getServices } from "../../../../lib/container";
 import { clientAddress, enforceRateLimit, hasTrustedOrigin, readJson, requestId, safeJson } from "../../../../lib/http";
 
@@ -9,19 +10,14 @@ export async function POST(request: Request) {
   if (!limit.allowed) return safeJson({ status: "invalid_credentials" }, 401);
   try {
     const raw = await readJson(request);
-    const result = await (await getServices()).platformAuth.startLogin({
+    const services = await getServices();
+    const result = await services.platformAuth.startLogin({
       ...(typeof raw === "object" && raw !== null ? raw : {}),
       requestId: id,
     });
     if (result.status !== "mfa_required") return safeJson(result, 401);
     const response = safeJson({ status: result.status });
-    response.cookies.set("djay_platform_challenge", result.challengeToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      path: "/",
-      maxAge: Math.max(1, Math.floor((result.expiresAt.getTime() - Date.now()) / 1000)),
-    });
+    setPlatformChallengeCookie(response, result.challengeToken, result.expiresAt, services.env.NODE_ENV === "production");
     return response;
   } catch (error) {
     return error instanceof ZodError || error instanceof SyntaxError

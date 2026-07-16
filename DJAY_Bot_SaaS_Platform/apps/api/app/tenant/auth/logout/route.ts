@@ -1,16 +1,14 @@
 import type { NextRequest } from "next/server";
+import { authCookieNames, clearTenantSessionCookie } from "../../../../lib/auth-cookies";
 import { getServices } from "../../../../lib/container";
 import { hasTrustedOrigin, safeJson } from "../../../../lib/http";
 
 export async function POST(request: NextRequest) {
   if (!(await hasTrustedOrigin(request))) return safeJson({ ok: false }, 403);
-  const token = request.cookies.get("djay_tenant_session")?.value;
-  if (token) {
-    const { session } = await getServices();
-    await session.logout(token);
-  }
+  const token = request.cookies.get(authCookieNames.tenantSession)?.value;
+  const { session, env } = await getServices();
+  if (token) await session.logout(token);
   const response = safeJson({ ok: true });
-  response.cookies.set("djay_tenant_session", "", { httpOnly: true, maxAge: 0, path: "/", sameSite: "lax" });
+  clearTenantSessionCookie(response, env.NODE_ENV === "production");
   return response;
 }
-

@@ -1,6 +1,7 @@
 import { createTenantContext, type TenantContext } from "@djay/tenancy";
 import type { ResolvedSession } from "@djay/auth";
 import type { NextRequest } from "next/server";
+import { authCookieNames } from "./auth-cookies";
 import { getServices, type Services } from "./container";
 import { requestId } from "./http";
 
@@ -11,7 +12,7 @@ type ResolvedTenantRequest = Readonly<{
 }>;
 
 export async function resolveTenantRequest(request: NextRequest): Promise<ResolvedTenantRequest | null> {
-  const token = request.cookies.get("djay_tenant_session")?.value;
+  const token = request.cookies.get(authCookieNames.tenantSession)?.value;
   if (!token) return null;
   const services = await getServices();
   const session = await services.session.current(token);
