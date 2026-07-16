@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canTransitionMode, contactInputSchema, decideIdentityMatch, leadStatuses, legacyLeadStatusMap } from "./index";
+import { canTransitionMode, contactInputSchema, decideIdentityMatch, leadStatuses, legacyLeadStatusMap, messageInputSchema } from "./index";
 
 describe("shared domain contracts", () => {
   it("uses the accepted canonical lead stages", () => {
@@ -31,5 +31,11 @@ describe("shared domain contracts", () => {
     expect(canTransitionMode("flowbot", "human")).toBe(true);
     expect(canTransitionMode("human", "voice")).toBe(true);
     expect(canTransitionMode("closed", "ai_text")).toBe(false);
+  });
+
+  it("rejects visually blank messages and normalizes surrounding space", () => {
+    expect(messageInputSchema.safeParse({ actorType: "human", direction: "outbound", text: "   " }).success).toBe(false);
+    expect(messageInputSchema.parse({ actorType: "human", direction: "outbound", text: "  We can help.  " }).text)
+      .toBe("We can help.");
   });
 });

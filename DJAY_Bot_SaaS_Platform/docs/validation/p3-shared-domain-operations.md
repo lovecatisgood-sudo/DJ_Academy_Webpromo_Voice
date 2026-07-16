@@ -27,6 +27,8 @@ The dependency audit reported no known vulnerabilities.
 - A possible duplicate inside one tenant returns `review_required`.
 - Concurrent message writers receive unique ordered sequences; external replay
   returns the original message.
+- Direct repository use rejects whitespace-only message text, and accepted text
+  is trimmed before the immutable message row is inserted.
 - Conversation creation fails without a matching active entitlement snapshot.
 - Typed actions are idempotent and cross-tenant snapshot substitution is denied.
 - Appointment actions create `requested`, never falsely confirmed, records.
@@ -69,6 +71,15 @@ accepting it sends exactly one scoped request and resets the form to safe export
 defaults. Retention success now appears in the retention section instead of
 under the unrelated privacy-request form.
 
+The Inbox reply hardening gate proves a whitespace-only operator reply remains
+focused and correctable, announces why it is invalid, and sends zero requests.
+One corrected reply sends exactly one normalized message, clears the composer,
+and announces success through a polite status region. A simulated unavailable
+response preserves the exact retryable text and re-enables the send action.
+Shared/domain unit tests
+and the repository integration gate enforce the same 1–20,000-character
+normalized text boundary outside the browser.
+
 ## Hardening impact and non-goals
 
 - Schema impact: migration `0042_privacy_job_scope` invalidates legacy actionable
@@ -87,6 +98,23 @@ under the unrelated privacy-request form.
 - Rollback: application code may be rolled back while retaining migration `0042`;
   removing its constraints would reopen the unsafe unscoped-erasure path and is
   not an accepted rollback.
+
+## Inbox reply impact and non-goals
+
+- Schema and API impact: the existing message request shape is unchanged;
+  surrounding whitespace is now normalized and visually blank text returns the
+  existing `400 validation_failed` response. No database migration is required.
+- Event and observability impact: no event or queue contract changed. Accepted
+  messages retain the existing ordered immutable record; rejected local input
+  allocates no sequence and makes no request, while transport failures remain
+  visible in the composer for retry.
+- Security and provider confidentiality: authorization, handover, tenant context,
+  forced RLS, and same-tenant conversation lookup are unchanged. Validation and
+  error copy contain no provider, model, routing, credential, or customer text.
+- Non-goals: this checkpoint does not add rich text, attachments, drafts across
+  page reloads, message editing, or automatic retry of a non-idempotent send.
+- Rollback: application artifacts may be rolled back without schema reversal;
+  doing so would re-admit blank immutable messages and is not recommended.
 
 ## Residual program blockers
 

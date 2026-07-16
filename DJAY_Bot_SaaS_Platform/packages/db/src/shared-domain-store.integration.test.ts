@@ -83,19 +83,24 @@ describe.runIf(enabled)("P3 shared domain repositories", () => {
       actorType: "human", direction: "outbound", text: "Premature reply",
     })).resolves.toEqual({ status: "handover_required" });
     await expect(store.takeOverConversation(contextA, conversation.conversationId)).resolves.toEqual({ status: "accepted", replayed: false });
+    await expect(store.appendMessage(contextA, conversation.conversationId, {
+      actorType: "human", direction: "outbound", text: "   ",
+    })).rejects.toThrow();
     const [first, second] = await Promise.all([
       store.appendMessage(contextA, conversation.conversationId, {
         actorType: "customer", direction: "inbound", text: "I need help", externalMessageId: "external-message-1",
       }),
       store.appendMessage(contextA, conversation.conversationId, {
-        actorType: "human", direction: "outbound", text: "We can help with that",
+        actorType: "human", direction: "outbound", text: "  We can help with that  ",
       }),
     ]);
     expect([first, second].map((item) => "sequence" in item ? item.sequence : 0).sort()).toEqual([1, 2]);
     await expect(store.appendMessage(contextA, conversation.conversationId, {
       actorType: "customer", direction: "inbound", text: "duplicate body ignored", externalMessageId: "external-message-1",
     })).resolves.toMatchObject({ status: "replayed" });
-    expect(await store.listMessages(contextA, conversation.conversationId)).toHaveLength(2);
+    const conversationMessages = await store.listMessages(contextA, conversation.conversationId);
+    expect(conversationMessages).toHaveLength(2);
+    expect(conversationMessages.some((message) => message.text === "We can help with that")).toBe(true);
     expect(await store.listMessages(contextB, conversation.conversationId)).toHaveLength(0);
     expect(await store.listInbox(contextA)).toHaveLength(1);
     expect(await store.listInbox(contextB)).toHaveLength(0);

@@ -69,6 +69,9 @@ proves that:
 - Contact creation rejects a missing identity, short phone, or whitespace-only
   name on the exact field with assertive feedback and zero mutations; accepted
   values are trimmed and success is announced politely;
+- Inbox reply text shares one browser/domain/repository limit, rejects a
+  whitespace-only immutable message with zero mutations, and sends one trimmed
+  corrected reply before clearing the composer and announcing success;
 - first and additional Voice deployment creation use identical bounded fields;
   Studio rejects a greeting outside the immutable 500-character playbook limit
   before transport and switches to the Voice tab for correction;

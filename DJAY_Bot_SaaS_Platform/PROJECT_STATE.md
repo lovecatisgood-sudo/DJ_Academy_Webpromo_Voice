@@ -78,6 +78,11 @@ worker, and browser. Erasure requires one active same-tenant contact, exact
 idempotent replay returns the original job, and changed scope under the same key
 fails with a conflict. The confirmation names the affected contact and retention
 feedback is rendered only in the retention section.
+P3 Inbox replies now share one normalized message-text contract across the
+browser, API/domain schema, and tenant repository. Whitespace-only replies stay
+focused and produce no request or immutable sequence; accepted text is trimmed,
+sent once, cleared after success, and announced separately from retryable
+transport failures.
 
 ## P4 release checkpoint
 

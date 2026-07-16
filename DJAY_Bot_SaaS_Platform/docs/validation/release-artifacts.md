@@ -22,13 +22,13 @@ document, and fetched every referenced static asset. Accepted static evidence
 was:
 
 - API: 132 files,
-  `8602f6f25c0fbda92eecca0e2c6844d751dd6b196cdea4145a7372faa5495e83`
+  `033b4ad5853dd41fc3bfe393420bbc8923af52a664c95d8419f4fedd7ef5f088`
 - Platform Master: 24 files,
-  `8a9d4d9193486bd746ddf8e3195758814548158e09bc6cd8b85f97af4068635c`
+  `f8354dff64891425f008d63c26a17ddcad6ce608dd24deba4f1361c44ec7fb8c`
 - Public site: 31 files,
-  `5afe84a1dd519bd774a49a54436f39e86b1cc6f289e1ba1a997a11c606db92b2`
+  `86e3523c6bcc4c4a30e0bf609beba8faae9d26e0d0f54d9b57f5e7739c6706b6`
 - Tenant workspace: 43 files,
-  `2f493d0c3d25c20323625cc4d4dad516df8bc1209faf808e2cbce53403048156`
+  `b03c8d7b17cac462b1540f8e6c68065bf9595ab5604e4bb85f67a8024e408c6a`
 
 The release audit found that all three Tenant install snippets referenced
 versioned CDN modules, but the release package did not archive those modules.
@@ -85,6 +85,10 @@ contact-scoped erasure. Missing erasure scope focuses the Contact field and
 sends no request; the destructive confirmation names the contact, acceptance
 sends one scoped request, and the form returns to safe export defaults.
 Retention success is announced only inside the retention section.
+The packaged Inbox composer rejects whitespace-only text locally, retains focus
+and sends no request. One corrected reply sends exactly one trimmed message,
+clears only after acceptance, and announces success through a polite status;
+transport failures preserve the operator's text for manual retry.
 The two Voice deployment creation journeys now render one shared form contract,
 including exact origin, disclosure, and bilingual greeting limits. Studio uses
 the same limits before transport; a greeting over the immutable Sales Core
@@ -118,7 +122,7 @@ tests did not exercise the emitted bundle. The build now supplies an ESM
 `createRequire` bridge; the isolated bundle starts, reports liveness, and fails
 readiness closed with provider-neutral `503 not_ready` when media authority is
 absent. Its accepted bundle digest is
-`04d08864e6a476e3af5b8ea0b2fe445cbfbdfa2d846b944e3d39a5e1a6ce6e92`.
+`e7b3c4323e84a59aa74b61d549f6c44107842422b9109e65d205c58b069984ce`.
 The artifact is also started with a copied example production authority token;
 it must exit before listening, name only the affected field, and never echo the
 token value.
@@ -129,7 +133,7 @@ before execution, proving it does not resolve those packages from workspace
 `node_modules`. With database authority deliberately absent, startup fails
 closed, names only `WORKER_DATABASE_URL`, and exposes no connection URL. The
 accepted 56-file digest is
-`c47feb9b4a8ad4a63c9d1222e4abee10170e96200635bee28703338766ecf888`.
+`53590e9e25bcd062b054381fb697356c85fb7c6d40b75bc21ab8805b7ebeeb2f`.
 
 These hashes describe the local generated build and are not target-deployment
 evidence. The immutable deployment system must archive its own package hashes,

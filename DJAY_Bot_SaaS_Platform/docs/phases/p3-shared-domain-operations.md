@@ -13,6 +13,10 @@
 - Product-neutral conversations pinned to the entitlement snapshot that
   authorized creation, strictly ordered immutable messages, external-message
   replay protection, handover events, notes, and transitions.
+- Canonical message text is trimmed and must contain at least one visible
+  character. The Tenant Inbox validates that same contract before transport,
+  preserves a failed reply for retry, and announces success separately from
+  correction or transport failures.
 - Tenant Inbox, Contacts, Leads, Knowledge, and Data Controls workspaces.
 - Revision-backed knowledge sources and chunks ready for product-specific
   ingestion adapters.
@@ -41,6 +45,8 @@
 - Messages remain immutable. The worker role has no direct update grant; only the
   audited erasure function can activate the narrowly checked redaction path.
 - Closed conversations reject new messages.
+- Visually blank messages are rejected by the shared schema, API, and
+  tenant-scoped repository before an immutable sequence can be allocated.
 - Entitlement authority is server resolved; browser plan values never authorize
   a conversation or action.
 - Tenant and public applications expose no provider/model configuration.

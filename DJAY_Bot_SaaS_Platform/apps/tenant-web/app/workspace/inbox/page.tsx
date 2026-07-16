@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import {
+  conversationMessageFieldConstraints,
+  conversationMessageTextError,
+  normalizeConversationMessageText,
+  safeMutationFetch,
+} from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
@@ -19,7 +24,7 @@ type Message = { id: string; sequence: number; actorType: string; direction: str
 export default function InboxPage() {
   const session = useWorkspaceSession(); const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null); const [messages, setMessages] = useState<Message[]>([]);
-  const [notice, setNotice] = useState(""); const [working, setWorking] = useState(false);
+  const [notice, setNotice] = useState(""); const [noticeTone, setNoticeTone] = useState<"success" | "error">("success"); const [working, setWorking] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [messageLoadError, setMessageLoadError] = useState(false);
   const selected = conversations.find((conversation) => conversation.id === selectedId) || null;
@@ -37,22 +42,30 @@ export default function InboxPage() {
   async function loadMessages(conversationId: string) {
     try {
       const response = await fetch(`/tenant/conversations/${conversationId}/messages`, { cache: "no-store" });
-      if (!response.ok) throw new Error("messages_unavailable"); setMessages((await response.json()).messages || []); setMessageLoadError(false); setNotice("");
+      if (!response.ok) throw new Error("messages_unavailable"); setMessages((await response.json()).messages || []); setMessageLoadError(false);
     } catch { setMessages([]); setMessageLoadError(true); }
   }
   useEffect(() => { if (session.selectedTenantId) void loadInbox(); }, [session.selectedTenantId]);
-  useEffect(() => { if (selectedId) void loadMessages(selectedId); else setMessages([]); }, [selectedId]);
+  useEffect(() => { setNotice(""); if (selectedId) void loadMessages(selectedId); else setMessages([]); }, [selectedId]);
 
   async function reply(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!selectedId || !canReply) return; setWorking(true); setNotice(""); const form = event.currentTarget; const data = new FormData(form);
-    const response = await safeMutationFetch(`/tenant/conversations/${selectedId}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actorType: "human", direction: "outbound", text: data.get("text") }) });
-    setWorking(false); if (!response.ok) { setNotice("Reply could not be sent."); return; }
-    form.reset(); await Promise.all([loadMessages(selectedId), loadInbox()]);
+    event.preventDefault(); if (!selectedId || !canReply) return; const form = event.currentTarget; const data = new FormData(form);
+    const validationError = conversationMessageTextError(data.get("text"));
+    if (validationError) {
+      const field = form.elements.namedItem("text");
+      if (field instanceof HTMLTextAreaElement) { field.setCustomValidity(validationError); field.reportValidity(); }
+      setNoticeTone("error"); setNotice(validationError); return;
+    }
+    setWorking(true); setNotice("");
+    const response = await safeMutationFetch(`/tenant/conversations/${selectedId}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actorType: "human", direction: "outbound", text: normalizeConversationMessageText(data.get("text")) }) });
+    setWorking(false); if (!response.ok) { setNoticeTone("error"); setNotice(response.status === 409 ? "Take over this conversation before replying." : "Reply could not be sent. Your text is still available to retry."); return; }
+    form.reset(); setNoticeTone("success"); setNotice("Reply sent."); await Promise.all([loadMessages(selectedId), loadInbox()]);
   }
   async function transition(action: "takeover" | "release") {
     if (!selectedId || !canAssign) return; setWorking(true); setNotice("");
     const response = await safeMutationFetch(`/tenant/conversations/${selectedId}/${action}`, { method: "POST" });
-    setWorking(false); if (!response.ok) { setNotice(action === "takeover" ? "Conversation could not be taken over." : "Conversation could not be released."); return; }
+    setWorking(false); if (!response.ok) { setNoticeTone("error"); setNotice(action === "takeover" ? "Conversation could not be taken over." : "Conversation could not be released."); return; }
+    setNoticeTone("success"); setNotice(action === "takeover" ? "Conversation taken over. You can now reply." : "Conversation returned to automation.");
     await Promise.all([loadInbox(), loadMessages(selectedId)]);
   }
 
@@ -83,8 +96,8 @@ export default function InboxPage() {
             </section> : null}
             <div className="message-stream">{messages.map((message) => <div className={`message-bubble ${message.direction}`} key={message.id}><span>{message.actorType}</span><p>{message.text}</p><time>{new Date(message.createdAt).toLocaleString()}</time></div>)}</div>
             {messageLoadError ? <div className="inline-message inline-retry" role="alert"><span>Messages could not be loaded.</span><button className="secondary-command" type="button" onClick={() => void loadMessages(selected.id)}>Retry messages</button></div> : null}
-            {selected.status === "closed" ? <div className="closed-line">This conversation is closed.</div> : selected.automationMode !== "human" ? <div className="closed-line">{canAssign ? "Take over before replying." : "This conversation is currently automated."}</div> : canReply ? <form className="reply-form" onSubmit={reply}><label><span className="visually-hidden">Reply</span><textarea name="text" rows={3} maxLength={20000} placeholder="Write a reply" required /></label><button type="submit" disabled={working}>{working ? "Sending..." : "Send reply"}</button></form> : <div className="closed-line">View-only access does not include sending replies.</div>}
-            {notice ? <p className="inline-message" role="alert">{notice}</p> : null}
+            {selected.status === "closed" ? <div className="closed-line">This conversation is closed.</div> : selected.automationMode !== "human" ? <div className="closed-line">{canAssign ? "Take over before replying." : "This conversation is currently automated."}</div> : canReply ? <form className="reply-form" onSubmit={reply} noValidate><label><span className="visually-hidden">Reply</span><textarea name="text" rows={3} {...conversationMessageFieldConstraints} placeholder="Write a reply" required aria-describedby="inbox-reply-guidance" onInput={(event) => { event.currentTarget.setCustomValidity(""); if (noticeTone === "error") setNotice(""); }} /></label><span className="visually-hidden" id="inbox-reply-guidance">Replies cannot be blank and may contain up to 20,000 characters.</span><button type="submit" disabled={working}>{working ? "Sending..." : "Send reply"}</button></form> : <div className="closed-line">View-only access does not include sending replies.</div>}
+            {notice ? <p className={`inline-message ${noticeTone}`} role={noticeTone === "error" ? "alert" : "status"}>{notice}</p> : null}
           </> : <div className="inbox-empty"><strong>Select a conversation</strong><span>Messages are ordered and tenant scoped.</span></div>}
         </section>
       </div>

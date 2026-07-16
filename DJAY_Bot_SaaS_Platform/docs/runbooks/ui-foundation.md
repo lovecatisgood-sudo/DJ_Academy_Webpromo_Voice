@@ -163,6 +163,15 @@ failures. A successful contact mutation uses a polite status and transports
 trimmed values. The server schema imports the same numeric limits; changing one
 side without the other is not accepted.
 
+Inbox replies must use `conversationMessageTextError`,
+`normalizeConversationMessageText`, and `conversationMessageFieldConstraints`.
+Native `required` is not sufficient because spaces satisfy it. A visually blank
+reply stays in the composer, reports validity on the textarea, announces an
+assertive correction, and sends no request. Accepted text is trimmed, transported
+once, clears only after success, and uses a polite status. A failed transport
+must preserve the text for manual retry; never retry an outbound message
+automatically.
+
 Both Voice deployment creation locations must render `VoiceDeploymentForm`;
 never copy its fields back into `page.tsx`. Creation routes and Studio updates
 must use `voiceDeploymentFieldLimits`. The 500-character bilingual greeting

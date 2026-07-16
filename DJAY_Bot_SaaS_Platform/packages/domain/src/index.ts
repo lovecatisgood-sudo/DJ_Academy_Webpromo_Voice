@@ -1,4 +1,4 @@
-import { contactFieldLimits, productKeySchema, publicPlanKeySchema } from "@djay/shared";
+import { contactFieldLimits, conversationMessageTextSchema, productKeySchema, publicPlanKeySchema } from "@djay/shared";
 import { z } from "zod";
 
 export const leadStatuses = [
@@ -50,7 +50,7 @@ export const conversationInputSchema = z.object({
 export const messageInputSchema = z.object({
   actorType: messageActorTypeSchema,
   direction: z.enum(["inbound", "outbound", "internal"]),
-  text: z.string().min(1).max(20_000),
+  text: conversationMessageTextSchema,
   externalMessageId: z.string().max(300).optional(),
 }).strict();
 

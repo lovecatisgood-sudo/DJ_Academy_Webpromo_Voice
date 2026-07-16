@@ -89,6 +89,10 @@ browser/API/repository/database contract, names that contact before submission,
 and treats a reused idempotency key with changed scope as a conflict rather than
 silently replacing the original request. Retention feedback remains in its own
 section so unrelated privacy operations cannot appear to have succeeded.
+Inbox replies likewise use one normalized browser/domain/repository contract:
+space-only text remains correctable and sends no request, while one accepted
+reply is trimmed, persisted once, cleared only after success, and announced
+through the appropriate status channel.
 Read-only roles no longer
 receive misleading mutation controls, and forbidden direct
 routes fail closed with a recovery path. Unexpected URLs and render failures in

@@ -49,6 +49,10 @@ The separate multi-tenant implementation is under:
   browser, API, repository, and PostgreSQL constraints; changed-scope
   idempotency replay fails closed and the confirmation names the affected
   contact.
+- Inbox replies now reject whitespace-only outbound text before transport or
+  immutable sequence allocation. The browser, API/domain schema, and
+  tenant-scoped repository share the same normalized boundary; successful text
+  is trimmed and announced only after acceptance.
 - External gates remain explicit: three named FlowBot pilots; an approved live AI
   text routing profile and live bilingual/adversarial evaluation; named merchant
   acceptance; commercial decisions; and paid-GA authorization.

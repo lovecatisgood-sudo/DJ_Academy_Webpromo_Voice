@@ -4,9 +4,8 @@ import type {
   contactInputSchema,
   conversationInputSchema,
   leadInputSchema,
-  messageInputSchema,
 } from "@djay/domain";
-import { canTransitionMode } from "@djay/domain";
+import { canTransitionMode, messageInputSchema } from "@djay/domain";
 import { chunkKnowledge } from "@djay/sales-core";
 import { privacyJobRequestSchema, type PrivacyJobRequest } from "@djay/shared";
 import type { TenantContext } from "@djay/tenancy";
@@ -284,12 +283,13 @@ export class SharedDomainStore {
   }
 
   async appendMessage(context: TenantContext, conversationId: string, input: MessageInput) {
+    const parsed = messageInputSchema.parse(input);
     return withTenantTransaction(this.client, context, async ({ sql }) => {
-      if (input.externalMessageId) {
+      if (parsed.externalMessageId) {
         const replay = await sql<{ id: string; sequence: number }[]>`
           SELECT id, sequence FROM tenancy.messages
           WHERE tenant_id = ${context.tenantId}::uuid AND conversation_id = ${conversationId}::uuid
-            AND external_message_id = ${input.externalMessageId}
+            AND external_message_id = ${parsed.externalMessageId}
         `;
         if (replay[0]) return { status: "replayed" as const, messageId: replay[0].id, sequence: replay[0].sequence };
       }
@@ -300,7 +300,7 @@ export class SharedDomainStore {
       `;
       const conversation = conversations[0];
       if (!conversation) return { status: "not_found" as const };
-      if (input.actorType === "human" && input.direction === "outbound" && conversation.automation_mode !== "human") {
+      if (parsed.actorType === "human" && parsed.direction === "outbound" && conversation.automation_mode !== "human") {
         return { status: "handover_required" as const };
       }
       const messageId = randomUUID();
@@ -310,8 +310,8 @@ export class SharedDomainStore {
           content_json, external_message_id
         ) VALUES (
           ${messageId}::uuid, ${context.tenantId}::uuid, ${conversationId}::uuid,
-          ${conversation.next_sequence}, ${input.actorType}, ${input.direction},
-          ${sql.json({ text: input.text })}, ${input.externalMessageId ?? null}
+          ${conversation.next_sequence}, ${parsed.actorType}, ${parsed.direction},
+          ${sql.json({ text: parsed.text })}, ${parsed.externalMessageId ?? null}
         )
       `;
       await sql`

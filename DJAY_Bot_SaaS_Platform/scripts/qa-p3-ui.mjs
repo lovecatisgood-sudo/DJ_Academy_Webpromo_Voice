@@ -20,7 +20,7 @@ function json(route, value, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(value) });
 }
 
-async function mockTenant(page, privacyEvidence) {
+async function mockTenant(page, mutationEvidence) {
   await page.route("**/tenant/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/tenant/session") return json(route, { user: { id: "user", displayName: "Browser Owner" }, workspaces: [workspace], selectedTenantId: workspace.tenantId, mfaVerifiedAt: new Date().toISOString() });
@@ -28,15 +28,22 @@ async function mockTenant(page, privacyEvidence) {
     if (path === "/tenant/contacts") return json(route, route.request().method() === "GET" ? { contacts: [contact] } : { status: "created", contactId: crypto.randomUUID() }, route.request().method() === "GET" ? 200 : 201);
     if (path === "/tenant/leads") return json(route, route.request().method() === "GET" ? { leads: [lead] } : { status: "created", leadId: crypto.randomUUID() }, route.request().method() === "GET" ? 200 : 201);
     if (path === "/tenant/conversations") return json(route, { conversations: [voiceConversation, conversation] });
-    if (path.endsWith("/messages")) return json(route, route.request().method() === "GET" ? { messages } : { status: "created", messageId: crypto.randomUUID(), sequence: 3 }, route.request().method() === "GET" ? 200 : 201);
+    if (path.endsWith("/messages")) {
+      if (route.request().method() !== "GET" && mutationEvidence) {
+        mutationEvidence.messageMutations = (mutationEvidence.messageMutations || 0) + 1;
+        mutationEvidence.messageBodies = [...(mutationEvidence.messageBodies || []), route.request().postDataJSON()];
+        if (mutationEvidence.failMessageMutation) return json(route, { status: "temporarily_unavailable" }, 503);
+      }
+      return json(route, route.request().method() === "GET" ? { messages } : { status: "created", messageId: crypto.randomUUID(), sequence: 3 }, route.request().method() === "GET" ? 200 : 201);
+    }
     if (path === "/tenant/knowledge") return json(route, route.request().method() === "GET" ? { sources: [{ id: "80000000-0000-4000-8000-000000000001", name: "Approved service guide", sourceKind: "text", status: "active", version: 2, revisionCreatedAt: new Date().toISOString() }] } : { status: "created" }, route.request().method() === "GET" ? 200 : 201);
     if (path === "/tenant/privacy-jobs") {
       if (route.request().method() === "GET") return json(route, { jobs: [{ id: "90000000-0000-4000-8000-000000000001", contactId: contact.id, contactName: contact.displayName, jobType: "export", status: "completed", requestedAt: new Date().toISOString(), completedAt: new Date().toISOString() }] });
-      if (privacyEvidence) { privacyEvidence.mutations += 1; privacyEvidence.bodies.push(route.request().postDataJSON()); }
+      if (mutationEvidence) { mutationEvidence.mutations += 1; mutationEvidence.bodies.push(route.request().postDataJSON()); }
       return json(route, { status: "accepted" }, 202);
     }
     if (path === "/tenant/retention-policy") {
-      if (route.request().method() !== "GET" && privacyEvidence) privacyEvidence.retentionMutations += 1;
+      if (route.request().method() !== "GET" && mutationEvidence) mutationEvidence.retentionMutations += 1;
       return json(route, route.request().method() === "GET" ? { policy: { transcriptDays: 90, recordingDays: 0, voicePlanMaximumDays: 365, updatedAt: new Date().toISOString() } } : { status: "updated", transcriptDays: 90, recordingDays: 0, maximumDays: 365 });
     }
     return json(route, { status: "not_found" }, 404);
@@ -70,7 +77,11 @@ async function inspect(url, name, viewport, mock, check) {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   page.on("pageerror", (error) => failures.push(`${name}: page error: ${error.message}`));
-  page.on("console", (entry) => { if (entry.type() === "error") failures.push(`${name}: console error: ${entry.text()}`); });
+  page.on("console", (entry) => {
+    const expectedRetryFailure = name === "inbox-reply-retry"
+      && entry.text().startsWith("Failed to load resource: the server responded with a status of 503");
+    if (entry.type() === "error" && !expectedRetryFailure) failures.push(`${name}: console error: ${entry.text()}`);
+  });
   await mock(page);
   const response = await page.goto(url, { waitUntil: "networkidle" });
   if (!response?.ok()) failures.push(`${name}: navigation returned ${response?.status()}`);
@@ -105,7 +116,9 @@ await inspect(`${tenantUrl}/workspace/data`, "data-privacy-scope", desktop, (pag
   await page.getByRole("button", { name: "Submit request" }).click();
   await page.getByRole("alert").getByText("Select the specific contact", { exact: false }).waitFor();
   if (privacyEvidence.mutations !== 0) failures.push("data-privacy-scope: unscoped erasure reached the API");
-  if (!await page.getByLabel("Contact").evaluate((element) => element === document.activeElement)) failures.push("data-privacy-scope: missing contact scope did not receive focus");
+  try {
+    await page.waitForFunction(() => document.activeElement?.id === "privacy-contact");
+  } catch { failures.push("data-privacy-scope: missing contact scope did not receive focus"); }
   await page.getByLabel("Contact").selectOption(contact.id);
   let dismissedMessage = "";
   page.once("dialog", async (dialog) => { dismissedMessage = dialog.message(); await dialog.dismiss(); });
@@ -120,6 +133,31 @@ await inspect(`${tenantUrl}/workspace/data`, "data-privacy-scope", desktop, (pag
   const retentionSection = page.locator(".tool-band").filter({ hasText: "Transcript retention" });
   await retentionSection.getByRole("status").getByText("Retention policy saved", { exact: false }).waitFor();
   if (privacyEvidence.retentionMutations !== 1) failures.push("data-privacy-scope: retention update did not send exactly one request");
+});
+const replyEvidence = { messageMutations: 0, messageBodies: [] };
+await inspect(`${tenantUrl}/workspace/inbox`, "inbox-reply-boundary", desktop, (page) => mockTenant(page, replyEvidence), async (page) => {
+  await page.getByRole("button", { name: new RegExp(contact.displayName) }).click();
+  const reply = page.getByLabel("Reply");
+  await reply.fill("   ");
+  await page.getByRole("button", { name: "Send reply" }).click();
+  await page.getByRole("alert").getByText("Write a reply with at least one visible character.", { exact: true }).waitFor();
+  if (replyEvidence.messageMutations !== 0) failures.push("inbox-reply-boundary: whitespace-only reply reached the API");
+  if (!await reply.evaluate((element) => element === document.activeElement)) failures.push("inbox-reply-boundary: invalid reply did not retain field focus");
+  await reply.fill("  We can help with that.  ");
+  await page.getByRole("button", { name: "Send reply" }).click();
+  await page.getByRole("status").getByText("Reply sent.", { exact: true }).waitFor();
+  if (replyEvidence.messageMutations !== 1 || replyEvidence.messageBodies[0]?.text !== "We can help with that.") failures.push("inbox-reply-boundary: corrected reply did not send one normalized message");
+  if (await reply.inputValue() !== "") failures.push("inbox-reply-boundary: accepted reply did not clear the composer");
+});
+const replyFailureEvidence = { messageMutations: 0, messageBodies: [], failMessageMutation: true };
+await inspect(`${tenantUrl}/workspace/inbox`, "inbox-reply-retry", desktop, (page) => mockTenant(page, replyFailureEvidence), async (page) => {
+  await page.getByRole("button", { name: new RegExp(contact.displayName) }).click();
+  const reply = page.getByLabel("Reply");
+  await reply.fill("Please retry this message.");
+  await page.getByRole("button", { name: "Send reply" }).click();
+  await page.getByRole("alert").getByText("Reply could not be sent. Your text is still available to retry.", { exact: true }).waitFor();
+  if (replyFailureEvidence.messageMutations !== 1 || await reply.inputValue() !== "Please retry this message.") failures.push("inbox-reply-retry: failed reply did not preserve one exact retryable draft");
+  if (!await page.getByRole("button", { name: "Send reply" }).isEnabled()) failures.push("inbox-reply-retry: failed reply left the composer busy");
 });
 await inspect(platformUrl, "platform-desktop", desktop, mockPlatform);
 await inspect(platformUrl, "platform-mobile", mobile, mockPlatform);

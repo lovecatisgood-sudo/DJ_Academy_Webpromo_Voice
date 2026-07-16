@@ -52,6 +52,9 @@ Finance roles. It verified:
 - Contact creation requires at least one email or phone and shares normalized
   name/phone limits with the domain schema; three field-specific failures send
   zero mutations while one valid form sends one trimmed request;
+- Inbox rejects whitespace-only replies on the focused composer with zero
+  mutations; one corrected reply sends one trimmed message, clears after
+  acceptance, and announces success politely;
 - first/additional Voice deployment forms share one component and the API,
   Studio, and immutable playbook share the actual 500-character greeting
   maximum; invalid Studio fields remain local and open the relevant tab;
