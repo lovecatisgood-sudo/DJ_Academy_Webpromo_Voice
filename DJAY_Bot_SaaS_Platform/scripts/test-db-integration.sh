@@ -80,6 +80,7 @@ run_sql /workspace/packages/db/migrations/0034_voice_advanced_routing.sql
 run_sql /workspace/packages/db/migrations/0035_voice_advanced_deployments.sql
 run_sql /workspace/packages/db/migrations/0036_voice_advanced_runtime.sql
 run_sql /workspace/packages/db/migrations/0037_voice_analytics_indexes.sql
+run_sql /workspace/packages/db/migrations/0038_release_readiness.sql
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -c "ALTER ROLE djay_auth_runtime LOGIN PASSWORD 'djay_auth_test'" >/dev/null
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
@@ -129,6 +130,11 @@ PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:5
 WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:55432/postgres" \
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/commerce-store.integration.test.ts
+
+echo "Running immutable SLO, attestation, release-readiness, and public-status integration test."
+PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:55432/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:55432/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/platform-operations-store.integration.test.ts
 
 echo "Running shared contacts, conversations, knowledge, actions, and privacy integration test."
 TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:55432/postgres" \

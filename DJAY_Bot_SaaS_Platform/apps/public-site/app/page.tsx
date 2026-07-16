@@ -67,7 +67,7 @@ export default function RegistrationPage() {
           <h1 id="brand-title">Run every customer conversation from one account.</h1>
           <p className="supporting-copy">Set up the owner account for your company. Team access is invited after verification.</p>
         </div>
-        <p className="legal-note">One verified owner account is created for each new workspace.</p>
+        <p className="legal-note">One verified owner account is created for each new workspace. <a href="/status">Service status</a></p>
       </section>
 
       <section className="form-panel" aria-labelledby="register-title">

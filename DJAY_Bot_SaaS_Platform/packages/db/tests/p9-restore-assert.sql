@@ -44,5 +44,14 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'restored tenant context authority missing';
   END IF;
+  IF (SELECT count(*) FROM platform.service_objectives) <> 7 THEN
+    RAISE EXCEPTION 'restored service objective registry mismatch';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger
+    WHERE tgname = 'platform_service_observations_immutable' AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'restored SLO evidence immutability trigger missing';
+  END IF;
 END
 $$;

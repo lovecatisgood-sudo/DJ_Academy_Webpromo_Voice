@@ -23,6 +23,7 @@
     "qa:p8-voice-load": "pnpm --filter @djay/voice-gateway exec vitest run src/load.test.ts --reporter=verbose",
     "qa:p9-usage": "node scripts/qa-p9-usage.mjs",
     "qa:p9-operations": "node scripts/qa-p9-operations.mjs",
+    "qa:p9-status": "node scripts/qa-p9-status.mjs",
     "qa:p9-restore": "scripts/test-p9-backup-restore.sh",
     "verify": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
   },

@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0037_voice_analytics_indexes";
+export const currentSchemaVersion = "0038_release_readiness";
 
 export { PostgresAuthStore } from "./auth-store";
 export { BillingWebhookStore } from "./billing-webhook-store";
@@ -27,6 +27,14 @@ export { createDatabaseClient, type DatabaseClient, type DatabaseTransaction } f
 export { PostgresEmailOutboxStore } from "./email-outbox-store";
 export { PostgresPlatformAuthStore } from "./platform-auth-store";
 export { PlatformSupportStore } from "./platform-support-store";
+export {
+  PlatformOperationsStore,
+  operationalAttestationKinds,
+  operationalServiceKeys,
+  type OperationalAttestationKind,
+  type OperationalServiceKey,
+  type OperationsEnvironment,
+} from "./platform-operations-store";
 export { TenantWorkspaceStore, type OnboardingStage } from "./tenant-workspace-store";
 export { VoiceRuntimeStore } from "./voice-runtime-store";
 export { VoiceDeploymentStore } from "./voice-deployment-store";

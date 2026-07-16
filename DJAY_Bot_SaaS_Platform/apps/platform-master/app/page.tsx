@@ -26,6 +26,23 @@ type UsageReconciliation = {
     status: "healthy" | "attention";
   }>;
 };
+type ReleaseReadiness = {
+  asOf: string; environment: "staging" | "production"; releaseVersion: string;
+  status: "ready" | "blocked";
+  services: Array<{
+    serviceKey: string; publicLabel: string; status: "passing" | "failing" | "missing";
+    passing: boolean; issues: string[];
+    objective: { availabilityTargetBasisPoints: number; latencyP95TargetMs: number; maxQueueAgeSeconds: number | null; maxDeadLetters: number; minimumSampleCount: number; minimumWindowMinutes: number; maximumAgeMinutes: number };
+    observation: null | { windowEnd: string; availabilityBasisPoints: number; latencyP95Ms: number; queueAgeSeconds: number | null; deadLetterCount: number; sampleCount: number; sourceReference: string };
+  }>;
+  attestations: Array<{
+    kind: "on_call" | "restore" | "support_runbook" | "security_review" | "privacy_review";
+    passing: boolean; status: "passed" | "failed" | "missing";
+    validUntil: string | null; sourceReference: string | null;
+  }>;
+  incidents: { passing: boolean; blocking: number; oldestOpenedAt: string | null };
+  usage: { passing: boolean; status: "healthy" | "attention"; attentionAccounts?: number; activeWithoutCurrentAccount?: number; orphanUsageEvents?: number; expiredOpenReservations?: number };
+};
 type Subscription = {
   id: string; tenantId: string; businessName: string; productKey: string;
   planKey: string; publicName: string; status: string; createdAt: string;
@@ -48,6 +65,8 @@ export default function PlatformMasterPage() {
   const [commerce, setCommerce] = useState<Commerce | null>(null);
   const [reconciliation, setReconciliation] = useState<UsageReconciliation | null>(null);
   const [reconciliationStage, setReconciliationStage] = useState<"hidden" | "loading" | "ready" | "error">("hidden");
+  const [readiness, setReadiness] = useState<ReleaseReadiness | null>(null);
+  const [readinessStage, setReadinessStage] = useState<"loading" | "ready" | "error">("loading");
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [supportGrants, setSupportGrants] = useState<SupportGrant[]>([]);
@@ -68,6 +87,18 @@ export default function PlatformMasterPage() {
     setStage("dashboard");
     const healthResponse = await fetch("/platform/health-summary", { cache: "no-store" });
     if (healthResponse.ok) setHealth((await healthResponse.json()).health);
+    setReadiness(null);
+    setReadinessStage("loading");
+    try {
+      const readinessResponse = await fetch("/platform/release-readiness", { cache: "no-store" });
+      if (!readinessResponse.ok) throw new Error("readiness_unavailable");
+      const nextReadiness = (await readinessResponse.json()).readiness;
+      if (!nextReadiness) throw new Error("readiness_unavailable");
+      setReadiness(nextReadiness);
+      setReadinessStage("ready");
+    } catch {
+      setReadinessStage("error");
+    }
     const commerceResponse = await fetch("/platform/commerce-overview", { cache: "no-store" });
     if (commerceResponse.ok) setCommerce((await commerceResponse.json()).commerce);
     if (["platform_owner", "platform_finance"].includes(result.user.role)) {
@@ -149,6 +180,8 @@ export default function PlatformMasterPage() {
     setCommerce(null);
     setReconciliation(null);
     setReconciliationStage("hidden");
+    setReadiness(null);
+    setReadinessStage("loading");
     setSubscriptions([]);
     setTenants([]);
     setSupportGrants([]);
@@ -321,6 +354,33 @@ export default function PlatformMasterPage() {
             <div><span>Pending activation</span><strong>{commerce?.pending ?? "-"}</strong></div>
           </div>
           <div className="operations-band"><p>System</p><h2>Identity and commerce foundations operational</h2></div>
+          {readinessStage === "loading" ? <div className="subscription-band release-readiness-band readiness-placeholder" aria-live="polite"><div><p>Release operations</p><h2>Checking release readiness…</h2></div><p className="operational-note">Loading current SLO, incident, on-call, restore, security, privacy, support, and usage evidence.</p></div> : null}
+          {readinessStage === "error" ? <div className="subscription-band release-readiness-band status-blocked readiness-placeholder" role="alert"><div><p>Release operations</p><h2>Release evidence unavailable</h2></div><p className="operational-note">The release gate is blocked. No service should be promoted while current evidence cannot be verified.</p><button type="button" disabled={working} onClick={() => void loadCurrent()}>Retry readiness check</button></div> : null}
+          {readiness ? <div className={`subscription-band release-readiness-band status-${readiness.status}`}>
+            <div className="readiness-heading"><div><p>Release operations</p><h2>Public release readiness</h2></div><span className="readiness-status" role="status">{readiness.status === "ready" ? "Ready for reviewed release" : "Release blocked"}</span></div>
+            <p className="operational-note">A release remains fail-closed until all seven service objectives, five time-limited operational attestations, incident review, and usage reconciliation pass together.</p>
+            <div className="readiness-summary">
+              <div><span>Environment</span><strong>{readiness.environment}</strong><small>{readiness.releaseVersion}</small></div>
+              <div><span>Service objectives</span><strong>{readiness.services.filter((service) => service.passing).length}/{readiness.services.length}</strong><small>passing</small></div>
+              <div><span>Attestations</span><strong>{readiness.attestations.filter((item) => item.passing).length}/{readiness.attestations.length}</strong><small>current</small></div>
+              <div><span>Blocking incidents</span><strong>{readiness.incidents.blocking}</strong><small>major or critical</small></div>
+              <div><span>Usage ledger</span><strong>{readiness.usage.passing ? "Healthy" : "Review"}</strong><small>{readiness.usage.status}</small></div>
+            </div>
+            <div className="readiness-service-grid">
+              {readiness.services.map((service) => <article className={`readiness-service-card ${service.status}`} key={service.serviceKey}>
+                <div><span className="readiness-dot" aria-hidden="true" /><strong>{service.publicLabel}</strong></div><span>{service.status}</span>
+                {service.observation ? <small>{(service.observation.availabilityBasisPoints / 100).toFixed(2)}% availability · {service.observation.latencyP95Ms}ms P95</small> : <small>24-hour evidence required</small>}
+                {!service.passing ? <em>{service.issues.join(" · ")}</em> : null}
+              </article>)}
+            </div>
+            <div className="readiness-attestations" aria-label="Operational attestations">
+              {readiness.attestations.map((item) => <div className={item.passing ? "passing" : "blocked"} key={item.kind}><strong>{item.kind.replaceAll("_", " ")}</strong><span>{item.passing ? "Current" : item.status}</span><small>{item.validUntil ? `Valid until ${new Date(item.validUntil).toLocaleString()}` : "Evidence required"}</small></div>)}
+            </div>
+            <div className="readiness-authority"><strong>{user.role === "platform_owner" ? "Platform Owner" : user.role === "platform_support" ? "Support operations" : user.role === "platform_ai_operations" ? "AI operations" : "Platform Finance"}</strong><span>{user.role === "platform_owner" ? "Approve deployment only through the reviewed release workflow after this gate is ready."
+              : user.role === "platform_support" ? "Keep on-call and support-runbook evidence current; escalate every blocking incident."
+                : user.role === "platform_ai_operations" ? "Resolve failing runtime objectives without exposing internal routing to customer surfaces."
+                  : "This technical gate does not authorize prices, invoices, tax, or payment collection."}</span><small>Checked {new Date(readiness.asOf).toLocaleString()}</small></div>
+          </div> : null}
           {reconciliationStage === "loading" ? <div className="subscription-band reconciliation-band reconciliation-placeholder" aria-live="polite">
             <div><p>Billing operations · restricted</p><h2>Checking usage reconciliation…</h2></div>
             <p className="operational-note">Comparing customer-unit balances with reservation and immutable event evidence.</p>

@@ -24,6 +24,7 @@ import {
   FlowbotRuntimeStore,
   PlatformFlowbotIntegrationStore,
   PlatformCommerceStore,
+  PlatformOperationsStore,
   PlatformVoiceOperationsStore,
   PlatformSupportStore,
   PostgresAuthStore,
@@ -78,6 +79,9 @@ const envSchema = z.object({
   VOICE_SESSION_GRANT_TTL_SECONDS: z.coerce.number().int().min(15).max(300).default(60),
   VOICE_RECONNECT_MAX_ATTEMPTS: z.coerce.number().int().min(0).max(10).default(3),
   VOICE_RECONNECT_BACKOFF_MS: z.coerce.number().int().min(100).max(30_000).default(500),
+  OPERATIONS_ENVIRONMENT: z.enum(["staging", "production"]).default("staging"),
+  OPERATIONS_RELEASE_VERSION: z.string().trim().min(3).max(120).default("local-unreleased"),
+  OPERATIONS_INGEST_TOKEN: z.string().min(32).optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 }).passthrough();
 
@@ -102,6 +106,9 @@ async function buildServices() {
   if (env.NODE_ENV === "production" && !env.AI_SOCIAL_SUBJECT_HASH_KEY) throw new Error("AI_SOCIAL_SUBJECT_HASH_KEY is required in production.");
   if (env.VOICE_RUNTIME_ENABLED === "true" && (!env.VOICE_DATABASE_URL || !env.VOICE_GATEWAY_URL || !env.VOICE_AUTHORIZATION_SERVICE_TOKEN)) {
     throw new Error("Voice database, gateway, and authorization configuration is required in production.");
+  }
+  if (env.NODE_ENV === "production" && !env.OPERATIONS_INGEST_TOKEN) {
+    throw new Error("OPERATIONS_INGEST_TOKEN is required in production.");
   }
   const store = new PostgresAuthStore(client);
   const platformStore = new PostgresPlatformAuthStore(platformClient);
@@ -157,6 +164,7 @@ async function buildServices() {
       ? parse32ByteSecret(env.PRIVACY_EXPORT_KEY, "PRIVACY_EXPORT_KEY") : null,
     catalog: new PostgresCatalogStore(client),
     platformCommerce: new PlatformCommerceStore(platformClient),
+    platformOperations: new PlatformOperationsStore(platformClient),
     platformVoiceOperations: new PlatformVoiceOperationsStore(platformClient),
     platformSupport: new PlatformSupportStore(platformClient),
     platformFlowbotIntegrations: new PlatformFlowbotIntegrationStore(platformClient),

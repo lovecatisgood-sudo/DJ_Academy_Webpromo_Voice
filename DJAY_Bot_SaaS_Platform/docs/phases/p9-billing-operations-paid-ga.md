@@ -2,9 +2,10 @@
 
 ## Status
 
-In progress. The first two P9 engineering slices deliver tenant-isolated usage
-visibility, restricted finance reconciliation, and executable backup/restore
-evidence. Paid checkout, invoices, tax, proration, dunning,
+In progress. The first three P9 engineering slices deliver tenant-isolated usage
+visibility, restricted finance reconciliation, executable backup/restore
+evidence, immutable service/operations evidence, a fail-closed release gate,
+and a provider-neutral public status page. Paid checkout, invoices, tax, proration, dunning,
 cancellation, overage charging, and broad self-service remain disabled because
 ADR-008 has not been accepted with exact commercial and legal decisions.
 
@@ -74,13 +75,49 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
    idempotently defines every application, worker, migration, and operations
    role before restore.
 
+## Release readiness and public status delivered
+
+1. Migration `0038_release_readiness.sql` defines exactly seven immutable
+   technical objectives and append-only staging/production observations. The
+   database derives availability from sample/success counts and rejects evidence
+   updates or deletes.
+2. Release evidence is current only when every service has a minimum 24-hour
+   window, enough samples, no more than 30 minutes of age, passing availability
+   and P95 latency, passing queue age where applicable, and zero dead letters.
+3. Five separately hashed, time-limited attestations cover on-call, restore,
+   support runbook, security, and privacy review. Missing, failed, or expired
+   evidence blocks release.
+4. `POST /internal/operations/status` is server-to-server, bearer-authenticated,
+   constant-time compared, strict, bounded, audited, and idempotent by evidence
+   hash. Production refuses configuration without a sufficiently long ingestion
+   secret.
+5. `GET /platform/release-readiness` combines service evidence, attestations,
+   unresolved major/critical Voice incidents, and usage reconciliation. Owner,
+   Finance, Support, and AI Operations receive role-appropriate guidance;
+   Support/AI Operations do not receive billing counts.
+6. `GET /public/status` and `/status` disclose only seven customer labels,
+   operational/degraded/outage/unknown state, and update timestamps. Internal
+   service keys, evidence, incidents, tenants, vendors, models, routes, costs,
+   and credentials are absent. Missing evidence produces an honest unknown
+   state rather than a hard-coded operational claim.
+7. Production-browser QA covers public operational desktop/degraded mobile and
+   Platform Owner, Finance, Support, and AI Operations views without overflow,
+   console errors, internal-identity leakage, or false commercial authority.
+
 ## Schema, API, and event impact
 
-- No tenant-schema or data migration is required for these slices. They read existing immutable plan
+- No tenant-schema migration is required for these slices. Usage and
+  reconciliation read existing immutable plan
   versions, subscriptions, entitlement snapshots, quota accounts, reservations,
   and usage totals established in P2.
-- New APIs: `GET /tenant/usage` and restricted
-  `GET /platform/usage-reconciliation`.
+- New APIs: `GET /tenant/usage`, restricted
+  `GET /platform/usage-reconciliation`, authenticated
+  `POST /internal/operations/status`, restricted
+  `GET /platform/release-readiness`, and public `GET /public/status`.
+- Platform migration `0038_release_readiness.sql` adds immutable objectives,
+  observations, attestations, their indexes/triggers, and a narrow
+  security-definer aggregate for blocking incidents. It adds no tenant/customer
+  content, commercial data, or provider/model fields.
 - The fresh-cluster role bootstrap is additively completed in
   `0000_roles.sql`; embedded later role guards remain idempotent. Existing
   environments already have these roles and need no destructive change.
@@ -105,6 +142,10 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
 - A variance is fail-visible and instructs operators to stop rollout expansion;
   immutable events must never be rewritten and quota totals must not be repaired
   with direct SQL.
+- Operational evidence is platform-only and append-only. The ingestion token is
+  independent deployment secret material and never enters a browser response.
+- Public status is deliberately lossy and provider-neutral. Platform evidence
+  may include safe opaque references, but those never cross the public boundary.
 
 ## Non-goals for this slice
 
@@ -113,20 +154,25 @@ ADR-008 has not been accepted with exact commercial and legal decisions.
 - Claiming invoice or checkout readiness before immutable invoice/reconciliation
   storage, signed provider workflows, and accepted legal/accounting evidence.
 - Enabling paid plans, overage collection, or broad public self-service.
+- Treating local QA evidence as a production SLA, managed monitoring result,
+  staffed on-call rota, managed PITR, regional recovery, or legal launch signoff.
 
 ## Next slice
 
-Add environment-aware status/SLO evidence, incident ownership and an on-call
-release gate, then exercise replay, queue recovery, pool exhaustion, and managed
-production backup/PITR procedures. After ADR-008 is accepted, implement
+Exercise event replay, queue recovery, pool exhaustion, real managed monitoring,
+production backup/PITR, regional recovery, staffed on-call escalation, and live
+status communication. After ADR-008 is accepted, implement
 immutable invoices, provider checkout, signed webhook application, plan
 lifecycle, tax, dunning, cancellation, and customer billing actions against the
 approved fixtures.
 
 ## Rollback
 
-Remove the Usage Center and reconciliation route/UI, then deploy the previous
-application. No tenant schema or immutable data reversal is required. The
+Remove the Usage Center, reconciliation, readiness, and status route/UI, then
+deploy the previous application. No tenant schema reversal is required. Retain
+migration 0038 and its immutable operational evidence; do not delete or rewrite
+observations/attestations during application rollback. Public status must remain
+unknown or unavailable rather than claim operational health without evidence. The
 additive no-login/no-bypass role declarations are safe to retain; do not revoke
 roles during application rollback because restored and prior releases may still
 depend on their grants. Existing metering, subscriptions, entitlements, quota

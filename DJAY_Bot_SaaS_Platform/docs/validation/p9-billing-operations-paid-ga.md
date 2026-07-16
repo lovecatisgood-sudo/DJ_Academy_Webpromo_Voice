@@ -1,8 +1,8 @@
 # P9 Validation: Billing, operations, and paid GA
 
-- Result: Usage, finance reconciliation, and separate-cluster restore engineering gates passed; paid-GA gate remains open
+- Result: Usage, reconciliation, restore, immutable SLO, release-readiness, and public-status engineering gates passed; paid-GA gate remains open
 - Date: 2026-07-16
-- Schema migration: none for this slice
+- Schema migration: `0038_release_readiness.sql`
 - Public charging: disabled
 - Invoices and commercial mutations: unavailable
 
@@ -19,8 +19,10 @@ scripts/use-node24.sh pnpm test:db
 scripts/use-node24.sh pnpm run verify
 scripts/use-node24.sh pnpm --filter @djay/tenant-web build
 scripts/use-node24.sh pnpm --filter @djay/platform-master build
+scripts/use-node24.sh pnpm --filter @djay/public-site build
 P9_TENANT_QA_URL=http://127.0.0.1:3111 scripts/use-node24.sh pnpm run qa:p9-usage
 P9_PLATFORM_QA_URL=http://127.0.0.1:3112 scripts/use-node24.sh pnpm run qa:p9-operations
+P9_PUBLIC_QA_URL=http://127.0.0.1:3110 scripts/use-node24.sh pnpm run qa:p9-status
 scripts/use-node24.sh pnpm run qa:p9-restore
 ```
 
@@ -69,6 +71,42 @@ data/schema/policy fingerprints, complete least-privilege role bootstrap,
 restored ACLs, immutable ledger/catalog triggers, forced commerce RLS, and the
 runtime-role Tenant A/Tenant B substitution suite.
 
+Migration 0038 and its integration test prove seven immutable technical
+objectives, append-only staging/production observations, computed availability,
+five time-limited attestations, idempotent evidence replay, audit records, and a
+narrow blocking-incident aggregate. An initial test correctly failed when the
+store tried to read a restricted incident table directly; the implementation
+was corrected to a least-privilege security-definer count/timestamp function.
+A second test caught an internal service key in the draft public DTO; that key
+was removed before acceptance. The final database suite passed all migrations,
+RLS probes, repository tests, and legacy migration rehearsal.
+
+The production public-site build includes `/status`. Chromium exercised an
+operational desktop at 1365x900 and a degraded mobile view at 390x844. Both
+rendered exactly seven customer-facing services with correct state, timestamps,
+registration/sign-in paths, no horizontal overflow or page/console errors, and
+no internal service key, evidence, tenant, provider/model, route, cost, or
+credential leakage.
+
+Visual evidence:
+
+- `/tmp/djay-p9-status-operational-desktop.png`
+- `/tmp/djay-p9-status-degraded-mobile.png`
+
+The production Platform Master build exercised Owner desktop, Finance mobile,
+Support desktop, and AI Operations mobile. Every role received the same
+fail-closed 7-service/5-attestation/incident/usage decision with appropriate
+authority guidance. Billing counts remained limited to Owner/Finance. All views
+passed overflow, console, confidentiality, commercial-boundary, and actionable
+failure checks.
+
+Visual evidence:
+
+- `/tmp/djay-p9-operations-owner-desktop.png`
+- `/tmp/djay-p9-operations-finance-mobile.png`
+- `/tmp/djay-p9-operations-support-desktop.png`
+- `/tmp/djay-p9-operations-ai-operations-mobile.png`
+
 ## Pending P9 gates
 
 - Accepted ADR-008 with payment provider, immutable prices/rates/allowances,
@@ -79,9 +117,10 @@ runtime-role Tenant A/Tenant B substitution suite.
 - Overage forecast/alerts, approved safety-cap management, and exact customer
   unit rounding under the accepted rate card.
 - Managed-environment backup/PITR, event replay, regional disaster recovery,
-  capacity, status/SLO, support/on-call, security, privacy, and legal launch
-  exercises. The local separate-cluster restore gate is complete but is not a
-  substitute for the production infrastructure exercise.
+  capacity, real monitoring observations, staffed support/on-call, security,
+  privacy, and legal launch exercises. The local separate-cluster restore and
+  status/SLO engineering gates are complete but are not substitutes for
+  production infrastructure and human-response exercises.
 - End-to-end unfamiliar-SME register/pay/configure/test/launch acceptance.
 
 This evidence does not authorize payment collection, public prices, invoices,

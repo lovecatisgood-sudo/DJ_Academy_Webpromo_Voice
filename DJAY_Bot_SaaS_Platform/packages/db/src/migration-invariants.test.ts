@@ -37,6 +37,7 @@ const voiceAdvancedRoutingMigration = readFileSync(resolve(import.meta.dirname, 
 const voiceAdvancedDeploymentMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0035_voice_advanced_deployments.sql"), "utf8");
 const voiceAdvancedRuntimeMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0036_voice_advanced_runtime.sql"), "utf8");
 const voiceAnalyticsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0037_voice_analytics_indexes.sql"), "utf8");
+const releaseReadinessMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0038_release_readiness.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -108,6 +109,28 @@ describe("P1 database migration invariants", () => {
     expect(tenantMfaMigration).toContain("ADD COLUMN mfa_verified_at");
     expect(tenantMfaMigration).toContain("CREATE TABLE identity.auth_login_challenges");
     expect(tenantMfaMigration).toContain("code_hash bytea NOT NULL UNIQUE");
+  });
+});
+
+describe("P9 release-readiness invariants", () => {
+  it("defines exactly seven immutable provider-neutral service objectives", () => {
+    for (const service of [
+      "public_site", "tenant_api", "flowbot_runtime", "ai_chat_runtime",
+      "social_delivery", "voice_gateway", "worker",
+    ]) expect(releaseReadinessMigration).toContain(`'${service}'`);
+    expect(releaseReadinessMigration).toContain("platform_service_objectives_immutable");
+    expect(releaseReadinessMigration).not.toMatch(/provider_key|model_key|credential|customer_content/i);
+  });
+
+  it("keeps observations and attestations append-only and platform restricted", () => {
+    expect(releaseReadinessMigration).toContain("platform_service_observations_immutable");
+    expect(releaseReadinessMigration).toContain("platform_operational_attestations_immutable");
+    expect(releaseReadinessMigration).toContain("evidence_sha256 bytea NOT NULL");
+    expect(releaseReadinessMigration).toContain("SECURITY DEFINER");
+    expect(releaseReadinessMigration).toContain("platform.blocking_incident_summary()");
+    expect(releaseReadinessMigration).toContain("REVOKE ALL ON FUNCTION platform.blocking_incident_summary() FROM PUBLIC");
+    expect(releaseReadinessMigration).toContain("TO djay_platform");
+    expect(releaseReadinessMigration).toMatch(/REVOKE ALL ON platform\.service_objectives,[\s\S]+FROM PUBLIC/);
   });
 });
 

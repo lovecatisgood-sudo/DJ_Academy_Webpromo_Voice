@@ -11,5 +11,7 @@
 | 007 | Canonical lead stages and appointment semantics | Accepted |
 | 008 | Payment, THB tax invoice, trial, refund, and overage decisions | Proposed; P9 blocker |
 | 009 | AI text gateway and Sales Conversation Core boundary | Accepted |
+| 010 | AI Premium social channel policy | Accepted |
+| 011 | Release-readiness SLO and public-status policy | Accepted |
 
 Accepted ADRs may be superseded only by a later ADR that includes migration, compatibility, security, and rollback impact.

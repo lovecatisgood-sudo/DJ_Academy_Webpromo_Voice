@@ -6,6 +6,39 @@ const failures = [];
 const restricted = /\b(openai|anthropic|claude|gemini|gpt-[0-9]|provider[_ -]?(?:key|name|id)|model[_ -]?id|native usage|raw cost|margin)\b/i;
 const now = new Date("2026-07-16T09:00:00Z");
 
+const serviceLabels = [
+  "Website and signup", "Workspace and API", "Flow automation", "AI conversations",
+  "Messaging channels", "Voice conversations", "Background processing",
+];
+
+const readiness = {
+  asOf: now.toISOString(), environment: "staging", releaseVersion: "p9-readiness-qa",
+  status: "blocked",
+  services: serviceLabels.map((publicLabel, index) => ({
+    serviceKey: `service_${index + 1}`, publicLabel,
+    status: index === 3 ? "failing" : "passing", passing: index !== 3,
+    issues: index === 3 ? ["Availability is below the objective."] : [],
+    objective: {
+      availabilityTargetBasisPoints: index < 2 ? 9990 : 9950,
+      latencyP95TargetMs: index === 3 ? 8000 : 1500,
+      maxQueueAgeSeconds: index >= 2 && index !== 5 ? 120 : null,
+      maxDeadLetters: 0, minimumSampleCount: 100,
+      minimumWindowMinutes: 1440, maximumAgeMinutes: 30,
+    },
+    observation: {
+      windowEnd: now.toISOString(), availabilityBasisPoints: index === 3 ? 9800 : 10000,
+      latencyP95Ms: 740, queueAgeSeconds: index >= 2 && index !== 5 ? 12 : null,
+      deadLetterCount: 0, sampleCount: 1200, sourceReference: `monitor:qa-${index + 1}`,
+    },
+  })),
+  attestations: ["on_call", "restore", "support_runbook", "security_review", "privacy_review"].map((kind) => ({
+    kind, passing: true, status: "passed", validUntil: "2026-08-16T09:00:00Z",
+    sourceReference: `evidence:${kind}-qa`,
+  })),
+  incidents: { passing: true, blocking: 0, oldestOpenedAt: null },
+  usage: { passing: false, status: "attention", attentionAccounts: 1, activeWithoutCurrentAccount: 0, orphanUsageEvents: 0, expiredOpenReservations: 0 },
+};
+
 const reconciliation = {
   asOf: now.toISOString(),
   status: "attention",
@@ -50,11 +83,18 @@ async function mockPlatform(page, role) {
   await page.route("**/platform/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/platform/me") return json(route, { user: {
-      id: role === "platform_owner" ? "platform-owner" : "platform-finance",
-      displayName: role === "platform_owner" ? "Platform Owner" : "Finance Reviewer",
+      id: role,
+      displayName: role.replace("platform_", "").replaceAll("_", " "),
       role, mfaVerifiedAt: now.toISOString(),
     } });
     if (path === "/platform/health-summary") return json(route, { health: { platformUsers: 4, activeSessions: 2 } });
+    if (path === "/platform/release-readiness") {
+      const roleReadiness = structuredClone(readiness);
+      if (!["platform_owner", "platform_finance"].includes(role)) {
+        roleReadiness.usage = { passing: false, status: "attention" };
+      }
+      return json(route, { readiness: roleReadiness });
+    }
     if (path === "/platform/commerce-overview") return json(route, { commerce: { tenants: 18, subscriptions: 31, pending: 2, active: 29 } });
     if (path === "/platform/usage-reconciliation") return json(route, { reconciliation });
     if (path === "/platform/subscriptions") return json(route, { subscriptions: [] });
@@ -81,29 +121,40 @@ async function inspect(name, role, viewport) {
   await mockPlatform(page, role);
   const response = await page.goto(platformUrl, { waitUntil: "networkidle" });
   if (!response?.ok()) failures.push(`${name}: navigation ${response?.status()}`);
-  await page.getByRole("heading", { name: "Usage reconciliation" }).waitFor();
+  if (["platform_owner", "platform_finance"].includes(role)) {
+    await page.getByRole("heading", { name: "Usage reconciliation" }).waitFor();
+  }
+  await page.getByRole("heading", { name: "Public release readiness" }).waitFor();
+  await page.getByText("Release blocked", { exact: true }).waitFor();
   const snapshot = await page.evaluate(() => ({
     body: document.body.innerText,
     reconciliation: document.querySelector(".reconciliation-band")?.textContent || "",
+    readiness: document.querySelector(".release-readiness-band")?.textContent || "",
     width: document.documentElement.scrollWidth,
     viewport: window.innerWidth,
   }));
   if (snapshot.width > snapshot.viewport + 1) failures.push(`${name}: horizontal overflow ${snapshot.width}/${snapshot.viewport}`);
   if (restricted.test(snapshot.reconciliation)) failures.push(`${name}: restricted cost or routing identity visible in reconciliation`);
-  if (!snapshot.body.toLowerCase().includes("attention required") || !snapshot.body.includes("Siam Growth Studio")) failures.push(`${name}: actionable variance evidence missing`);
-  if (!snapshot.body.includes("does not enable charging")) failures.push(`${name}: commercial boundary missing`);
+  if (restricted.test(snapshot.readiness)) failures.push(`${name}: restricted cost or routing identity visible in release readiness`);
+  if (!snapshot.readiness.includes("6/7") || !snapshot.readiness.includes("AI conversations") || !snapshot.readiness.toLowerCase().includes("fail-closed")) failures.push(`${name}: actionable release evidence missing`);
+  if (["platform_owner", "platform_finance"].includes(role) && (!snapshot.body.toLowerCase().includes("attention required") || !snapshot.body.includes("Siam Growth Studio"))) failures.push(`${name}: actionable variance evidence missing`);
+  if (["platform_owner", "platform_finance"].includes(role) && !snapshot.body.includes("does not enable charging")) failures.push(`${name}: commercial boundary missing`);
   if (role === "platform_owner" && !snapshot.body.includes("Platform Owner review")) failures.push(`${name}: owner authority guidance missing`);
   if (role === "platform_finance" && (!snapshot.body.includes("Finance review") || !snapshot.body.includes("Read-only evidence"))) failures.push(`${name}: finance authority guidance missing`);
+  if (role === "platform_support" && !snapshot.body.includes("Keep on-call and support-runbook evidence current")) failures.push(`${name}: support release guidance missing`);
+  if (role === "platform_ai_operations" && !snapshot.body.includes("Resolve failing runtime objectives")) failures.push(`${name}: AI Operations release guidance missing`);
   await page.screenshot({ path: `/tmp/djay-p9-operations-${name}.png`, fullPage: true });
   await context.close();
 }
 
 await inspect("owner-desktop", "platform_owner", { width: 1365, height: 900 });
 await inspect("finance-mobile", "platform_finance", { width: 390, height: 844 });
+await inspect("support-desktop", "platform_support", { width: 1280, height: 800 });
+await inspect("ai-operations-mobile", "platform_ai_operations", { width: 390, height: 844 });
 await browser.close();
 
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
-console.info("P9 operations UI passed owner desktop and finance mobile reconciliation, authority, overflow, commercial-boundary, console, and confidentiality checks.");
+console.info("P9 operations UI passed Owner, Finance, Support, and AI Operations release-readiness, reconciliation, authority, overflow, commercial-boundary, console, and confidentiality checks.");

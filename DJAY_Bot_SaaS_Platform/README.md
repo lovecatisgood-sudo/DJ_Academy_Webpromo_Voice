@@ -46,8 +46,14 @@ are accepted and passed. P9 engineering is active: the tenant-isolated,
 role-aware Usage Center now reconciles customer units, reservations, allowance,
 and safety caps while making the pre-release billing state explicit. Restricted
 Platform Owner/Finance reconciliation and a separate-cluster PostgreSQL 16
-backup/restore gate also pass. Checkout, invoices, tax, dunning, and public
-charging remain disabled.
+backup/restore gate also pass. Immutable seven-service SLO evidence, five
+time-limited operational attestations, incident ownership, usage reconciliation,
+and a fail-closed role-aware release gate are now implemented. The branded
+provider-neutral `/status` page reports only evidence-backed customer service
+health and reports unknown when evidence cannot be verified. Real managed
+production observations, on-call staffing, PITR/regional exercises, legal and
+commercial approval remain external launch gates. Checkout, invoices, tax,
+dunning, and public charging remain disabled.
 
 ## Local commands
 
@@ -64,6 +70,7 @@ scripts/use-node24.sh pnpm run qa:p6-line
 scripts/use-node24.sh pnpm run qa:p7-voice
 scripts/use-node24.sh pnpm run qa:p9-usage
 scripts/use-node24.sh pnpm run qa:p9-operations
+scripts/use-node24.sh pnpm run qa:p9-status
 scripts/use-node24.sh pnpm run qa:p9-restore
 scripts/use-node24.sh pnpm run dev
 ```
