@@ -30,6 +30,8 @@ proves that:
   stale success, or an indefinite loading state;
 - a public catalog outage remains retryable without blocking owner
   registration or appearing to mean that the catalog is empty;
+- approved Terms and Privacy pages render at desktop/mobile breakpoints, while
+  missing legal authority disables registration and exposes a retryable state;
 - Platform authentication failure is distinct from Platform service failure,
   and failed role-authorized operations resources are named without false
   “no records” claims;

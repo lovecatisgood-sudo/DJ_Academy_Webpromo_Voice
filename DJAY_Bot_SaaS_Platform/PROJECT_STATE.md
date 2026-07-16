@@ -92,6 +92,14 @@ merchant sign-off, but the external rollout gate does not block P5 engineering.
   Platform AI Operations controls.
 - Public charging remains disabled while ADR-008 commercial values are unresolved.
 
+Public legal review and registration authority are now fail-closed. The API
+loads only a bounded, absolute, explicitly approved Terms/Privacy JSON bundle;
+the public realm provides branded responsive review routes; and registration
+records only the exact server-current versions the user accepted. A missing or
+changed bundle disables new signup without stranding verification or resend for
+existing intents. Production still requires counsel/privacy approval and the
+signed content artifact.
+
 ## P6 LINE, WhatsApp, and Messenger runtime checkpoint
 
 The LINE, WhatsApp, and Messenger runtime and delivery slices are implemented locally:

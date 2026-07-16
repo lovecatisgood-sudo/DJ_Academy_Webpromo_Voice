@@ -21,8 +21,7 @@ const genericRegistrationMessage = "Check your email to continue. If an account 
 
 export type RegistrationServiceConfig = Readonly<{
   publicAppUrl: string;
-  termsVersion: string;
-  privacyVersion: string;
+  legalVersions: Readonly<{ termsVersion: string; privacyVersion: string }> | null;
   requestHashKey: Buffer;
   emailEnvelopeKey: Buffer;
   verificationTtlMs?: number;
@@ -41,6 +40,8 @@ function canonicalRequest(input: ReturnType<typeof registrationInputSchema.parse
     locale: input.locale,
     timezone: input.timezone,
     selectedPlanKey: input.selectedPlanKey ?? null,
+    termsVersion: input.termsVersion,
+    privacyVersion: input.privacyVersion,
     acceptTerms: input.acceptTerms,
     acceptPrivacy: input.acceptPrivacy,
   };
@@ -52,6 +53,21 @@ export function createRegistrationService(store: AuthStore, config: Registration
   return {
     async register(input: RegistrationInput): Promise<RegistrationResponse> {
       const parsed = registrationInputSchema.parse(input);
+      if (!config.legalVersions) {
+        return Object.freeze({
+          accepted: false as const,
+          status: "registration_unavailable" as const,
+          message: "Registration is paused until the current service terms and privacy notice are available.",
+        });
+      }
+      if (parsed.termsVersion !== config.legalVersions.termsVersion
+        || parsed.privacyVersion !== config.legalVersions.privacyVersion) {
+        return Object.freeze({
+          accepted: false as const,
+          status: "legal_version_changed" as const,
+          message: "The service terms or privacy notice changed. Review the current documents and accept them again.",
+        });
+      }
       const emailNormalized = normalizeEmail(parsed.email);
       const verificationToken = createOpaqueToken();
       const intentId = randomUUID();
@@ -73,8 +89,8 @@ export function createRegistrationService(store: AuthStore, config: Registration
         locale: parsed.locale,
         timezone: parsed.timezone,
         ...(parsed.selectedPlanKey ? { selectedPlanKey: parsed.selectedPlanKey } : {}),
-        termsVersion: config.termsVersion,
-        privacyVersion: config.privacyVersion,
+        termsVersion: config.legalVersions.termsVersion,
+        privacyVersion: config.legalVersions.privacyVersion,
         tokenHash: hashOpaqueToken(verificationToken),
         tokenExpiresAt: expiresAt,
         outboxPayloadCiphertext: sealJson({

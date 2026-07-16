@@ -44,6 +44,7 @@ import { createPlatformAuthService } from "@djay/platform-auth";
 import { createHttpTextProviderGateway } from "@djay/provider-gateway";
 import { z } from "zod";
 import { assertApiProductionUrlPolicy } from "./environment-policy";
+import { loadLegalDocuments } from "./legal-documents";
 
 const envSchema = z.object({
   AUTH_DATABASE_URL: z.string().url(),
@@ -85,6 +86,7 @@ const envSchema = z.object({
   OPERATIONS_ENVIRONMENT: z.enum(["staging", "production"]).default("staging"),
   OPERATIONS_RELEASE_VERSION: z.string().trim().min(3).max(120).default("local-unreleased"),
   OPERATIONS_INGEST_TOKEN: z.string().min(32).optional(),
+  LEGAL_DOCUMENTS_FILE: z.string().trim().min(1).optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 }).passthrough();
 
@@ -130,6 +132,7 @@ async function buildServices() {
       serviceToken: env.AI_TEXT_GATEWAY_SERVICE_TOKEN,
     })
     : null;
+  const legalDocuments = loadLegalDocuments(env.LEGAL_DOCUMENTS_FILE);
   return {
     env,
     store,
@@ -190,10 +193,13 @@ async function buildServices() {
       ? parse32ByteSecret(env.BILLING_WEBHOOK_ENVELOPE_KEY, "BILLING_WEBHOOK_ENVELOPE_KEY") : null,
     platformStore,
     rateLimitKey: parse32ByteSecret(env.AUTH_RATE_LIMIT_KEY, "AUTH_RATE_LIMIT_KEY"),
+    legalDocuments,
     registration: createRegistrationService(store, {
       publicAppUrl: env.PUBLIC_APP_URL,
-      termsVersion: "terms-2026-01",
-      privacyVersion: "privacy-2026-01",
+      legalVersions: legalDocuments ? {
+        termsVersion: legalDocuments.terms.version,
+        privacyVersion: legalDocuments.privacy.version,
+      } : null,
       requestHashKey: parse32ByteSecret(env.AUTH_REQUEST_HASH_KEY, "AUTH_REQUEST_HASH_KEY"),
       emailEnvelopeKey,
     }),

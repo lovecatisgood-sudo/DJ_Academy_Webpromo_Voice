@@ -53,6 +53,12 @@ Deploy these roots without rearranging their internal paths:
 - `apps/voice-gateway/dist` with entrypoint `index.js`
 - `apps/workers/dist` with entrypoint `index.js`
 
+The API artifact deliberately does not contain customer legal text. Mount the
+separately approved bundle at the absolute `LEGAL_DOCUMENTS_FILE` path
+described in `legal-documents.md`. Without that mount, the service remains
+live but Terms, Privacy, and new registration fail closed; existing email
+verification and resend flows remain valid.
+
 Serve the widget root only over HTTPS at the reviewed CDN origin. Apply the
 manifest's `Cache-Control`, `Access-Control-Allow-Origin`,
 `Cross-Origin-Resource-Policy`, and `X-Content-Type-Options` values exactly.

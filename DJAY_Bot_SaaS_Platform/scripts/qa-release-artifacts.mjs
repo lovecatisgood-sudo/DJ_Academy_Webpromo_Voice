@@ -154,6 +154,10 @@ for (const [index, app] of nextApps.entries()) {
     const readinessBody = await readiness.json();
     if (app === "api") {
       assert(readiness.status === 503 && readinessBody.status === "unavailable", "API without database authority must fail readiness");
+      const legal = await fetch(`${origin}/public/legal`, { signal: AbortSignal.timeout(2_500) });
+      assert(legal.status === 503, `API without approved legal authority returned ${legal.status}`);
+      assert(JSON.stringify(await legal.json()) === JSON.stringify({ status: "unavailable" }), "API legal authority did not fail safely");
+      assert(legal.headers.get("cache-control") === "no-store", "API unavailable legal authority was cacheable");
     } else {
       assert(readiness.ok && readinessBody.status === "ready" && readinessBody.app === app, `${app} API dependency readiness contract`);
     }

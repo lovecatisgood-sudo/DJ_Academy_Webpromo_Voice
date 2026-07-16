@@ -8,6 +8,14 @@ export async function POST(request: Request) {
   if (!(await hasTrustedOrigin(request))) return safeJson({ code: "authorization_denied", message: "Request denied.", requestId: id }, 403);
   try {
     const body = registrationInputSchema.parse(await readJson(request));
+    const { registration, legalDocuments } = await getServices();
+    if (!legalDocuments) {
+      return safeJson({
+        code: "registration_unavailable",
+        message: "Registration is paused until the current service terms and privacy notice are available.",
+        requestId: id,
+      }, 503);
+    }
     const [accountLimit, clientLimit] = await Promise.all([
       enforceRateLimit("register-account", body.email.trim().toLowerCase(), 5, 15 * 60 * 1000),
       enforceRateLimit("register-client", clientAddress(request), 30, 15 * 60 * 1000),
@@ -18,8 +26,8 @@ export async function POST(request: Request) {
         "Retry-After": String(retry),
       });
     }
-    const { registration } = await getServices();
-    return safeJson(await registration.register(body), 202);
+    const result = await registration.register(body);
+    return safeJson(result, result.accepted ? 202 : 409);
   } catch (error) {
     if (error instanceof ZodError || error instanceof SyntaxError || (error instanceof Error && error.message === "request_too_large")) {
       return safeJson({ code: "validation_failed", message: "Check the submitted details.", requestId: id }, 400);

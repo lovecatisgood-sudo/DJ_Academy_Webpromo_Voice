@@ -21,14 +21,14 @@ their liveness contracts and browser security headers, loaded each root
 document, and fetched every referenced static asset. Accepted static evidence
 was:
 
-- API: 130 files,
-  `c2cb54bbd2c2be1ac9625f4117612f3498e61360645decd6c9eb1ed3752bb699`
+- API: 132 files,
+  `252dbe70fe214878014e5a69507557ea95647c1635effaf84968f5f61c6338fe`
 - Platform Master: 24 files,
-  `c89e117be85c2ab0f11cee3d5b733418a134efff7360b40ce9fc466b2403127d`
-- Public site: 28 files,
-  `34bafeb5066777c1281e836ea30fd705d8b4e207d880809725b00b662cfeea66`
+  `d9088e30a35ec019542c41c2ef71ea796b5310acf4400c9b3e9c0003d825565d`
+- Public site: 30 files,
+  `93211213243fa0bb46b21727280af2643651793c3dffaa78e90a877b1d4ddf78`
 - Tenant workspace: 41 files,
-  `843b174c81282cd6e7dd6894803c8300f153ac2a6fa37fccacee868fa22d816f`
+  `68edb77870209d5963204aa472cfbced9262c1c9fd81fa6f4f66463aaa163644`
 
 The release audit found that all three Tenant install snippets referenced
 versioned CDN modules, but the release package did not archive those modules.
@@ -61,6 +61,9 @@ readiness response, and the API artifact fails readiness closed when database
 authority is absent. Focused policy tests reject insecure/path-bearing or
 hostname-sharing browser realms, insecure social endpoints, and non-WSS
 enabled Voice routing.
+The isolated API artifact also exposes legal authority as a controlled,
+non-cacheable `503 unavailable` response when no approved bundle is mounted;
+it never falls back to invented Terms or Privacy versions.
 
 The first Voice artifact run exposed a production-only ESM failure: bundled
 `ws` attempted a dynamic CommonJS require of Node's `events` module. Source
@@ -76,7 +79,7 @@ before execution, proving it does not resolve those packages from workspace
 `node_modules`. With database authority deliberately absent, startup fails
 closed, names only `WORKER_DATABASE_URL`, and exposes no connection URL. The
 accepted 56-file digest is
-`222a6b4751db837fbc51ce1550544861f756e98ae8a19ece0df53efb2abdc180`.
+`afe7ff9c33649a4fc0493979287e6a05ddacfa4dd50bf0a51046aa20f65d4c30`.
 
 These hashes describe the local generated build and are not target-deployment
 evidence. The immutable deployment system must archive its own package hashes,

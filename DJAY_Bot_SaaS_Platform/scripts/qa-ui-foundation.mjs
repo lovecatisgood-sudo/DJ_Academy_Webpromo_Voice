@@ -11,6 +11,18 @@ const brandColors = new Set();
 const desktop = { width: 1365, height: 900 };
 const mobile = { width: 390, height: 844 };
 const tenantId = "20000000-0000-4000-8000-000000000001";
+const legalDocuments = {
+  terms: {
+    version: "terms-qa-2026-07", title: "Service Terms", effectiveDate: "2026-07-20",
+    summary: "Approved service terms used by the production-browser acceptance fixture.",
+    sections: [{ heading: "Using the service", paragraphs: ["Use the service according to the approved customer agreement."] }],
+  },
+  privacy: {
+    version: "privacy-qa-2026-07", title: "Privacy Notice", effectiveDate: "2026-07-20",
+    summary: "Approved privacy notice used by the production-browser acceptance fixture.",
+    sections: [{ heading: "Information handling", paragraphs: ["Information is handled according to the approved privacy notice."] }],
+  },
+};
 
 function json(route, value, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(value) });
@@ -77,15 +89,27 @@ async function visit({ name, url, viewport = desktop, mock, ready = "h1", expect
   await context.close();
 }
 
-async function mockPublic(page, failedPaths, abortedMutationPaths) {
+async function mockPublic(page, failedPaths, abortedMutationPaths, changedLegalPaths) {
   await page.route("**/public/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (abortedMutationPaths?.has(path) && route.request().method() !== "GET") return route.abort("connectionfailed");
+    if (changedLegalPaths?.has(path) && route.request().method() !== "GET") return json(route, {
+      accepted: false,
+      status: "legal_version_changed",
+      message: "The service terms or privacy notice changed. Review the current documents and accept them again.",
+    }, 409);
     if (failedPaths?.has(path)) return json(route, { status: "temporarily_unavailable" }, 503);
     if (path === "/public/catalog") return json(route, { plans: [
       { planKey: "flowbot_basic", productKey: "flowbot", publicName: "FlowBot Basic", tierName: "Basic", summary: "Guided automation", sellable: true, publicHighlights: ["Visual conversation flows"] },
       { planKey: "ai_chat_premium", productKey: "ai_chat", publicName: "AI Chatbot Premium", tierName: "Premium", summary: "AI sales assistance", sellable: true, publicHighlights: ["Knowledge-grounded responses"] },
     ] });
+    if (path === "/public/legal") return json(route, {
+      status: "available",
+      terms: { version: legalDocuments.terms.version, title: legalDocuments.terms.title, effectiveDate: legalDocuments.terms.effectiveDate },
+      privacy: { version: legalDocuments.privacy.version, title: legalDocuments.privacy.title, effectiveDate: legalDocuments.privacy.effectiveDate },
+    });
+    if (path === "/public/legal/terms") return json(route, { status: "available", document: legalDocuments.terms });
+    if (path === "/public/legal/privacy") return json(route, { status: "available", document: legalDocuments.privacy });
     if (path === "/public/status") return json(route, { status: { asOf: new Date().toISOString(), overall: "operational", services: [] } });
     if (path === "/public/auth/verify-email") return json(route, { status: "verified" });
     if (path === "/public/invitations/accept") return json(route, { status: "accepted" });
@@ -157,10 +181,21 @@ async function mockPlatformRole(page, role, failedPaths, abortedMutationPaths) {
 for (const [name, viewport] of [["desktop", desktop], ["mobile", mobile]]) {
   await visit({ name: `public-registration-${name}`, url: publicUrl, viewport, mock: mockPublic, ready: "#register-title", check: async (page) => {
     if (await page.locator(".plan-option").count() !== 2) failures.push(`public-registration-${name}: catalog plans missing`);
+    if (await page.getByRole("link", { name: "Service Terms" }).getAttribute("href") !== "/terms") failures.push(`public-registration-${name}: terms link missing`);
+    if (await page.getByRole("link", { name: "Privacy Notice" }).getAttribute("href") !== "/privacy") failures.push(`public-registration-${name}: privacy link missing`);
+    if (!await page.getByText("Versions terms-qa-2026-07 and privacy-qa-2026-07", { exact: false }).count()) failures.push(`public-registration-${name}: accepted legal versions are not visible`);
     await page.keyboard.press("Tab");
     const focusOutline = await page.locator(":focus").evaluate((element) => getComputedStyle(element).outlineStyle).catch(() => "none");
     if (focusOutline === "none") failures.push(`public-registration-${name}: keyboard focus is not visible`);
   } });
+  for (const kind of ["terms", "privacy"]) {
+    await visit({ name: `public-${kind}-${name}`, url: `${publicUrl}/${kind}`, viewport, mock: mockPublic, ready: "#legal-title", check: async (page) => {
+      const document = legalDocuments[kind];
+      await page.getByText("Version " + document.version, { exact: true }).waitFor();
+      if (!await page.getByRole("heading", { name: document.sections[0].heading }).count()) failures.push(`public-${kind}-${name}: approved sections missing`);
+      await page.screenshot({ path: `/tmp/djay-public-${kind}-${name}.png`, fullPage: true });
+    } });
+  }
   await visit({ name: `tenant-login-${name}`, url: tenantUrl, viewport, ready: "#tenant-login-title", check: async (page) => {
     const href = await page.getByRole("link", { name: "Create workspace" }).getAttribute("href");
     if (href !== "https://djaybot.com") failures.push(`tenant-login-${name}: unsafe public registration URL ${href}`);
@@ -193,6 +228,14 @@ await visit({ name: "public-catalog-failure", url: publicUrl, mock: (page) => mo
   if (!await page.getByRole("button", { name: "Try again" }).count()) failures.push("public-catalog-failure: retry action missing");
   if (!await page.getByRole("button", { name: "Create workspace" }).isEnabled()) failures.push("public-catalog-failure: owner registration was unnecessarily blocked");
 } });
+await visit({ name: "public-legal-failure", url: publicUrl, mock: (page) => mockPublic(page, new Set(["/public/legal"])), ready: ".legal-load-state.error", check: async (page) => {
+  if (!await page.getByText("Registration is paused", { exact: false }).count()) failures.push("public-legal-failure: fail-closed explanation missing");
+  if (await page.getByRole("button", { name: "Create workspace" }).isEnabled()) failures.push("public-legal-failure: registration remained enabled without approved documents");
+  if (!await page.getByRole("button", { name: "Try again" }).count()) failures.push("public-legal-failure: retry action missing");
+} });
+await visit({ name: "public-terms-failure", url: `${publicUrl}/terms`, mock: (page) => mockPublic(page, new Set(["/public/legal/terms"])), ready: ".legal-state.error", check: async (page) => {
+  if (!await page.getByText("Registration remains paused", { exact: false }).count()) failures.push("public-terms-failure: safe unavailable state missing");
+} });
 await visit({ name: "public-mutation-network-failure", url: publicUrl, mock: (page) => mockPublic(page, undefined, new Set(["/public/auth/register"])), ready: "#register-title", check: async (page) => {
   await page.getByLabel("Your name").fill("QA Owner");
   await page.getByLabel("Work email").fill("owner@example.test");
@@ -202,6 +245,17 @@ await visit({ name: "public-mutation-network-failure", url: publicUrl, mock: (pa
   await page.getByRole("button", { name: "Create workspace" }).click();
   await page.getByText("Registration could not be completed.", { exact: true }).waitFor();
   if (!await page.getByRole("button", { name: "Create workspace" }).isEnabled()) failures.push("public-mutation-network-failure: submit remained busy");
+} });
+await visit({ name: "public-legal-version-change", url: publicUrl, mock: (page) => mockPublic(page, undefined, undefined, new Set(["/public/auth/register"])), ready: "#register-title", check: async (page) => {
+  await page.getByLabel("Your name").fill("Preserved Owner");
+  await page.getByLabel("Work email").fill("preserved@example.test");
+  await page.getByLabel("Business name").fill("Preserved Studio");
+  await page.getByLabel("Password").fill("correct-horse-battery-staple");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Create workspace" }).click();
+  await page.getByText("The service terms or privacy notice changed.", { exact: false }).waitFor();
+  if (await page.getByRole("checkbox").isChecked()) failures.push("public-legal-version-change: stale acceptance remained checked");
+  if (await page.getByLabel("Your name").inputValue() !== "Preserved Owner") failures.push("public-legal-version-change: account fields were erased");
 } });
 await visit({ name: "public-verification", url: `${publicUrl}/verify-email?token=qa-token`, mock: mockPublic, ready: "#verification-title", check: async (page) => {
   const link = page.getByRole("link", { name: "Continue to sign in" });
@@ -385,4 +439,4 @@ if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
-console.info("Shared brand, WCAG 2.2 AA automation, responsive overflow, keyboard focus, safe cross-app links, branded 404 recovery, authentication shells, role navigation, dependency failures, and mutation transport recovery passed.");
+console.info("Shared brand, approved legal review, WCAG 2.2 AA automation, responsive overflow, keyboard focus, safe cross-app links, branded 404 recovery, authentication shells, role navigation, dependency failures, and mutation transport recovery passed.");

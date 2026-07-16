@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { publicPlanKeySchema } from "@djay/shared";
+import { legalDocumentVersionSchema } from "@djay/shared/legal-documents";
 
 export const registrationInputSchema = z.object({
   idempotencyKey: z.uuid(),
@@ -10,6 +11,8 @@ export const registrationInputSchema = z.object({
   locale: z.enum(["en", "th"]).default("en"),
   timezone: z.string().trim().min(3).max(64).default("Asia/Bangkok"),
   selectedPlanKey: publicPlanKeySchema.optional(),
+  termsVersion: legalDocumentVersionSchema,
+  privacyVersion: legalDocumentVersionSchema,
   acceptTerms: z.literal(true),
   acceptPrivacy: z.literal(true),
 }).strict();
@@ -25,6 +28,10 @@ export type VerificationInput = z.input<typeof verificationInputSchema>;
 
 export type RegistrationResponse = Readonly<{
   accepted: true;
+  message: string;
+}> | Readonly<{
+  accepted: false;
+  status: "registration_unavailable" | "legal_version_changed";
   message: string;
 }>;
 

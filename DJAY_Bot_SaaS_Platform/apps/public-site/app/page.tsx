@@ -8,6 +8,10 @@ type CatalogPlan = {
   planKey: string; productKey: string; publicName: string; tierName: string;
   summary: string; sellable: boolean; publicHighlights: string[];
 };
+type LegalMetadata = {
+  terms: { version: string; title: string; effectiveDate: string };
+  privacy: { version: string; title: string; effectiveDate: string };
+};
 
 export default function RegistrationPage() {
   const idempotencyKey = useRef<string | null>(null);
@@ -16,6 +20,9 @@ export default function RegistrationPage() {
   const [plans, setPlans] = useState<CatalogPlan[]>([]);
   const [selectedPlanKey, setSelectedPlanKey] = useState("");
   const [catalogStage, setCatalogStage] = useState<"loading" | "ready" | "error">("loading");
+  const [legalStage, setLegalStage] = useState<"loading" | "ready" | "error">("loading");
+  const [legal, setLegal] = useState<LegalMetadata | null>(null);
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
 
   async function loadCatalog() {
     setCatalogStage("loading");
@@ -33,10 +40,33 @@ export default function RegistrationPage() {
     }
   }
 
-  useEffect(() => { void loadCatalog(); }, []);
+  async function loadLegal() {
+    setLegalStage("loading");
+    setAcceptedLegal(false);
+    try {
+      const response = await fetch("/public/legal", { cache: "no-store" });
+      const body = await response.json();
+      if (!response.ok || body.status !== "available"
+        || typeof body.terms?.version !== "string" || typeof body.privacy?.version !== "string") {
+        throw new Error("legal_unavailable");
+      }
+      setLegal({ terms: body.terms, privacy: body.privacy });
+      setLegalStage("ready");
+    } catch {
+      setLegal(null);
+      setLegalStage("error");
+    }
+  }
+
+  useEffect(() => { void loadCatalog(); void loadLegal(); }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!legal || legalStage !== "ready" || !acceptedLegal) {
+      setStatus("error");
+      setMessage("Review and accept the current service terms and privacy notice before registering.");
+      return;
+    }
     setStatus("submitting");
     setMessage("");
     idempotencyKey.current ??= crypto.randomUUID();
@@ -54,11 +84,16 @@ export default function RegistrationPage() {
           locale: "en",
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Bangkok",
           ...(selectedPlanKey ? { selectedPlanKey } : {}),
-          acceptTerms: data.get("acceptTerms") === "yes",
-          acceptPrivacy: data.get("acceptTerms") === "yes",
+          termsVersion: legal.terms.version,
+          privacyVersion: legal.privacy.version,
+          acceptTerms: acceptedLegal,
+          acceptPrivacy: acceptedLegal,
         }),
       });
       const result = await response.json().catch(() => ({}));
+      if (response.status === 409 && result.status === "legal_version_changed") {
+        void loadLegal();
+      }
       if (!response.ok) throw new Error(result.message || "Registration could not be completed.");
       setStatus("accepted");
       setMessage(result.message || "Check your email to continue.");
@@ -125,11 +160,13 @@ export default function RegistrationPage() {
               </div>
               <p>Your selected plan is confirmed after email verification.</p>
             </fieldset>
+            {legalStage === "loading" ? <div className="legal-load-state" role="status" aria-live="polite">Loading current service terms and privacy notice…</div> : null}
+            {legalStage === "error" ? <div className="legal-load-state error" role="alert"><span>Registration is paused because the approved service terms or privacy notice could not be loaded.</span><button type="button" onClick={() => void loadLegal()}>Try again</button></div> : null}
             <label className="check-row">
-              <input type="checkbox" name="acceptTerms" value="yes" required />
-              <span>I accept the service terms and privacy notice.</span>
+              <input type="checkbox" name="acceptTerms" value="yes" required disabled={legalStage !== "ready"} checked={acceptedLegal} onChange={(event) => setAcceptedLegal(event.currentTarget.checked)} />
+              <span>I accept the <a href="/terms" target="_blank" rel="noreferrer">Service Terms</a> and <a href="/privacy" target="_blank" rel="noreferrer">Privacy Notice</a>.{legal ? <small> Versions {legal.terms.version} and {legal.privacy.version}, effective {legal.terms.effectiveDate} and {legal.privacy.effectiveDate}.</small> : null}</span>
             </label>
-            <button type="submit" disabled={status === "submitting"}>
+            <button type="submit" disabled={status === "submitting" || legalStage !== "ready"}>
               {status === "submitting" ? "Creating..." : "Create workspace"}
             </button>
           </form>

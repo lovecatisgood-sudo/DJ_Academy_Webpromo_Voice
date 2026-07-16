@@ -94,6 +94,13 @@ production observations, on-call staffing, PITR/regional exercises, legal and
 commercial approval remain external launch gates. Checkout, invoices, tax,
 dunning, and public charging remain disabled.
 
+Public registration now fails closed unless the API has a mounted, explicitly
+approved, versioned Terms and Privacy bundle. Branded Terms and Privacy pages
+render only validated plain text, and signup persistence binds the exact
+versions the user reviewed. Email verification remains available when new
+registration is paused. The repository supplies the contract and acceptance
+gate, not legal content or legal approval.
+
 ## Local commands
 
 Use the pinned Node 24 wrapper from this directory:
@@ -131,8 +138,9 @@ Voice gateway:    http://localhost:8080
 Copy `.env.example` into the deployment secret/configuration system and replace
 every placeholder. Tenant and platform auth secrets must be independent. The
 privacy export key must also be independent and available only to API/worker
-deployments. See `docs/runbooks/` for bootstrap, worker, privacy, support-access,
-and restore procedures.
+deployments. The approved legal bundle is a separate read-only API mount. See
+`docs/runbooks/` for bootstrap, worker, privacy, legal-document,
+support-access, and restore procedures.
 
 ## Authority
 

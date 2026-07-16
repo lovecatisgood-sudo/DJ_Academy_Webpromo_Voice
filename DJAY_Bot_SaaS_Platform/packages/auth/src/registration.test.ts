@@ -58,6 +58,8 @@ const registration = {
   locale: "en" as const,
   timezone: "Asia/Bangkok",
   selectedPlanKey: "flowbot_basic" as const,
+  termsVersion: "terms-1",
+  privacyVersion: "privacy-1",
   acceptTerms: true as const,
   acceptPrivacy: true as const,
 };
@@ -68,8 +70,7 @@ describe("registration service", () => {
     const envelopeKey = randomBytes(32);
     const service = createRegistrationService(store, {
       publicAppUrl: "https://app.example.test",
-      termsVersion: "terms-1",
-      privacyVersion: "privacy-1",
+      legalVersions: { termsVersion: "terms-1", privacyVersion: "privacy-1" },
       requestHashKey: randomBytes(32),
       emailEnvelopeKey: envelopeKey,
     });
@@ -94,8 +95,7 @@ describe("registration service", () => {
     const store = new MemoryStore();
     const service = createRegistrationService(store, {
       publicAppUrl: "https://app.example.test",
-      termsVersion: "terms-1",
-      privacyVersion: "privacy-1",
+      legalVersions: { termsVersion: "terms-1", privacyVersion: "privacy-1" },
       requestHashKey: randomBytes(32),
       emailEnvelopeKey: randomBytes(32),
     });
@@ -105,12 +105,45 @@ describe("registration service", () => {
     expect(store.signup!.requestHash.equals(firstHash)).toBe(false);
   });
 
+  it("fails closed before persistence when the accepted legal versions are stale", async () => {
+    const store = new MemoryStore();
+    const service = createRegistrationService(store, {
+      publicAppUrl: "https://app.example.test",
+      legalVersions: { termsVersion: "terms-2", privacyVersion: "privacy-2" },
+      requestHashKey: randomBytes(32),
+      emailEnvelopeKey: randomBytes(32),
+    });
+    await expect(service.register(registration)).resolves.toEqual({
+      accepted: false,
+      status: "legal_version_changed",
+      message: "The service terms or privacy notice changed. Review the current documents and accept them again.",
+    });
+    expect(store.signup).toBeUndefined();
+  });
+
+  it("keeps verification available while new registration authority is paused", async () => {
+    const store = new MemoryStore();
+    const service = createRegistrationService(store, {
+      publicAppUrl: "https://app.example.test",
+      legalVersions: null,
+      requestHashKey: randomBytes(32),
+      emailEnvelopeKey: randomBytes(32),
+    });
+    await expect(service.register(registration)).resolves.toMatchObject({
+      accepted: false,
+      status: "registration_unavailable",
+    });
+    const token = randomBytes(32).toString("base64url");
+    await expect(service.verify({ token, requestId: "request-verify-paused" })).resolves.toMatchObject({
+      status: "verified",
+    });
+  });
+
   it("hashes verification input before provisioning", async () => {
     const store = new MemoryStore();
     const service = createRegistrationService(store, {
       publicAppUrl: "https://app.example.test",
-      termsVersion: "terms-1",
-      privacyVersion: "privacy-1",
+      legalVersions: { termsVersion: "terms-1", privacyVersion: "privacy-1" },
       requestHashKey: randomBytes(32),
       emailEnvelopeKey: randomBytes(32),
     });

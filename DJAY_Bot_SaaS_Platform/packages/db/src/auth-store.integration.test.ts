@@ -40,8 +40,7 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
     const store = new PostgresAuthStore(authClient!);
     const service = createRegistrationService(store, {
       publicAppUrl: "https://signup.example.test",
-      termsVersion: "terms-test-1",
-      privacyVersion: "privacy-test-1",
+      legalVersions: { termsVersion: "terms-test-1", privacyVersion: "privacy-test-1" },
       requestHashKey,
       emailEnvelopeKey,
     });
@@ -56,6 +55,8 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
       locale: "en" as const,
       timezone: "Asia/Bangkok",
       selectedPlanKey: "ai_chat_basic" as const,
+      termsVersion: "terms-test-1",
+      privacyVersion: "privacy-test-1",
       acceptTerms: true as const,
       acceptPrivacy: true as const,
     };
