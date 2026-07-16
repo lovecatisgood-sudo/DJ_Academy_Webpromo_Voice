@@ -54,7 +54,7 @@ async function mockPublic(page, failedPaths, abortedMutationPaths) {
   });
 }
 
-async function mockTenantRole(page, role, requestedPaths, failedPaths, abortedMutationPaths) {
+async function mockTenantRole(page, role, requestedPaths, failedPaths, abortedMutationPaths, productDetail = false) {
   await page.route("**/tenant/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     requestedPaths?.add(path);
@@ -73,11 +73,18 @@ async function mockTenantRole(page, role, requestedPaths, failedPaths, abortedMu
     if (path === "/tenant/security/sessions") return json(route, { sessions: [] });
     if (path === "/tenant/privacy-jobs") return json(route, { jobs: [] });
     if (path === "/tenant/retention-policy") return json(route, { policy: { transcriptDays: 90, recordingDays: 0, voicePlanMaximumDays: 365, updatedAt: new Date().toISOString() } });
+    if (path === "/tenant/flowbot/bots" && productDetail) return json(route, { bots: [{ id: "30000000-0000-4000-8000-000000000001", name: "Sales flow", status: "published", defaultLanguage: "en", currentPublishedVersionId: "40000000-0000-4000-8000-000000000001", draftRevision: 1, deploymentCount: 1 }], capabilities: { planKey: "flowbot_premium", accessMode: "active", advancedNodes: true, approvedWebhooks: true, teamRouting: true, brandingRemoval: true, limits: { activeBots: 10, nodesPerBot: 200, deployments: 10 } } });
+    if (path === "/tenant/flowbot/bots/30000000-0000-4000-8000-000000000001/draft") return json(route, { draft: { revision: 1, definition: { schemaVersion: 1, nodes: {} }, updatedAt: new Date().toISOString() } });
+    if (path === "/tenant/flowbot/bots/30000000-0000-4000-8000-000000000001/versions") return json(route, { versions: [] });
+    if (path === "/tenant/flowbot/bots/30000000-0000-4000-8000-000000000001/deployments") return json(route, { deployments: [{ id: "50000000-0000-4000-8000-000000000001", name: "Website", keyPrefix: "flow_qa", status: "active", allowedOrigins: ["https://merchant.example"], createdAt: new Date().toISOString() }] });
     if (path === "/tenant/flowbot/bots") return json(route, { bots: [], capabilities: { planKey: "flowbot_basic", accessMode: "active", advancedNodes: false, approvedWebhooks: false, teamRouting: false, brandingRemoval: false, limits: { activeBots: 1, nodesPerBot: 25, deployments: 1 } } });
     if (path === "/tenant/flowbot/analytics") return json(route, { analytics: null });
     if (path === "/tenant/flowbot/install-checks") return json(route, { checks: [] });
     if (path === "/tenant/flowbot/downgrade-preflight") return json(route, { preflight: null });
     if (path === "/tenant/flowbot/notifications") return json(route, { notifications: [] });
+    if (path === "/tenant/ai-chat/agents" && productDetail) return json(route, { agents: [{ id: "60000000-0000-4000-8000-000000000001", name: "Sales assistant", status: "published", defaultLanguage: "en", currentPublishedPlaybookVersionId: "70000000-0000-4000-8000-000000000001", draftRevision: 1, deploymentCount: 1 }], capabilities: { planKey: "ai_chat_premium", accessMode: "active", web: true, social: { line: true, whatsapp: true, messenger: true }, limits: { deployments: 10, knowledgeDocuments: 100 } } });
+    if (path === "/tenant/ai-chat/agents/60000000-0000-4000-8000-000000000001/draft") return json(route, { draft: { revision: 1, definition: {}, knowledgeRevisionIds: [], updatedAt: new Date().toISOString() } });
+    if (path === "/tenant/ai-chat/agents/60000000-0000-4000-8000-000000000001/deployments") return json(route, { deployments: [{ id: "80000000-0000-4000-8000-000000000001", name: "Website", channel: "web", keyPrefix: "chat_qa", allowedOrigins: ["https://merchant.example"], status: "active", createdAt: new Date().toISOString() }] });
     if (path === "/tenant/ai-chat/agents") return json(route, { agents: [], capabilities: { planKey: "ai_chat_basic", accessMode: "active", web: true, social: { line: false, whatsapp: false, messenger: false }, limits: { deployments: 1, knowledgeDocuments: 10 } } });
     if (path === "/tenant/ai-chat/notifications") return json(route, { notifications: [] });
     if (path === "/tenant/ai-chat/analytics") return json(route, { analytics: null });
@@ -235,6 +242,26 @@ await visit({ name: "tenant-support-status-failure", url: `${tenantUrl}/workspac
 } });
 await visit({ name: "inbox-message-failure", url: `${tenantUrl}/workspace/inbox`, mock: (page) => mockTenantRole(page, "tenant_operator", undefined, new Set(["/tenant/conversations/conversation/messages"])), ready: ".conversation-panel", check: async (page) => {
   if (!await page.getByRole("button", { name: "Retry messages" }).count()) failures.push("inbox-message-failure: inline retry action missing");
+} });
+const flowbotSecondaryFailures = new Set(["/tenant/flowbot/analytics", "/tenant/flowbot/install-checks", "/tenant/team", "/tenant/flowbot/downgrade-preflight", "/tenant/flowbot/notifications"]);
+await visit({ name: "flowbot-secondary-failures", url: `${tenantUrl}/workspace/flowbot`, mock: (page) => mockTenantRole(page, "tenant_master_admin", undefined, flowbotSecondaryFailures, undefined, true), ready: ".flowbot-operations-grid", check: async (page) => {
+  for (const message of ["Install verification status could not be loaded. Deployment records remain available.", "Active team members could not be loaded.", "Notification recipients could not be loaded", "FlowBot analytics could not be loaded", "Downgrade compatibility could not be checked"]) {
+    if (!await page.getByText(message, { exact: true }).count()) failures.push(`flowbot-secondary-failures: missing ${message}`);
+  }
+  if (await page.getByText("No recipients", { exact: true }).count()) failures.push("flowbot-secondary-failures: unavailable recipients presented as empty");
+  if (await page.getByRole("button", { name: "Save routing team" }).isEnabled()) failures.push("flowbot-secondary-failures: routing could be saved without team evidence");
+} });
+const analystFlowRequests = new Set();
+await visit({ name: "flowbot-analyst-secondary-permissions", url: `${tenantUrl}/workspace/flowbot`, mock: (page) => mockTenantRole(page, "tenant_analyst", analystFlowRequests, undefined, undefined, true), ready: ".flowbot-tabs", check: async () => {
+  for (const path of ["/tenant/team", "/tenant/flowbot/downgrade-preflight"]) if (analystFlowRequests.has(path)) failures.push(`flowbot-analyst-secondary-permissions: unauthorized request initiated at ${path}`);
+} });
+const aiChatSecondaryFailures = new Set(["/tenant/knowledge", "/tenant/ai-chat/notifications", "/tenant/ai-chat/analytics", "/tenant/ai-chat/social-connections"]);
+await visit({ name: "ai-chat-secondary-failures", url: `${tenantUrl}/workspace/ai-chat`, mock: (page) => mockTenantRole(page, "tenant_master_admin", undefined, aiChatSecondaryFailures, undefined, true), ready: ".ai-authoring-grid", check: async (page) => {
+  for (const message of ["Knowledge options could not be loaded", "Notification recipients could not be loaded", "AI Chat analytics could not be loaded", "Social connections could not be loaded"]) {
+    if (!await page.getByText(message, { exact: true }).count()) failures.push(`ai-chat-secondary-failures: missing ${message}`);
+  }
+  for (const emptyState of ["No LINE connection", "No WhatsApp connection", "No Messenger connection"]) if (await page.getByText(emptyState, { exact: true }).count()) failures.push(`ai-chat-secondary-failures: unavailable social data presented as ${emptyState}`);
+  if (await page.getByRole("button", { name: "Add recipient" }).isEnabled()) failures.push("ai-chat-secondary-failures: recipient creation enabled without current recipient evidence");
 } });
 
 const failureMatrix = [

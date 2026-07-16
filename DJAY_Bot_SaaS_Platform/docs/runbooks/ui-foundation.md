@@ -53,10 +53,13 @@ succeed with an empty subscription array. Either authoritative read failing
 must render the shared Overview retry state.
 
 Secondary Studio reads preserve valid primary authoring data but must remain
-truthful. Voice Knowledge, notification-profile, and analytics failures render
-inline retry states, disable the affected selector, and never substitute “no
-approved knowledge,” “no email action,” or zero analytics for an unavailable
-response. Platform headings describe the evidence to review and do not make an
+truthful. FlowBot operational reads, AI Chat shared resources, and Voice
+Knowledge, notification-profile, social-connection, and analytics failures
+render inline retry states and never substitute an empty configuration or zero
+analytics for an unavailable response. Actions that depend on unverified team,
+recipient, or connection data remain disabled. Role-restricted FlowBot team and
+downgrade reads are not requested when the active role lacks their permission.
+Platform headings describe the evidence to review and do not make an
 unconditional “operational” claim before those reads complete.
 
 `NEXT_PUBLIC_PUBLIC_APP_URL` is the tenant sign-in link back to public

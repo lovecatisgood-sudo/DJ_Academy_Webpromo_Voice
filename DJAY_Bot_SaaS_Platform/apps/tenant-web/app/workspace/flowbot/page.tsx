@@ -57,6 +57,9 @@ export default function FlowBotPage() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]); const [preflight, setPreflight] = useState<DowngradePreflight | null>(null);
   const [notifications, setNotifications] = useState<NotificationProfile[]>([]);
   const [loadError, setLoadError] = useState(false);
+  const [analyticsLoadError, setAnalyticsLoadError] = useState(false); const [installChecksLoadError, setInstallChecksLoadError] = useState(false);
+  const [teamLoadError, setTeamLoadError] = useState(false); const [preflightLoadError, setPreflightLoadError] = useState(false);
+  const [notificationsLoadError, setNotificationsLoadError] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canAuthor = workspace?.role === "tenant_master_admin" || workspace?.role === "tenant_admin";
   const selectedBot = bots.find((bot) => bot.id === selectedBotId);
@@ -81,20 +84,36 @@ export default function FlowBotPage() {
     } catch { setLoadError(true); }
   }
   async function loadOperations() {
+    const canReadTeam = session.allows("team.read"); const canManageSubscriptions = session.allows("subscriptions.manage");
+    const [analyticsResponse, checksResponse, teamResponse, preflightResponse, notificationResponse] = await Promise.all([
+      fetch("/tenant/flowbot/analytics", { cache: "no-store" }).catch(() => null),
+      fetch("/tenant/flowbot/install-checks", { cache: "no-store" }).catch(() => null),
+      canReadTeam ? fetch("/tenant/team", { cache: "no-store" }).catch(() => null) : null,
+      canManageSubscriptions ? fetch("/tenant/flowbot/downgrade-preflight", { cache: "no-store" }).catch(() => null) : null,
+      fetch("/tenant/flowbot/notifications", { cache: "no-store" }).catch(() => null),
+    ]);
     try {
-      const [analyticsResponse, checksResponse, teamResponse, preflightResponse, notificationResponse] = await Promise.all([
-        fetch("/tenant/flowbot/analytics", { cache: "no-store" }),
-        fetch("/tenant/flowbot/install-checks", { cache: "no-store" }),
-        fetch("/tenant/team", { cache: "no-store" }),
-        fetch("/tenant/flowbot/downgrade-preflight", { cache: "no-store" }),
-        fetch("/tenant/flowbot/notifications", { cache: "no-store" }),
-      ]);
-      if (analyticsResponse.ok) setAnalytics((await analyticsResponse.json()).analytics || null);
-      if (checksResponse.ok) setInstallChecks((await checksResponse.json()).checks || []);
-      if (teamResponse.ok) setTeamMembers((await teamResponse.json()).team?.members || []);
-      if (preflightResponse.ok) setPreflight((await preflightResponse.json()).preflight || null); else setPreflight(null);
-      if (notificationResponse.ok) setNotifications((await notificationResponse.json()).notifications || []);
-    } catch { setMessage("Some FlowBot operational panels could not be loaded. Studio data remains available."); }
+      if (analyticsResponse?.ok) { setAnalytics((await analyticsResponse.json()).analytics || null); setAnalyticsLoadError(false); }
+      else { setAnalytics(null); setAnalyticsLoadError(analyticsResponse?.status !== 404); }
+    } catch { setAnalytics(null); setAnalyticsLoadError(true); }
+    try {
+      if (checksResponse?.ok) { setInstallChecks((await checksResponse.json()).checks || []); setInstallChecksLoadError(false); }
+      else { setInstallChecks([]); setInstallChecksLoadError(true); }
+    } catch { setInstallChecks([]); setInstallChecksLoadError(true); }
+    try {
+      if (!canReadTeam) { setTeamMembers([]); setTeamLoadError(false); }
+      else if (teamResponse?.ok) { setTeamMembers((await teamResponse.json()).team?.members || []); setTeamLoadError(false); }
+      else { setTeamMembers([]); setTeamLoadError(true); }
+    } catch { setTeamMembers([]); setTeamLoadError(true); }
+    try {
+      if (!canManageSubscriptions) { setPreflight(null); setPreflightLoadError(false); }
+      else if (preflightResponse?.ok) { setPreflight((await preflightResponse.json()).preflight || null); setPreflightLoadError(false); }
+      else { setPreflight(null); setPreflightLoadError(preflightResponse?.status !== 404); }
+    } catch { setPreflight(null); setPreflightLoadError(true); }
+    try {
+      if (notificationResponse?.ok) { setNotifications((await notificationResponse.json()).notifications || []); setNotificationsLoadError(false); }
+      else { setNotifications([]); setNotificationsLoadError(true); }
+    } catch { setNotifications([]); setNotificationsLoadError(true); }
   }
   useEffect(() => { if (session.selectedTenantId) { void loadBots(); void loadOperations(); } }, [session.selectedTenantId]);
   useEffect(() => { void loadBot(selectedBotId); }, [selectedBotId]);
@@ -180,20 +199,23 @@ export default function FlowBotPage() {
           {message ? <p className="inline-message" role="status">{message}</p> : null}
         </section>
         <section className="tool-band muted-band"><div className="band-heading"><div><p>Deployments</p><h2>Website origins</h2></div><span>{deployments.length}{capabilities?.limits.deployments ? ` / ${capabilities.limits.deployments}` : ""}</span></div>
+          {installChecksLoadError ? <div className="inline-message inline-retry" role="alert"><span>Install verification status could not be loaded. Deployment records remain available.</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>Try again</button></div> : null}
           {canAuthor && selectedBot.currentPublishedVersionId ? <form className="flowbot-deploy" onSubmit={createDeployment}><label>Name<input name="name" minLength={2} maxLength={160} required /></label><label>Allowed origin<input name="origin" type="url" placeholder="https://www.example.com" required /></label><button type="submit" disabled={working}>Create deployment</button></form> : null}
           {newDeploymentKey ? <div className="deployment-secret"><strong>One-time deployment key</strong><code>{newDeploymentKey}</code><pre>{`<script type="module">\n  import { mountFlowbotWidget } from "https://cdn.djaybot.com/flowbot/v1/index.js";\n  mountFlowbotWidget({ deploymentKey: "${newDeploymentKey}", apiBaseUrl: "${process.env.NEXT_PUBLIC_API_APP_URL || "https://api.djaybot.com"}" });\n</script>`}</pre></div> : null}
           <div className="data-table">{deployments.map((item) => { const check = installChecks.find((candidate) => candidate.deploymentId === item.id); return <div className="data-row" key={item.id}><div><strong>{item.name}</strong><span>{item.allowedOrigins.join(", ")}</span></div><span>{check?.status || item.status}</span>{canAuthor ? <button type="button" className="secondary-command" disabled={working} onClick={() => void requestInstallCheck(item)}>Verify install</button> : <code>{item.keyPrefix}...</code>}</div>; })}{!deployments.length ? <div className="pending-line"><strong>No deployments</strong><span>Publish before creating a website deployment.</span></div> : null}</div>
         </section>
         {capabilities?.advancedNodes && canAuthor ? <section className="tool-band"><div className="band-heading"><div><p>Premium operations</p><h2>Schedules and routing</h2></div><span>Deterministic</span></div>
           <div className="flowbot-operations-grid"><form onSubmit={saveSchedule}><h3>Business hours</h3><label>Key<input name="scheduleKey" defaultValue="sales" required pattern="[a-z][a-z0-9_-]*" /></label><label>Name<input name="name" defaultValue="Sales hours" required /></label><label>Timezone<input name="timezone" defaultValue="Asia/Bangkok" required /></label><button disabled={working}>Save 09:00-17:00 weekdays</button></form>
-            <form onSubmit={saveRoutingTeam}><h3>Routing team</h3><label>Key<input name="teamKey" defaultValue="sales" required pattern="[a-z][a-z0-9_-]*" /></label><label>Name<input name="name" defaultValue="Sales team" required /></label><fieldset><legend>Active members</legend>{teamMembers.filter((member) => member.membership_status === "active").map((member) => <label key={member.membership_id}><input type="checkbox" name="membershipIds" value={member.membership_id} defaultChecked /> {member.display_name}</label>)}</fieldset><button disabled={working}>Save routing team</button></form></div>
+            <form onSubmit={saveRoutingTeam}><h3>Routing team</h3><label>Key<input name="teamKey" defaultValue="sales" required pattern="[a-z][a-z0-9_-]*" /></label><label>Name<input name="name" defaultValue="Sales team" required /></label>{teamLoadError ? <div className="inline-message inline-retry" role="alert"><span>Active team members could not be loaded.</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>Try again</button></div> : <fieldset><legend>Active members</legend>{teamMembers.filter((member) => member.membership_status === "active").map((member) => <label key={member.membership_id}><input type="checkbox" name="membershipIds" value={member.membership_id} defaultChecked /> {member.display_name}</label>)}</fieldset>}<button disabled={working || teamLoadError}>Save routing team</button></form></div>
         </section> : null}
-        {canAuthor ? <section className="tool-band"><div className="band-heading"><div><p>Lead delivery</p><h2>Merchant email notifications</h2></div><span>{notifications.filter((item) => item.status === "active").length} active</span></div>
-          <form className="flowbot-deploy" onSubmit={createNotification}><label>Recipient name<input name="name" minLength={2} maxLength={160} placeholder="Sales inbox" required /></label><label>Recipient email<input name="recipientEmail" type="email" maxLength={320} placeholder="sales@example.com" required /></label><button type="submit" disabled={working}>Add recipient</button></form>
+        {canAuthor ? <section className="tool-band"><div className="band-heading"><div><p>Lead delivery</p><h2>Merchant email notifications</h2></div><span>{notificationsLoadError ? "Unavailable" : `${notifications.filter((item) => item.status === "active").length} active`}</span></div>
+          <form className="flowbot-deploy" onSubmit={createNotification}><label>Recipient name<input name="name" minLength={2} maxLength={160} placeholder="Sales inbox" required /></label><label>Recipient email<input name="recipientEmail" type="email" maxLength={320} placeholder="sales@example.com" required /></label><button type="submit" disabled={working || notificationsLoadError}>Add recipient</button></form>
           <p className="field-help">Recipient addresses are encrypted. Only the approved lead-captured template can be sent.</p>
-          <div className="data-table">{notifications.map((profile) => <div className="data-row" key={profile.id}><div><strong>{profile.name}</strong><span>{profile.allowedTemplateKeys.join(", ")}</span></div><span>{profile.status}</span></div>)}{!notifications.length ? <div className="pending-line"><strong>No recipients</strong><span>Add a merchant inbox to receive durable lead notifications.</span></div> : null}</div>
+          <div className="data-table">{notificationsLoadError ? <div className="pending-line inline-retry" role="alert"><strong>Notification recipients could not be loaded</strong><span>Existing delivery settings have not changed.</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>Try again</button></div> : <>{notifications.map((profile) => <div className="data-row" key={profile.id}><div><strong>{profile.name}</strong><span>{profile.allowedTemplateKeys.join(", ")}</span></div><span>{profile.status}</span></div>)}{!notifications.length ? <div className="pending-line"><strong>No recipients</strong><span>Add a merchant inbox to receive durable lead notifications.</span></div> : null}</>}</div>
         </section> : null}
+        {analyticsLoadError ? <section className="tool-band"><div className="pending-line inline-retry" role="alert"><strong>FlowBot analytics could not be loaded</strong><span>Bot and deployment records remain available.</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>Try again</button></div></section> : null}
         {analytics ? <section className="tool-band"><div className="band-heading"><div><p>{analytics.periodDays}-day {analytics.level}</p><h2>FlowBot analytics</h2></div><a className="secondary-command" href="/tenant/flowbot/analytics?format=csv">Export CSV</a></div><div className="metric-grid"><div><strong>{analytics.executions}</strong><span>Executions</span></div><div><strong>{analytics.completed}</strong><span>Completed</span></div><div><strong>{analytics.leads}</strong><span>Leads</span></div><div><strong>{analytics.handovers}</strong><span>Handovers</span></div><div><strong>{analytics.messages}</strong><span>Messages</span></div></div></section> : null}
+        {preflightLoadError ? <section className="tool-band muted-band"><div className="pending-line inline-retry" role="alert"><strong>Downgrade compatibility could not be checked</strong><span>No subscription change has been made.</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>Try again</button></div></section> : null}
         {preflight ? <section className="tool-band muted-band"><div className="band-heading"><div><p>Plan safety</p><h2>Basic downgrade preflight</h2></div><span>{preflight.allowed ? "Ready" : `${preflight.blockers.length} blockers`}</span></div>{preflight.allowed ? <p className="inline-message">Current definitions are compatible with FlowBot Basic.</p> : <div className="data-table">{preflight.blockers.map((blocker, index) => <div className="data-row" key={`${blocker.code}-${index}`}><strong>{blocker.code}</strong><span>{blocker.detail || "Configuration dependency"}</span><span>{preflight.remediation[index]?.action}</span></div>)}</div>}</section> : null}
         <section className="tool-band"><div className="band-heading"><div><p>Immutable history</p><h2>Published versions</h2></div><span>{versions.length}</span></div><div className="data-table">{versions.map((version) => <div className="data-row" key={version.id}><div><strong>Version {version.version}</strong><span>{new Date(version.publishedAt).toLocaleString()}</span></div><span>{version.sourceVersionId ? "Derived" : "Published"}</span>{canAuthor ? <button type="button" className="secondary-command" onClick={() => void rollback(version.id)} disabled={working}>Publish copy</button> : <span />}</div>)}</div></section>
       </> : null}

@@ -42,6 +42,11 @@ proves that:
   subscription read cannot produce a false empty-product claim;
 - Voice Studio secondary-dependency failures preserve the Studio while showing
   explicit Knowledge, notification-profile, and analytics retry states;
+- FlowBot and AI Chat secondary-dependency failures preserve primary Studio
+  data, expose panel-specific retry states, suppress false empty recipients and
+  connections, and disable actions that require unavailable prerequisite data;
+- FlowBot omits team and downgrade-preflight requests for roles without the
+  respective permissions;
 - restricted Platform copy does not claim that foundations are operational
   independently of the evidence-backed readiness and resource states;
 - public login, verification, and invitation destinations never fall back to
