@@ -1,6 +1,8 @@
 import { assertProviderNeutralCustomerText } from "@djay/provider-gateway";
 import { salesCoreOutputSchema, type SalesCoreOutput } from "@djay/sales-core";
 
+export * from "./voice";
+
 export type AiEvaluationCase = Readonly<{
   id: string;
   language: "th" | "en";

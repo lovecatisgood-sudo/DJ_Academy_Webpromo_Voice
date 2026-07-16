@@ -12,6 +12,7 @@ git diff --check
 scripts/use-node24.sh pnpm --filter @djay/db typecheck
 scripts/use-node24.sh pnpm --filter @djay/api typecheck
 scripts/use-node24.sh pnpm --filter @djay/platform-master typecheck
+scripts/use-node24.sh pnpm --filter @djay/ai-evals test
 scripts/use-node24.sh pnpm --filter @djay/voice-gateway test
 scripts/use-node24.sh pnpm run qa:p8-voice-load
 scripts/use-node24.sh pnpm test:db
@@ -62,6 +63,17 @@ settled 40 injected media-open failures, and drained 10 active sessions during
 shutdown with zero sessions left. Observed p95 connection time was 53 ms and
 the heap delta was 5,466,816 bytes in this run. These values are diagnostic
 evidence from the local fixture, not approved production service thresholds.
+
+The Voice evaluation contract passes eight tests together with the existing P5
+suite. P8 requires both English and Thai observations for disclosure, Sales Core
+turns, interruption, silence, background noise, reconnect, timeout cleanup, and
+upstream outage. The evaluator permits repeated samples, but fails missing
+coverage, duplicate case IDs, inexact speech,
+provider disclosure, duplicate actions, unsafe outage/cleanup, and metrics that
+miss the externally approved threshold artifact. Its strict input rejects raw
+audio/transcript and provider/model/route fields; its CLI emits only a safe
+aggregate report plus the input artifact's lowercase SHA-256 digest. This proves
+the gate behavior, not the still-pending equivalent or live profile.
 
 ## Pending P8 gates
 

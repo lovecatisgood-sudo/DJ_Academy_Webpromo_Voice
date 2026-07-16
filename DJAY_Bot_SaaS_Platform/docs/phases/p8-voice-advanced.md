@@ -90,6 +90,11 @@ remains unavailable and paused by default in production.
     cells are neutralized against spreadsheet formula execution, and no route,
     provider, model, raw transcript, prompt, credential, native-unit, price,
     cost, or margin field enters the tenant response.
+22. The P8 Voice evaluator requires English and Thai evidence for disclosure,
+    Sales Core turns, interruption, silence, background noise, reconnect,
+    timeout cleanup, and upstream outage. It applies only externally approved,
+    SHA-256-bound quality and latency thresholds and emits a provider-neutral
+    aggregate report without accepting raw audio, transcripts, or route fields.
 
 ## Schema, API, and event contract
 
@@ -147,6 +152,10 @@ remains unavailable and paused by default in production.
   cross-deployment isolation, bounded daily series, safe operational latency,
   reconnect, outcome, lead, and appointment reconciliation, and immediate
   downgrade removal of Advanced breakdowns.
+- Evaluation contract tests prove complete bilingual scenario coverage, exact
+  disclosure and Sales Core speech, no duplicate actions, neutral outage,
+  cleanup/reconnect invariants, externally supplied thresholds, and rejection
+  of raw or routing-specific artifact fields.
 
 ## Non-goals for this foundation
 
@@ -157,9 +166,10 @@ remains unavailable and paused by default in production.
 
 ## Next slice
 
-Add the equivalent-profile evaluation suite and live-provider capacity and
-approved margin gates, then execute live Thai/English and named-merchant
-acceptance. Keep admission disabled until those evidence digests are reviewed.
+Execute the evaluation harness against an equivalent profile and the exact live
+candidate, add live-provider capacity and approved margin gates, then complete
+named-merchant acceptance. Keep admission disabled until those evidence digests
+are reviewed.
 
 ## Rollback
 

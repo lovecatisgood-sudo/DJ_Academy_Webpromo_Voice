@@ -13,6 +13,20 @@ enable calls. Do not treat a created deployment as runtime acceptance.
 
 ## Qualify and canary
 
+Store the restricted JSON artifact outside the repository, then evaluate it
+against the independently approved threshold record:
+
+```bash
+P8_VOICE_EVAL_ARTIFACT=/restricted/path/voice-evaluation.json \
+  scripts/use-node24.sh pnpm run qa:p8-voice-eval
+```
+
+The artifact must use `voice-eval-artifact.v1` and contain both English and Thai
+observations for every required scenario. Do not add provider/model/route fields,
+raw audio, or transcript content; bind the candidate to the CLI's
+`artifactEvidenceDigest`. A passing equivalent-profile artifact does not replace
+the exact live-candidate and named-merchant runs.
+
 1. Platform Owner or AI Operations proposes a Gen2 provider/model/region
    candidate.
 2. A different Platform Owner or AI Operations reviewer verifies the restricted

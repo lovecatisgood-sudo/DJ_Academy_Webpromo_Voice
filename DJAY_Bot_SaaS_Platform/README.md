@@ -34,7 +34,8 @@ qualification, reviewed canary/rollback, incident pause, independent credit
 review, role-aware operations UI, generation-pinned tenant deployments,
 restricted Gen2 session assignment, exact gateway routing, independently
 reviewed production admission, and entitlement-aware Advanced analytics are
-implemented, while live-provider capacity, live quality, margin, and
+implemented together with a provider-neutral bilingual evaluation harness,
+while equivalent/live-provider evidence, capacity, live quality, margin, and
 named-merchant acceptance remain pending. Gen2 and the Voice runtime
 activation is disabled by default. FlowBot remains limited to named pilots until three
 real isolated tenant acceptances pass. AI Chat Basic also requires an approved

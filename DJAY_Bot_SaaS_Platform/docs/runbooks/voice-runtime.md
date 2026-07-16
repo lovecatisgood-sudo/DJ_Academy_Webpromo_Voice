@@ -36,7 +36,8 @@ latency gate, retention review, and named merchant acceptance are complete.
 3. Start the gateway with admission paused. Readiness remains false unless the
    restricted media credential plus context and Sales Core turn endpoints are configured.
 4. Validate the approved media adapter. Run the complete desktop,
-   mobile, Thai, English, interruption, silence, reconnect, and cleanup gate.
+   mobile, Thai, English, interruption, silence, noise, reconnect, outage, and
+   cleanup gate through `qa:p8-voice-eval` for Advanced candidates.
 5. In Platform Master, enter the release record identifier as the operational
    reason and select **Resume admission**. This requires a recent MFA-backed
    platform session and creates an immutable platform audit record.
