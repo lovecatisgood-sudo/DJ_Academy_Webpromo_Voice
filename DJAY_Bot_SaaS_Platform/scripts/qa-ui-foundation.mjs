@@ -3,6 +3,7 @@ import { chromium } from "playwright";
 const publicUrl = process.env.PUBLIC_QA_URL || "http://127.0.0.1:3110";
 const tenantUrl = process.env.TENANT_QA_URL || "http://127.0.0.1:3111";
 const platformUrl = process.env.PLATFORM_QA_URL || "http://127.0.0.1:3112";
+const apiUrl = process.env.API_QA_URL || "http://127.0.0.1:3113";
 const browser = await chromium.launch({ headless: true });
 const failures = [];
 const brandColors = new Set();
@@ -31,24 +32,53 @@ async function visit({ name, url, viewport = desktop, mock, ready = "h1", check 
   await page.locator(ready).first().waitFor();
   const geometry = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
   if (geometry.document > geometry.viewport + 1) failures.push(`${name}: horizontal overflow ${geometry.document}px > ${geometry.viewport}px`);
-  const mark = page.locator(".brand-mark, .mark").first();
+  const mark = page.locator(".brand-mark, .mark, .api-mark").first();
   if (await mark.count()) brandColors.add(await mark.evaluate((element) => getComputedStyle(element).backgroundColor));
   await check?.(page);
   await context.close();
 }
 
 async function mockPublic(page) {
-  await page.route("**/public/catalog", (route) => json(route, { plans: [
-    { planKey: "flowbot_basic", productKey: "flowbot", publicName: "FlowBot Basic", tierName: "Basic", summary: "Guided automation", sellable: true, publicHighlights: ["Visual conversation flows"] },
-    { planKey: "ai_chat_premium", productKey: "ai_chat", publicName: "AI Chatbot Premium", tierName: "Premium", summary: "AI sales assistance", sellable: true, publicHighlights: ["Knowledge-grounded responses"] },
-  ] }));
+  await page.route("**/public/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/public/catalog") return json(route, { plans: [
+      { planKey: "flowbot_basic", productKey: "flowbot", publicName: "FlowBot Basic", tierName: "Basic", summary: "Guided automation", sellable: true, publicHighlights: ["Visual conversation flows"] },
+      { planKey: "ai_chat_premium", productKey: "ai_chat", publicName: "AI Chatbot Premium", tierName: "Premium", summary: "AI sales assistance", sellable: true, publicHighlights: ["Knowledge-grounded responses"] },
+    ] });
+    if (path === "/public/status") return json(route, { status: { asOf: new Date().toISOString(), overall: "operational", services: [] } });
+    if (path === "/public/auth/verify-email") return json(route, { status: "verified" });
+    if (path === "/public/invitations/accept") return json(route, { status: "accepted" });
+    return json(route, { status: "not_found" }, 404);
+  });
 }
 
-async function mockTenantRole(page, role) {
+async function mockTenantRole(page, role, requestedPaths) {
   await page.route("**/tenant/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    requestedPaths?.add(path);
     if (path === "/tenant/session") return json(route, { user: { id: "user", displayName: "QA user" }, workspaces: [{ tenantId, slug: "qa-workspace", businessName: "Bangkok Service Studio", role }], selectedTenantId: tenantId, mfaVerifiedAt: new Date().toISOString() });
     if (path === "/tenant/onboarding") return json(route, { onboarding: { tenant_id: tenantId, business_name: "Bangkok Service Studio", slug: "qa-workspace", locale: "en", timezone: "Asia/Bangkok", stage: "ready" } });
+    if (path === "/tenant/support-access") return json(route, { grants: [] });
+    if (path === "/tenant/contacts") return json(route, { contacts: [], identityReviewCandidates: [] });
+    if (path === "/tenant/leads") return json(route, { leads: [] });
+    if (path === "/tenant/knowledge") return json(route, { sources: [] });
+    if (path === "/tenant/conversations") return json(route, { conversations: [{ id: "conversation", contactName: "QA customer", productKey: "ai_chat", channelKind: "web", automationMode: "human", status: "open", lastMessage: "Could you help?", lastMessageAt: new Date().toISOString(), voiceStatus: null, voiceTerminalReason: null, voiceMinutes: null, voiceDurationSeconds: null, voiceOutcome: null, voiceSummary: null, callbackStatus: null, callbackDueAt: null }] });
+    if (path === "/tenant/conversations/conversation/messages") return json(route, { messages: [] });
+    if (path === "/tenant/team") return json(route, { team: { members: [], invitations: [], transfers: [] } });
+    if (path === "/tenant/security/sessions") return json(route, { sessions: [] });
+    if (path === "/tenant/privacy-jobs") return json(route, { jobs: [] });
+    if (path === "/tenant/retention-policy") return json(route, { policy: { transcriptDays: 90, recordingDays: 0, voicePlanMaximumDays: 365, updatedAt: new Date().toISOString() } });
+    if (path === "/tenant/flowbot/bots") return json(route, { bots: [], capabilities: { planKey: "flowbot_basic", accessMode: "active", advancedNodes: false, approvedWebhooks: false, teamRouting: false, brandingRemoval: false, limits: { activeBots: 1, nodesPerBot: 25, deployments: 1 } } });
+    if (path === "/tenant/flowbot/analytics") return json(route, { analytics: null });
+    if (path === "/tenant/flowbot/install-checks") return json(route, { checks: [] });
+    if (path === "/tenant/flowbot/downgrade-preflight") return json(route, { preflight: null });
+    if (path === "/tenant/flowbot/notifications") return json(route, { notifications: [] });
+    if (path === "/tenant/ai-chat/agents") return json(route, { agents: [], capabilities: { planKey: "ai_chat_basic", accessMode: "active", web: true, social: { line: false, whatsapp: false, messenger: false }, limits: { deployments: 1, knowledgeDocuments: 10 } } });
+    if (path === "/tenant/ai-chat/notifications") return json(route, { notifications: [] });
+    if (path === "/tenant/ai-chat/analytics") return json(route, { analytics: null });
+    if (path === "/tenant/ai-chat/social-connections") return json(route, { connections: [] });
+    if (path === "/tenant/voice/deployments") return json(route, { capability: { enabled: true, publicLabel: "First-Generation Voice Engine" }, deployments: [] });
+    if (path === "/tenant/usage") return json(route, { usage: { asOf: new Date().toISOString(), billingMode: "pre_release", invoicesAvailable: false, subscriptions: [] } });
     return json(route, { status: "not_found" }, 404);
   });
 }
@@ -82,7 +112,32 @@ for (const [name, viewport] of [["desktop", desktop], ["mobile", mobile]]) {
     const href = await page.getByRole("link", { name: "Create workspace" }).getAttribute("href");
     if (href !== "https://djaybot.com") failures.push(`tenant-login-${name}: unsafe public registration URL ${href}`);
   } });
+  await visit({ name: `api-root-${name}`, url: apiUrl, viewport, ready: "#api-title", check: async (page) => {
+    if (await page.getByRole("link", { name: "Go to DJAY Bot" }).getAttribute("href") !== "https://djaybot.com") failures.push(`api-root-${name}: unsafe public site URL`);
+  } });
 }
+
+await visit({ name: "public-status", url: `${publicUrl}/status`, mock: mockPublic, ready: "#status-title", check: async (page) => {
+  await page.getByText("All systems operational").waitFor();
+} });
+await visit({ name: "public-verification", url: `${publicUrl}/verify-email?token=qa-token`, mock: mockPublic, ready: "#verification-title", check: async (page) => {
+  const link = page.getByRole("link", { name: "Continue to sign in" });
+  await page.getByRole("button", { name: "Confirm email" }).click();
+  await link.waitFor({ timeout: 5_000 }).catch(() => undefined);
+  if (!await link.isVisible()) failures.push(`public-verification: verified continuation missing (${(await page.locator(".form-message").textContent().catch(() => "no status"))?.trim()})`);
+  else if (await link.getAttribute("href") !== "https://app.djaybot.com") failures.push("public-verification: unsafe tenant sign-in URL");
+} });
+await visit({ name: "public-invitation", url: `${publicUrl}/invitations/accept?token=qa-token`, mock: mockPublic, ready: "#invitation-title", check: async (page) => {
+  if (await page.getByRole("link", { name: "Sign in first" }).getAttribute("href") !== "https://app.djaybot.com") failures.push("public-invitation: unsafe tenant sign-in URL");
+} });
+const redirectContext = await browser.newContext();
+const loginRedirect = await redirectContext.request.get(`${publicUrl}/login`, { maxRedirects: 0 });
+if (![307, 308].includes(loginRedirect.status()) || !["https://app.djaybot.com", "https://app.djaybot.com/"].includes(loginRedirect.headers().location)) failures.push(`public-login: unsafe redirect ${loginRedirect.status()} ${loginRedirect.headers().location}`);
+await redirectContext.close();
+
+await visit({ name: "tenant-recovery", url: `${tenantUrl}/recovery`, ready: "#recovery-title" });
+await visit({ name: "tenant-recovery-complete", url: `${tenantUrl}/recovery/complete?token=qa-token`, ready: "#recovery-complete-title" });
+await visit({ name: "tenant-ownership", url: `${tenantUrl}/ownership/accept?transferId=transfer&token=qa-token`, mock: (page) => mockTenantRole(page, "tenant_master_admin"), ready: "#acceptance-title" });
 
 const tenantExpectations = {
   tenant_master_admin: ["Team", "Security", "Data controls"],
@@ -98,6 +153,48 @@ for (const [role, privilegedLabels] of Object.entries(tenantExpectations)) {
     }
   } });
 }
+
+const workspaceRoutes = ["", "flowbot", "ai-chat", "voice", "inbox", "contacts", "leads", "knowledge", "data", "team", "usage", "security"];
+for (const [viewportName, viewport] of [["desktop", desktop], ["mobile", mobile]]) {
+  for (const route of workspaceRoutes) {
+    const routeName = route || "overview";
+    await visit({ name: `workspace-${routeName}-${viewportName}`, url: `${tenantUrl}/workspace${route ? `/${route}` : ""}`, viewport, mock: (page) => mockTenantRole(page, "tenant_master_admin"), ready: "h1", check: async (page) => {
+      if (!await page.locator(".workspace-main").count()) failures.push(`workspace-${routeName}-${viewportName}: workspace shell missing`);
+    } });
+  }
+}
+
+await visit({ name: "analyst-overview", url: `${tenantUrl}/workspace`, mock: (page) => mockTenantRole(page, "tenant_analyst"), ready: ".stage-control", check: async (page) => {
+  if (await page.locator(".stage-control button:enabled").count()) failures.push("analyst-overview: onboarding mutations exposed");
+} });
+for (const [route, forbiddenHeading] of [["contacts", "Create contact"], ["leads", "Create lead"], ["knowledge", "Add source"]]) {
+  await visit({ name: `analyst-${route}`, url: `${tenantUrl}/workspace/${route}`, mock: (page) => mockTenantRole(page, "tenant_analyst"), ready: "h1", check: async (page) => {
+    if (await page.getByRole("heading", { name: forbiddenHeading }).count()) failures.push(`analyst-${route}: write control exposed`);
+    if (!await page.locator(".workspace-access-note").count()) failures.push(`analyst-${route}: view-only explanation missing`);
+  } });
+}
+await visit({ name: "analyst-inbox", url: `${tenantUrl}/workspace/inbox`, mock: (page) => mockTenantRole(page, "tenant_analyst"), ready: ".conversation-panel", check: async (page) => {
+  for (const action of ["Send reply", "Take over", "Release automation"]) if (await page.getByRole("button", { name: action }).count()) failures.push(`analyst-inbox: ${action} exposed`);
+} });
+for (const route of ["team", "security"]) {
+  const requestedPaths = new Set();
+  await visit({ name: `analyst-${route}-denied`, url: `${tenantUrl}/workspace/${route}`, mock: (page) => mockTenantRole(page, "tenant_analyst", requestedPaths), ready: ".workspace-access-denied", check: async (page) => {
+    if (!await page.getByRole("heading", { name: "You don’t have access to this area" }).count()) failures.push(`analyst-${route}: access explanation missing`);
+    const protectedPath = route === "team" ? "/tenant/team" : "/tenant/security/sessions";
+    if (requestedPaths.has(protectedPath)) failures.push(`analyst-${route}: protected data request was initiated`);
+  } });
+}
+const analystDataRequests = new Set();
+await visit({ name: "analyst-data-denied", url: `${tenantUrl}/workspace/data`, mock: (page) => mockTenantRole(page, "tenant_analyst", analystDataRequests), ready: "h1", check: async (page) => {
+  if (!await page.getByRole("heading", { name: "Tenant Master Admin access required" }).count()) failures.push("analyst-data: access explanation missing");
+  for (const path of ["/tenant/contacts", "/tenant/privacy-jobs", "/tenant/retention-policy"]) if (analystDataRequests.has(path)) failures.push(`analyst-data: protected data request initiated at ${path}`);
+} });
+await visit({ name: "operator-knowledge", url: `${tenantUrl}/workspace/knowledge`, mock: (page) => mockTenantRole(page, "tenant_operator"), ready: "h1", check: async (page) => {
+  if (await page.getByRole("heading", { name: "Add source" }).count()) failures.push("operator-knowledge: write control exposed");
+} });
+await visit({ name: "operator-inbox", url: `${tenantUrl}/workspace/inbox`, mock: (page) => mockTenantRole(page, "tenant_operator"), ready: ".conversation-panel", check: async (page) => {
+  if (!await page.getByRole("button", { name: "Send reply" }).count()) failures.push("operator-inbox: reply control missing");
+} });
 
 const platformExpectations = {
   platform_owner: ["Overview", "Release", "Usage", "Voice", "Recovery", "Commerce", "Support"],

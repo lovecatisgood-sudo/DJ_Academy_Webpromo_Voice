@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
+import { WorkspaceAccessDenied } from "../WorkspaceAccess";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
 type SecuritySession = {
@@ -28,7 +29,7 @@ export default function SecurityPage() {
     if (response.ok) setSessions((await response.json()).sessions || []);
   }
 
-  useEffect(() => { if (workspaceSession.selectedTenantId) void loadSessions(); }, [workspaceSession.selectedTenantId]);
+  useEffect(() => { if (workspaceSession.selectedTenantId && workspaceSession.allows("security.sessions.read")) void loadSessions(); }, [workspaceSession.selectedTenantId, activeWorkspace?.role]);
 
   async function revoke(sessionId: string) {
     const response = await fetch(`/tenant/security/sessions/${sessionId}`, { method: "DELETE" });
@@ -70,6 +71,7 @@ export default function SecurityPage() {
   }
 
   if (workspaceSession.loading || !workspaceSession.selectedTenantId) return <main className="workspace-loading">Loading security...</main>;
+  if (!workspaceSession.allows("security.sessions.read")) return <WorkspaceAccessDenied active="security" title="Security" workspaces={workspaceSession.workspaces} selectedTenantId={workspaceSession.selectedTenantId} onSelect={(tenantId) => void workspaceSession.selectWorkspace(tenantId)} onLogout={() => void workspaceSession.logout()} />;
   return (
     <main className="workspace-shell">
       <WorkspaceSidebar

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
+import { WorkspaceViewOnly } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
@@ -16,6 +17,7 @@ export default function ContactsPage() {
   const [message, setMessage] = useState("");
   const [working, setWorking] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
+  const canWrite = session.allows("contacts.write");
 
   async function load() {
     const response = await fetch("/tenant/contacts", { cache: "no-store" });
@@ -27,7 +29,7 @@ export default function ContactsPage() {
   useEffect(() => { if (session.selectedTenantId) void load(); }, [session.selectedTenantId]);
 
   async function createContact(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setWorking(true); setMessage("");
+    event.preventDefault(); if (!canWrite) return; setWorking(true); setMessage("");
     const form = event.currentTarget; const data = new FormData(form);
     const email = String(data.get("email") || "").trim(); const phone = String(data.get("phone") || "").trim();
     const response = await fetch("/tenant/contacts", {
@@ -47,7 +49,8 @@ export default function ContactsPage() {
       <section className="workspace-main">
         <WorkspaceSupportBanner tenantId={session.selectedTenantId} />
         <header className="workspace-header"><div><p>Customers</p><h1>Contacts</h1></div><span className="role-label">{workspace?.businessName}</span></header>
-        <section className="tool-band">
+        {!canWrite ? <WorkspaceViewOnly>You can review customer records. An operator or administrator can create contacts.</WorkspaceViewOnly> : null}
+        {canWrite ? <section className="tool-band">
           <div className="band-heading"><div><p>New record</p><h2>Create contact</h2></div></div>
           <form className="record-form" onSubmit={createContact}>
             <label>Name<input name="displayName" maxLength={200} required /></label>
@@ -58,7 +61,7 @@ export default function ContactsPage() {
             <button type="submit" disabled={working}>{working ? "Creating..." : "Create contact"}</button>
           </form>
           {message ? <p className="inline-message" role="status">{message}</p> : null}
-        </section>
+        </section> : null}
         <section className="tool-band">
           <div className="band-heading"><div><p>Suggestions only</p><h2>Possible contact matches</h2></div><span>{identityReviews.length}</span></div>
           <p className="field-help">Matching email or phone values never merge customer records automatically. Review these records before any future audited merge workflow.</p>

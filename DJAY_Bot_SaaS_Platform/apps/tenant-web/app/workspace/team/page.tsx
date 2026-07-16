@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
+import { WorkspaceAccessDenied } from "../WorkspaceAccess";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
 type Member = {
@@ -31,8 +32,8 @@ export default function TeamPage() {
   }
 
   useEffect(() => {
-    if (session.selectedTenantId) void loadTeam();
-  }, [session.selectedTenantId]);
+    if (session.selectedTenantId && session.allows("team.read")) void loadTeam();
+  }, [session.selectedTenantId, activeWorkspace?.role]);
 
   async function invite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -72,6 +73,7 @@ export default function TeamPage() {
   }
 
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading team...</main>;
+  if (!session.allows("team.read")) return <WorkspaceAccessDenied active="team" title="Team" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(tenantId) => void session.selectWorkspace(tenantId)} onLogout={() => void session.logout()} />;
   const isOwner = activeWorkspace?.role === "tenant_master_admin";
   const canInvite = isOwner || activeWorkspace?.role === "tenant_admin";
 

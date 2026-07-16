@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { tenantRoleAllows, type TenantRole } from "@djay/authorization";
+import { WorkspaceViewOnly } from "./WorkspaceAccess";
 import { WorkspaceSidebar, type WorkspaceSummary } from "./WorkspaceSidebar";
 
 type Workspace = WorkspaceSummary;
@@ -27,6 +29,10 @@ export default function WorkspacePage() {
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [onboarding, setOnboarding] = useState<Onboarding | null>(null);
   const [loading, setLoading] = useState(true);
+  const activeWorkspace = workspaces.find((workspace) => workspace.tenantId === selectedTenantId);
+  const canUpdateOnboarding = activeWorkspace
+    ? tenantRoleAllows(activeWorkspace.role as TenantRole, "onboarding.update")
+    : false;
 
   async function load() {
     const sessionResponse = await fetch("/tenant/session", { cache: "no-store" });
@@ -60,6 +66,7 @@ export default function WorkspacePage() {
   }
 
   async function updateStage(stage: Onboarding["stage"]) {
+    if (!canUpdateOnboarding) return;
     const response = await fetch("/tenant/onboarding", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -95,7 +102,6 @@ export default function WorkspacePage() {
     );
   }
 
-  const activeWorkspace = workspaces.find((workspace) => workspace.tenantId === selectedTenantId);
   return (
     <main className="workspace-shell">
       <WorkspaceSidebar
@@ -110,6 +116,7 @@ export default function WorkspacePage() {
           <div><p>Workspace</p><h1>{activeWorkspace?.businessName || onboarding?.business_name}</h1></div>
           <span className="role-label">{activeWorkspace?.role.replaceAll("_", " ")}</span>
         </header>
+        {!canUpdateOnboarding ? <WorkspaceViewOnly>You can review workspace setup. A workspace administrator can change onboarding stages.</WorkspaceViewOnly> : null}
         <section className="onboarding-band" aria-labelledby="onboarding-title">
           <div className="band-heading"><div><p>Setup</p><h2 id="onboarding-title">Workspace onboarding</h2></div><span>{onboarding?.timezone || "Asia/Bangkok"}</span></div>
           <div className="stage-control" aria-label="Onboarding stage">
@@ -118,6 +125,7 @@ export default function WorkspacePage() {
                 key={stage}
                 type="button"
                 className={onboarding?.stage === stage ? "current" : ""}
+                disabled={!canUpdateOnboarding}
                 onClick={() => void updateStage(stage)}
               >{stageLabels[stage]}</button>
             ))}

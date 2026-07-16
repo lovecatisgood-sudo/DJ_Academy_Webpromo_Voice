@@ -40,6 +40,7 @@ async function mockTenant(page) {
     if (path.endsWith("/test")) return json(route, { preview: { stage: "S2_DISCOVERY", text: "The approved consultation is 30 minutes. What would you like to improve?", proposedActionTypes: [], citationCount: 1, handover: false } });
     if (path === "/tenant/ai-chat/notifications") return json(route, { notifications: [{ id: profileId, name: "Sales inbox", allowedTemplateKeys: ["ai_chat.lead_qualified"], status: "active" }] });
     if (path === "/tenant/ai-chat/analytics") return json(route, { analytics: { periodDays: 30, level: "core", sessions: 21, completedTurns: 48, failedTurns: 1, handovers: 3, leads: 9, appointmentRequests: 4, settledResponses: 48 } });
+    if (path === "/tenant/ai-chat/social-connections") return json(route, { connections: [] });
     return json(route, { status: "not_found" }, 404);
   });
 }

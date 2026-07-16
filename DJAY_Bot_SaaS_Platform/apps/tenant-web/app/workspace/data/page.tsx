@@ -16,12 +16,13 @@ export default function DataControlsPage() {
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canManage = workspace?.role === "tenant_master_admin";
   async function load() {
-    const contactResponse = await fetch("/tenant/contacts", { cache: "no-store" }); if (contactResponse.ok) setContacts((await contactResponse.json()).contacts || []);
     if (canManage) {
-      const [jobsResponse, retentionResponse] = await Promise.all([
+      const [contactResponse, jobsResponse, retentionResponse] = await Promise.all([
+        fetch("/tenant/contacts", { cache: "no-store" }),
         fetch("/tenant/privacy-jobs", { cache: "no-store" }),
         fetch("/tenant/retention-policy", { cache: "no-store" }),
       ]);
+      if (contactResponse.ok) setContacts((await contactResponse.json()).contacts || []);
       if (jobsResponse.ok) setJobs((await jobsResponse.json()).jobs || []);
       if (retentionResponse.ok) setRetention((await retentionResponse.json()).policy || null);
     }

@@ -54,8 +54,10 @@ health and reports unknown when evidence cannot be verified. Deterministic
 email replay, stale queue recovery, bounded database readiness, and local pool
 exhaustion now pass executable drills. Public, tenant, and restricted Platform
 surfaces now share an accessible brand foundation and permission-derived
-navigation, with production-browser coverage for every tenant and Platform
-role. Real managed
+navigation, with production-browser coverage for every rendered route at
+desktop and mobile breakpoints and every tenant and Platform role. Read-only
+roles no longer receive misleading mutation controls, and forbidden direct
+routes fail closed with a recovery path. Real managed
 production observations, on-call staffing, PITR/regional exercises, legal and
 commercial approval remain external launch gates. Checkout, invoices, tax,
 dunning, and public charging remain disabled.

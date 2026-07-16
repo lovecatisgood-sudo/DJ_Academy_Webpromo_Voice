@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
+import { WorkspaceViewOnly } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
@@ -20,6 +21,8 @@ export default function InboxPage() {
   const [notice, setNotice] = useState(""); const [working, setWorking] = useState(false);
   const selected = conversations.find((conversation) => conversation.id === selectedId) || null;
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
+  const canReply = session.allows("conversations.reply");
+  const canAssign = session.allows("conversations.assign");
 
   async function loadInbox() {
     const response = await fetch("/tenant/conversations", { cache: "no-store" });
@@ -34,13 +37,13 @@ export default function InboxPage() {
   useEffect(() => { if (selectedId) void loadMessages(selectedId); else setMessages([]); }, [selectedId]);
 
   async function reply(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!selectedId) return; setWorking(true); setNotice(""); const form = event.currentTarget; const data = new FormData(form);
+    event.preventDefault(); if (!selectedId || !canReply) return; setWorking(true); setNotice(""); const form = event.currentTarget; const data = new FormData(form);
     const response = await fetch(`/tenant/conversations/${selectedId}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actorType: "human", direction: "outbound", text: data.get("text") }) });
     setWorking(false); if (!response.ok) { setNotice("Reply could not be sent."); return; }
     form.reset(); await Promise.all([loadMessages(selectedId), loadInbox()]);
   }
   async function transition(action: "takeover" | "release") {
-    if (!selectedId) return; setWorking(true); setNotice("");
+    if (!selectedId || !canAssign) return; setWorking(true); setNotice("");
     const response = await fetch(`/tenant/conversations/${selectedId}/${action}`, { method: "POST" });
     setWorking(false); if (!response.ok) { setNotice(action === "takeover" ? "Conversation could not be taken over." : "Conversation could not be released."); return; }
     await Promise.all([loadInbox(), loadMessages(selectedId)]);
@@ -51,6 +54,7 @@ export default function InboxPage() {
     <WorkspaceSidebar active="inbox" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} />
     <section className="workspace-main inbox-page"><WorkspaceSupportBanner tenantId={session.selectedTenantId} />
       <header className="workspace-header"><div><p>Conversations</p><h1>Inbox</h1></div><span className="role-label">{workspace?.businessName}</span></header>
+      {!canReply && !canAssign ? <WorkspaceViewOnly>You can review conversations and outcomes. An operator or administrator can take over and reply.</WorkspaceViewOnly> : null}
       <div className="inbox-layout">
         <div className="conversation-list" aria-label="Conversations">
           {conversations.map((conversation) => <button className={conversation.id === selectedId ? "selected" : ""} key={conversation.id} type="button" onClick={() => setSelectedId(conversation.id)}>
@@ -61,7 +65,7 @@ export default function InboxPage() {
         </div>
         <section className="conversation-panel" aria-label="Selected conversation">
           {selected ? <>
-            <header><div><strong>{selected.contactName}</strong><span>{selected.automationMode.replaceAll("_", " ")} / {selected.status}</span></div><div>{selected.status === "open" ? selected.automationMode === "human" ? <button type="button" className="secondary-command" disabled={working} onClick={() => void transition("release")}>Release automation</button> : <button type="button" className="secondary-command" disabled={working} onClick={() => void transition("takeover")}>Take over</button> : null}</div></header>
+            <header><div><strong>{selected.contactName}</strong><span>{selected.automationMode.replaceAll("_", " ")} / {selected.status}</span></div><div>{canAssign && selected.status === "open" ? selected.automationMode === "human" ? <button type="button" className="secondary-command" disabled={working} onClick={() => void transition("release")}>Release automation</button> : <button type="button" className="secondary-command" disabled={working} onClick={() => void transition("takeover")}>Take over</button> : null}</div></header>
             {selected.productKey === "voice" ? <section className="voice-call-summary" aria-label="Voice call outcome">
               <div><span>Outcome</span><strong>{selected.voiceOutcome?.replaceAll("_", " ") || selected.voiceTerminalReason?.replaceAll("_", " ") || "In progress"}</strong></div>
               <div><span>Call usage</span><strong>{selected.voiceMinutes ?? 0} min{selected.voiceDurationSeconds !== null ? ` / ${selected.voiceDurationSeconds}s` : ""}</strong></div>
@@ -69,7 +73,7 @@ export default function InboxPage() {
               <p>{selected.voiceSummary || "The durable call summary will appear after the first completed turn."}</p>
             </section> : null}
             <div className="message-stream">{messages.map((message) => <div className={`message-bubble ${message.direction}`} key={message.id}><span>{message.actorType}</span><p>{message.text}</p><time>{new Date(message.createdAt).toLocaleString()}</time></div>)}</div>
-            {selected.status !== "closed" && selected.automationMode === "human" ? <form className="reply-form" onSubmit={reply}><label><span className="visually-hidden">Reply</span><textarea name="text" rows={3} maxLength={20000} placeholder="Write a reply" required /></label><button type="submit" disabled={working}>{working ? "Sending..." : "Send reply"}</button></form> : selected.status === "closed" ? <div className="closed-line">This conversation is closed.</div> : <div className="closed-line">Take over before replying.</div>}
+            {selected.status === "closed" ? <div className="closed-line">This conversation is closed.</div> : selected.automationMode !== "human" ? <div className="closed-line">{canAssign ? "Take over before replying." : "This conversation is currently automated."}</div> : canReply ? <form className="reply-form" onSubmit={reply}><label><span className="visually-hidden">Reply</span><textarea name="text" rows={3} maxLength={20000} placeholder="Write a reply" required /></label><button type="submit" disabled={working}>{working ? "Sending..." : "Send reply"}</button></form> : <div className="closed-line">View-only access does not include sending replies.</div>}
             {notice ? <p className="inline-message" role="alert">{notice}</p> : null}
           </> : <div className="inbox-empty"><strong>Select a conversation</strong><span>Messages are ordered and tenant scoped.</span></div>}
         </section>

@@ -45,6 +45,11 @@ a { color: var(--djay-green-700); text-underline-offset: 3px; }
 .workspace-role { margin: 18px 10px 0; color: #68716e; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
 .workspace-shell aside .quiet-command { margin-top: auto; }
 .workspace-main { width: auto; min-width: 0; margin: 0; }
+.workspace-access-note { display: flex; align-items: center; gap: 12px; padding: 11px clamp(22px, 4vw, 52px); border-bottom: 1px solid #d7e4df; background: #eef7f3; color: #315447; font-size: 12px; line-height: 1.45; }
+.workspace-access-note strong { flex: 0 0 auto; color: #174f3d; }
+.workspace-access-denied { min-height: 260px; display: grid; align-content: start; gap: 18px; background: #f8faf9; }
+.workspace-access-denied .control-copy { max-width: 680px; margin: 0; }
+.workspace-access-denied .primary-link { width: fit-content; }
 .support-access-banner { min-height: 54px; display: flex; align-items: center; gap: 18px; padding: 10px clamp(22px, 4vw, 52px); border-bottom: 1px solid #e2b3af; background: #fff0ef; color: #722823; font-size: 13px; }
 .support-access-banner span { color: #7b4642; }
 .workspace-header { min-height: 92px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px clamp(22px, 4vw, 52px); border-bottom: 1px solid #e1e5e3; }

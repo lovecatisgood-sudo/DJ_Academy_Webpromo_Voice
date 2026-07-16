@@ -8,9 +8,8 @@ export default async function VerifyEmailPage({
     <main className="verification-layout">
       <VerifyEmailClient
         token={token}
-        tenantLoginUrl={process.env.TENANT_APP_URL || "http://127.0.0.1:3101"}
+        tenantLoginUrl={process.env.TENANT_APP_URL || "https://app.djaybot.com"}
       />
     </main>
   );
 }
-

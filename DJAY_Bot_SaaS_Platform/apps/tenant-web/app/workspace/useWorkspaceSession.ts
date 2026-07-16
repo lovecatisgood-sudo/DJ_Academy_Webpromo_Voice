@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { tenantRoleAllows, tenantRoles, type TenantPermission, type TenantRole } from "@djay/authorization";
 import type { WorkspaceSummary } from "./WorkspaceSidebar";
 
 export function useWorkspaceSession() {
@@ -37,5 +38,11 @@ export function useWorkspaceSession() {
     window.location.replace("/");
   }
 
-  return { loading, workspaces, selectedTenantId, mfaVerifiedAt, selectWorkspace, logout };
+  const activeWorkspace = workspaces.find((workspace) => workspace.tenantId === selectedTenantId) || null;
+  function allows(permission: TenantPermission) {
+    const role = activeWorkspace?.role || "";
+    return tenantRoles.includes(role as TenantRole) && tenantRoleAllows(role as TenantRole, permission);
+  }
+
+  return { loading, workspaces, selectedTenantId, activeWorkspace, mfaVerifiedAt, allows, selectWorkspace, logout };
 }
