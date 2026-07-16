@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import {
+  flowbotOperationsFieldConstraints,
+  flowbotRoutingTeamFormError,
+  flowbotScheduleFormError,
+  safeMutationFetch,
+} from "@djay/shared";
 import { createWidgetInstallSnippet } from "@djay/shared/widget-install";
 import { tenantWidgetInstallEnvironment } from "../../../lib/widget-install-environment";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
@@ -21,6 +26,15 @@ type InstallCheck = { id: string; deploymentId: string; targetOrigin: string; st
 type TeamMember = { membership_id: string; display_name: string; membership_status: string };
 type DowngradePreflight = { allowed: boolean; blockers: { code: string; detail?: string }[]; remediation: { action: string }[] };
 type NotificationProfile = { id: string; name: string; allowedTemplateKeys: string[]; status: "active" | "disabled"; createdAt: string };
+type OperationsValidation = { form: "schedule" | "team"; field: string; message: string };
+
+function focusFormControl(form: HTMLFormElement, fieldName: string) {
+  requestAnimationFrame(() => {
+    const named = form.elements.namedItem(fieldName);
+    const field = named instanceof HTMLElement ? named : form.querySelector(`[name="${fieldName}"]`);
+    if (field instanceof HTMLElement) field.focus();
+  });
+}
 
 function greetingTemplate() {
   const root = crypto.randomUUID(); const end = crypto.randomUUID(); const flowVersionId = crypto.randomUUID();
@@ -63,9 +77,11 @@ export default function FlowBotPage() {
   const [analyticsLoadError, setAnalyticsLoadError] = useState(false); const [installChecksLoadError, setInstallChecksLoadError] = useState(false);
   const [teamLoadError, setTeamLoadError] = useState(false); const [preflightLoadError, setPreflightLoadError] = useState(false);
   const [notificationsLoadError, setNotificationsLoadError] = useState(false);
+  const [operationsValidation, setOperationsValidation] = useState<OperationsValidation | null>(null);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canAuthor = workspace?.role === "tenant_master_admin" || workspace?.role === "tenant_admin";
   const selectedBot = bots.find((bot) => bot.id === selectedBotId);
+  const activeTeamMembers = teamMembers.filter((member) => member.membership_status === "active");
   const installSnippet = newDeploymentKey
     ? createWidgetInstallSnippet("flowbot", newDeploymentKey, tenantWidgetInstallEnvironment)
     : "";
@@ -164,14 +180,38 @@ export default function FlowBotPage() {
     if (response.ok) await loadOperations();
   }
   async function saveSchedule(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); setWorking(true);
+    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
+    const input = {
+      scheduleKey: String(data.get("scheduleKey") || ""),
+      name: String(data.get("name") || ""),
+      timezone: String(data.get("timezone") || ""),
+    };
+    const validationError = flowbotScheduleFormError(input);
+    if (validationError) {
+      setMessage(""); setOperationsValidation({ form: "schedule", ...validationError });
+      focusFormControl(form, validationError.field);
+      return;
+    }
+    setWorking(true); setMessage(""); setOperationsValidation(null);
     const weeklyWindows = [1, 2, 3, 4, 5].map((dayOfWeek) => ({ dayOfWeek, startMinute: 540, endMinute: 1020 }));
-    const response = await safeMutationFetch("/tenant/flowbot/schedules", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scheduleKey: data.get("scheduleKey"), name: data.get("name"), timezone: data.get("timezone"), weeklyWindows, closedDates: [] }) });
+    const response = await safeMutationFetch("/tenant/flowbot/schedules", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scheduleKey: input.scheduleKey.trim(), name: input.name.trim(), timezone: input.timezone.trim(), weeklyWindows, closedDates: [] }) });
     setWorking(false); setMessage(response.ok ? "Business schedule saved (Monday-Friday, 09:00-17:00)." : "Business schedule could not be saved.");
   }
   async function saveRoutingTeam(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); setWorking(true);
-    const response = await safeMutationFetch("/tenant/flowbot/routing-teams", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teamKey: data.get("teamKey"), name: data.get("name"), membershipIds: data.getAll("membershipIds") }) });
+    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
+    const input = {
+      teamKey: String(data.get("teamKey") || ""),
+      name: String(data.get("name") || ""),
+      membershipIds: data.getAll("membershipIds").map(String),
+    };
+    const validationError = flowbotRoutingTeamFormError(input);
+    if (validationError) {
+      setMessage(""); setOperationsValidation({ form: "team", ...validationError });
+      focusFormControl(form, validationError.field);
+      return;
+    }
+    setWorking(true); setMessage(""); setOperationsValidation(null);
+    const response = await safeMutationFetch("/tenant/flowbot/routing-teams", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teamKey: input.teamKey.trim(), name: input.name.trim(), membershipIds: input.membershipIds }) });
     setWorking(false); setMessage(response.ok ? "Routing team saved." : "Routing team could not be saved.");
   }
   async function createNotification(event: FormEvent<HTMLFormElement>) {
@@ -211,8 +251,8 @@ export default function FlowBotPage() {
           <div className="data-table">{deployments.map((item) => { const check = installChecks.find((candidate) => candidate.deploymentId === item.id); return <div className="data-row" key={item.id}><div><strong>{item.name}</strong><span>{item.allowedOrigins.join(", ")}</span></div><span>{check?.status || item.status}</span>{canAuthor ? <button type="button" className="secondary-command" disabled={working} onClick={() => void requestInstallCheck(item)}>Verify install</button> : <code>{item.keyPrefix}...</code>}</div>; })}{!deployments.length ? <div className="pending-line"><strong>No deployments</strong><span>Publish before creating a website deployment.</span></div> : null}</div>
         </section>
         {capabilities?.advancedNodes && canAuthor ? <section className="tool-band"><div className="band-heading"><div><p>Premium operations</p><h2>Schedules and routing</h2></div><span>Deterministic</span></div>
-          <div className="flowbot-operations-grid"><form onSubmit={saveSchedule}><h3>Business hours</h3><label>Key<input name="scheduleKey" defaultValue="sales" required pattern="[a-z][a-z0-9_-]*" /></label><label>Name<input name="name" defaultValue="Sales hours" required /></label><label>Timezone<input name="timezone" defaultValue="Asia/Bangkok" required /></label><button disabled={working}>Save 09:00-17:00 weekdays</button></form>
-            <form onSubmit={saveRoutingTeam}><h3>Routing team</h3><label>Key<input name="teamKey" defaultValue="sales" required pattern="[a-z][a-z0-9_-]*" /></label><label>Name<input name="name" defaultValue="Sales team" required /></label>{teamLoadError ? <div className="inline-message inline-retry" role="alert"><span>Active team members could not be loaded.</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>Try again</button></div> : <fieldset><legend>Active members</legend>{teamMembers.filter((member) => member.membership_status === "active").map((member) => <label key={member.membership_id}><input type="checkbox" name="membershipIds" value={member.membership_id} defaultChecked /> {member.display_name}</label>)}</fieldset>}<button disabled={working || teamLoadError}>Save routing team</button></form></div>
+          <div className="flowbot-operations-grid"><form onSubmit={saveSchedule} noValidate onInput={() => setOperationsValidation((current) => current?.form === "schedule" ? null : current)}><h3>Business hours</h3><label>Key<input name="scheduleKey" defaultValue="sales" {...flowbotOperationsFieldConstraints.key} required aria-invalid={operationsValidation?.form === "schedule" && operationsValidation.field === "scheduleKey" || undefined} aria-describedby={operationsValidation?.form === "schedule" && operationsValidation.field === "scheduleKey" ? "flowbot-schedule-error" : undefined} /></label><label>Name<input name="name" defaultValue="Sales hours" {...flowbotOperationsFieldConstraints.name} required aria-invalid={operationsValidation?.form === "schedule" && operationsValidation.field === "name" || undefined} aria-describedby={operationsValidation?.form === "schedule" && operationsValidation.field === "name" ? "flowbot-schedule-error" : undefined} /></label><label>Timezone<input name="timezone" defaultValue="Asia/Bangkok" {...flowbotOperationsFieldConstraints.timezone} required aria-invalid={operationsValidation?.form === "schedule" && operationsValidation.field === "timezone" || undefined} aria-describedby={operationsValidation?.form === "schedule" && operationsValidation.field === "timezone" ? "flowbot-schedule-error" : undefined} /></label>{operationsValidation?.form === "schedule" ? <p id="flowbot-schedule-error" className="inline-message error" role="alert">{operationsValidation.message}</p> : null}<button disabled={working}>Save 09:00-17:00 weekdays</button></form>
+            <form onSubmit={saveRoutingTeam} noValidate onInput={() => setOperationsValidation((current) => current?.form === "team" ? null : current)}><h3>Routing team</h3><label>Key<input name="teamKey" defaultValue="sales" {...flowbotOperationsFieldConstraints.key} required aria-invalid={operationsValidation?.form === "team" && operationsValidation.field === "teamKey" || undefined} aria-describedby={operationsValidation?.form === "team" && operationsValidation.field === "teamKey" ? "flowbot-team-error" : undefined} /></label><label>Name<input name="name" defaultValue="Sales team" {...flowbotOperationsFieldConstraints.name} required aria-invalid={operationsValidation?.form === "team" && operationsValidation.field === "name" || undefined} aria-describedby={operationsValidation?.form === "team" && operationsValidation.field === "name" ? "flowbot-team-error" : undefined} /></label>{teamLoadError ? <div className="inline-message inline-retry" role="alert"><span>Active team members could not be loaded.</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>Try again</button></div> : activeTeamMembers.length ? <fieldset aria-describedby={operationsValidation?.form === "team" && operationsValidation.field === "membershipIds" ? "flowbot-team-error" : undefined}><legend>Active members</legend>{activeTeamMembers.map((member) => <label key={member.membership_id}><input type="checkbox" name="membershipIds" value={member.membership_id} defaultChecked /> {member.display_name}</label>)}</fieldset> : <div className="pending-line"><strong>No active team members</strong><span>Add or reactivate a team member before creating a routing team.</span></div>}{operationsValidation?.form === "team" ? <p id="flowbot-team-error" className="inline-message error" role="alert">{operationsValidation.message}</p> : null}<button disabled={working || teamLoadError || !activeTeamMembers.length}>Save routing team</button></form></div>
         </section> : null}
         {canAuthor ? <section className="tool-band"><div className="band-heading"><div><p>Lead delivery</p><h2>Merchant email notifications</h2></div><span>{notificationsLoadError ? "Unavailable" : `${notifications.filter((item) => item.status === "active").length} active`}</span></div>
           <form className="flowbot-deploy" onSubmit={createNotification}><label>Recipient name<input name="name" minLength={2} maxLength={160} placeholder="Sales inbox" required /></label><label>Recipient email<input name="recipientEmail" type="email" maxLength={320} placeholder="sales@example.com" required /></label><button type="submit" disabled={working || notificationsLoadError}>Add recipient</button></form>

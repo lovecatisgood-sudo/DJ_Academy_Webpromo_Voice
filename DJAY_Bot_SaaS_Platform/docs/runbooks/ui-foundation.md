@@ -247,6 +247,11 @@ local development. The focused P4, P5, and P7 browser gates must prove invalid
 input sends zero mutations, and the shared static guard must prove the Tenant,
 API, and storage layers still use the same authority.
 
+FlowBot Premium schedule and routing changes must also pass the P4 browser gate:
+unsupported IANA timezones and empty member selections remain local, while one
+corrected submission is trimmed and sent exactly once. Do not bypass the shared
+key/name/timezone/member contract in the UI, API, domain, or repository.
+
 Do not promote when this gate fails. A passing local gate does not replace
 manual keyboard, screen-reader, zoom/reflow, cognitive, or representative-device
 review. It also does not replace named-merchant acceptance, managed service

@@ -1,13 +1,14 @@
 import { tenantRoleAllows } from "@djay/authorization";
+import { flowbotOperationKeyPattern, flowbotOperationsFieldLimits } from "@djay/shared";
 import type { NextRequest } from "next/server";
 import { ZodError, z } from "zod";
 import { hasTrustedOrigin, readJson, safeJson } from "../../../../lib/http";
 import { resolveTenantRequest } from "../../../../lib/tenant-context";
 
 const teamSchema = z.object({
-  teamKey: z.string().regex(/^[a-z][a-z0-9_-]{0,99}$/),
-  name: z.string().trim().min(2).max(160),
-  membershipIds: z.array(z.uuid()).min(1).max(100),
+  teamKey: z.string().trim().regex(flowbotOperationKeyPattern),
+  name: z.string().trim().min(flowbotOperationsFieldLimits.name.minLength).max(flowbotOperationsFieldLimits.name.maxLength),
+  membershipIds: z.array(z.uuid()).min(flowbotOperationsFieldLimits.members.min).max(flowbotOperationsFieldLimits.members.max),
 }).strict();
 
 export async function GET(request: NextRequest) {

@@ -180,6 +180,11 @@ HTTP, and overlong values are rejected instead of silently normalized. Invalid
 input is announced on and focused at the originating field with zero mutation.
 All three APIs revalidate the contract, and all three storage paths normalize
 and reject independently; FlowBot no longer trusts API-only canonicalization.
+FlowBot Premium schedule and routing setup now shares the PostgreSQL-safe key,
+name, IANA timezone, and 1–100-member boundaries across browser, domain, API,
+and storage. Invalid timezone or empty-team input is focused and announced
+before transport, accepted text is normalized once, and routing creation is
+disabled when the authoritative team read contains no active members.
 
 ## P6 LINE, WhatsApp, and Messenger runtime checkpoint
 

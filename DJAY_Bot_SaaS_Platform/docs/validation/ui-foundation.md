@@ -58,6 +58,9 @@ Finance roles. It verified:
 - FlowBot and AI Chat share one accessible website-deployment form and all three
   product APIs/storage paths share exact-origin validation; path-bearing input
   stays correctable on the source field and sends zero mutations;
+- FlowBot Premium schedule and routing fields match database-safe key, name,
+  IANA timezone, and active-member limits; invalid values receive focused,
+  assertive correction with zero mutations;
 - a branded registration completion and invalid-link recovery journey with one
   anti-enumerating, retryable verification resend control;
 - correct permission-derived tenant and Platform navigation;

@@ -45,14 +45,21 @@ async function mockFlowbot(page, planKey, counters) {
     if (path === "/tenant/flowbot/install-checks") return json(route, method === "GET" ? { checks: [{ id: "45000000-0000-4000-8000-000000000001", deploymentId, targetOrigin: "https://merchant.example", status: "verified", safeResultCode: "widget_seen", createdAt: new Date().toISOString() }] } : { status: "requested", checkId: crypto.randomUUID() }, method === "GET" ? 200 : 201);
     if (path === "/tenant/flowbot/downgrade-preflight") return json(route, { preflight: { allowed: planKey === "flowbot_basic", blockers: planKey === "flowbot_premium" ? [{ code: "premium_node_present", detail: "delay" }] : [], remediation: planKey === "flowbot_premium" ? [{ action: "Replace or remove this Premium node in a new draft." }] : [] } });
     if (path === "/tenant/flowbot/notifications") return json(route, method === "GET" ? { notifications: [{ id: "46000000-0000-4000-8000-000000000001", name: "Sales inbox", allowedTemplateKeys: ["flowbot.lead_captured"], status: "active", createdAt: new Date().toISOString() }] } : { status: "created", profileId: crypto.randomUUID() }, method === "GET" ? 200 : 201);
-    if (path === "/tenant/flowbot/schedules" || path === "/tenant/flowbot/routing-teams") return json(route, { status: "saved" });
+    if (path === "/tenant/flowbot/schedules" && method === "PUT") {
+      counters.scheduleSaves += 1; counters.scheduleBody = route.request().postDataJSON();
+      return json(route, { status: "saved" });
+    }
+    if (path === "/tenant/flowbot/routing-teams" && method === "PUT") {
+      counters.routingTeamSaves += 1; counters.routingTeamBody = route.request().postDataJSON();
+      return json(route, { status: "saved" });
+    }
     return json(route, { status: "not_found" }, 404);
   });
 }
 
 async function inspectPlan(planKey, viewport, suffix) {
   const context = await browser.newContext({ viewport }); const page = await context.newPage();
-  const counters = { deploymentCreates: 0 };
+  const counters = { deploymentCreates: 0, scheduleSaves: 0, routingTeamSaves: 0, scheduleBody: null, routingTeamBody: null };
   page.on("pageerror", (error) => failures.push(`${planKey}-${suffix}: ${error.message}`));
   page.on("console", (entry) => { if (entry.type() === "error") failures.push(`${planKey}-${suffix}: console ${entry.text()}`); });
   await mockFlowbot(page, planKey, counters);
@@ -87,6 +94,51 @@ async function inspectPlan(planKey, viewport, suffix) {
     const expected = 'import { mountFlowbotWidget } from "https://cdn.djaybot.com/flowbot/v1/index.js";'
       + '\n  mountFlowbotWidget({ deploymentKey: "' + deploymentKey + '", apiBaseUrl: "https://api.djaybot.com" });';
     if (!snippet.includes(expected)) failures.push(`${planKey}-${suffix}: install snippet drifted from the release contract`);
+    if (planKey === "flowbot_premium") {
+      const scheduleForm = page.locator(".flowbot-operations-grid form").filter({ has: page.getByRole("heading", { name: "Business hours" }) });
+      if (await scheduleForm.getByLabel("Key").getAttribute("maxlength") !== "100"
+        || await scheduleForm.getByLabel("Name").getAttribute("maxlength") !== "160"
+        || await scheduleForm.getByLabel("Timezone").getAttribute("maxlength") !== "64") {
+        failures.push(`${planKey}-${suffix}: schedule form drifted from the Premium operations contract`);
+      }
+      await scheduleForm.getByLabel("Timezone").fill("Mars/Colony");
+      await scheduleForm.getByRole("button", { name: "Save 09:00-17:00 weekdays" }).click();
+      await scheduleForm.getByRole("alert").getByText("Enter a supported IANA timezone", { exact: false }).waitFor();
+      if (counters.scheduleSaves !== 0) failures.push(`${planKey}-${suffix}: invalid timezone reached the API`);
+      await scheduleForm.getByLabel("Key").fill(" sales ");
+      await scheduleForm.getByLabel("Name").fill(" Sales hours ");
+      await scheduleForm.getByLabel("Timezone").fill(" Asia/Bangkok ");
+      await scheduleForm.getByRole("button", { name: "Save 09:00-17:00 weekdays" }).click();
+      await page.getByText("Business schedule saved", { exact: false }).waitFor();
+      if (counters.scheduleSaves !== 1
+        || counters.scheduleBody?.scheduleKey !== "sales"
+        || counters.scheduleBody?.name !== "Sales hours"
+        || counters.scheduleBody?.timezone !== "Asia/Bangkok") {
+        failures.push(`${planKey}-${suffix}: corrected schedule did not send one normalized mutation`);
+      }
+
+      const routingForm = page.locator(".flowbot-operations-grid form").filter({ has: page.getByRole("heading", { name: "Routing team" }) });
+      if (await routingForm.getByLabel("Key").getAttribute("maxlength") !== "100"
+        || await routingForm.getByLabel("Name").getAttribute("maxlength") !== "160") {
+        failures.push(`${planKey}-${suffix}: routing form drifted from the Premium operations contract`);
+      }
+      const member = routingForm.getByRole("checkbox", { name: "Sales Owner" });
+      await member.uncheck();
+      await routingForm.getByRole("button", { name: "Save routing team" }).click();
+      await routingForm.getByRole("alert").getByText("Select 1–100 active team members.", { exact: true }).waitFor();
+      if (counters.routingTeamSaves !== 0) failures.push(`${planKey}-${suffix}: empty routing team reached the API`);
+      await member.check();
+      await routingForm.getByLabel("Key").fill(" sales ");
+      await routingForm.getByLabel("Name").fill(" Sales team ");
+      await routingForm.getByRole("button", { name: "Save routing team" }).click();
+      await page.getByText("Routing team saved.", { exact: true }).waitFor();
+      if (counters.routingTeamSaves !== 1
+        || counters.routingTeamBody?.teamKey !== "sales"
+        || counters.routingTeamBody?.name !== "Sales team"
+        || counters.routingTeamBody?.membershipIds?.length !== 1) {
+        failures.push(`${planKey}-${suffix}: corrected routing team did not send one normalized mutation`);
+      }
+    }
   }
   const dimensions = await page.evaluate(() => ({ body: document.body.innerText, width: document.documentElement.scrollWidth, viewport: innerWidth }));
   if (dimensions.width > dimensions.viewport + 1) failures.push(`${planKey}-${suffix}: horizontal overflow ${dimensions.width}/${dimensions.viewport}`);

@@ -52,6 +52,11 @@ The deployment journey now shares the exact website-origin form contract with AI
 Chat: a path-bearing URL receives focused, assertive local feedback and sends
 zero requests, while one corrected exact origin sends one normalized request.
 The FlowBot store independently rejects a path-bearing origin before insertion.
+Premium schedule and routing forms now match the database-safe key, name,
+supported-IANA-timezone, and 1–100-member contracts. Chromium proves an invalid
+timezone and an empty routing team each send zero requests; corrected values
+send one normalized mutation. Storage integration independently rejects both
+cases and persists trimmed accepted values.
 
 ## Pilot acceptance worksheet
 

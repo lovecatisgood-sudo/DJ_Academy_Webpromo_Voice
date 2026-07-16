@@ -77,6 +77,9 @@ production Tenant builds reject insecure public API or CDN origins. Their
 website deployment journeys also share one exact-origin authority: the browser,
 API, and storage layers reject paths, queries, fragments, credentials, remote
 HTTP, and overlong origins instead of silently rewriting merchant input.
+FlowBot Premium schedule and routing forms likewise enforce the same key, name,
+timezone, and member boundaries as their API, domain, and PostgreSQL authority,
+with accessible local correction instead of generic late failures.
 Read-only roles no longer
 receive misleading mutation controls, and forbidden direct
 routes fail closed with a recovery path. Unexpected URLs and render failures in

@@ -1,11 +1,14 @@
 import { tenantRoleAllows } from "@djay/authorization";
 import { flowBusinessScheduleSchema } from "@djay/flowbot-domain";
+import { flowbotOperationsFieldLimits } from "@djay/shared";
 import type { NextRequest } from "next/server";
 import { ZodError, z } from "zod";
 import { hasTrustedOrigin, readJson, safeJson } from "../../../../lib/http";
 import { resolveTenantRequest } from "../../../../lib/tenant-context";
 
-const scheduleSchema = flowBusinessScheduleSchema.extend({ name: z.string().trim().min(2).max(160) }).strict();
+const scheduleSchema = flowBusinessScheduleSchema.extend({
+  name: z.string().trim().min(flowbotOperationsFieldLimits.name.minLength).max(flowbotOperationsFieldLimits.name.maxLength),
+}).strict();
 
 export async function GET(request: NextRequest) {
   const resolved = await resolveTenantRequest(request);

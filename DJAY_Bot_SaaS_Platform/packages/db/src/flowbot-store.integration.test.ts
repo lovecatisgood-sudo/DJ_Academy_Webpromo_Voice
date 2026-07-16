@@ -48,14 +48,25 @@ describe.runIf(enabled)("P4 FlowBot authoring repository", () => {
       weeklyWindows: [{ dayOfWeek: 1, startMinute: 540, endMinute: 1020 }],
     })).resolves.toEqual({ status: "not_entitled" });
     await expect(store.upsertBusinessSchedule(contextB, {
-      scheduleKey: "sales", name: "Sales hours", timezone: "Asia/Bangkok",
+      scheduleKey: "Sales", name: "Sales hours", timezone: "Asia/Bangkok",
+      weeklyWindows: [{ dayOfWeek: 1, startMinute: 540, endMinute: 1020 }],
+    })).resolves.toEqual({ status: "validation_failed" });
+    await expect(store.upsertBusinessSchedule(contextB, {
+      scheduleKey: "sales", name: "Sales hours", timezone: "Mars/Colony",
+      weeklyWindows: [{ dayOfWeek: 1, startMinute: 540, endMinute: 1020 }],
+    })).resolves.toEqual({ status: "invalid_timezone" });
+    await expect(store.upsertBusinessSchedule(contextB, {
+      scheduleKey: " sales ", name: " Sales hours ", timezone: " Asia/Bangkok ",
       weeklyWindows: [{ dayOfWeek: 1, startMinute: 540, endMinute: 1020 }], closedDates: [],
     })).resolves.toMatchObject({ status: "saved" });
     await expect(store.upsertRoutingTeam(contextB, {
-      teamKey: "sales", name: "Sales team", membershipIds: [contextB.membershipId],
+      teamKey: "sales", name: "Sales team", membershipIds: [],
+    })).resolves.toEqual({ status: "validation_failed" });
+    await expect(store.upsertRoutingTeam(contextB, {
+      teamKey: " sales ", name: " Sales team ", membershipIds: [contextB.membershipId],
     })).resolves.toMatchObject({ status: "saved" });
-    expect(await store.listBusinessSchedules(contextB)).toHaveLength(1);
-    expect(await store.listRoutingTeams(contextB)).toMatchObject([{ teamKey: "sales", memberIds: [contextB.membershipId] }]);
+    expect(await store.listBusinessSchedules(contextB)).toMatchObject([{ scheduleKey: "sales", name: "Sales hours", timezone: "Asia/Bangkok" }]);
+    expect(await store.listRoutingTeams(contextB)).toMatchObject([{ teamKey: "sales", name: "Sales team", memberIds: [contextB.membershipId] }]);
     const basic = await store.createBot(contextA, { name: "Basic website assistant", defaultLanguage: "en" });
     expect(basic.status).toBe("created"); if (basic.status !== "created") throw new Error("Expected Basic bot.");
     await expect(store.createBot(contextA, { name: "Second Basic bot", defaultLanguage: "en" })).resolves.toEqual({ status: "limit_reached" });

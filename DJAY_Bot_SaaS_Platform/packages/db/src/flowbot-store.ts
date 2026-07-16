@@ -1,7 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createOpaqueToken, hashOpaqueToken } from "@djay/auth";
 import { flowBusinessScheduleSchema, flowbotDowngradeBlockers, flowSnapshotSchema, validateFlowForPublish, type FlowEntitlements, type FlowSnapshot, type FlowValidationIssue } from "@djay/flowbot-domain";
-import { normalizeExactWebsiteOrigin } from "@djay/shared";
+import {
+  flowbotRoutingTeamFormError,
+  flowbotScheduleFormError,
+  normalizeExactWebsiteOrigin,
+  uuidSchema,
+} from "@djay/shared";
 import type { TenantContext } from "@djay/tenancy";
 import type postgres from "postgres";
 import type { DatabaseClient } from "./client";
@@ -445,12 +450,15 @@ export class FlowBotStore {
     weeklyWindows: readonly { dayOfWeek: number; startMinute: number; endMinute: number }[];
     closedDates?: readonly string[];
   }>) {
-    const schedule = flowBusinessScheduleSchema.parse({
+    const formError = flowbotScheduleFormError(input);
+    if (formError) return { status: formError.field === "timezone" ? "invalid_timezone" as const : "validation_failed" as const };
+    const parsed = flowBusinessScheduleSchema.safeParse({
       scheduleKey: input.scheduleKey, timezone: input.timezone,
       weeklyWindows: input.weeklyWindows, closedDates: input.closedDates ?? [],
     });
-    try { new Intl.DateTimeFormat("en", { timeZone: schedule.timezone }).format(new Date()); }
-    catch { return { status: "invalid_timezone" as const }; }
+    if (!parsed.success) return { status: "validation_failed" as const };
+    const schedule = parsed.data;
+    const name = input.name.trim();
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await this.authority(sql, context.tenantId);
       if (!authority || authority.accessMode !== "active" || authority.entitlements["flow.business_hours"] !== true) {
@@ -460,7 +468,7 @@ export class FlowBotStore {
         INSERT INTO tenancy.flow_business_schedules (
           tenant_id, schedule_key, name, timezone, weekly_windows, closed_dates, created_by_membership_id
         ) VALUES (
-          ${context.tenantId}::uuid, ${schedule.scheduleKey}, ${input.name}, ${schedule.timezone},
+          ${context.tenantId}::uuid, ${schedule.scheduleKey}, ${name}, ${schedule.timezone},
           ${sql.json(schedule.weeklyWindows)}, ${schedule.closedDates}, ${context.membershipId}::uuid
         )
         ON CONFLICT (tenant_id, schedule_key) DO UPDATE
@@ -496,9 +504,11 @@ export class FlowBotStore {
         return { status: "not_entitled" as const };
       }
       const uniqueIds = [...new Set(input.membershipIds)];
-      if (!/^[a-z][a-z0-9_-]{0,99}$/.test(input.teamKey) || input.name.trim().length < 2 || !uniqueIds.length) {
+      if (flowbotRoutingTeamFormError({ ...input, membershipIds: uniqueIds })
+        || uniqueIds.some((membershipId) => !uuidSchema.safeParse(membershipId).success)) {
         return { status: "validation_failed" as const };
       }
+      const teamKey = input.teamKey.trim(); const name = input.name.trim();
       const valid = await sql<{ count: number }[]>`
         SELECT count(*)::int AS count FROM tenancy.memberships
         WHERE tenant_id = ${context.tenantId}::uuid AND status = 'active' AND id = ANY(${uniqueIds}::uuid[])
@@ -506,7 +516,7 @@ export class FlowBotStore {
       if (valid[0]?.count !== uniqueIds.length) return { status: "validation_failed" as const };
       const teams = await sql<{ id: string }[]>`
         INSERT INTO tenancy.flow_routing_teams (tenant_id, team_key, name, created_by_membership_id)
-        VALUES (${context.tenantId}::uuid, ${input.teamKey}, ${input.name.trim()}, ${context.membershipId}::uuid)
+        VALUES (${context.tenantId}::uuid, ${teamKey}, ${name}, ${context.membershipId}::uuid)
         ON CONFLICT (tenant_id, team_key) DO UPDATE SET name = EXCLUDED.name, status = 'active', updated_at = now()
         RETURNING id
       `;

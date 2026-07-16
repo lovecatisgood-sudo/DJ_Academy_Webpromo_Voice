@@ -1,3 +1,4 @@
+import { flowbotOperationKeyPattern, flowbotOperationsFieldLimits, isSupportedIanaTimezone } from "@djay/shared";
 import { z } from "zod";
 
 const localizedTextSchema = z.object({ th: z.string().max(10_000), en: z.string().max(10_000) }).strict();
@@ -33,8 +34,8 @@ export const flowNodeSchema = z.discriminatedUnion("type", [
   z.object({ ...baseNode, type: z.literal("variable_set"), variableKey: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/), valueTemplate: z.string().max(5000), nextNodeId: z.uuid() }).strict(),
   z.object({ ...baseNode, type: z.literal("delay"), delaySeconds: z.number().int().min(1).max(2_592_000), nextNodeId: z.uuid() }).strict(),
   z.object({ ...baseNode, type: z.literal("subflow"), targetFlowVersionId: z.uuid(), returnNodeId: z.uuid().nullable() }).strict(),
-  z.object({ ...baseNode, type: z.literal("business_hours"), timezone: z.string().min(3).max(64), scheduleKey: z.string().min(1).max(100), openNodeId: z.uuid(), closedNodeId: z.uuid() }).strict(),
-  z.object({ ...baseNode, type: z.literal("team_route"), teamKey: z.string().min(1).max(100), strategy: z.enum(["owner", "round_robin", "least_active"]), message: localizedTextSchema.optional() }).strict(),
+  z.object({ ...baseNode, type: z.literal("business_hours"), timezone: z.string().min(3).max(64), scheduleKey: z.string().regex(flowbotOperationKeyPattern), openNodeId: z.uuid(), closedNodeId: z.uuid() }).strict(),
+  z.object({ ...baseNode, type: z.literal("team_route"), teamKey: z.string().regex(flowbotOperationKeyPattern), strategy: z.enum(["owner", "round_robin", "least_active"]), message: localizedTextSchema.optional() }).strict(),
   z.object({ ...baseNode, type: z.literal("webhook"), integrationProfileId: z.uuid(), templateKey: z.string().min(2).max(100), nextNodeId: z.uuid(), failureNodeId: z.uuid() }).strict(),
 ]);
 export type FlowNode = z.infer<typeof flowNodeSchema>;
@@ -92,8 +93,11 @@ export type FlowEntitlements = Readonly<{
 export type FlowValidationIssue = Readonly<{ code: string; nodeId?: string; detail?: string }>;
 
 export const flowBusinessScheduleSchema = z.object({
-  scheduleKey: z.string().min(1).max(100),
-  timezone: z.string().min(3).max(64),
+  scheduleKey: z.string().trim().regex(flowbotOperationKeyPattern),
+  timezone: z.string().trim()
+    .min(flowbotOperationsFieldLimits.timezone.minLength)
+    .max(flowbotOperationsFieldLimits.timezone.maxLength)
+    .refine(isSupportedIanaTimezone),
   weeklyWindows: z.array(z.object({
     dayOfWeek: z.number().int().min(0).max(6),
     startMinute: z.number().int().min(0).max(1439),

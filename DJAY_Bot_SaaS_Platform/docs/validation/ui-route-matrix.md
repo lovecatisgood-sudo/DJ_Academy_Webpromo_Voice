@@ -75,6 +75,9 @@ proves that:
 - FlowBot and AI Chat website deployment forms expose identical name/origin
   boundaries, reject path-bearing URLs with assertive field feedback, preserve
   correction state, and issue no request until an exact origin is supplied;
+- FlowBot Premium rejects an unsupported timezone or empty routing team locally,
+  focuses the correction target, preserves the form, and sends one normalized
+  mutation only after the input satisfies domain and storage authority;
 - every exercised UI state passes the automated axe WCAG 2.2 A/AA rule set,
   including document titles, contrast, keyboard-scroll access, and ARIA
   structure;
