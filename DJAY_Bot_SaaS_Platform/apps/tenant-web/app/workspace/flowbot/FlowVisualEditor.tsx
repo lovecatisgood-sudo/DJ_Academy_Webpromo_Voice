@@ -63,7 +63,7 @@ export function FlowVisualEditor(props: Readonly<{
   if (!parsed) return <div className="flow-editor-invalid" role="alert">The definition is not valid JSON. Repair it in Advanced JSON below.</div>;
   const nodes = Object.values(parsed.nodes);
   return <div className="flow-visual-editor">
-    <div className="node-palette" aria-label="Add flow node">
+    <div className="node-palette" role="toolbar" aria-label="Add flow node" tabIndex={0}>
       {[...coreTypes, ...(props.premium ? premiumTypes : [])].map((type) => <button key={type} type="button" disabled={props.readOnly} onClick={() => addNode(type)}>+ {type.replaceAll("_", " ")}</button>)}
     </div>
     <div className="flow-node-list">

@@ -1,4 +1,5 @@
 import { chromium } from "playwright";
+import AxeBuilder from "@axe-core/playwright";
 
 const publicUrl = process.env.PUBLIC_QA_URL || "http://127.0.0.1:3110";
 const tenantUrl = process.env.TENANT_QA_URL || "http://127.0.0.1:3111";
@@ -13,6 +14,14 @@ const tenantId = "20000000-0000-4000-8000-000000000001";
 
 function json(route, value, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(value) });
+}
+
+async function auditAccessibility(page, name) {
+  const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
+  for (const violation of result.violations) {
+    const targets = violation.nodes.slice(0, 3).flatMap((node) => node.target).join(", ");
+    failures.push(`${name}: accessibility ${violation.id} (${violation.impact || "unknown"}) at ${targets}: ${violation.help}`);
+  }
 }
 
 async function visit({ name, url, viewport = desktop, mock, ready = "h1", check }) {
@@ -35,6 +44,7 @@ async function visit({ name, url, viewport = desktop, mock, ready = "h1", check 
   const mark = page.locator(".brand-mark, .mark, .api-mark").first();
   if (await mark.count()) brandColors.add(await mark.evaluate((element) => getComputedStyle(element).backgroundColor));
   await check?.(page);
+  await auditAccessibility(page, name);
   await context.close();
 }
 
@@ -330,4 +340,4 @@ if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
-console.info("Shared brand, responsive overflow, keyboard focus, safe cross-app links, authentication shells, role navigation, dependency failures, and mutation transport recovery passed.");
+console.info("Shared brand, WCAG 2.2 AA automation, responsive overflow, keyboard focus, safe cross-app links, authentication shells, role navigation, dependency failures, and mutation transport recovery passed.");

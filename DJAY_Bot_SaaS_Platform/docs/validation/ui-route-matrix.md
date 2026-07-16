@@ -51,6 +51,9 @@ proves that:
   independently of the evidence-backed readiness and resource states;
 - public login, verification, and invitation destinations never fall back to
   localhost in production output;
+- every exercised UI state passes the automated axe WCAG 2.2 A/AA rule set,
+  including document titles, contrast, keyboard-scroll access, and ARIA
+  structure;
 - every route has the shared DJAY Bot mark, no horizontal overflow, and no page
   or asset failure.
 
@@ -88,4 +91,4 @@ page error occurs, the user sees an accurate failure message, and the submit or
 command control becomes available again without an automatic replay.
 Target-environment acceptance must repeat it against the deployed artifacts and
 does not replace managed-service, live-provider, named-merchant, legal,
-commercial, or assistive-technology acceptance.
+commercial, or manual assistive-technology acceptance.

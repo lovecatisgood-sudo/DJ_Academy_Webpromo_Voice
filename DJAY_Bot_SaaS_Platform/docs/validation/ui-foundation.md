@@ -25,6 +25,8 @@ and analyst roles and Platform Master for owner, AI Operations, Support, and
 Finance roles. It verified:
 
 - one shared yellow DJAY Bot mark across all application realms;
+- zero automated axe violations for the WCAG 2.2 A/AA rule set across every
+  exercised route, role, breakpoint, and failure state;
 - visible keyboard focus and no horizontal document overflow;
 - no localhost registration link in the Tenant production build;
 - correct permission-derived tenant and Platform navigation;
@@ -33,7 +35,14 @@ Finance roles. It verified:
 - the existing P3 provider-boundary and desktop/mobile operations suite remains
   green.
 
-These results describe local production output with mocked API state. Repeat
-the same gate against deployed origins, complete manual keyboard/screen-reader
-review on representative devices, and obtain the existing external acceptance
-evidence before general availability.
+The first axe pass found a missing API document title, low-contrast Inbox,
+FlowBot, and Usage helper text, a keyboard-inaccessible horizontally scrollable
+FlowBot node palette, and incomplete ARIA table structures in empty Platform
+operations collections. The shared markup and color tokens were corrected; the
+full matrix then passed with zero automated violations.
+
+These results describe local production output with mocked API state and cover
+only accessibility rules that axe can automate. Repeat the same gate against
+deployed origins, complete manual keyboard, screen-reader, zoom/reflow,
+cognitive, and representative-device review, and obtain the existing external
+acceptance evidence before general availability.

@@ -84,7 +84,8 @@ scripts/use-node24.sh pnpm run qa:p3-ui
 For deployed acceptance, set `PUBLIC_QA_URL`, `TENANT_QA_URL`,
 `PLATFORM_QA_URL`, and `API_QA_URL` to the reviewed origins. The foundation gate
 checks desktop and mobile overflow, shared brand color, keyboard focus
-visibility, safe cross-application links, every public account route, the API
+visibility, and an axe scan restricted to automated WCAG 2.2 A/AA rules. It
+also checks safe cross-application links, every public account route, the API
 root, all twelve tenant routes at both breakpoints, every tenant role, every
 platform role, direct-route denial, mutation visibility, public catalog,
 workspace-session, authoritative product-read, Platform-session, and
@@ -94,5 +95,6 @@ Tenant, and Platform mutations and requires visible feedback with a re-enabled
 control.
 
 Do not promote when this gate fails. A passing local gate does not replace
-real-device accessibility review, named-merchant acceptance, managed service
+manual keyboard, screen-reader, zoom/reflow, cognitive, or representative-device
+review. It also does not replace named-merchant acceptance, managed service
 evidence, commercial approval, or the release-readiness gate.

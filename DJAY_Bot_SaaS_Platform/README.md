@@ -54,8 +54,9 @@ health and reports unknown when evidence cannot be verified. Deterministic
 email replay, stale queue recovery, bounded database readiness, and local pool
 exhaustion now pass executable drills. Public, tenant, and restricted Platform
 surfaces now share an accessible brand foundation and permission-derived
-navigation, with production-browser coverage for every rendered route at
-desktop and mobile breakpoints and every tenant and Platform role. Read-only
+navigation, with an automated axe WCAG 2.2 A/AA scan and production-browser
+coverage for every rendered route at desktop and mobile breakpoints and every
+tenant and Platform role. Read-only
 roles no longer receive misleading mutation controls, and forbidden direct
 routes fail closed with a recovery path. Failed authoritative workspace reads
 now render explicit retryable states instead of empty data or indefinite

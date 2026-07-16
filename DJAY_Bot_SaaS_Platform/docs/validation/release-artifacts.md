@@ -21,13 +21,13 @@ their liveness contracts, loaded each root document, and fetched every
 referenced static asset. Accepted static evidence was:
 
 - API: 129 files,
-  `6bd55a0d0f9db70e7b6e6df4cfb441220e88c3a043e90c6edaa89007d6915097`
+  `aad62874367a007291607d695a5eb5af8fa6a50cb35d652718471f8ca40e0ca2`
 - Platform Master: 21 files,
-  `4c465a90b49d66b0349024485906da2d0e06c840346bc9fe128fe7579651132b`
+  `5d1c2baa9b5ff1ae4e9f05e4829b4aa790ce8cf8bd23a78827c85231d009c186`
 - Public site: 25 files,
-  `035ccb432cfe74224216426987648f1ad02e611134f27c54183302c58e120a75`
+  `e0a849a14b98b45b33d4b498d18e058a9b37cc4387df4756a6b51b6c69148a89`
 - Tenant workspace: 37 files,
-  `edc18733ad99210de52c5ec7b9b4af6febc2a12797bac7d878f64e5bad3d7818`
+  `b0f5dcdd9b4bdb03fb4f7c9c7be213759bb2b1f105a97a5b0a40b42540981f68`
 
 The first Voice artifact run exposed a production-only ESM failure: bundled
 `ws` attempted a dynamic CommonJS require of Node's `events` module. Source
