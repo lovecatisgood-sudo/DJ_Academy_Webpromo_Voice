@@ -102,6 +102,9 @@ registration is paused. The repository supplies the contract and acceptance
 gate, not legal content or legal approval.
 Platform release readiness also requires this live registration authority, so
 a privacy attestation cannot make an unconfigured deployment appear releasable.
+API, workers, and Voice gateway also share a production startup admission rule:
+copied `.env.example` markers are rejected without echoing their values. See
+`docs/runbooks/production-configuration.md` before preparing deployment secrets.
 
 ## Local commands
 
@@ -137,8 +140,9 @@ API:              http://localhost:3103
 Voice gateway:    http://localhost:8080
 ```
 
-Copy `.env.example` into the deployment secret/configuration system and replace
-every placeholder. Tenant and platform auth secrets must be independent. The
+Use `.env.example` only as a field inventory in the deployment
+secret/configuration system and replace every placeholder. Tenant and Platform
+MFA, recovery, request-signing, and envelope keys must remain independent. The
 privacy export key must also be independent and available only to API/worker
 deployments. The approved legal bundle is a separate read-only API mount. See
 `docs/runbooks/` for bootstrap, worker, privacy, legal-document,

@@ -24,6 +24,7 @@
     "@djay/notifications": "workspace:*",
     "@djay/platform-auth": "workspace:*",
     "@djay/provider-gateway": "workspace:*",
+    "@djay/shared": "workspace:*",
     "@djay/voice-text-migration": "workspace:*",
     "@node-rs/argon2": "2.0.2",
     "postgres": "3.4.9",

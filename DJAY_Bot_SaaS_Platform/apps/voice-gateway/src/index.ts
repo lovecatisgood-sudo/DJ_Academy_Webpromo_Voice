@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { assertNoProductionPlaceholders } from "@djay/shared/production-config";
 import { z } from "zod";
 import { createVoiceGatewayHandler } from "./server";
 import { createConfiguredVoiceMediaFactory } from "./media";
@@ -10,6 +11,7 @@ import {
 } from "./transport";
 
 const env = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65_535).default(8080),
   VOICE_GATEWAY_MAX_SESSIONS: z.coerce.number().int().positive().default(100),
   VOICE_SILENCE_WARNING_SECONDS: z.coerce.number().int().min(5).max(300).default(45),
@@ -29,7 +31,7 @@ const env = z.object({
   VOICE_GEN2_MODEL: z.string().min(2).max(160).optional(),
   VOICE_GEN2_REGION_KEY: z.string().regex(/^[a-z0-9][a-z0-9._-]{1,79}$/).optional(),
   VOICE_GEN2_VOICE_NAME: z.string().min(2).max(80).optional(),
-}).passthrough().refine(
+}).refine(
   (value) => value.VOICE_SILENCE_WARNING_SECONDS < value.VOICE_IDLE_TIMEOUT_SECONDS,
   { message: "VOICE_SILENCE_WARNING_SECONDS must be lower than VOICE_IDLE_TIMEOUT_SECONDS" },
 ).superRefine((value, context) => {
@@ -39,6 +41,8 @@ const env = z.object({
     context.addIssue({ code: "custom", message: "Second-Generation Voice route configuration must be complete." });
   }
 }).parse(process.env);
+
+assertNoProductionPlaceholders(env.NODE_ENV, env);
 
 const restrictedRouteSchema = z.object({
   providerKey: z.string().regex(/^[a-z0-9][a-z0-9._-]{1,79}$/),

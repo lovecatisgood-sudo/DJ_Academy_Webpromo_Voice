@@ -6,6 +6,7 @@ import {
 } from "@djay/db";
 import { createHttpEmailDelivery, runAiChatMerchantEmail, runEmailBatch, runFlowbotMerchantEmail } from "@djay/notifications";
 import { createHttpTextProviderGateway, ProviderGatewayError } from "@djay/provider-gateway";
+import { assertNoProductionPlaceholders } from "@djay/shared/production-config";
 import { createSocialDeliveryClient, renderSocialReply, resumeSocialReply, SocialDeliveryError, socialCredentialSchema } from "@djay/channel-adapters";
 import { z } from "zod";
 import { deliverFlowbotIntegration } from "./flowbot-integration";
@@ -36,9 +37,10 @@ const envSchema = z.object({
   VOICE_REAPER_ENABLED: z.enum(["true", "false"]).default("false"),
   VOICE_REAPER_STALE_SECONDS: z.coerce.number().int().min(15).max(300).default(30),
   VOICE_REAPER_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(100),
-}).passthrough();
+});
 
 const env = envSchema.parse(process.env);
+assertNoProductionPlaceholders(env.NODE_ENV, env);
 if (env.NODE_ENV === "production" && env.EMAIL_DELIVERY_MODE !== "http") throw new Error("EMAIL_DELIVERY_MODE=http is required in production.");
 if (env.NODE_ENV === "production" && env.PRIVACY_WORKER_ENABLED !== "true") throw new Error("PRIVACY_WORKER_ENABLED=true is required in production.");
 if (env.NODE_ENV === "production" && env.FLOWBOT_WORKER_ENABLED !== "true") throw new Error("FLOWBOT_WORKER_ENABLED=true is required in production.");

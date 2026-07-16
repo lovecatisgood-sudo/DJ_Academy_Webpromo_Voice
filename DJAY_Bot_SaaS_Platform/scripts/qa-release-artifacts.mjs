@@ -280,6 +280,29 @@ try {
   await stop(voice.child);
 }
 
+const rejectedVoice = spawn(process.execPath, ["index.js"], {
+  cwd: voiceRoot,
+  env: {
+    ...process.env,
+    NODE_ENV: "production",
+    PORT: "3126",
+    VOICE_AUTHORIZATION_ENDPOINT: "http://127.0.0.1:9/authorize",
+    VOICE_HEARTBEAT_ENDPOINT: "http://127.0.0.1:9/heartbeat",
+    VOICE_DISCONNECT_ENDPOINT: "http://127.0.0.1:9/disconnect",
+    VOICE_FINISH_ENDPOINT: "http://127.0.0.1:9/finish",
+    VOICE_AUTHORIZATION_SERVICE_TOKEN: "replace-with-independent-voice-service-token",
+  },
+  stdio: ["ignore", "pipe", "pipe"],
+});
+let rejectedVoiceOutput = "";
+rejectedVoice.stdout.on("data", (chunk) => { rejectedVoiceOutput += chunk; });
+rejectedVoice.stderr.on("data", (chunk) => { rejectedVoiceOutput += chunk; });
+const rejectedVoiceExit = await new Promise((done) => rejectedVoice.once("exit", done));
+assert(rejectedVoiceExit !== 0, "voice-gateway accepted an example production credential");
+assert(rejectedVoiceOutput.includes("VOICE_AUTHORIZATION_SERVICE_TOKEN contains an example value"), "voice-gateway did not identify rejected example authority");
+assert(!rejectedVoiceOutput.includes("replace-with-independent-voice-service-token"), "voice-gateway disclosed rejected credential material");
+console.info("Verified voice-gateway: copied example production credentials fail startup without value disclosure.");
+
 const workerRoot = resolve(isolationRoot, "workers");
 cpSync(resolve(root, "apps", "workers", "dist"), workerRoot, { recursive: true });
 const workerManifest = manifest(workerRoot);

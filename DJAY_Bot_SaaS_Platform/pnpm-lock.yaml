@@ -216,6 +216,9 @@ importers:
       '@djay/provider-gateway':
         specifier: workspace:*
         version: link:../../packages/provider-gateway
+      '@djay/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@djay/voice-runtime':
         specifier: workspace:*
         version: link:../../packages/voice-runtime
@@ -271,6 +274,9 @@ importers:
       '@djay/provider-gateway':
         specifier: workspace:*
         version: link:../../packages/provider-gateway
+      '@djay/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@djay/voice-text-migration':
         specifier: workspace:*
         version: link:../../packages/voice-text-migration

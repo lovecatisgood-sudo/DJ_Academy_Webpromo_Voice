@@ -6,6 +6,11 @@
 - Public charging: disabled
 - Invoices and commercial mutations: unavailable
 
+API, workers, and Voice gateway share a production admission check that rejects
+copied example configuration without echoing the rejected value. The isolated
+Voice artifact is exercised with an example authority token and must exit before
+listening; the normal provider-neutral liveness/readiness smoke remains separate.
+
 ## Executed gates
 
 ```bash

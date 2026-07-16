@@ -102,6 +102,10 @@ signed content artifact.
 Platform release readiness consumes this live authority directly: a complete
 SLO/attestation/incident/usage gate remains blocked when the approved bundle is
 not mounted, and shows only the current public document versions when it is.
+Production startup now also rejects copied example values across API, workers,
+and Voice gateway. The shared admission rule names only the affected field and
+never repeats credential material; isolated artifact QA proves the Voice bundle
+exits before listening when its example authority token is supplied.
 
 ## P6 LINE, WhatsApp, and Messenger runtime checkpoint
 

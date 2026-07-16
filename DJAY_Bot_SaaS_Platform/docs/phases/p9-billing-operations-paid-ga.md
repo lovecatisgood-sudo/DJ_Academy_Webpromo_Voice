@@ -9,6 +9,9 @@ provider-neutral public status, deterministic effect replay, stale-queue
 recovery, and bounded pool-exhaustion readiness. Paid checkout, invoices, tax, proration, dunning,
 cancellation, overage charging, and broad self-service remain disabled because
 ADR-008 has not been accepted with exact commercial and legal decisions.
+Production configuration admission additionally prevents API, workers, or Voice
+gateway from starting with copied repository examples while withholding the
+rejected value from process output.
 
 ## Requirements
 

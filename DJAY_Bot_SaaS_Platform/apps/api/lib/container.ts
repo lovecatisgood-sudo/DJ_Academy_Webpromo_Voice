@@ -42,6 +42,7 @@ import {
 } from "@djay/db";
 import { createPlatformAuthService } from "@djay/platform-auth";
 import { createHttpTextProviderGateway } from "@djay/provider-gateway";
+import { assertNoProductionPlaceholders } from "@djay/shared/production-config";
 import { z } from "zod";
 import { assertApiProductionUrlPolicy } from "./environment-policy";
 import { loadLegalDocuments } from "./legal-documents";
@@ -88,13 +89,14 @@ const envSchema = z.object({
   OPERATIONS_INGEST_TOKEN: z.string().min(32).optional(),
   LEGAL_DOCUMENTS_FILE: z.string().trim().min(1).optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-}).passthrough();
+});
 
 export type Services = Awaited<ReturnType<typeof buildServices>>;
 let servicesPromise: Promise<Services> | undefined;
 
 async function buildServices() {
   const env = envSchema.parse(process.env);
+  assertNoProductionPlaceholders(env.NODE_ENV, env);
   assertApiProductionUrlPolicy(env);
   const client = createDatabaseClient(env.AUTH_DATABASE_URL);
   const tenantClient = createDatabaseClient(env.TENANT_DATABASE_URL);

@@ -22,13 +22,13 @@ document, and fetched every referenced static asset. Accepted static evidence
 was:
 
 - API: 132 files,
-  `d024f9e1f0992c058c691309ea75c5b86a0e1fd80346b782b9933bb67d61bb81`
+  `8d6cdad9cb7bdc759637f7a4f89cef8935336950c8435af6c54d3fdc7ffa24e2`
 - Platform Master: 24 files,
-  `5870a2318eefdc7849774bb867e93f5bdd43188abf36b3007544809674297e95`
+  `1832a2727ae5d274e0e43699d8877d1c1ec31b541d266096ae99e905886e8e6c`
 - Public site: 30 files,
-  `93211213243fa0bb46b21727280af2643651793c3dffaa78e90a877b1d4ddf78`
+  `b8e5abacbf8f9436f0d9cb182b81a8c27a40f908d604e9c2ec4d7bfdf3f6bbb6`
 - Tenant workspace: 41 files,
-  `68edb77870209d5963204aa472cfbced9262c1c9fd81fa6f4f66463aaa163644`
+  `c377fb59f5d357c6946792f8c615f9d5258faf35eb4b3f2f12e522530ce7606f`
 
 The release audit found that all three Tenant install snippets referenced
 versioned CDN modules, but the release package did not archive those modules.
@@ -71,7 +71,10 @@ tests did not exercise the emitted bundle. The build now supplies an ESM
 `createRequire` bridge; the isolated bundle starts, reports liveness, and fails
 readiness closed with provider-neutral `503 not_ready` when media authority is
 absent. Its accepted bundle digest is
-`dce813543187d37a1b33d4313f3bf74c9f1ef127ae1a568c903394fd4eaa549d`.
+`d7a362f24c640b5091476fb6e03da411417453bcd1e6ab353730fa9aac9a41a2`.
+The artifact is also started with a copied example production authority token;
+it must exit before listening, name only the affected field, and never echo the
+token value.
 
 The worker artifact now includes its external PostgreSQL client, Argon2 package,
 and installed native Argon2 target. QA copies the artifact outside the monorepo
@@ -79,7 +82,7 @@ before execution, proving it does not resolve those packages from workspace
 `node_modules`. With database authority deliberately absent, startup fails
 closed, names only `WORKER_DATABASE_URL`, and exposes no connection URL. The
 accepted 56-file digest is
-`afe7ff9c33649a4fc0493979287e6a05ddacfa4dd50bf0a51046aa20f65d4c30`.
+`f86ee01bd08ae1af3178b224785124aad87b8eb4539c525c20d74e0a9ab16413`.
 
 These hashes describe the local generated build and are not target-deployment
 evidence. The immutable deployment system must archive its own package hashes,
