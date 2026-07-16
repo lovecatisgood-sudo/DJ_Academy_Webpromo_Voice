@@ -16,6 +16,10 @@ type Onboarding = {
   timezone: string;
   stage: "account_created" | "business_profile" | "product_selection" | "ready";
 };
+type Subscription = {
+  id: string; productKey: "flowbot" | "ai_chat" | "voice"; publicName: string;
+  tierName: string; status: string; accessMode: "none" | "read_only" | "active";
+};
 
 const stages: Onboarding["stage"][] = ["account_created", "business_profile", "product_selection", "ready"];
 const stageLabels: Record<Onboarding["stage"], string> = {
@@ -29,6 +33,7 @@ export default function WorkspacePage() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [onboarding, setOnboarding] = useState<Onboarding | null>(null);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [mutationMessage, setMutationMessage] = useState("");
@@ -46,10 +51,14 @@ export default function WorkspacePage() {
       setWorkspaces(session.workspaces || []);
       setSelectedTenantId(session.selectedTenantId || null);
       if (session.selectedTenantId) {
-        const onboardingResponse = await fetch("/tenant/onboarding", { cache: "no-store" });
-        if (!onboardingResponse.ok) throw new Error("onboarding_unavailable");
+        const [onboardingResponse, subscriptionResponse] = await Promise.all([
+          fetch("/tenant/onboarding", { cache: "no-store" }),
+          fetch("/tenant/subscriptions", { cache: "no-store" }),
+        ]);
+        if (!onboardingResponse.ok || !subscriptionResponse.ok) throw new Error("workspace_overview_unavailable");
         setOnboarding((await onboardingResponse.json()).onboarding);
-      }
+        setSubscriptions((await subscriptionResponse.json()).subscriptions || []);
+      } else setSubscriptions([]);
       setLoadError(false);
       setLoading(false);
     } catch { setLoadError(true); setLoading(false); }
@@ -67,6 +76,7 @@ export default function WorkspacePage() {
     if (response.ok) {
       setLoading(true);
       setOnboarding(null);
+      setSubscriptions([]);
       await load();
     } else setMutationMessage("Workspace selection is temporarily unavailable. Your current workspace has not changed.");
   }
@@ -146,9 +156,12 @@ export default function WorkspacePage() {
             ))}
           </div>
         </section>
-        <section className="empty-band">
+        <section className="empty-band product-overview-band">
           <p>Products</p>
-          <h2>No product subscription is active</h2>
+          <h2>{subscriptions.length ? `${subscriptions.length} product${subscriptions.length === 1 ? "" : "s"} configured` : "No products are configured yet"}</h2>
+          {subscriptions.length ? <div className="product-overview-grid">{subscriptions.map((subscription) => <a href={`/workspace/${subscription.productKey === "ai_chat" ? "ai-chat" : subscription.productKey}`} key={subscription.id}>
+            <span>{subscription.tierName}</span><strong>{subscription.publicName}</strong><small>{subscription.status.replaceAll("_", " ")} · {subscription.accessMode.replaceAll("_", " ")} access</small>
+          </a>)}</div> : <p className="field-help">A product appears here after its subscription request is created. Public charging remains disabled until the commercial release gate is approved.</p>}
         </section>
       </section>
     </main>

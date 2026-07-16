@@ -45,6 +45,13 @@ its status read fails, the workspace shows an explicit warning to refresh
 before handling customer data or making changes; it must never silently imply
 that no Platform support grant is active.
 
+The workspace Overview product summary is backed by `/tenant/subscriptions` for
+every Tenant role. It shows each configured public product, tier, subscription
+state, and effective access mode with a safe link to that product. “No products
+are configured” is allowed only after both onboarding and subscription reads
+succeed with an empty subscription array. Either authoritative read failing
+must render the shared Overview retry state.
+
 `NEXT_PUBLIC_PUBLIC_APP_URL` is the tenant sign-in link back to public
 registration. Set it to the deployed public origin before building Tenant Web.
 Next.js embeds this public value at build time, so changing only the runtime

@@ -63,7 +63,9 @@ loading. Public catalog and restricted Platform dependency failures follow the
 same non-destructive contract without masking service errors as empty data or
 signed-out sessions. Public, Tenant, and Platform mutations also normalize
 connection and gateway failures into safe feedback, clear busy controls, and
-never retry non-idempotent actions automatically. Real managed
+never retry non-idempotent actions automatically. The workspace Overview now
+reports authoritative product subscription and effective access state instead
+of an unconditional empty-product placeholder. Real managed
 production observations, on-call staffing, PITR/regional exercises, legal and
 commercial approval remain external launch gates. Checkout, invoices, tax,
 dunning, and public charging remain disabled.

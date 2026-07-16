@@ -62,6 +62,7 @@ async function mockTenantRole(page, role, requestedPaths, failedPaths, abortedMu
     if (failedPaths?.has(path)) return json(route, { status: "temporarily_unavailable" }, 503);
     if (path === "/tenant/session") return json(route, { user: { id: "user", displayName: "QA user" }, workspaces: [{ tenantId, slug: "qa-workspace", businessName: "Bangkok Service Studio", role }], selectedTenantId: tenantId, mfaVerifiedAt: new Date().toISOString() });
     if (path === "/tenant/onboarding") return json(route, { onboarding: { tenant_id: tenantId, business_name: "Bangkok Service Studio", slug: "qa-workspace", locale: "en", timezone: "Asia/Bangkok", stage: "ready" } });
+    if (path === "/tenant/subscriptions") return json(route, { subscriptions: [{ id: "subscription", productKey: "ai_chat", planKey: "ai_chat_premium", publicName: "AI Chatbot Premium", tierName: "Premium", status: "active", accessMode: "active", snapshotId: "snapshot", periodStart: new Date().toISOString(), periodEnd: new Date(Date.now() + 30 * 86400_000).toISOString() }] });
     if (path === "/tenant/support-access") return json(route, { grants: [] });
     if (path === "/tenant/contacts") return json(route, { contacts: [], identityReviewCandidates: [] });
     if (path === "/tenant/leads") return json(route, { leads: [] });
@@ -162,6 +163,10 @@ await visit({ name: "tenant-ownership-session-failure", url: `${tenantUrl}/owner
   if (!await page.getByText("Your account session could not be checked. No ownership state changed.", { exact: true }).count()) failures.push("tenant-ownership-session-failure: safe explanation missing");
   if (!await page.getByRole("button", { name: "Try again" }).count()) failures.push("tenant-ownership-session-failure: retry action missing");
 } });
+await visit({ name: "workspace-subscription-summary", url: `${tenantUrl}/workspace`, mock: (page) => mockTenantRole(page, "tenant_analyst"), ready: ".product-overview-grid", check: async (page) => {
+  if (!await page.getByRole("link", { name: /AI Chatbot Premium/ }).count()) failures.push("workspace-subscription-summary: product route missing");
+  if (await page.getByText("No products are configured yet", { exact: true }).count()) failures.push("workspace-subscription-summary: active subscription presented as empty");
+} });
 
 const tenantExpectations = {
   tenant_master_admin: ["Team", "Security", "Data controls"],
@@ -252,6 +257,9 @@ for (const [route, failedPath, selector] of failureMatrix) {
     if (!await page.getByRole("button", { name: "Try again" }).count()) failures.push(`${name}-dependency-failure: retry action missing`);
   } });
 }
+await visit({ name: "overview-subscription-failure", url: `${tenantUrl}/workspace`, mock: (page) => mockTenantRole(page, "tenant_master_admin", undefined, new Set(["/tenant/subscriptions"])), ready: ".workspace-load-error", check: async (page) => {
+  if (!await page.getByRole("button", { name: "Try again" }).count()) failures.push("overview-subscription-failure: retry action missing");
+} });
 await visit({ name: "workspace-session-failure", url: `${tenantUrl}/workspace/contacts`, mock: (page) => mockTenantRole(page, "tenant_master_admin", undefined, new Set(["/tenant/session"])), ready: ".workspace-session-error", check: async (page) => {
   if (!await page.getByRole("heading", { name: "We couldn’t load your workspace" }).count()) failures.push("workspace-session-failure: safe explanation missing");
 } });

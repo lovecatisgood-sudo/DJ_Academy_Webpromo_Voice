@@ -37,6 +37,9 @@ proves that:
   non-destructive feedback and never leave the initiating control busy;
 - an unavailable support-access disclosure warns the Tenant user instead of
   silently implying that no restricted Platform grant is active;
+- the Overview product summary reflects the authoritative subscription and
+  access-mode response for read-only and administrative roles, while a failed
+  subscription read cannot produce a false empty-product claim;
 - public login, verification, and invitation destinations never fall back to
   localhost in production output;
 - every route has the shared DJAY Bot mark, no horizontal overflow, and no page
