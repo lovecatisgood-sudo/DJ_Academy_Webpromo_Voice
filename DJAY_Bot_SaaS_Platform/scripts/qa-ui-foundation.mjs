@@ -52,10 +52,11 @@ async function mockPublic(page) {
   });
 }
 
-async function mockTenantRole(page, role, requestedPaths) {
+async function mockTenantRole(page, role, requestedPaths, failedPaths) {
   await page.route("**/tenant/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     requestedPaths?.add(path);
+    if (failedPaths?.has(path)) return json(route, { status: "temporarily_unavailable" }, 503);
     if (path === "/tenant/session") return json(route, { user: { id: "user", displayName: "QA user" }, workspaces: [{ tenantId, slug: "qa-workspace", businessName: "Bangkok Service Studio", role }], selectedTenantId: tenantId, mfaVerifiedAt: new Date().toISOString() });
     if (path === "/tenant/onboarding") return json(route, { onboarding: { tenant_id: tenantId, business_name: "Bangkok Service Studio", slug: "qa-workspace", locale: "en", timezone: "Asia/Bangkok", stage: "ready" } });
     if (path === "/tenant/support-access") return json(route, { grants: [] });
@@ -195,6 +196,33 @@ await visit({ name: "operator-knowledge", url: `${tenantUrl}/workspace/knowledge
 await visit({ name: "operator-inbox", url: `${tenantUrl}/workspace/inbox`, mock: (page) => mockTenantRole(page, "tenant_operator"), ready: ".conversation-panel", check: async (page) => {
   if (!await page.getByRole("button", { name: "Send reply" }).count()) failures.push("operator-inbox: reply control missing");
 } });
+await visit({ name: "inbox-message-failure", url: `${tenantUrl}/workspace/inbox`, mock: (page) => mockTenantRole(page, "tenant_operator", undefined, new Set(["/tenant/conversations/conversation/messages"])), ready: ".conversation-panel", check: async (page) => {
+  if (!await page.getByRole("button", { name: "Retry messages" }).count()) failures.push("inbox-message-failure: inline retry action missing");
+} });
+
+const failureMatrix = [
+  ["", "/tenant/onboarding", ".workspace-load-error"],
+  ["contacts", "/tenant/contacts", ".workspace-load-error"],
+  ["leads", "/tenant/leads", ".workspace-load-error"],
+  ["inbox", "/tenant/conversations", ".workspace-load-error"],
+  ["knowledge", "/tenant/knowledge", ".workspace-load-error"],
+  ["data", "/tenant/privacy-jobs", ".workspace-load-error"],
+  ["team", "/tenant/team", ".workspace-load-error"],
+  ["security", "/tenant/security/sessions", ".workspace-load-error"],
+  ["flowbot", "/tenant/flowbot/bots", ".workspace-load-error"],
+  ["ai-chat", "/tenant/ai-chat/agents", ".workspace-load-error"],
+  ["voice", "/tenant/voice/deployments", ".workspace-load-error"],
+  ["usage", "/tenant/usage", ".usage-state-error"],
+];
+for (const [route, failedPath, selector] of failureMatrix) {
+  const name = route || "overview";
+  await visit({ name: `${name}-dependency-failure`, url: `${tenantUrl}/workspace${route ? `/${route}` : ""}`, mock: (page) => mockTenantRole(page, "tenant_master_admin", undefined, new Set([failedPath])), ready: selector, check: async (page) => {
+    if (!await page.getByRole("button", { name: "Try again" }).count()) failures.push(`${name}-dependency-failure: retry action missing`);
+  } });
+}
+await visit({ name: "workspace-session-failure", url: `${tenantUrl}/workspace/contacts`, mock: (page) => mockTenantRole(page, "tenant_master_admin", undefined, new Set(["/tenant/session"])), ready: ".workspace-session-error", check: async (page) => {
+  if (!await page.getByRole("heading", { name: "We couldn’t load your workspace" }).count()) failures.push("workspace-session-failure: safe explanation missing");
+} });
 
 const platformExpectations = {
   platform_owner: ["Overview", "Release", "Usage", "Voice", "Recovery", "Commerce", "Support"],
@@ -219,4 +247,4 @@ if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
-console.info("Shared brand, responsive overflow, keyboard focus, safe cross-app links, authentication shells, and tenant/platform role navigation passed.");
+console.info("Shared brand, responsive overflow, keyboard focus, safe cross-app links, authentication shells, role navigation, and workspace dependency-failure recovery passed.");

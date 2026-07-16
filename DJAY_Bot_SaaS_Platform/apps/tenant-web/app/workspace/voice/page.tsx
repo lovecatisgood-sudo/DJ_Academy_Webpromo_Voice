@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
+import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
@@ -96,6 +97,7 @@ export default function VoicePage() {
   const [notifications, setNotifications] = useState<Notification[]>([]); const [deploymentKey, setDeploymentKey] = useState("");
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [message, setMessage] = useState(""); const [working, setWorking] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session.workspaces, session.selectedTenantId]);
   const canDeploy = workspace?.role === "tenant_master_admin" || workspace?.role === "tenant_admin";
   const canEdit = Boolean(canDeploy && studio?.editable && studio.deployment.status !== "revoked");
@@ -110,8 +112,8 @@ export default function VoicePage() {
       fetch("/tenant/ai-chat/notifications", { cache: "no-store" }),
       fetch(`/tenant/voice/analytics?deploymentId=${encodeURIComponent(id)}&days=30`, { cache: "no-store" }),
     ]);
-    if (studioResponse.ok) setStudio((await studioResponse.json()).studio);
-    else setStudio(null);
+    if (!studioResponse.ok) throw new Error("voice_studio_unavailable");
+    setStudio((await studioResponse.json()).studio);
     if (knowledgeResponse.ok) setKnowledge((await knowledgeResponse.json()).sources || []);
     if (notificationResponse.ok) setNotifications((await notificationResponse.json()).notifications || []);
     if (analyticsResponse.ok) setAnalytics((await analyticsResponse.json()).analytics || null);
@@ -119,13 +121,15 @@ export default function VoicePage() {
   }
 
   async function load(preferredId?: string) {
-    const response = await fetch("/tenant/voice/deployments", { cache: "no-store" });
-    if (!response.ok) return;
-    const next = await response.json() as VoiceResult; setResult(next);
-    const id = preferredId && next.deployments.some((item) => item.id === preferredId)
-      ? preferredId : selectedId && next.deployments.some((item) => item.id === selectedId)
-        ? selectedId : next.deployments[0]?.id || "";
-    setSelectedId(id); await loadStudio(id);
+    try {
+      const response = await fetch("/tenant/voice/deployments", { cache: "no-store" });
+      if (!response.ok) throw new Error("voice_unavailable");
+      const next = await response.json() as VoiceResult; setResult(next);
+      const id = preferredId && next.deployments.some((item) => item.id === preferredId)
+        ? preferredId : selectedId && next.deployments.some((item) => item.id === selectedId)
+          ? selectedId : next.deployments[0]?.id || "";
+      setSelectedId(id); await loadStudio(id); setLoadError(false);
+    } catch { setLoadError(true); }
   }
   useEffect(() => { if (session.selectedTenantId) void load(); }, [session.selectedTenantId]);
 
@@ -231,7 +235,9 @@ export default function VoicePage() {
   }
 
   const saveBar = canEdit ? <div className="studio-save-bar"><span>Draft revision {studio?.deployment.draftRevision}</span><button type="button" disabled={working} onClick={() => void saveStudio()}>{working ? "Saving…" : "Save draft"}</button></div> : null;
+  if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading Voice Studio...</main>;
+  if (loadError) return <WorkspacePageLoadError active="voice" title="Voice Agent Studio" resource="Voice Agent Studio" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} onRetry={() => void load()} />;
   return <main className="workspace-shell">
     <WorkspaceSidebar active="voice" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} />
     <section className="workspace-main"><WorkspaceSupportBanner tenantId={session.selectedTenantId} />

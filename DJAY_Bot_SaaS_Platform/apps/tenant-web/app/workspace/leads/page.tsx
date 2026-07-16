@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
-import { WorkspaceViewOnly } from "../WorkspaceAccess";
+import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
@@ -13,12 +13,17 @@ export default function LeadsPage() {
   const session = useWorkspaceSession();
   const [contacts, setContacts] = useState<Contact[]>([]); const [leads, setLeads] = useState<Lead[]>([]);
   const [message, setMessage] = useState(""); const [working, setWorking] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canWrite = session.allows("leads.write");
   async function load() {
-    const [contactResponse, leadResponse] = await Promise.all([fetch("/tenant/contacts", { cache: "no-store" }), fetch("/tenant/leads", { cache: "no-store" })]);
-    if (contactResponse.ok) setContacts((await contactResponse.json()).contacts || []);
-    if (leadResponse.ok) setLeads((await leadResponse.json()).leads || []);
+    try {
+      const [contactResponse, leadResponse] = await Promise.all([fetch("/tenant/contacts", { cache: "no-store" }), fetch("/tenant/leads", { cache: "no-store" })]);
+      if (!contactResponse.ok || !leadResponse.ok) throw new Error("leads_unavailable");
+      setContacts((await contactResponse.json()).contacts || []);
+      setLeads((await leadResponse.json()).leads || []);
+      setLoadError(false);
+    } catch { setLoadError(true); }
   }
   useEffect(() => { if (session.selectedTenantId) void load(); }, [session.selectedTenantId]);
   async function createLead(event: FormEvent<HTMLFormElement>) {
@@ -27,7 +32,9 @@ export default function LeadsPage() {
     setWorking(false); if (!response.ok) { setMessage("Lead could not be created."); return; }
     form.reset(); setMessage("Lead created."); await load();
   }
+  if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading leads...</main>;
+  if (loadError) return <WorkspacePageLoadError active="leads" title="Leads" resource="the sales pipeline" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} onRetry={() => void load()} />;
   return <main className="workspace-shell">
     <WorkspaceSidebar active="leads" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} />
     <section className="workspace-main"><WorkspaceSupportBanner tenantId={session.selectedTenantId} />

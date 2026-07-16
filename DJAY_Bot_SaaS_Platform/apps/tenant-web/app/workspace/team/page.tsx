@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
-import { WorkspaceAccessDenied } from "../WorkspaceAccess";
+import { WorkspaceAccessDenied, WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
 type Member = {
@@ -21,14 +21,17 @@ export default function TeamPage() {
   const [team, setTeam] = useState<TeamOverview | null>(null);
   const [message, setMessage] = useState("");
   const [working, setWorking] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const activeWorkspace = useMemo(
     () => session.workspaces.find((workspace) => workspace.tenantId === session.selectedTenantId),
     [session.workspaces, session.selectedTenantId],
   );
 
   async function loadTeam() {
-    const response = await fetch("/tenant/team", { cache: "no-store" });
-    if (response.ok) setTeam((await response.json()).team);
+    try {
+      const response = await fetch("/tenant/team", { cache: "no-store" });
+      if (!response.ok) throw new Error("team_unavailable"); setTeam((await response.json()).team); setLoadError(false);
+    } catch { setLoadError(true); }
   }
 
   useEffect(() => {
@@ -72,8 +75,10 @@ export default function TeamPage() {
     await loadTeam();
   }
 
+  if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading team...</main>;
   if (!session.allows("team.read")) return <WorkspaceAccessDenied active="team" title="Team" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(tenantId) => void session.selectWorkspace(tenantId)} onLogout={() => void session.logout()} />;
+  if (loadError) return <WorkspacePageLoadError active="team" title="Team" resource="workspace members" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(tenantId) => void session.selectWorkspace(tenantId)} onLogout={() => void session.logout()} onRetry={() => void loadTeam()} />;
   const isOwner = activeWorkspace?.role === "tenant_master_admin";
   const canInvite = isOwner || activeWorkspace?.role === "tenant_admin";
 

@@ -14,6 +14,14 @@ links are derived from the platform role and `platformRoleAllows`. Unknown
 roles fail closed. A hidden link is not the security boundary; every API route
 must continue to enforce the same permission independently.
 
+Authoritative workspace reads also fail closed in the UI. A workspace-session
+failure renders a no-shell authentication-context error; a product-data failure
+preserves the authorized workspace shell and renders the shared page error.
+Neither state may be represented as an empty collection or remain in a loading
+state. Both states must say that saved data is unchanged and expose a **Try
+again** action. Secondary-panel failures may remain inline when the surrounding
+authoritative page data is valid.
+
 `NEXT_PUBLIC_PUBLIC_APP_URL` is the tenant sign-in link back to public
 registration. Set it to the deployed public origin before building Tenant Web.
 Next.js embeds this public value at build time, so changing only the runtime
@@ -38,8 +46,9 @@ For deployed acceptance, set `PUBLIC_QA_URL`, `TENANT_QA_URL`,
 checks desktop and mobile overflow, shared brand color, keyboard focus
 visibility, safe cross-application links, every public account route, the API
 root, all twelve tenant routes at both breakpoints, every tenant role, every
-platform role, direct-route denial, mutation visibility, and the existence of
-each visible Platform navigation target.
+platform role, direct-route denial, mutation visibility, workspace-session and
+authoritative product-read failures, retry actions, and the existence of each
+visible Platform navigation target.
 
 Do not promote when this gate fails. A passing local gate does not replace
 real-device accessibility review, named-merchant acceptance, managed service

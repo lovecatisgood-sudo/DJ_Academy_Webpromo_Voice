@@ -9,19 +9,22 @@ export function useWorkspaceSession() {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [mfaVerifiedAt, setMfaVerifiedAt] = useState<string | null>(null);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     void fetch("/tenant/session", { cache: "no-store" }).then(async (response) => {
-      if (!response.ok) {
+      if ([401, 403].includes(response.status)) {
         window.location.replace("/");
         return;
       }
+      if (!response.ok) throw new Error("workspace_session_unavailable");
       const result = await response.json();
       setWorkspaces(result.workspaces || []);
       setSelectedTenantId(result.selectedTenantId || null);
       setMfaVerifiedAt(result.mfaVerifiedAt || null);
+      setError(false);
       setLoading(false);
-    });
+    }).catch(() => { setError(true); setLoading(false); });
   }, []);
 
   async function selectWorkspace(tenantId: string) {
@@ -44,5 +47,5 @@ export function useWorkspaceSession() {
     return tenantRoles.includes(role as TenantRole) && tenantRoleAllows(role as TenantRole, permission);
   }
 
-  return { loading, workspaces, selectedTenantId, activeWorkspace, mfaVerifiedAt, allows, selectWorkspace, logout };
+  return { loading, error, workspaces, selectedTenantId, activeWorkspace, mfaVerifiedAt, allows, selectWorkspace, logout };
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
-import { WorkspaceViewOnly } from "../WorkspaceAccess";
+import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
@@ -16,15 +16,18 @@ export default function ContactsPage() {
   const [identityReviews, setIdentityReviews] = useState<IdentityReview[]>([]);
   const [message, setMessage] = useState("");
   const [working, setWorking] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canWrite = session.allows("contacts.write");
 
   async function load() {
-    const response = await fetch("/tenant/contacts", { cache: "no-store" });
-    if (response.ok) {
+    try {
+      const response = await fetch("/tenant/contacts", { cache: "no-store" });
+      if (!response.ok) throw new Error("contacts_unavailable");
       const result = await response.json(); setContacts(result.contacts || []);
       setIdentityReviews(result.identityReviewCandidates || []);
-    }
+      setLoadError(false);
+    } catch { setLoadError(true); }
   }
   useEffect(() => { if (session.selectedTenantId) void load(); }, [session.selectedTenantId]);
 
@@ -42,7 +45,9 @@ export default function ContactsPage() {
     form.reset(); setMessage("Contact created."); await load();
   }
 
+  if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading contacts...</main>;
+  if (loadError) return <WorkspacePageLoadError active="contacts" title="Contacts" resource="customer records" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} onRetry={() => void load()} />;
   return (
     <main className="workspace-shell">
       <WorkspaceSidebar active="contacts" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} />

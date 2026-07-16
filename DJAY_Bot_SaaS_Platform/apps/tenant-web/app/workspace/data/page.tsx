@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
+import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
@@ -13,18 +14,23 @@ export default function DataControlsPage() {
   const session = useWorkspaceSession(); const [contacts, setContacts] = useState<Contact[]>([]); const [jobs, setJobs] = useState<PrivacyJob[]>([]);
   const [retention, setRetention] = useState<RetentionPolicy | null>(null);
   const [message, setMessage] = useState(""); const [working, setWorking] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canManage = workspace?.role === "tenant_master_admin";
   async function load() {
     if (canManage) {
-      const [contactResponse, jobsResponse, retentionResponse] = await Promise.all([
-        fetch("/tenant/contacts", { cache: "no-store" }),
-        fetch("/tenant/privacy-jobs", { cache: "no-store" }),
-        fetch("/tenant/retention-policy", { cache: "no-store" }),
-      ]);
-      if (contactResponse.ok) setContacts((await contactResponse.json()).contacts || []);
-      if (jobsResponse.ok) setJobs((await jobsResponse.json()).jobs || []);
-      if (retentionResponse.ok) setRetention((await retentionResponse.json()).policy || null);
+      try {
+        const [contactResponse, jobsResponse, retentionResponse] = await Promise.all([
+          fetch("/tenant/contacts", { cache: "no-store" }),
+          fetch("/tenant/privacy-jobs", { cache: "no-store" }),
+          fetch("/tenant/retention-policy", { cache: "no-store" }),
+        ]);
+        if (!contactResponse.ok || !jobsResponse.ok || !retentionResponse.ok) throw new Error("privacy_unavailable");
+        setContacts((await contactResponse.json()).contacts || []);
+        setJobs((await jobsResponse.json()).jobs || []);
+        setRetention((await retentionResponse.json()).policy || null);
+        setLoadError(false);
+      } catch { setLoadError(true); }
     }
   }
   useEffect(() => { if (session.selectedTenantId) void load(); }, [session.selectedTenantId, canManage]);
@@ -49,7 +55,9 @@ export default function DataControlsPage() {
     setMessage("Retention policy saved. The privacy worker applies expired transcript redaction automatically.");
     await load();
   }
+  if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading data controls...</main>;
+  if (loadError) return <WorkspacePageLoadError active="data" title="Data controls" resource="privacy controls" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} onRetry={() => void load()} />;
   return <main className="workspace-shell"><WorkspaceSidebar active="data" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} />
     <section className="workspace-main"><WorkspaceSupportBanner tenantId={session.selectedTenantId} />
       <header className="workspace-header"><div><p>Governance</p><h1>Data controls</h1></div><span className="role-label">{workspace?.businessName}</span></header>

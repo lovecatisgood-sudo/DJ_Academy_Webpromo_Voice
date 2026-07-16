@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
+import { WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
 type CustomerUnit = "flow_execution" | "ai_response" | "voice_minute";
@@ -89,6 +90,7 @@ export default function UsagePage() {
     if (session.selectedTenantId) void loadUsage();
   }, [loadUsage, session.selectedTenantId]);
 
+  if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading usage...</main>;
   const isOwner = activeWorkspace?.role === "tenant_master_admin";
   const subscriptions = usage?.subscriptions ?? [];

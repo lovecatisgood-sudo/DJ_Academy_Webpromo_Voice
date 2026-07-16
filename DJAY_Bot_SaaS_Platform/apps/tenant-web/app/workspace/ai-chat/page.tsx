@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
+import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
@@ -32,14 +33,17 @@ export default function AiChatPage() {
   const [socialConnections, setSocialConnections] = useState<SocialConnection[]>([]); const [newSocialWebhookKey, setNewSocialWebhookKey] = useState("");
   const [newSocialChannel, setNewSocialChannel] = useState<"line" | "whatsapp" | "messenger" | "">("");
   const [message, setMessage] = useState(""); const [working, setWorking] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canAuthor = workspace?.role === "tenant_master_admin" || workspace?.role === "tenant_admin";
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
 
   async function loadAgents() {
-    const response = await fetch("/tenant/ai-chat/agents", { cache: "no-store" }); if (!response.ok) return;
-    const result = await response.json(); const next = result.agents || []; setAgents(next); setCapabilities(result.capabilities || null);
-    setSelectedAgentId((current) => current && next.some((agent: Agent) => agent.id === current) ? current : next[0]?.id || "");
+    try {
+      const response = await fetch("/tenant/ai-chat/agents", { cache: "no-store" }); if (!response.ok) throw new Error("ai_chat_unavailable");
+      const result = await response.json(); const next = result.agents || []; setAgents(next); setCapabilities(result.capabilities || null);
+      setSelectedAgentId((current) => current && next.some((agent: Agent) => agent.id === current) ? current : next[0]?.id || ""); setLoadError(false);
+    } catch { setLoadError(true); }
   }
   async function loadShared() {
     const [knowledgeResponse, notificationResponse, analyticsResponse, socialResponse] = await Promise.all([
@@ -54,12 +58,15 @@ export default function AiChatPage() {
   }
   async function loadAgent(agentId: string) {
     if (!agentId) { setDraft(null); setDeployments([]); return; }
-    const [draftResponse, deploymentResponse] = await Promise.all([
-      fetch(`/tenant/ai-chat/agents/${agentId}/draft`, { cache: "no-store" }),
-      fetch(`/tenant/ai-chat/agents/${agentId}/deployments`, { cache: "no-store" }),
-    ]);
-    if (draftResponse.ok) { const value = (await draftResponse.json()).draft as Draft; setDraft(value); setDefinitionText(JSON.stringify(value.definition, null, 2)); setSelectedKnowledge(value.knowledgeRevisionIds); }
-    if (deploymentResponse.ok) setDeployments((await deploymentResponse.json()).deployments || []);
+    try {
+      const [draftResponse, deploymentResponse] = await Promise.all([
+        fetch(`/tenant/ai-chat/agents/${agentId}/draft`, { cache: "no-store" }),
+        fetch(`/tenant/ai-chat/agents/${agentId}/deployments`, { cache: "no-store" }),
+      ]);
+      if (!draftResponse.ok || !deploymentResponse.ok) throw new Error("ai_chat_detail_unavailable");
+      const value = (await draftResponse.json()).draft as Draft; setDraft(value); setDefinitionText(JSON.stringify(value.definition, null, 2)); setSelectedKnowledge(value.knowledgeRevisionIds);
+      setDeployments((await deploymentResponse.json()).deployments || []); setLoadError(false);
+    } catch { setLoadError(true); }
   }
   useEffect(() => { if (session.selectedTenantId) { void loadAgents(); void loadShared(); } }, [session.selectedTenantId]);
   useEffect(() => { void loadAgent(selectedAgentId); setPreview(null); }, [selectedAgentId]);
@@ -191,7 +198,9 @@ export default function AiChatPage() {
     catch { setMessage("Fix the playbook JSON before selecting a recipient."); }
   }
 
+  if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading AI Chat…</main>;
+  if (loadError) return <WorkspacePageLoadError active="ai_chat" title="AI Chat" resource="AI Chat Studio" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} onRetry={() => window.location.reload()} />;
   return <main className="workspace-shell"><WorkspaceSidebar active="ai_chat" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} />
     <section className="workspace-main"><WorkspaceSupportBanner tenantId={session.selectedTenantId} />
       <header className="workspace-header"><div><p>Grounded sales conversations</p><h1>AI Chat</h1></div><span className="role-label">{capabilities?.planKey.replace("ai_chat_", "") || "unavailable"} / {capabilities?.accessMode || "none"}</span></header>

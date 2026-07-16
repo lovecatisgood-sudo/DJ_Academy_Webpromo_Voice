@@ -25,6 +25,9 @@ proves that:
   state instead of an empty or misleading operations page;
 - forbidden pages do not initiate their protected Team, Security, or privacy
   data loads;
+- a failed workspace session load and every authoritative product-data failure
+  render an explicit branded error with a retry action instead of empty data,
+  stale success, or an indefinite loading state;
 - public login, verification, and invitation destinations never fall back to
   localhost in production output;
 - every route has the shared DJAY Bot mark, no horizontal overflow, and no page
@@ -49,6 +52,11 @@ current social-connection read performed by AI Chat. The mock now supplies the
 empty authorized state, and the full P5 dashboard/widget suite passes again.
 
 The matrix uses controlled API responses to prove rendering and role behavior.
+It also injects a controlled `503` into the authoritative read for Overview,
+Contacts, Leads, Inbox, Knowledge, Data Controls, Team, Security, FlowBot, AI
+Chat, Voice, and Usage, plus the shared workspace-session read. Each route must
+preserve the correct shell, disclose that data could not be loaded, and offer a
+retry without implying that saved data was lost.
 Target-environment acceptance must repeat it against the deployed artifacts and
 does not replace managed-service, live-provider, named-merchant, legal,
 commercial, or assistive-technology acceptance.

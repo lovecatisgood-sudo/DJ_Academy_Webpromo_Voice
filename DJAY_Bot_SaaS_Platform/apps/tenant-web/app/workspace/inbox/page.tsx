@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
-import { WorkspaceViewOnly } from "../WorkspaceAccess";
+import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
@@ -19,19 +19,25 @@ export default function InboxPage() {
   const session = useWorkspaceSession(); const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null); const [messages, setMessages] = useState<Message[]>([]);
   const [notice, setNotice] = useState(""); const [working, setWorking] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [messageLoadError, setMessageLoadError] = useState(false);
   const selected = conversations.find((conversation) => conversation.id === selectedId) || null;
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canReply = session.allows("conversations.reply");
   const canAssign = session.allows("conversations.assign");
 
   async function loadInbox() {
-    const response = await fetch("/tenant/conversations", { cache: "no-store" });
-    if (!response.ok) return; const result = await response.json(); const next = result.conversations || [];
-    setConversations(next); setSelectedId((current) => current && next.some((item: Conversation) => item.id === current) ? current : next[0]?.id || null);
+    try {
+      const response = await fetch("/tenant/conversations", { cache: "no-store" });
+      if (!response.ok) throw new Error("inbox_unavailable"); const result = await response.json(); const next = result.conversations || [];
+      setConversations(next); setSelectedId((current) => current && next.some((item: Conversation) => item.id === current) ? current : next[0]?.id || null); setLoadError(false);
+    } catch { setLoadError(true); }
   }
   async function loadMessages(conversationId: string) {
-    const response = await fetch(`/tenant/conversations/${conversationId}/messages`, { cache: "no-store" });
-    if (response.ok) setMessages((await response.json()).messages || []);
+    try {
+      const response = await fetch(`/tenant/conversations/${conversationId}/messages`, { cache: "no-store" });
+      if (!response.ok) throw new Error("messages_unavailable"); setMessages((await response.json()).messages || []); setMessageLoadError(false); setNotice("");
+    } catch { setMessages([]); setMessageLoadError(true); }
   }
   useEffect(() => { if (session.selectedTenantId) void loadInbox(); }, [session.selectedTenantId]);
   useEffect(() => { if (selectedId) void loadMessages(selectedId); else setMessages([]); }, [selectedId]);
@@ -49,7 +55,9 @@ export default function InboxPage() {
     await Promise.all([loadInbox(), loadMessages(selectedId)]);
   }
 
+  if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading inbox...</main>;
+  if (loadError) return <WorkspacePageLoadError active="inbox" title="Inbox" resource="conversations" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} onRetry={() => void loadInbox()} />;
   return <main className="workspace-shell">
     <WorkspaceSidebar active="inbox" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} />
     <section className="workspace-main inbox-page"><WorkspaceSupportBanner tenantId={session.selectedTenantId} />
@@ -73,6 +81,7 @@ export default function InboxPage() {
               <p>{selected.voiceSummary || "The durable call summary will appear after the first completed turn."}</p>
             </section> : null}
             <div className="message-stream">{messages.map((message) => <div className={`message-bubble ${message.direction}`} key={message.id}><span>{message.actorType}</span><p>{message.text}</p><time>{new Date(message.createdAt).toLocaleString()}</time></div>)}</div>
+            {messageLoadError ? <div className="inline-message inline-retry" role="alert"><span>Messages could not be loaded.</span><button className="secondary-command" type="button" onClick={() => void loadMessages(selected.id)}>Retry messages</button></div> : null}
             {selected.status === "closed" ? <div className="closed-line">This conversation is closed.</div> : selected.automationMode !== "human" ? <div className="closed-line">{canAssign ? "Take over before replying." : "This conversation is currently automated."}</div> : canReply ? <form className="reply-form" onSubmit={reply}><label><span className="visually-hidden">Reply</span><textarea name="text" rows={3} maxLength={20000} placeholder="Write a reply" required /></label><button type="submit" disabled={working}>{working ? "Sending..." : "Send reply"}</button></form> : <div className="closed-line">View-only access does not include sending replies.</div>}
             {notice ? <p className="inline-message" role="alert">{notice}</p> : null}
           </> : <div className="inbox-empty"><strong>Select a conversation</strong><span>Messages are ordered and tenant scoped.</span></div>}

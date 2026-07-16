@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
+import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 import { FlowVisualEditor } from "./FlowVisualEditor";
@@ -54,23 +55,29 @@ export default function FlowBotPage() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null); const [installChecks, setInstallChecks] = useState<InstallCheck[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]); const [preflight, setPreflight] = useState<DowngradePreflight | null>(null);
   const [notifications, setNotifications] = useState<NotificationProfile[]>([]);
+  const [loadError, setLoadError] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canAuthor = workspace?.role === "tenant_master_admin" || workspace?.role === "tenant_admin";
   const selectedBot = bots.find((bot) => bot.id === selectedBotId);
 
   async function loadBots() {
-    const response = await fetch("/tenant/flowbot/bots", { cache: "no-store" }); if (!response.ok) return;
-    const result = await response.json(); const nextBots = result.bots || []; setBots(nextBots); setCapabilities(result.capabilities || null);
-    setSelectedBotId((current) => current && nextBots.some((bot: Bot) => bot.id === current) ? current : nextBots[0]?.id || "");
+    try {
+      const response = await fetch("/tenant/flowbot/bots", { cache: "no-store" }); if (!response.ok) throw new Error("flowbot_unavailable");
+      const result = await response.json(); const nextBots = result.bots || []; setBots(nextBots); setCapabilities(result.capabilities || null);
+      setSelectedBotId((current) => current && nextBots.some((bot: Bot) => bot.id === current) ? current : nextBots[0]?.id || ""); setLoadError(false);
+    } catch { setLoadError(true); }
   }
   async function loadBot(botId: string) {
     if (!botId) { setDraft(null); setVersions([]); setDeployments([]); return; }
-    const [draftResponse, versionResponse, deploymentResponse] = await Promise.all([
-      fetch(`/tenant/flowbot/bots/${botId}/draft`, { cache: "no-store" }), fetch(`/tenant/flowbot/bots/${botId}/versions`, { cache: "no-store" }), fetch(`/tenant/flowbot/bots/${botId}/deployments`, { cache: "no-store" }),
-    ]);
-    if (draftResponse.ok) { const value = (await draftResponse.json()).draft as Draft; setDraft(value); setDefinitionText(JSON.stringify(value.definition, null, 2)); }
-    if (versionResponse.ok) setVersions((await versionResponse.json()).versions || []);
-    if (deploymentResponse.ok) setDeployments((await deploymentResponse.json()).deployments || []);
+    try {
+      const [draftResponse, versionResponse, deploymentResponse] = await Promise.all([
+        fetch(`/tenant/flowbot/bots/${botId}/draft`, { cache: "no-store" }), fetch(`/tenant/flowbot/bots/${botId}/versions`, { cache: "no-store" }), fetch(`/tenant/flowbot/bots/${botId}/deployments`, { cache: "no-store" }),
+      ]);
+      if (!draftResponse.ok || !versionResponse.ok || !deploymentResponse.ok) throw new Error("flowbot_detail_unavailable");
+      const value = (await draftResponse.json()).draft as Draft; setDraft(value); setDefinitionText(JSON.stringify(value.definition, null, 2));
+      setVersions((await versionResponse.json()).versions || []);
+      setDeployments((await deploymentResponse.json()).deployments || []); setLoadError(false);
+    } catch { setLoadError(true); }
   }
   async function loadOperations() {
     const [analyticsResponse, checksResponse, teamResponse, preflightResponse, notificationResponse] = await Promise.all([
@@ -151,7 +158,9 @@ export default function FlowBotPage() {
   function applyTemplate(template: "greeting" | "lead" | "premium") {
     const value = template === "greeting" ? greetingTemplate() : template === "lead" ? leadTemplate() : premiumTemplate(); setDefinitionText(JSON.stringify(value, null, 2)); setMessage("");
   }
+  if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading FlowBot...</main>;
+  if (loadError) return <WorkspacePageLoadError active="flowbot" title="FlowBot" resource="FlowBot Studio" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} onRetry={() => window.location.reload()} />;
   return <main className="workspace-shell"><WorkspaceSidebar active="flowbot" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} />
     <section className="workspace-main"><WorkspaceSupportBanner tenantId={session.selectedTenantId} />
       <header className="workspace-header"><div><p>Website automation</p><h1>FlowBot</h1></div><span className="role-label">{capabilities?.planKey.replace("flowbot_", "")} / {capabilities?.accessMode || "unavailable"}</span></header>

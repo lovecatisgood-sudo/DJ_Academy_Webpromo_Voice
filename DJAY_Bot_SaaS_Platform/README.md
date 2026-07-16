@@ -57,7 +57,9 @@ surfaces now share an accessible brand foundation and permission-derived
 navigation, with production-browser coverage for every rendered route at
 desktop and mobile breakpoints and every tenant and Platform role. Read-only
 roles no longer receive misleading mutation controls, and forbidden direct
-routes fail closed with a recovery path. Real managed
+routes fail closed with a recovery path. Failed authoritative workspace reads
+now render explicit retryable states instead of empty data or indefinite
+loading. Real managed
 production observations, on-call staffing, PITR/regional exercises, legal and
 commercial approval remain external launch gates. Checkout, invoices, tax,
 dunning, and public charging remain disabled.

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
-import { WorkspaceAccessDenied } from "../WorkspaceAccess";
+import { WorkspaceAccessDenied, WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
 type SecuritySession = {
@@ -19,14 +19,17 @@ export default function SecurityPage() {
   const [enrollment, setEnrollment] = useState<{ factorId: string; secret: string } | null>(null);
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [mfaMessage, setMfaMessage] = useState("");
+  const [loadError, setLoadError] = useState(false);
   const activeWorkspace = useMemo(
     () => workspaceSession.workspaces.find((workspace) => workspace.tenantId === workspaceSession.selectedTenantId),
     [workspaceSession.workspaces, workspaceSession.selectedTenantId],
   );
 
   async function loadSessions() {
-    const response = await fetch("/tenant/security/sessions", { cache: "no-store" });
-    if (response.ok) setSessions((await response.json()).sessions || []);
+    try {
+      const response = await fetch("/tenant/security/sessions", { cache: "no-store" });
+      if (!response.ok) throw new Error("security_unavailable"); setSessions((await response.json()).sessions || []); setLoadError(false);
+    } catch { setLoadError(true); }
   }
 
   useEffect(() => { if (workspaceSession.selectedTenantId && workspaceSession.allows("security.sessions.read")) void loadSessions(); }, [workspaceSession.selectedTenantId, activeWorkspace?.role]);
@@ -70,8 +73,10 @@ export default function SecurityPage() {
     setMfaMessage("Multi-factor authentication is active.");
   }
 
+  if (workspaceSession.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (workspaceSession.loading || !workspaceSession.selectedTenantId) return <main className="workspace-loading">Loading security...</main>;
   if (!workspaceSession.allows("security.sessions.read")) return <WorkspaceAccessDenied active="security" title="Security" workspaces={workspaceSession.workspaces} selectedTenantId={workspaceSession.selectedTenantId} onSelect={(tenantId) => void workspaceSession.selectWorkspace(tenantId)} onLogout={() => void workspaceSession.logout()} />;
+  if (loadError) return <WorkspacePageLoadError active="security" title="Security" resource="account security" workspaces={workspaceSession.workspaces} selectedTenantId={workspaceSession.selectedTenantId} onSelect={(tenantId) => void workspaceSession.selectWorkspace(tenantId)} onLogout={() => void workspaceSession.logout()} onRetry={() => void loadSessions()} />;
   return (
     <main className="workspace-shell">
       <WorkspaceSidebar

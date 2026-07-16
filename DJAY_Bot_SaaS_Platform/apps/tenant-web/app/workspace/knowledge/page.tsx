@@ -2,24 +2,26 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
-import { WorkspaceViewOnly } from "../WorkspaceAccess";
+import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
 type Source = { id: string; name: string; sourceKind: string; status: string; version: number; revisionCreatedAt: string };
 
 export default function KnowledgePage() {
-  const session = useWorkspaceSession(); const [sources, setSources] = useState<Source[]>([]); const [message, setMessage] = useState(""); const [working, setWorking] = useState(false);
+  const session = useWorkspaceSession(); const [sources, setSources] = useState<Source[]>([]); const [message, setMessage] = useState(""); const [working, setWorking] = useState(false); const [loadError, setLoadError] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canWrite = session.allows("knowledge.write");
-  async function load() { const response = await fetch("/tenant/knowledge", { cache: "no-store" }); if (response.ok) setSources((await response.json()).sources || []); }
+  async function load() { try { const response = await fetch("/tenant/knowledge", { cache: "no-store" }); if (!response.ok) throw new Error("knowledge_unavailable"); setSources((await response.json()).sources || []); setLoadError(false); } catch { setLoadError(true); } }
   useEffect(() => { if (session.selectedTenantId) void load(); }, [session.selectedTenantId]);
   async function createSource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!canWrite) return; setWorking(true); setMessage(""); const form = event.currentTarget; const data = new FormData(form);
     const response = await fetch("/tenant/knowledge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), sourceKind: data.get("sourceKind"), content: data.get("content") }) });
     setWorking(false); if (!response.ok) { setMessage("Knowledge source could not be added."); return; } form.reset(); setMessage("Knowledge source added as revision 1."); await load();
   }
+  if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading knowledge...</main>;
+  if (loadError) return <WorkspacePageLoadError active="knowledge" title="Knowledge" resource="business content" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} onRetry={() => void load()} />;
   return <main className="workspace-shell"><WorkspaceSidebar active="knowledge" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} />
     <section className="workspace-main"><WorkspaceSupportBanner tenantId={session.selectedTenantId} />
       <header className="workspace-header"><div><p>Business content</p><h1>Knowledge</h1></div><span className="role-label">{workspace?.businessName}</span></header>

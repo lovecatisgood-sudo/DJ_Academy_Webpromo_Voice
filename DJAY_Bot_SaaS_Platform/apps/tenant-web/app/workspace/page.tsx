@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { tenantRoleAllows, type TenantRole } from "@djay/authorization";
-import { WorkspaceViewOnly } from "./WorkspaceAccess";
+import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "./WorkspaceAccess";
 import { WorkspaceSidebar, type WorkspaceSummary } from "./WorkspaceSidebar";
 
 type Workspace = WorkspaceSummary;
@@ -29,25 +29,28 @@ export default function WorkspacePage() {
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [onboarding, setOnboarding] = useState<Onboarding | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const activeWorkspace = workspaces.find((workspace) => workspace.tenantId === selectedTenantId);
   const canUpdateOnboarding = activeWorkspace
     ? tenantRoleAllows(activeWorkspace.role as TenantRole, "onboarding.update")
     : false;
 
   async function load() {
-    const sessionResponse = await fetch("/tenant/session", { cache: "no-store" });
-    if (!sessionResponse.ok) {
-      window.location.replace("/");
-      return;
-    }
-    const session = await sessionResponse.json();
-    setWorkspaces(session.workspaces || []);
-    setSelectedTenantId(session.selectedTenantId || null);
-    if (session.selectedTenantId) {
-      const onboardingResponse = await fetch("/tenant/onboarding", { cache: "no-store" });
-      if (onboardingResponse.ok) setOnboarding((await onboardingResponse.json()).onboarding);
-    }
-    setLoading(false);
+    try {
+      const sessionResponse = await fetch("/tenant/session", { cache: "no-store" });
+      if ([401, 403].includes(sessionResponse.status)) { window.location.replace("/"); return; }
+      if (!sessionResponse.ok) throw new Error("workspace_session_unavailable");
+      const session = await sessionResponse.json();
+      setWorkspaces(session.workspaces || []);
+      setSelectedTenantId(session.selectedTenantId || null);
+      if (session.selectedTenantId) {
+        const onboardingResponse = await fetch("/tenant/onboarding", { cache: "no-store" });
+        if (!onboardingResponse.ok) throw new Error("onboarding_unavailable");
+        setOnboarding((await onboardingResponse.json()).onboarding);
+      }
+      setLoadError(false);
+      setLoading(false);
+    } catch { setLoadError(true); setLoading(false); }
   }
 
   useEffect(() => { void load(); }, []);
@@ -81,6 +84,7 @@ export default function WorkspacePage() {
   }
 
   if (loading) return <main className="workspace-loading">Loading workspace...</main>;
+  if (loadError && !selectedTenantId) return <WorkspaceSessionLoadError onRetry={() => void load()} />;
 
   if (!selectedTenantId) {
     return (
@@ -101,6 +105,8 @@ export default function WorkspacePage() {
       </main>
     );
   }
+
+  if (loadError) return <WorkspacePageLoadError active="overview" title={activeWorkspace?.businessName || "Workspace"} resource="workspace setup" workspaces={workspaces} selectedTenantId={selectedTenantId} onSelect={(tenantId) => void selectWorkspace(tenantId)} onLogout={() => void logout()} onRetry={() => void load()} />;
 
   return (
     <main className="workspace-shell">
