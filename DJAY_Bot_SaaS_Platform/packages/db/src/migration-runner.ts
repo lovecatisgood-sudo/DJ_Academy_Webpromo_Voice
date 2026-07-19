@@ -39,7 +39,15 @@ export async function runDatabaseMigrations(input: Readonly<{
       for (const [role, databaseUrl] of Object.entries(input.runtimeRoleUrls)) {
         const parsed = new URL(databaseUrl);
         if (decodeURIComponent(parsed.username) !== role || !parsed.password) throw new Error(`database_role_url_invalid:${role}`);
-        await client`ALTER ROLE ${client(role)} LOGIN PASSWORD ${decodeURIComponent(parsed.password)}`;
+        const [ddl] = await client<{ statement: string }[]>`
+          SELECT format(
+            'ALTER ROLE %I LOGIN PASSWORD %L',
+            ${role}::text,
+            ${decodeURIComponent(parsed.password)}::text
+          ) AS statement
+        `;
+        if (!ddl?.statement) throw new Error(`database_role_ddl_missing:${role}`);
+        await client.unsafe(ddl.statement);
       }
       console.info("database_runtime_roles_configured", { count: Object.keys(input.runtimeRoleUrls).length });
     }

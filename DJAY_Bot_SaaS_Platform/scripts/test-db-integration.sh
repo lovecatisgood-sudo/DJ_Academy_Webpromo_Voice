@@ -122,6 +122,9 @@ run_sql /workspace/packages/db/migrations/0075_branding_add_on_runtime.sql
 run_sql /workspace/packages/db/migrations/0076_workspace_add_on_provisioning.sql
 run_sql /workspace/packages/db/migrations/0077_shared_operations_commercial_authority.sql
 run_sql /workspace/packages/db/migrations/0078_service_engagement_lifecycle.sql
+MIGRATION_RUNNER_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+MIGRATION_RUNNER_ROLE_URL="postgresql://djay_migrator:djay_migrator_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/migration-runner.integration.test.ts
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -c "ALTER ROLE djay_auth_runtime LOGIN PASSWORD 'djay_auth_test'" >/dev/null
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
