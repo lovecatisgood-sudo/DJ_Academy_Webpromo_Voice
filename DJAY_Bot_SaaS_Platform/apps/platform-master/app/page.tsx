@@ -24,6 +24,8 @@ type UsageReconciliation = {
     quotaAccounts: number; displayedAccounts: number; healthyAccounts: number;
     attentionAccounts: number; activeWithoutCurrentAccount: number;
     orphanUsageEvents: number; expiredOpenReservations: number;
+    unreconciledProviderEvents: number; providerAttentionResults: number;
+    openReconciliationCases: number;
   };
   accounts: Array<{
     quotaAccountId: string; tenantId: string; businessName: string;
@@ -35,6 +37,44 @@ type UsageReconciliation = {
     netSettledEvents: number; openReservations: number; expiredOpenReservations: number;
     reservedVariance: number; settledVariance: number; eventVariance: number;
     status: "healthy" | "attention";
+  }>;
+  providerResults: Array<{
+    resultId: string; tenantId: string; businessName: string; providerKey: string;
+    providerMeterKey: string; nativeQuantity: number; nativeUnit: string;
+    estimatedCostMinor: number | null; status: string; reconciledAt: string;
+    caseId: string | null; requestedAction: string | null; caseStatus: string | null;
+  }>;
+};
+type FinancialReconciliation = {
+  status: "healthy" | "attention";
+  summary: { total: number; matched: number; attention: number };
+  results: Array<{
+    resultId: string; tenantId: string; businessName: string;
+    invoiceDocumentId: string; externalInvoiceRef: string;
+    status: "matched" | "reference_mismatch" | "currency_mismatch" | "status_mismatch" | "amount_mismatch";
+    differences: Record<string, unknown>; reconciledAt: string;
+    caseId: string | null; requestedAction: string | null;
+    reviewStatus: "approved" | "rejected" | null;
+  }>;
+};
+type FinancialEventReconciliation = {
+  status: "healthy" | "attention"; summary: { total: number; matched: number; attention: number };
+  results: Array<{ resultId: string; tenantId: string; businessName: string;
+    evidenceKind: "payment" | "refund" | "credit_note"; externalRef: string;
+    status: "matched" | "reference_mismatch" | "currency_mismatch" | "status_mismatch" | "amount_mismatch";
+    differences: Record<string, unknown>; reconciledAt: string; caseId: string | null;
+    requestedAction: string | null; reviewStatus: "approved" | "rejected" | null }>;
+};
+type AccountingReconciliation = {
+  status: "healthy" | "attention";
+  summary: { total: number; matched: number; attention: number };
+  results: Array<{
+    resultId: string; tenantId: string; businessName: string;
+    documentKind: "invoice" | "credit_note"; externalDocumentRef: string | null;
+    status: "matched" | "missing_remote" | "reference_mismatch" | "currency_mismatch" | "amount_mismatch";
+    differences: Record<string, unknown>; reconciledAt: string;
+    caseId: string | null; requestedAction: string | null;
+    reviewStatus: "approved" | "rejected" | null;
   }>;
 };
 type ReleaseReadiness = {
@@ -59,8 +99,26 @@ type Subscription = {
   id: string; tenantId: string; businessName: string; productKey: string;
   planKey: string; publicName: string; status: string; createdAt: string;
 };
+type DunningPolicy = {
+  id: string; version: number; status: "draft" | "pending_review" | "active" | "retired" | "rejected";
+  gracePeriodHours: number; restrictAfterHours: number; customerNoticeOffsetsHours: number[];
+  reason: string; requestedByPlatformUserId: string; reviewedByPlatformUserId: string | null;
+  requestedAt: string; reviewedAt: string | null; activatedAt: string | null;
+};
+type WebhookRecovery = {
+  jobId: string; webhookEventId: string; externalEventId: string; eventType: string;
+  reasonCode: string; status: string; attemptCount: number; occurredAt: string;
+  providerEvidenceCount: number; caseId: string | null; requestedAction: string | null;
+  requestedByPlatformUserId: string | null;
+  reviewStatus: "approved" | "rejected" | null;
+};
 type Tenant = { id: string; businessName: string; slug: string; status: string };
 type SupportGrant = { id: string; tenantId: string; businessName: string; requestedByPlatformUserId: string; approvedByPlatformUserId: string | null; reason: string; status: string; startsAt: string; expiresAt: string };
+type SharedOperationsQueue = {
+  addOns: Array<{ id: string; tenantId: string; businessName: string; addOnKey: string; quantity: number; status: string; createdAt: string }>;
+  services: Array<{ id: string; tenantId: string; businessName: string; serviceKind: string; productKey: string | null; status: string; createdAt: string }>;
+  engagements: Array<{ id: string; tenantId: string; businessName: string; serviceRequestId: string; title: string; scopeText: string; status: string; nextActionOwner: string; targetAt: string | null; updatedAt: string }>;
+};
 type RecoveryItem = { recordKind: "recoverable"; recordId: string; queueKind: "system_email" | "flowbot_email" | "ai_chat_email"; itemId: string; attemptCount: number; safeErrorCode: string; occurredAt: string; status: "dead_letter" };
 type RecoveryRequest = { recordKind: "request"; recordId: string; queueKind: RecoveryItem["queueKind"]; itemId: string; attemptCount: number; occurredAt: string; status: "requested" | "applied" | "rejected" | "invalidated"; reason: string; requestedByPlatformUserId: string; reviewedByPlatformUserId: string | null };
 type RecoveryOverview = { recoverable: RecoveryItem[]; requests: RecoveryRequest[]; policy: { replayableQueueKinds: string[]; excludedQueueKinds: string[] } };
@@ -87,11 +145,18 @@ export default function PlatformMasterPage() {
   const [commerce, setCommerce] = useState<Commerce | null>(null);
   const [reconciliation, setReconciliation] = useState<UsageReconciliation | null>(null);
   const [reconciliationStage, setReconciliationStage] = useState<"hidden" | "loading" | "ready" | "error">("hidden");
+  const [financialReconciliation, setFinancialReconciliation] = useState<FinancialReconciliation | null>(null);
+  const [financialEventReconciliation, setFinancialEventReconciliation] = useState<FinancialEventReconciliation | null>(null);
+  const [accountingReconciliation, setAccountingReconciliation] = useState<AccountingReconciliation | null>(null);
   const [readiness, setReadiness] = useState<ReleaseReadiness | null>(null);
   const [readinessStage, setReadinessStage] = useState<"loading" | "ready" | "error">("loading");
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [dunningPolicies, setDunningPolicies] = useState<DunningPolicy[]>([]);
+  const [webhookRecovery, setWebhookRecovery] = useState<WebhookRecovery[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [supportGrants, setSupportGrants] = useState<SupportGrant[]>([]);
+  const [sharedOperations, setSharedOperations] = useState<SharedOperationsQueue | null>(null);
+  const engagementIdempotencyKeys = useRef(new Map<string, string>());
   const [recovery, setRecovery] = useState<RecoveryOverview | null>(null);
   const [recoveryStage, setRecoveryStage] = useState<"hidden" | "loading" | "ready" | "error">("hidden");
   const [voiceControl, setVoiceControl] = useState<VoiceControl | null>(null);
@@ -130,11 +195,17 @@ export default function PlatformMasterPage() {
     setCommerce(null);
     setReconciliation(null);
     setReconciliationStage("hidden");
+    setFinancialReconciliation(null);
+    setFinancialEventReconciliation(null);
+    setAccountingReconciliation(null);
     setReadiness(null);
     setReadinessStage("loading");
     setSubscriptions([]);
+    setDunningPolicies([]);
+    setWebhookRecovery([]);
     setTenants([]);
     setSupportGrants([]);
+    setSharedOperations(null);
     setRecovery(null);
     setRecoveryStage("hidden");
     setVoiceControl(null);
@@ -209,25 +280,32 @@ export default function PlatformMasterPage() {
     const canReadVoice = ["platform_owner", "platform_ai_operations"].includes(result.user.role);
     const canReadRecovery = ["platform_owner", "platform_support", "platform_ai_operations"].includes(result.user.role);
     const canReadVoiceIncidents = ["platform_owner", "platform_ai_operations", "platform_finance"].includes(result.user.role);
+    const canReadFulfillment = ["platform_owner", "platform_support", "platform_finance"].includes(result.user.role);
     setReadinessStage("loading");
     setReconciliationStage(canReadBilling ? "loading" : "hidden");
     setRecoveryStage(canReadRecovery ? "loading" : "hidden");
     const [
-      nextHealth, readinessResult, nextCommerce, reconciliationResult,
-      nextSubscriptions, nextTenants, nextSupportGrants, recoveryResult,
-      nextVoiceControl, nextVoiceRouting, nextVoiceIncidents,
+      nextHealth, readinessResult, nextCommerce, reconciliationResult, financialResult, financialEventResult, accountingResult,
+      nextSubscriptions, nextDunningPolicies, nextWebhookRecovery, nextTenants, nextSupportGrants, recoveryResult,
+      nextVoiceControl, nextVoiceRouting, nextVoiceIncidents, nextSharedOperations,
     ] = await Promise.all([
       loadResource<Health>("/platform/health-summary", "health", "Platform health"),
       loadPanel<ReleaseReadiness>("/platform/release-readiness", "readiness"),
       canReadBilling ? loadResource<Commerce>("/platform/commerce-overview", "commerce", "Commerce overview") : Promise.resolve(null),
       canReadBilling ? loadPanel<UsageReconciliation>("/platform/usage-reconciliation", "reconciliation") : Promise.resolve({ value: null, available: false }),
+      canReadBilling ? loadPanel<FinancialReconciliation>("/platform/financial-reconciliation", "financialReconciliation") : Promise.resolve({ value: null, available: false }),
+      canReadBilling ? loadPanel<FinancialEventReconciliation>("/platform/financial-event-reconciliation", "financialEventReconciliation") : Promise.resolve({ value: null, available: false }),
+      canReadBilling ? loadPanel<AccountingReconciliation>("/platform/accounting-reconciliation", "accountingReconciliation") : Promise.resolve({ value: null, available: false }),
       canReadBilling ? loadResource<Subscription[]>("/platform/subscriptions", "subscriptions", "Product subscriptions") : Promise.resolve(null),
+      canReadBilling ? loadResource<DunningPolicy[]>("/platform/subscription-dunning", "policies", "Subscription dunning policies") : Promise.resolve(null),
+      canReadBilling ? loadResource<WebhookRecovery[]>("/platform/webhook-recovery", "recovery", "Stripe webhook recovery") : Promise.resolve(null),
       canReadTenants ? loadResource<Tenant[]>("/platform/tenants", "tenants", "Tenant directory") : Promise.resolve(null),
       loadResource<SupportGrant[]>("/platform/support-grants", "grants", "Support access grants"),
       canReadRecovery ? loadPanel<RecoveryOverview>("/platform/dead-letter-recovery", "recovery") : Promise.resolve({ value: null, available: false }),
       canReadVoice ? loadResource<VoiceControl>("/platform/voice/runtime-control", "control", "Voice runtime controls") : Promise.resolve(null),
       canReadVoice ? loadResource<VoiceRouting>("/platform/voice/routing", "routing", "Advanced Voice routing") : Promise.resolve(null),
       canReadVoiceIncidents ? loadResource<VoiceIncident[]>("/platform/voice/incidents", "incidents", "Voice incidents") : Promise.resolve(null),
+      canReadFulfillment ? loadResource<SharedOperationsQueue>("/platform/shared-operations", "queue", "SaaS fulfillment") : Promise.resolve(null),
     ]);
     if (generation !== loadGeneration.current) return;
     setHealth(nextHealth);
@@ -236,7 +314,12 @@ export default function PlatformMasterPage() {
     setCommerce(nextCommerce);
     setReconciliation(reconciliationResult.value);
     setReconciliationStage(canReadBilling ? reconciliationResult.available ? "ready" : "error" : "hidden");
+    setFinancialReconciliation(financialResult.value);
+    setFinancialEventReconciliation(financialEventResult.value);
+    setAccountingReconciliation(accountingResult.value);
     setSubscriptions(nextSubscriptions || []);
+    setDunningPolicies(nextDunningPolicies || []);
+    setWebhookRecovery(nextWebhookRecovery || []);
     setTenants(nextTenants || []);
     setSupportGrants(nextSupportGrants || []);
     setRecovery(recoveryResult.value);
@@ -244,6 +327,7 @@ export default function PlatformMasterPage() {
     setVoiceControl(nextVoiceControl);
     setVoiceRouting(nextVoiceRouting);
     setVoiceIncidents(canReadVoiceIncidents ? nextVoiceIncidents || [] : null);
+    setSharedOperations(canReadFulfillment ? nextSharedOperations : null);
     setResourceErrors(unavailable.sort());
     setDashboardLoading(false);
   }
@@ -308,6 +392,207 @@ export default function PlatformMasterPage() {
       return;
     }
     await loadCurrent();
+  }
+
+  async function provisionSharedAddOn(requestId: string) {
+    if (!window.confirm("Provision this add-on and increase the customer entitlement now?")) return;
+    setWorking(true); clearMessage();
+    const response = await safeMutationFetch("/platform/shared-operations", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "provision_add_on", requestId }),
+    });
+    setWorking(false);
+    if (!response.ok) { showMessage(response.status === 403 ? "Recent Platform Owner authentication is required." : "The add-on was not provisioned."); return; }
+    const result = await response.json() as { status: string };
+    if (result.status !== "provisioned") { showMessage("This request requires a manual workspace provisioning workflow."); return; }
+    showMessage("Add-on provisioned and tenant capacity updated.", "success"); await loadCurrent();
+  }
+
+  async function createServiceEngagement(event: FormEvent<HTMLFormElement>, serviceRequestId: string) {
+    event.preventDefault(); setWorking(true); clearMessage();
+    const form = event.currentTarget; const data = new FormData(form);
+    const response = await safeMutationFetch("/platform/shared-operations", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "create_engagement", serviceRequestId, title: data.get("title"),
+        scope: data.get("scope"), nextActionOwner: data.get("nextActionOwner") }),
+    });
+    setWorking(false);
+    if (!response.ok) { showMessage(response.status === 403 ? "Recent platform authentication is required." : "The service engagement was not created."); return; }
+    showMessage("Service request accepted into the fulfillment workflow.", "success"); await loadCurrent();
+  }
+
+  async function updateServiceEngagement(event: FormEvent<HTMLFormElement>, engagementId: string) {
+    event.preventDefault(); setWorking(true); clearMessage();
+    const form = event.currentTarget; const data = new FormData(form);
+    const idempotencyKey = engagementIdempotencyKeys.current.get(engagementId) ?? crypto.randomUUID();
+    engagementIdempotencyKeys.current.set(engagementId, idempotencyKey);
+    const response = await safeMutationFetch("/platform/shared-operations", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "update_engagement", engagementId, status: data.get("status"),
+        nextActionOwner: data.get("nextActionOwner"), body: data.get("body"), idempotencyKey }),
+    });
+    setWorking(false);
+    if (!response.ok) { showMessage(response.status === 403 ? "Recent platform authentication is required." : "The engagement update was not applied."); return; }
+    engagementIdempotencyKeys.current.delete(engagementId); form.reset();
+    showMessage("Engagement status and delivery update saved.", "success"); await loadCurrent();
+  }
+
+  async function requestUsageReconciliation(event: FormEvent<HTMLFormElement>, result: UsageReconciliation["providerResults"][number]) {
+    event.preventDefault(); setWorking(true); clearMessage();
+    const form = event.currentTarget; const data = new FormData(form);
+    const response = await safeMutationFetch("/platform/usage-reconciliation", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: "request", tenantId: result.tenantId,
+        resultId: result.resultId, action: data.get("action"), reason: data.get("reason") }),
+    });
+    setWorking(false);
+    if (!response.ok) { showMessage(response.status === 403 ? "Recent authentication is required." : "Reconciliation case was not created."); return; }
+    showMessage("Reconciliation case requested for independent review.", "success"); await loadCurrent();
+  }
+
+  async function reviewUsageReconciliation(caseId: string, approve: boolean) {
+    setWorking(true); clearMessage();
+    const response = await safeMutationFetch("/platform/usage-reconciliation", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: "review", caseId, approve,
+        note: approve ? "Independent review approved for documented follow-up" : "Independent review rejected the requested remediation" }),
+    });
+    setWorking(false);
+    if (!response.ok) { showMessage(response.status === 403 ? "Recent authentication is required." : "A different billing reviewer is required."); return; }
+    showMessage(`Reconciliation case ${approve ? "approved" : "rejected"}.`, "success"); await loadCurrent();
+  }
+
+  async function requestFinancialReconciliation(event: FormEvent<HTMLFormElement>, resultId: string) {
+    event.preventDefault(); setWorking(true); clearMessage();
+    const data = new FormData(event.currentTarget);
+    const response = await safeMutationFetch("/platform/financial-reconciliation", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: "request", resultId,
+        action: data.get("action"), reason: data.get("reason") }),
+    });
+    setWorking(false);
+    if (!response.ok) { showMessage(response.status === 403 ? "Recent authentication is required." : "Financial reconciliation case was not created."); return; }
+    showMessage("Financial reconciliation case requested for independent review.", "success"); await loadCurrent();
+  }
+
+  async function reviewFinancialReconciliation(caseId: string, approve: boolean) {
+    setWorking(true); clearMessage();
+    const response = await safeMutationFetch("/platform/financial-reconciliation", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: "review", caseId, approve,
+        note: approve ? "Independent finance review approved" : "Independent finance review rejected" }),
+    });
+    setWorking(false);
+    if (!response.ok) { showMessage(response.status === 403 ? "Recent authentication is required." : "A different finance reviewer is required."); return; }
+    showMessage(`Financial reconciliation ${approve ? "approved" : "rejected"}.`, "success"); await loadCurrent();
+  }
+
+  async function requestFinancialEventReconciliation(event: FormEvent<HTMLFormElement>, resultId: string) {
+    event.preventDefault(); setWorking(true); clearMessage(); const data = new FormData(event.currentTarget);
+    const response = await safeMutationFetch("/platform/financial-event-reconciliation", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        operation: "request", resultId, action: data.get("action"), reason: data.get("reason"),
+      }),
+    });
+    setWorking(false);
+    if (!response.ok) { showMessage(response.status === 403 ? "Recent authentication is required." : "Financial event case was not created."); return; }
+    showMessage("Financial event case requested for independent review.", "success"); await loadCurrent();
+  }
+
+  async function reviewFinancialEventReconciliation(caseId: string, approve: boolean) {
+    setWorking(true); clearMessage();
+    const response = await safeMutationFetch("/platform/financial-event-reconciliation", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        operation: "review", caseId, approve,
+        note: approve ? "Independent financial-event review approved" : "Independent financial-event review rejected",
+      }),
+    });
+    setWorking(false);
+    if (!response.ok) { showMessage(response.status === 403 ? "Recent authentication is required." : "A different finance reviewer is required."); return; }
+    showMessage(`Financial event reconciliation ${approve ? "approved" : "rejected"}.`, "success"); await loadCurrent();
+  }
+
+  async function requestAccountingReconciliation(event: FormEvent<HTMLFormElement>, resultId: string) {
+    event.preventDefault(); setWorking(true); clearMessage();
+    const data = new FormData(event.currentTarget);
+    const response = await safeMutationFetch("/platform/accounting-reconciliation", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: "request", resultId,
+        action: data.get("action"), reason: data.get("reason") }),
+    });
+    setWorking(false);
+    if (!response.ok) { showMessage(response.status === 403 ? "Recent authentication is required." : "Accounting reconciliation case was not created."); return; }
+    showMessage("Accounting reconciliation case requested for independent review.", "success"); await loadCurrent();
+  }
+
+  async function reviewAccountingReconciliation(caseId: string, approve: boolean) {
+    setWorking(true); clearMessage();
+    const response = await safeMutationFetch("/platform/accounting-reconciliation", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: "review", caseId, approve,
+        note: approve ? "Independent accounting review approved" : "Independent accounting review rejected" }),
+    });
+    setWorking(false);
+    if (!response.ok) { showMessage(response.status === 403 ? "Recent authentication is required." : "A different finance reviewer is required."); return; }
+    showMessage(`Accounting reconciliation ${approve ? "approved" : "rejected"}.`, "success"); await loadCurrent();
+  }
+
+  async function requestDunningPolicy(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setWorking(true); clearMessage();
+    const form = event.currentTarget; const data = new FormData(form);
+    const noticeOffsets = String(data.get("noticeOffsets") || "").split(",")
+      .map((value) => value.trim()).filter(Boolean).map(Number);
+    const response = await safeMutationFetch("/platform/subscription-dunning", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: "request",
+        gracePeriodHours: Number(data.get("gracePeriodHours")),
+        restrictAfterHours: Number(data.get("restrictAfterHours")),
+        customerNoticeOffsetsHours: noticeOffsets, reason: data.get("reason") }),
+    });
+    setWorking(false);
+    if (!response.ok) { showMessage(response.status === 403 ? "Recent Platform Owner authentication is required." : "Dunning policy request was rejected."); return; }
+    showMessage("Dunning policy submitted for independent approval.", "success");
+    form.reset(); await loadCurrent();
+  }
+
+  async function reviewDunningPolicy(policyId: string, approve: boolean) {
+    if (!window.confirm(`${approve ? "Activate" : "Reject"} this subscription dunning policy?`)) return;
+    setWorking(true); clearMessage();
+    const response = await safeMutationFetch("/platform/subscription-dunning", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: "review", policyId, approve,
+        note: approve ? "Independent Platform Owner review approved activation"
+          : "Independent Platform Owner review rejected activation" }),
+    });
+    setWorking(false);
+    if (!response.ok) { showMessage(response.status === 403 ? "Recent Platform Owner authentication is required." : "A different Platform Owner must review this policy."); return; }
+    showMessage(`Dunning policy ${approve ? "activated" : "rejected"}.`, "success"); await loadCurrent();
+  }
+
+  async function requestWebhookRecovery(event: FormEvent<HTMLFormElement>, jobId: string) {
+    event.preventDefault(); setWorking(true); clearMessage(); const data = new FormData(event.currentTarget);
+    const response = await safeMutationFetch("/platform/webhook-recovery", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: "request", jobId,
+        action: data.get("action"), reason: data.get("reason") }),
+    });
+    setWorking(false);
+    if (!response.ok) { showMessage(response.status === 403 ? "Recent Platform Owner authentication is required." : "Webhook recovery request was rejected."); return; }
+    showMessage("Webhook recovery submitted for independent review.", "success"); await loadCurrent();
+  }
+
+  async function reviewWebhookRecovery(caseId: string, approve: boolean) {
+    if (!window.confirm(`${approve ? "Approve" : "Reject"} this Stripe webhook recovery action?`)) return;
+    setWorking(true); clearMessage();
+    const response = await safeMutationFetch("/platform/webhook-recovery", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operation: "review", caseId, approve,
+        note: approve ? "Independent webhook recovery review approved"
+          : "Independent webhook recovery review rejected" }),
+    });
+    setWorking(false);
+    if (!response.ok) { showMessage(response.status === 403 ? "Recent Platform Owner authentication is required." : "A different Platform Owner must review this recovery."); return; }
+    showMessage(`Webhook recovery ${approve ? "approved" : "rejected"}.`, "success"); await loadCurrent();
   }
 
   async function requestSupport(event: FormEvent<HTMLFormElement>) {
@@ -573,6 +858,7 @@ export default function PlatformMasterPage() {
               <div><span>Missing current account</span><strong>{reconciliation.summary.activeWithoutCurrentAccount}</strong><small>active subscriptions</small></div>
               <div><span>Unmapped events</span><strong>{reconciliation.summary.orphanUsageEvents}</strong><small>period mapping required</small></div>
               <div><span>Expired reservations</span><strong>{reconciliation.summary.expiredOpenReservations}</strong><small>past-period open records</small></div>
+              <div><span>Provider attention</span><strong>{reconciliation.summary.providerAttentionResults + reconciliation.summary.unreconciledProviderEvents}</strong><small>{reconciliation.summary.openReconciliationCases} open cases</small></div>
             </div>
             <div className="reconciliation-authority">
               <strong>{user.role === "platform_finance" ? "Finance review" : "Platform Owner review"}</strong>
@@ -591,6 +877,144 @@ export default function PlatformMasterPage() {
               {!reconciliation.accounts.length ? <p className="empty-row" role="listitem">No quota accounts to reconcile</p> : null}
             </div>
             {reconciliation.summary.quotaAccounts > reconciliation.summary.displayedAccounts ? <small className="reconciliation-limit">Showing the {reconciliation.summary.displayedAccounts} highest-priority accounts. Aggregate checks cover all {reconciliation.summary.quotaAccounts} accounts.</small> : null}
+            <div className="platform-table reconciliation-table provider-reconciliation-table" role="list" aria-label="Provider usage reconciliation attention">
+              {reconciliation.providerResults.map((result) => <div className="platform-row provider-reconciliation-row attention" role="listitem" key={result.resultId}>
+                <div><strong>{result.businessName}</strong><span>{result.providerKey} · {result.providerMeterKey}</span></div>
+                <div><strong>{result.nativeQuantity} {result.nativeUnit}</strong><span>{result.status.replaceAll("_", " ")}</span></div>
+                {result.caseId ? <div><strong>{result.requestedAction?.replaceAll("_", " ")}</strong><span>{result.caseStatus?.replaceAll("_", " ")}</span></div> : <form onSubmit={(event) => void requestUsageReconciliation(event, result)}>
+                  <select name="action" defaultValue="investigate"><option value="investigate">Investigate</option><option value="correct_correlation">Correct correlation</option><option value="request_provider_credit">Request provider credit</option><option value="accept_provider_only">Accept provider-only event</option></select>
+                  <input name="reason" minLength={8} maxLength={1000} defaultValue="Investigate missing customer usage correlation" required />
+                  <button type="submit" disabled={controlsBusy}>Request review</button>
+                </form>}
+                <div className="row-actions">{result.caseId && result.caseStatus === "requested" ? <><button disabled={controlsBusy} onClick={() => void reviewUsageReconciliation(result.caseId!, true)}>Approve</button><button className="outline-button" disabled={controlsBusy} onClick={() => void reviewUsageReconciliation(result.caseId!, false)}>Reject</button></> : null}</div>
+              </div>)}
+              {!reconciliation.providerResults.length ? <p className="empty-row" role="listitem">No provider correlation failures</p> : null}
+            </div>
+          </div> : null}
+          {financialReconciliation ? <div className={`subscription-band reconciliation-band status-${financialReconciliation.status}`} id="financial-reconciliation">
+            <div className="reconciliation-heading">
+              <div><p>Finance operations · restricted</p><h2>Stripe invoice reconciliation</h2></div>
+              <span className="reconciliation-status" role="status">{financialReconciliation.status === "healthy" ? "Reconciled" : "Attention required"}</span>
+            </div>
+            <p className="operational-note">Immutable invoice evidence is compared with independently retrieved Stripe invoice state. Remediation requires a separate finance reviewer.</p>
+            <div className="reconciliation-summary">
+              <div><span>Checked</span><strong>{financialReconciliation.summary.total}</strong><small>provider snapshots</small></div>
+              <div><span>Matched</span><strong>{financialReconciliation.summary.matched}</strong><small>exact normalized state</small></div>
+              <div><span>Attention</span><strong>{financialReconciliation.summary.attention}</strong><small>review required</small></div>
+            </div>
+            <div className="platform-table reconciliation-table" role="list" aria-label="Stripe invoice reconciliation">
+              {financialReconciliation.results.map((result) => <div className={`platform-row provider-reconciliation-row ${result.status === "matched" ? "healthy" : "attention"}`} role="listitem" key={result.resultId}>
+                <div><strong>{result.businessName}</strong><span>Invoice {result.externalInvoiceRef}</span></div>
+                <div><strong>{result.status.replaceAll("_", " ")}</strong><span>{Object.keys(result.differences).length ? Object.keys(result.differences).join(", ") : "No difference"}</span></div>
+                {result.status === "matched" ? <span>Reconciled {new Date(result.reconciledAt).toLocaleString()}</span>
+                  : result.caseId ? <div><strong>{result.requestedAction?.replaceAll("_", " ")}</strong><span>{result.reviewStatus ?? "review requested"}</span></div>
+                    : <form onSubmit={(event) => void requestFinancialReconciliation(event, result.resultId)}>
+                      <select name="action" defaultValue="investigate"><option value="investigate">Investigate</option><option value="retry_provider_retrieval">Retry retrieval</option><option value="request_stripe_correction">Request Stripe correction</option><option value="issue_customer_credit">Issue customer credit</option></select>
+                      <input name="reason" minLength={8} maxLength={1000} defaultValue="Investigate Stripe invoice reconciliation difference" required />
+                      <button type="submit" disabled={controlsBusy}>Request review</button>
+                    </form>}
+                <div className="row-actions">{result.caseId && !result.reviewStatus ? <><button type="button" disabled={controlsBusy} onClick={() => void reviewFinancialReconciliation(result.caseId!, true)}>Approve</button><button className="outline-button" type="button" disabled={controlsBusy} onClick={() => void reviewFinancialReconciliation(result.caseId!, false)}>Reject</button></> : null}</div>
+              </div>)}
+              {!financialReconciliation.results.length ? <p className="empty-row" role="listitem">No Stripe invoices have been reconciled</p> : null}
+            </div>
+          </div> : null}
+          {financialEventReconciliation ? <div className={`subscription-band reconciliation-band status-${financialEventReconciliation.status}`} id="financial-event-reconciliation">
+            <div className="reconciliation-heading"><div><p>Finance operations · restricted</p><h2>Stripe payment, refund and credit reconciliation</h2></div>
+              <span className="reconciliation-status" role="status">{financialEventReconciliation.status === "healthy" ? "Reconciled" : "Attention required"}</span></div>
+            <p className="operational-note">Payments, refunds and credit notes are independently retrieved and compared with immutable local evidence. Corrections require a separate reviewer.</p>
+            <div className="reconciliation-summary">
+              <div><span>Checked</span><strong>{financialEventReconciliation.summary.total}</strong><small>provider events</small></div>
+              <div><span>Matched</span><strong>{financialEventReconciliation.summary.matched}</strong><small>exact normalized state</small></div>
+              <div><span>Attention</span><strong>{financialEventReconciliation.summary.attention}</strong><small>review required</small></div>
+            </div>
+            <div className="platform-table reconciliation-table" role="list" aria-label="Stripe financial event reconciliation">
+              {financialEventReconciliation.results.map((result) => <div className={`platform-row provider-reconciliation-row ${result.status === "matched" ? "healthy" : "attention"}`} role="listitem" key={result.resultId}>
+                <div><strong>{result.businessName}</strong><span>{result.evidenceKind.replaceAll("_", " ")} {result.externalRef}</span></div>
+                <div><strong>{result.status.replaceAll("_", " ")}</strong><span>{Object.keys(result.differences).length ? Object.keys(result.differences).join(", ") : "No difference"}</span></div>
+                {result.status === "matched" ? <span>Reconciled {new Date(result.reconciledAt).toLocaleString()}</span>
+                  : result.caseId ? <div><strong>{result.requestedAction?.replaceAll("_", " ")}</strong><span>{result.reviewStatus ?? "review requested"}</span></div>
+                    : <form onSubmit={(event) => void requestFinancialEventReconciliation(event, result.resultId)}>
+                      <select name="action" defaultValue="investigate"><option value="investigate">Investigate</option><option value="retry_provider_retrieval">Retry retrieval</option><option value="request_stripe_correction">Request Stripe correction</option><option value="issue_customer_credit">Issue customer credit</option></select>
+                      <input name="reason" minLength={8} maxLength={1000} defaultValue="Investigate Stripe financial event difference" required />
+                      <button type="submit" disabled={controlsBusy}>Request review</button>
+                    </form>}
+                <div className="row-actions">{result.caseId && !result.reviewStatus ? <><button type="button" disabled={controlsBusy} onClick={() => void reviewFinancialEventReconciliation(result.caseId!, true)}>Approve</button><button className="outline-button" type="button" disabled={controlsBusy} onClick={() => void reviewFinancialEventReconciliation(result.caseId!, false)}>Reject</button></> : null}</div>
+              </div>)}
+              {!financialEventReconciliation.results.length ? <p className="empty-row" role="listitem">No payment, refund or credit evidence has been reconciled</p> : null}
+            </div>
+          </div> : null}
+          {accountingReconciliation ? <div className={`subscription-band reconciliation-band status-${accountingReconciliation.status}`} id="accounting-reconciliation">
+            <div className="reconciliation-heading">
+              <div><p>Finance operations · restricted</p><h2>FlowAccount reconciliation</h2></div>
+              <span className="reconciliation-status" role="status">{accountingReconciliation.status === "healthy" ? "Reconciled" : "Attention required"}</span>
+            </div>
+            <p className="operational-note">Daily remote evidence is compared with immutable local invoices and credits. Provider state cannot overwrite the local accounting ledger.</p>
+            <div className="reconciliation-summary">
+              <div><span>Checked</span><strong>{accountingReconciliation.summary.total}</strong><small>remote snapshots</small></div>
+              <div><span>Matched</span><strong>{accountingReconciliation.summary.matched}</strong><small>exact local evidence</small></div>
+              <div><span>Attention</span><strong>{accountingReconciliation.summary.attention}</strong><small>review required</small></div>
+            </div>
+            <div className="platform-table reconciliation-table" role="list" aria-label="FlowAccount reconciliation">
+              {accountingReconciliation.results.map((result) => <div className={`platform-row provider-reconciliation-row ${result.status === "matched" ? "healthy" : "attention"}`} role="listitem" key={result.resultId}>
+                <div><strong>{result.businessName}</strong><span>{result.documentKind.replaceAll("_", " ")} {result.externalDocumentRef ?? "reference pending"}</span></div>
+                <div><strong>{result.status.replaceAll("_", " ")}</strong><span>{Object.keys(result.differences).length ? Object.keys(result.differences).join(", ") : "No difference"}</span></div>
+                {result.status === "matched" ? <span>Reconciled {new Date(result.reconciledAt).toLocaleString()}</span>
+                  : result.caseId ? <div><strong>{result.requestedAction?.replaceAll("_", " ")}</strong><span>{result.reviewStatus ?? "review requested"}</span></div>
+                    : <form onSubmit={(event) => void requestAccountingReconciliation(event, result.resultId)}>
+                      <select name="action" defaultValue="investigate"><option value="investigate">Investigate</option><option value="retry_retrieval">Retry retrieval</option><option value="request_flowaccount_correction">Request FlowAccount correction</option><option value="credit_and_replace">Credit and replace</option></select>
+                      <input name="reason" minLength={8} maxLength={1000} defaultValue="Investigate FlowAccount reconciliation difference" required />
+                      <button type="submit" disabled={controlsBusy}>Request review</button>
+                    </form>}
+                <div className="row-actions">{result.caseId && !result.reviewStatus ? <><button type="button" disabled={controlsBusy} onClick={() => void reviewAccountingReconciliation(result.caseId!, true)}>Approve</button><button className="outline-button" type="button" disabled={controlsBusy} onClick={() => void reviewAccountingReconciliation(result.caseId!, false)}>Reject</button></> : null}</div>
+              </div>)}
+              {!accountingReconciliation.results.length ? <p className="empty-row" role="listitem">No FlowAccount documents have been reconciled</p> : null}
+            </div>
+          </div> : null}
+          {["platform_owner", "platform_finance"].includes(user.role) ? <div className="subscription-band reconciliation-band" id="subscription-dunning">
+            <div className="reconciliation-heading"><div><p>Billing policy · restricted</p><h2>Subscription dunning</h2></div>
+              <span className="reconciliation-status" role="status">{dunningPolicies.find((policy) => policy.status === "active") ? "Active policy" : "Enforcement disabled"}</span></div>
+            <p className="operational-note">Payment-failure grace and restriction timing remains disabled until a different Platform Owner approves a versioned policy.</p>
+            {user.role === "platform_owner" ? <form className="support-request-form" onSubmit={requestDunningPolicy}>
+              <label>Grace period hours<input name="gracePeriodHours" type="number" min="0" max="2160" required /></label>
+              <label>Restrict after hours<input name="restrictAfterHours" type="number" min="0" max="4320" required /></label>
+              <label>Notice offsets<input name="noticeOffsets" inputMode="numeric" placeholder="0, 24, 72" required /></label>
+              <label>Policy reason<input name="reason" minLength={8} maxLength={1000} required /></label>
+              <button type="submit" disabled={controlsBusy}>Request policy</button>
+            </form> : null}
+            <div className="platform-table" role="list" aria-label="Subscription dunning policies">
+              {dunningPolicies.map((policy) => <div className="platform-row provider-reconciliation-row" role="listitem" key={policy.id}>
+                <div><strong>Version {policy.version} · {policy.status.replaceAll("_", " ")}</strong><span>{policy.reason}</span></div>
+                <div><strong>{policy.gracePeriodHours}h grace</strong><span>restrict after {policy.restrictAfterHours}h</span></div>
+                <span>Notices {policy.customerNoticeOffsetsHours.length ? policy.customerNoticeOffsetsHours.map((hours) => `${hours}h`).join(", ") : "none"}</span>
+                <div className="row-actions">{user.role === "platform_owner" && policy.status === "pending_review" ? <>
+                  <button type="button" disabled={controlsBusy || policy.requestedByPlatformUserId === user.id} onClick={() => void reviewDunningPolicy(policy.id, true)}>Activate</button>
+                  <button className="outline-button" type="button" disabled={controlsBusy || policy.requestedByPlatformUserId === user.id} onClick={() => void reviewDunningPolicy(policy.id, false)}>Reject</button>
+                </> : null}</div>
+              </div>)}
+              {!dunningPolicies.length ? <p className="empty-row" role="listitem">No dunning policy has been approved</p> : null}
+            </div>
+          </div> : null}
+          {["platform_owner", "platform_finance"].includes(user.role) ? <div className="subscription-band reconciliation-band" id="webhook-recovery">
+            <div className="reconciliation-heading"><div><p>Billing recovery · restricted</p><h2>Stripe webhook authority</h2></div>
+              <span className="reconciliation-status" role="status">{webhookRecovery.some((item) => ["attention", "failed"].includes(item.status)) ? "Attention required" : "No unresolved evidence"}</span></div>
+            <p className="operational-note">Ignored subscription events are independently retrieved from Stripe. Replay or acceptance requires a different reviewer; payload evidence remains encrypted.</p>
+            <div className="platform-table" role="list" aria-label="Stripe webhook recovery">
+              {webhookRecovery.map((item) => <div className="platform-row provider-reconciliation-row attention" role="listitem" key={item.jobId}>
+                <div><strong>{item.eventType}</strong><span>{item.reasonCode.replaceAll("_", " ")} · event …{item.externalEventId.slice(-8)}</span></div>
+                <div><strong>{item.status}</strong><span>{item.providerEvidenceCount} provider evidence snapshot{item.providerEvidenceCount === 1 ? "" : "s"}</span></div>
+                {item.caseId ? <div><strong>{item.requestedAction?.replaceAll("_", " ")}</strong><span>{item.reviewStatus ?? "review requested"}</span></div>
+                  : user.role === "platform_owner" && item.status === "attention" ? <form onSubmit={(event) => void requestWebhookRecovery(event, item.jobId)}>
+                    <select name="action" defaultValue="retry_application"><option value="retry_application">Retry application</option><option value="accept_unsupported">Accept unsupported</option><option value="escalate_provider">Escalate provider</option></select>
+                    <input name="reason" minLength={8} maxLength={1000} defaultValue="Review independently confirmed Stripe event authority" required />
+                    <button type="submit" disabled={controlsBusy}>Request review</button>
+                  </form> : <span>{new Date(item.occurredAt).toLocaleString()}</span>}
+                <div className="row-actions">{user.role === "platform_owner" && item.caseId && !item.reviewStatus ? <>
+                  <button type="button" disabled={controlsBusy || item.requestedByPlatformUserId === user.id} onClick={() => void reviewWebhookRecovery(item.caseId!, true)}>Approve</button>
+                  <button className="outline-button" type="button" disabled={controlsBusy || item.requestedByPlatformUserId === user.id} onClick={() => void reviewWebhookRecovery(item.caseId!, false)}>Reject</button>
+                </> : null}</div>
+              </div>)}
+              {!webhookRecovery.length ? <p className="empty-row" role="listitem">No ignored Stripe events require recovery</p> : null}
+            </div>
           </div> : null}
           {voiceControl ? <div className={`subscription-band voice-control-band mode-${voiceControl.mode}`} id="voice-operations">
             <div><p>Voice operations</p><h2>Runtime admission and recovery</h2></div>
@@ -675,6 +1099,47 @@ export default function PlatformMasterPage() {
                 </div>
               ))}
               {!subscriptions.length && !resourceErrors.includes("Product subscriptions") ? <p className="empty-row" role="listitem">No product subscriptions</p> : null}
+            </div>
+          </div> : null}
+          {sharedOperations ? <div className="subscription-band fulfillment-band" id="fulfillment">
+            <div className="readiness-heading"><div><p>Merchant operations</p><h2>Add-on and service fulfillment</h2></div><span className="readiness-status">{sharedOperations.addOns.length + sharedOperations.services.length + sharedOperations.engagements.length} open</span></div>
+            <p className="operational-note">Customer requests do not change product access. Add-ons become effective only after reviewed provisioning; professional services become trackable engagements with a named next-action owner.</p>
+            <h3>Add-on requests</h3>
+            <div className="platform-table" role="list" aria-label="Add-on fulfillment requests">
+              {sharedOperations.addOns.map((request) => <div className="platform-row fulfillment-row" role="listitem" key={request.id}>
+                <div><strong>{request.businessName}</strong><span>{request.addOnKey.replaceAll("_", " ")} · quantity {request.quantity}</span></div>
+                <span>{request.status}</span><span>{new Date(request.createdAt).toLocaleString()}</span>
+                <div className="row-actions">{user.role === "platform_owner" ? <button type="button" disabled={controlsBusy} onClick={() => void provisionSharedAddOn(request.id)}>Provision</button> : null}</div>
+              </div>)}
+              {!sharedOperations.addOns.length ? <p className="empty-row" role="listitem">No open add-on requests</p> : null}
+            </div>
+            <h3>Professional service requests</h3>
+            <div className="platform-table" role="list" aria-label="Professional service requests">
+              {sharedOperations.services.map((request) => <div className="platform-row fulfillment-service-row" role="listitem" key={request.id}>
+                <div><strong>{request.businessName}</strong><span>{request.serviceKind.replaceAll("_", " ")} · {request.productKey?.replaceAll("_", " ") || "workspace"}</span></div>
+                <span>{request.status}</span><span>{new Date(request.createdAt).toLocaleString()}</span>
+                {["platform_owner", "platform_support"].includes(user.role) ? <form onSubmit={(event) => void createServiceEngagement(event, request.id)}>
+                  <label>Engagement title<input name="title" minLength={3} maxLength={200} required /></label>
+                  <label>Delivery scope<textarea name="scope" minLength={20} maxLength={20000} rows={2} required /></label>
+                  <label>Next action<select name="nextActionOwner" defaultValue="djai"><option value="djai">DJAI</option><option value="customer">Customer</option><option value="shared">Shared</option></select></label>
+                  <button disabled={controlsBusy}>Create engagement</button>
+                </form> : null}
+              </div>)}
+              {!sharedOperations.services.length ? <p className="empty-row" role="listitem">No open service requests</p> : null}
+            </div>
+            <h3>Active service engagements</h3>
+            <div className="platform-table" role="list" aria-label="Active professional service engagements">
+              {sharedOperations.engagements.map((engagement) => <div className="platform-row fulfillment-service-row" role="listitem" key={engagement.id}>
+                <div><strong>{engagement.businessName}</strong><span>{engagement.title} · next action {engagement.nextActionOwner}</span></div>
+                <span>{engagement.status}</span><span>{new Date(engagement.updatedAt).toLocaleString()}</span>
+                {(["platform_owner", "platform_support"] as string[]).includes(user.role) ? <form onSubmit={(event) => void updateServiceEngagement(event, engagement.id)}>
+                  <label>Status<select name="status" defaultValue={engagement.status}><option value="awaiting_customer">Awaiting customer</option><option value="scheduled">Scheduled</option><option value="in_progress">In progress</option><option value="review">Review</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></label>
+                  <label>Customer-visible update<textarea name="body" minLength={2} maxLength={5000} rows={2} required /></label>
+                  <label>Next action<select name="nextActionOwner" defaultValue={engagement.nextActionOwner}><option value="djai">DJAI</option><option value="customer">Customer</option><option value="shared">Shared</option></select></label>
+                  <button disabled={controlsBusy}>Save update</button>
+                </form> : null}
+              </div>)}
+              {!sharedOperations.engagements.length ? <p className="empty-row" role="listitem">No active service engagements</p> : null}
             </div>
           </div> : null}
           <div className="subscription-band support-band" id="support-access">

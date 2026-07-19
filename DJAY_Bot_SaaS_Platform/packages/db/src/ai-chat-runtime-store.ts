@@ -7,20 +7,30 @@ export class AiChatRuntimeStore implements AiTurnRepository {
   constructor(private readonly client: DatabaseClient) {}
 
   async config(deploymentKey: string, origin: string) {
+    const deploymentKeyHash = hashOpaqueToken(deploymentKey);
+    const active = await this.client<{ active: boolean }[]>`
+      SELECT tenancy.ai_runtime_resource_active(${deploymentKeyHash}) AS active
+    `;
+    if (!active[0]?.active) return null;
     const rows = await this.client<{ agentName: string; defaultLanguage: "th" | "en"; brandingRemoved: boolean }[]>`
       SELECT agent_name AS "agentName", default_language AS "defaultLanguage", branding_removed AS "brandingRemoved"
-      FROM tenancy.ai_runtime_config(${hashOpaqueToken(deploymentKey)}, ${origin})
+      FROM tenancy.ai_runtime_config(${deploymentKeyHash}, ${origin})
     `;
     return rows[0] ?? null;
   }
 
   async start(input: Readonly<{ deploymentKey: string; origin: string; language: "th" | "en" }>) {
     const sessionToken = `djay_ai_session_${createOpaqueToken()}`;
+    const deploymentKeyHash = hashOpaqueToken(input.deploymentKey);
+    const active = await this.client<{ active: boolean }[]>`
+      SELECT tenancy.ai_runtime_resource_active(${deploymentKeyHash}) AS active
+    `;
+    if (!active[0]?.active) return null;
     const rows = await this.client<{ sessionId: string; conversationId: string; greeting: string; nextMessageSequence: number }[]>`
       SELECT session_id AS "sessionId", conversation_id AS "conversationId", greeting,
              next_message_sequence AS "nextMessageSequence"
       FROM tenancy.start_ai_session(
-        ${hashOpaqueToken(input.deploymentKey)}, ${hashOpaqueToken(sessionToken)}, ${input.origin},
+        ${deploymentKeyHash}, ${hashOpaqueToken(sessionToken)}, ${input.origin},
         ${randomUUID()}::uuid, ${randomUUID()}::uuid, ${randomUUID()}::uuid,
         ${new Date(Date.now() + 24 * 60 * 60 * 1000)}, ${input.language}
       )
@@ -29,6 +39,11 @@ export class AiChatRuntimeStore implements AiTurnRepository {
   }
 
   async begin(input: Readonly<{ deploymentKey: string; sessionToken: string; origin: string; inputId: string; message: string }>): Promise<AiTurnContext> {
+    const deploymentKeyHash = hashOpaqueToken(input.deploymentKey);
+    const active = await this.client<{ active: boolean }[]>`
+      SELECT tenancy.ai_runtime_resource_active(${deploymentKeyHash}) AS active
+    `;
+    if (!active[0]?.active) throw new Error("ai_turn_not_available");
     const rows = await this.client<{
       sessionId: string; tenantId: string; conversationId: string; playbook: unknown | null;
       language: "th" | "en"; authority: unknown | null; turnSequence: number;
@@ -39,7 +54,7 @@ export class AiChatRuntimeStore implements AiTurnRepository {
              turn_sequence AS "turnSequence", recent_messages AS "recentMessages",
              knowledge_chunks AS "knowledgeChunks", replay_response_json AS "replayResponse"
       FROM tenancy.begin_ai_turn(
-        ${hashOpaqueToken(input.deploymentKey)}, ${hashOpaqueToken(input.sessionToken)},
+        ${deploymentKeyHash}, ${hashOpaqueToken(input.sessionToken)},
         ${input.origin}, ${input.inputId}::uuid,
         ${randomUUID()}::uuid, ${randomUUID()}::uuid, ${input.message},
         ${createHash("sha256").update(input.message).digest()}

@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-07-18",
+  "allowed_statuses": ["accepted", "blocked"],
+  "decisions": [
+    {
+      "id": "TEL-DEC-001", "title": "Thai telephony and SIP carrier", "status": "blocked",
+      "owner": "Product Owner", "supporting_owners": ["Voice Engineering", "Finance", "Security"],
+      "deadline_gate": "Before VOICE-03 implementation acceptance",
+      "required_evidence": ["Organization contract", "Thai number availability", "Media-stream sandbox", "Transfer and DTMF test", "Signed CDR and price schedule", "Failover SLA"],
+      "fallback": "Release web Voice only; telephone integration remains unavailable and Voice Advanced is not sellable.",
+      "blocker_scope": ["VOICE-03", "VOICE-04", "VOICE-05", "VOICE-06", "voice_advanced_gen2"],
+      "notes": "No carrier or number provider has been selected."
+    },
+    {
+      "id": "CRM-DEC-001", "title": "First supported CRM connector", "status": "blocked",
+      "owner": "Product Owner", "supporting_owners": ["Integrations Engineering", "Customer Success"],
+      "deadline_gate": "Before INT-01 connector acceptance",
+      "required_evidence": ["Named CRM", "Organization sandbox", "API and webhook contract", "OAuth review", "Field mapping", "Rate-limit and reconciliation fixtures"],
+      "fallback": "Ship Google Sheets and approved generic webhooks first; do not advertise a named CRM connector as available.",
+      "blocker_scope": ["INT-01", "AI-04", "VOICE-04"],
+      "notes": "At least one named connector must pass acceptance for the promised basic CRM integration."
+    },
+    {
+      "id": "FIN-DEC-001", "title": "FlowAccount and Thai accounting authority", "status": "blocked",
+      "owner": "Finance Owner", "supporting_owners": ["Product Owner", "Finance Engineering", "Thai Accountant", "Legal"],
+      "deadline_gate": "Before FIN-01 finalization and any paid GA charge",
+      "required_evidence": ["Official API or partner contract", "Sandbox", "VAT status", "Invoice and credit-note numbering", "Withholding-tax workflow", "Reconciliation fixtures", "Accountant and legal approval"],
+      "fallback": "Keep all packages non-sellable; a manual document process is not treated as a production integration.",
+      "blocker_scope": ["FIN-01", "FIN-02", "GA-01", "all_paid_ga"],
+      "notes": "Engineering cannot decide Thai tax treatment or legal numbering rules."
+    },
+    {
+      "id": "LANG-DEC-001", "title": "Additional Text and Voice languages", "status": "blocked",
+      "owner": "Product Owner", "supporting_owners": ["AI Operations", "Voice Engineering", "Customer Success"],
+      "deadline_gate": "Before Advanced package language acceptance",
+      "required_evidence": ["Named launch languages", "Native-speaker evaluation", "Grounded-answer threshold", "Voice quality threshold", "Safety threshold", "Regression cadence"],
+      "fallback": "Thai and English only; Advanced packages remain non-sellable until the promised additional-language capability is accepted.",
+      "blocker_scope": ["AI-03", "AI-06", "VOICE-05", "ai_chat_premium", "voice_advanced_gen2"],
+      "notes": "No additional launch language list or quality bar has been approved."
+    },
+    {
+      "id": "STRIPE-DEC-001", "title": "Stripe billing, tax and lifecycle policy", "status": "blocked",
+      "owner": "Finance Owner", "supporting_owners": ["Product Owner", "Billing Engineering", "Legal"],
+      "deadline_gate": "Before BILL-01 staging acceptance",
+      "required_evidence": ["Verified Thailand account", "Test/live separation", "Tax presentation", "Server-side promotion", "Proration and add-on policy", "Refund/dispute policy", "Dunning schedule", "Portal", "Signed webhooks", "Six reconciled Price mappings"],
+      "fallback": "Display public prices, but return checkout unavailable and keep catalogue terms sellable=false.",
+      "blocker_scope": ["BILL-01", "BILL-02", "FIN-01", "all_paid_ga"],
+      "notes": "The account exists; products, Prices, coupon, tax, Portal, webhooks and live mappings are not accepted."
+    },
+    {
+      "id": "OVR-DEC-001", "title": "Packs, overage consent and safety caps", "status": "blocked",
+      "owner": "Product Owner", "supporting_owners": ["Finance Owner", "Billing Engineering", "Customer Success"],
+      "deadline_gate": "Before COM-03 policy activation",
+      "required_evidence": ["Pack expiry", "Consumption order", "Overage opt-in", "Default caps", "Cap authorization", "Alert thresholds", "Grace behavior", "Adjustment policy"],
+      "fallback": "Enforce included usage as a hard stop; packs and postpaid overage remain unavailable.",
+      "blocker_scope": ["COM-03", "BILL-02", "OVR", "MET"],
+      "notes": "Published prices do not authorize overage collection."
+    },
+    {
+      "id": "KNO-DEC-001", "title": "Knowledge-file and vector-index production policy", "status": "blocked",
+      "owner": "Security Owner", "supporting_owners": ["AI Engineering", "Platform Engineering", "Privacy Owner"],
+      "deadline_gate": "Before AI-01 production ingestion acceptance",
+      "required_evidence": ["Allowed MIME types", "Size limits", "Malware scanner", "PDF/DOCX extractors", "OCR policy", "Vector store", "Encryption/deletion test", "Failure quarantine"],
+      "fallback": "Restrict staging to small TXT/PDF fixtures; production uploads and crawling remain disabled.",
+      "blocker_scope": ["AI-01", "AI-03", "ai_chat_basic", "ai_chat_premium"],
+      "notes": "The offer requires PDF, DOCX, TXT and website ingestion."
+    },
+    {
+      "id": "SEC-DEC-001", "title": "Retention, Voice audio, support access and MFA policy", "status": "blocked",
+      "owner": "Security Owner", "supporting_owners": ["Privacy Owner", "Legal", "Support Owner", "Product Owner"],
+      "deadline_gate": "Before CORE-01 and GA-01 acceptance",
+      "required_evidence": ["Retention schedule", "Recording default and consent", "Transcript retention", "Support scopes and duration", "Break-glass review", "Tenant MFA", "Recovery procedure", "Deletion holds"],
+      "fallback": "Retain no Voice audio, use expiring approved support grants, require MFA for sensitive Platform work, and block paid GA pending approval.",
+      "blocker_scope": ["CORE-01", "VOICE-02", "VOICE-05", "GA-01"],
+      "notes": "Least-privilege defaults do not replace approved privacy and support policy."
+    },
+    {
+      "id": "GCP-DEC-001", "title": "Separate GCP production and recovery topology", "status": "blocked",
+      "owner": "Platform Owner", "supporting_owners": ["Product Owner", "Security Owner", "Finance Owner"],
+      "deadline_gate": "Before CLOUD-01 production apply",
+      "required_evidence": ["Production project ID", "Billing ownership", "Organization IAM", "Primary-region services and quotas", "Recovery region", "Residency review", "Cost model", "Restore exercise", "Domain ownership"],
+      "fallback": "Use master-deck-476811-a8 only for controlled staging through the isolated djay-master-deck configuration; admit no paid traffic.",
+      "blocker_scope": ["CLOUD-01", "CLOUD-02", "CLOUD-03", "CLOUD-04", "CLOUD-05", "GA-03"],
+      "notes": "GCP is accepted; the production project and recovery topology are not."
+    },
+    {
+      "id": "VENDOR-DEC-001", "title": "Production provider accounts, reviews and quotas", "status": "blocked",
+      "owner": "Platform Owner", "supporting_owners": ["Security Owner", "AI Operations", "Product Owner"],
+      "deadline_gate": "Before provider staging acceptance and paid GA",
+      "required_evidence": ["Organization OpenAI account and quotas", "Stripe authority", "LINE review", "Meta verification", "Google authority", "Email domain", "FlowAccount authority", "Telephony authority", "Two admins and MFA", "Secret rotation test"],
+      "fallback": "Use local fakes or sandboxes only; affected features and packages remain non-sellable.",
+      "blocker_scope": ["AI-02", "AI-05", "VOICE-01", "VOICE-03", "CHAN-01", "INT-01", "BILL-01", "FIN-02", "GA-02"],
+      "notes": "Credentials belong in the target GCP secret manager, never Git or chat."
+    }
+  ]
+}

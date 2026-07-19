@@ -223,6 +223,26 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
       role: "tenant_master_admin",
       requestId: "integration-invite-create",
     });
+    await expect(invitationService.invite(invitationContext, {
+      email: `over-limit-${randomUUID()}@example.test`,
+      role: "tenant_operator",
+      requestId: "integration-invite-seat-limit",
+    })).resolves.toMatchObject({ status: "seat_limit_reached" });
+    const provisionedSubscriptions = await adminClient!<{ id: string }[]>`
+      SELECT id FROM tenancy.product_subscriptions
+      WHERE tenant_id = ${verified.tenantId}::uuid
+      ORDER BY created_at LIMIT 1
+    `;
+    expect(provisionedSubscriptions).toHaveLength(1);
+    const insertedSeatAddOn = await adminClient!<{ id: string }[]>`
+      INSERT INTO tenancy.subscription_add_ons (
+        tenant_id, subscription_id, add_on_key, quantity, status, effective_from
+      ) VALUES (
+        ${verified.tenantId}::uuid, ${provisionedSubscriptions[0]!.id}::uuid,
+        'additional_administrator', 2, 'active', now()
+      ) RETURNING id
+    `;
+    expect(insertedSeatAddOn).toHaveLength(1);
     const invitedEmail = `operator-${randomUUID()}@example.test`;
     const inviteResults = await Promise.all([
       invitationService.invite(invitationContext, {

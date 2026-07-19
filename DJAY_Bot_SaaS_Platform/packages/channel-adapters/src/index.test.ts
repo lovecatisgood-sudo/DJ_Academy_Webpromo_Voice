@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { createSocialDeliveryClient, normalizeSocialWebhook, renderSocialReply, SocialDeliveryError, verifySocialChallenge, verifySocialSignature } from "./index";
+import { createSocialDeliveryClient, flowMessagesToSocialReplyInput, normalizeSocialWebhook, renderSocialReply, SocialDeliveryError, verifySocialChallenge, verifySocialSignature } from "./index";
 
 const lineCredentials = { channel: "line" as const, channelAccessToken: "token-token-token-token", channelSecret: "secret-secret-secret-secret" };
 const whatsappCredentials = { channel: "whatsapp" as const, accessToken: "token-token-token-token", appSecret: "secret-secret-secret-secret", verifyToken: "verify-verify-verify", phoneNumberId: "phone-1", businessAccountId: "business-1" };
@@ -35,6 +35,19 @@ describe("social channel adapters", () => {
     expect("bodies" in whatsapp && whatsapp.bodies[0]).toMatchObject({ type: "interactive" });
     const messenger = renderSocialReply("messenger", { recipient: "PSID1", text: "x".repeat(2500), quickReplies: [] });
     expect("bodies" in messenger && messenger.bodies).toHaveLength(2);
+  });
+
+  it("projects deterministic Flow messages into provider-safe social replies", () => {
+    const optionId = "11111111-1111-4111-8111-111111111111";
+    const projected = flowMessagesToSocialReplyInput({ recipient: "U1", replyToken: "reply", messages: [
+      { type: "media", content: { label: "Menu", assetRef: "https://cdn.example.test/menu.jpg" } },
+      { type: "card", content: { title: "Consultation", description: "30 minutes", actions: [{ label: "Book", url: "https://example.test/book" }] } },
+      { type: "options", content: { text: "Choose", options: [{ id: optionId, label: "Sales" }] } },
+    ] });
+    expect(projected.text).toContain("https://example.test/book");
+    expect(projected.quickReplies).toEqual([{ label: "Sales", payload: `djay_option:${optionId}` }]);
+    expect(renderSocialReply("line", projected)).toMatchObject({ endpoint: "reply" });
+    expect(renderSocialReply("messenger", projected)).toMatchObject({ endpoint: "messages" });
   });
 
   it("delivers LINE replies only through the configured HTTPS gateway", async () => {

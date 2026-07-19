@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   }
   try {
     const result = await resolved.services.aiChat.createAgent(resolved.context, agentSchema.parse(await readJson(request)));
-    return safeJson(result, result.status === "created" ? 201 : 403);
+    return safeJson(result, result.status === "created" ? 201 : result.status === "limit_reached" ? 409 : 403);
   } catch (error) {
     return error instanceof ZodError || error instanceof SyntaxError
       ? safeJson({ status: "validation_failed" }, 400)

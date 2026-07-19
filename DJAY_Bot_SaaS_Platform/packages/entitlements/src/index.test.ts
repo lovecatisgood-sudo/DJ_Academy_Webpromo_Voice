@@ -1,6 +1,9 @@
 import { planDefinitions } from "@djay/catalog";
 import { describe, expect, it } from "vitest";
-import { entitlementValue, permits, requireEntitlement, resolveEntitlements } from "./index";
+import {
+  entitlementValue, evaluateResourceBoundaries, permits, requireEntitlement,
+  resolveEntitlements, selectRetainedResources,
+} from "./index";
 
 function snapshot(planKey: keyof typeof planDefinitions, state: "active" | "past_due" = "active") {
   return resolveEntitlements({
@@ -42,5 +45,28 @@ describe("generated six-plan entitlement matrix", () => {
     });
     expect(entitlementValue(resolved, "flow.team_routing")).toBe(true);
     expect(entitlementValue(resolved, "flow.webhook")).toBe(false);
+  });
+});
+
+describe("contract resource boundaries", () => {
+  it("reports only actual excess and treats null as commercially unlimited", () => {
+    expect(evaluateResourceBoundaries(
+      { active_bots: 1, knowledge_collections: null, social_channels: 0 },
+      { active_bots: 3, knowledge_collections: 9, social_channels: 1 },
+    )).toEqual([
+      { key: "active_bots", used: 3, limit: 1, excess: 2 },
+      { key: "social_channels", used: 1, limit: 0, excess: 1 },
+      { key: "knowledge_collections", used: 9, limit: null, excess: 0 },
+    ]);
+  });
+
+  it("requires an exact retained selection and preserves excess data for restoration", () => {
+    expect(selectRetainedResources(["a", "b", "c"], 1, ["b"])).toEqual({
+      retained: ["b"], excess: ["a", "c"],
+    });
+    expect(() => selectRetainedResources(["a", "b", "c"], 1, [])).toThrowError(
+      expect.objectContaining({ code: "invalid_retained_resource_selection" }),
+    );
+    expect(selectRetainedResources(["a"], null, [])).toEqual({ retained: ["a"], excess: [] });
   });
 });

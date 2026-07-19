@@ -158,7 +158,8 @@ describe.runIf(enabled)("P4 FlowBot restricted public runtime", () => {
 
     const facts = await adminClient!<{
       executions: number; messages: number; leads: number; identities: number;
-      settled: number; reserved: string; settled_quantity: string; raw_sessions: number; ai_messages: number; notifications: number;
+      settled: number; reserved: string; settled_quantity: string; raw_sessions: number;
+      ai_messages: number; notifications: number; fundingIncluded: number;
     }[]>`
       SELECT
         (SELECT count(*)::int FROM tenancy.flow_executions WHERE tenant_id = ${tenantId}::uuid AND deployment_id = ${deploymentId}::uuid) AS executions,
@@ -166,13 +167,20 @@ describe.runIf(enabled)("P4 FlowBot restricted public runtime", () => {
         (SELECT count(*)::int FROM tenancy.leads WHERE tenant_id = ${tenantId}::uuid AND source = 'flowbot_web') AS leads,
         (SELECT count(*)::int FROM tenancy.contact_identities WHERE tenant_id = ${tenantId}::uuid AND normalized_value = 'narin@example.test') AS identities,
         (SELECT count(*)::int FROM tenancy.usage_reservations WHERE tenant_id = ${tenantId}::uuid AND idempotency_key LIKE 'flowbot:start:%' AND status = 'settled') AS settled,
+        (SELECT (funding_json->>'included')::numeric::int FROM tenancy.usage_reservations
+          WHERE tenant_id = ${tenantId}::uuid AND idempotency_key LIKE 'flowbot:start:%'
+          ORDER BY created_at DESC LIMIT 1) AS "fundingIncluded",
         (SELECT reserved_quantity::text FROM tenancy.quota_accounts WHERE tenant_id = ${tenantId}::uuid AND subscription_id = ${subscriptionId}::uuid LIMIT 1) AS reserved,
         (SELECT settled_quantity::text FROM tenancy.quota_accounts WHERE tenant_id = ${tenantId}::uuid AND subscription_id = ${subscriptionId}::uuid LIMIT 1) AS settled_quantity,
         (SELECT count(*)::int FROM tenancy.flow_executions WHERE session_token_hash::text LIKE ${`%${started.sessionToken}%`}) AS raw_sessions,
         (SELECT count(*)::int FROM tenancy.messages message JOIN tenancy.flow_executions execution ON execution.tenant_id = message.tenant_id AND execution.conversation_id = message.conversation_id WHERE execution.deployment_id = ${deploymentId}::uuid AND message.actor_type = 'ai') AS ai_messages,
         (SELECT count(*)::int FROM tenancy.outbox WHERE tenant_id = ${tenantId}::uuid AND topic = 'flowbot.merchant_email.requested') AS notifications
     `;
-    expect(facts[0]).toMatchObject({ executions: 1, messages: 4, leads: 1, identities: 1, settled: 1, reserved: "0.000000", settled_quantity: "1.000000", raw_sessions: 0, ai_messages: 0, notifications: 1 });
+    expect(facts[0]).toMatchObject({
+      executions: 1, messages: 4, leads: 1, identities: 1, settled: 1,
+      fundingIncluded: 1, reserved: "0.000000", settled_quantity: "1.000000",
+      raw_sessions: 0, ai_messages: 0, notifications: 1,
+    });
 
     const executionConversation = await adminClient!<{ conversation_id: string }[]>`
       SELECT conversation_id FROM tenancy.flow_executions

@@ -57,6 +57,20 @@ export const aiPlaybookSchema = z.object({
   }).strict().refine((value) => value.endMinute > value.startMinute, "End time must be after start time."))
     .max(aiPlaybookFieldLimits.weeklyWindows.maxItems),
   notificationProfileId: z.uuid().optional(),
+  confidenceThreshold: z.number().min(0.1).max(1).default(0.6),
+  routingTeamKey: z.string().regex(/^[a-z][a-z0-9_-]{1,63}$/).optional(),
+  publicActions: z.array(z.object({
+    type: z.enum(["booking", "quotation", "checkout", "call", "line", "website"]),
+    label: z.object({ th: z.string().trim().min(1).max(80), en: z.string().trim().min(1).max(80) }).strict(),
+    url: z.string().trim().min(1).max(2000),
+  }).strict().superRefine((value, context) => {
+    if (value.type === "call") {
+      if (!/^tel:\+?[0-9(). -]{7,30}$/.test(value.url)) context.addIssue({ code: "custom", path: ["url"], message: "Call actions require a telephone URL." });
+    } else {
+      try { if (new URL(value.url).protocol !== "https:") throw new Error("invalid"); }
+      catch { context.addIssue({ code: "custom", path: ["url"], message: "Actions require an HTTPS URL." }); }
+    }
+  })).max(12).default([]),
 }).strict();
 
 export type AiPlaybook = z.infer<typeof aiPlaybookSchema>;

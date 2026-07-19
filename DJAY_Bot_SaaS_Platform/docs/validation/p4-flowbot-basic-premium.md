@@ -3,7 +3,7 @@
 - Result: Engineering gate passed
 - Date: 2026-07-15
 - Database migrations: `0009_flowbot_saas` through
-  `0016_flowbot_lead_notifications`
+  `0069_flowbot_social_delivery`
 - Self-service rollout: not approved pending three named pilots
 
 ## Automated gates
@@ -40,6 +40,19 @@ runtime and tenant authoring/operations routes.
   disabled/invalid profiles.
 - Runtime and browser artifact probes found no AI actor messages and no restricted
   provider/model terms in the FlowBot surfaces.
+- Rich Flow snapshots now validate and execute HTTPS image/video media, product
+  cards, carousels, and typed call, LINE, website, booking, and checkout actions.
+  The web widget renders these through safe DOM APIs and rejects unsafe schemes.
+- Current Starter/Advanced catalog snapshots enforce 1/3 bots, 150/500 topics,
+  50,000/100,000 monthly Flow conversations, 1/3 seats, and 0/1 social channels.
+- Advanced contact tags and typed attributes are tenant-managed and included in
+  privacy export/erasure. Advanced analytics expose unanswered input evidence and
+  aggregated customer-journey paths.
+- Advanced Google Sheets and basic external API profiles use the existing
+  encrypted, platform-approved, SSRF-resistant, idempotent integration worker.
+- Signed LINE and Messenger webhooks are deduplicated and ordered. A restricted
+  worker executes the pinned immutable Flow graph, settles quota, and queues a
+  resumable provider delivery. No AI runtime table or model adapter is involved.
 
 ## Browser evidence
 
@@ -64,6 +77,11 @@ invalid per-node JSON send zero draft PATCH requests, and one corrected draft
 sends exactly one mutation. Per-node JSON is schema-checked before replacing
 the rendered node, preventing the visible editor from silently diverging from
 the saved definition.
+
+Rich-message, customer metadata, connector, report, and social-connection UI
+paths pass strict application type checks and component/unit tests. A refreshed
+cross-browser production-build capture is still required with the full shared
+SaaS browser/accessibility gate before market activation.
 
 ## Pilot acceptance worksheet
 

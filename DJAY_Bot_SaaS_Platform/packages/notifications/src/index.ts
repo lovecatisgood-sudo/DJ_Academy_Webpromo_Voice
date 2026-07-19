@@ -67,6 +67,25 @@ const aiMerchantLeadPayloadSchema = z.object({
   contactId: z.uuid(),
   turnId: z.uuid(),
 }).strict();
+const usageAlertPayloadSchema = z.object({
+  alertId: z.uuid(),
+  notificationProfileId: z.uuid(),
+  templateKey: z.literal("usage.allowance_alert"),
+  alertKey: z.string().regex(/^(allowance_(50|75|90|100)|projected_exhaustion|usage_anomaly)$/),
+  forecast: z.record(z.string(), z.unknown()),
+}).strict();
+const billingNotificationPayloadSchema = z.object({
+  notificationId: z.uuid(),
+  templateKey: z.enum([
+    "subscription.active", "subscription.past_due", "subscription.grace_period",
+    "subscription.restricted", "subscription.cancelled",
+    "cancellation.scheduled", "cancellation.revoked", "cancellation.failed",
+    "payment.succeeded", "payment.failed", "refund.updated", "credit_note.issued",
+  ]),
+  subscriptionId: z.uuid().nullable(),
+  facts: z.record(z.string(), z.unknown()),
+  locale: z.enum(["en", "th"]),
+}).strict();
 
 function renderMerchantLead(to: string, payload: z.infer<typeof merchantLeadPayloadSchema>): EmailMessage {
   const leadId = escapeHtml(payload.leadId);
@@ -139,6 +158,114 @@ export async function runAiChatMerchantEmail(
       || item.attemptCount >= (options.maxAttempts ?? 8);
     await store.finish(item.id, false, errorCode, deadLetter);
     return Object.freeze({ status: deadLetter ? "dead_letter" as const : "retrying" as const, outboxId: item.id, errorCode });
+  }
+}
+
+export async function runUsageAlertEmail(
+  store: FlowbotMerchantEmailStore,
+  delivery: EmailDelivery,
+  envelopeKey: Buffer,
+  options: Readonly<{ now?: Date; maxAttempts?: number }> = {},
+) {
+  const now = options.now ?? new Date();
+  const item = await store.claim(now, new Date(now.getTime() - 5 * 60 * 1000));
+  if (!item) return Object.freeze({ status: "idle" as const });
+  try {
+    if (!item.deliveryAllowed || !item.recipientCiphertext) throw new Error("notification_profile_disabled");
+    const recipient = merchantRecipientSchema.parse(openJson<unknown>(item.recipientCiphertext, envelopeKey));
+    const payload = usageAlertPayloadSchema.parse(item.payload);
+    const alertLabels: Record<string, string> = {
+      allowance_50: "50% of the included allowance has been used",
+      allowance_75: "75% of the included allowance has been used",
+      allowance_90: "90% of the included allowance has been used",
+      allowance_100: "The included allowance has been used",
+      projected_exhaustion: "Usage is projected to exceed the included allowance",
+      usage_anomaly: "An unusual increase in usage was detected",
+    };
+    const summary = alertLabels[payload.alertKey] ?? "A usage alert requires review";
+    await delivery.send({
+      to: recipient.email,
+      subject: `DJAY Bot usage alert: ${summary}`,
+      text: `${summary}. Review usage and the safety cap in your DJAY Bot workspace. Alert ID: ${payload.alertId}`,
+      html: `<p><strong>${escapeHtml(summary)}</strong></p><p>Review usage and the safety cap in your DJAY Bot workspace.</p><p>Alert ID: ${escapeHtml(payload.alertId)}</p>`,
+    }, item.id);
+    await store.finish(item.id, true, null, false);
+    return Object.freeze({ status: "sent" as const, outboxId: item.id });
+  } catch (error) {
+    const errorCode = error instanceof z.ZodError ? "payload_validation_failed"
+      : error instanceof Error && error.message === "notification_profile_disabled" ? "notification_profile_disabled"
+        : error instanceof Error && error.message === "delivery_rejected" ? "delivery_rejected"
+          : "delivery_failed";
+    const deadLetter = errorCode === "notification_profile_disabled"
+      || errorCode === "payload_validation_failed"
+      || item.attemptCount >= (options.maxAttempts ?? 8);
+    await store.finish(item.id, false, errorCode, deadLetter);
+    return Object.freeze({ status: deadLetter ? "dead_letter" as const : "retrying" as const, outboxId: item.id, errorCode });
+  }
+}
+
+export async function runCustomerBillingEmail(
+  store: FlowbotMerchantEmailStore,
+  delivery: EmailDelivery,
+  envelopeKey: Buffer,
+  options: Readonly<{ now?: Date; maxAttempts?: number }> = {},
+) {
+  const now = options.now ?? new Date();
+  const item = await store.claim(now, new Date(now.getTime() - 5 * 60 * 1000));
+  if (!item) return Object.freeze({ status: "idle" as const });
+  try {
+    if (!item.deliveryAllowed || !item.recipientCiphertext) throw new Error("notification_profile_disabled");
+    const recipient = merchantRecipientSchema.parse(openJson<unknown>(item.recipientCiphertext, envelopeKey));
+    const payload = billingNotificationPayloadSchema.parse(item.payload);
+    const english: Record<typeof payload.templateKey, string> = {
+      "subscription.active": "Your DJAY Bot subscription is active",
+      "subscription.past_due": "Your DJAY Bot payment needs attention",
+      "subscription.grace_period": "Your DJAY Bot subscription is in its grace period",
+      "subscription.restricted": "Your DJAY Bot subscription access is restricted",
+      "subscription.cancelled": "Your DJAY Bot subscription has ended",
+      "cancellation.scheduled": "Your DJAY Bot cancellation is scheduled",
+      "cancellation.revoked": "Your DJAY Bot cancellation was withdrawn",
+      "cancellation.failed": "Your DJAY Bot cancellation request needs attention",
+      "payment.succeeded": "Your DJAY Bot payment was successful",
+      "payment.failed": "Your DJAY Bot payment failed",
+      "refund.updated": "Your DJAY Bot refund was updated",
+      "credit_note.issued": "A DJAY Bot credit note was issued",
+    };
+    const thai: Record<typeof payload.templateKey, string> = {
+      "subscription.active": "การสมัคร DJAY Bot ของคุณเปิดใช้งานแล้ว",
+      "subscription.past_due": "การชำระเงิน DJAY Bot ของคุณต้องได้รับการตรวจสอบ",
+      "subscription.grace_period": "การสมัคร DJAY Bot ของคุณอยู่ในช่วงผ่อนผัน",
+      "subscription.restricted": "การเข้าถึง DJAY Bot ของคุณถูกจำกัด",
+      "subscription.cancelled": "การสมัคร DJAY Bot ของคุณสิ้นสุดแล้ว",
+      "cancellation.scheduled": "กำหนดการยกเลิก DJAY Bot ของคุณแล้ว",
+      "cancellation.revoked": "คำขอยกเลิก DJAY Bot ของคุณถูกถอนแล้ว",
+      "cancellation.failed": "คำขอยกเลิก DJAY Bot ของคุณต้องได้รับการตรวจสอบ",
+      "payment.succeeded": "ชำระเงิน DJAY Bot สำเร็จแล้ว",
+      "payment.failed": "การชำระเงิน DJAY Bot ไม่สำเร็จ",
+      "refund.updated": "สถานะการคืนเงิน DJAY Bot ได้รับการอัปเดตแล้ว",
+      "credit_note.issued": "มีการออกใบลดหนี้ DJAY Bot แล้ว",
+    };
+    const subject = payload.locale === "th" ? thai[payload.templateKey] : english[payload.templateKey];
+    const review = payload.locale === "th"
+      ? "โปรดลงชื่อเข้าใช้พื้นที่ทำงาน DJAY Bot เพื่อตรวจสอบรายละเอียดการเรียกเก็บเงิน"
+      : "Sign in to your DJAY Bot workspace to review the billing details.";
+    await delivery.send({
+      to: recipient.email,
+      subject,
+      text: `${subject}. ${review} Notification ID: ${payload.notificationId}`,
+      html: `<p><strong>${escapeHtml(subject)}</strong></p><p>${escapeHtml(review)}</p><p>Notification ID: ${escapeHtml(payload.notificationId)}</p>`,
+    }, item.id);
+    await store.finish(item.id, true, null, false);
+    return Object.freeze({ status: "sent" as const, outboxId: item.id });
+  } catch (error) {
+    const errorCode = error instanceof z.ZodError ? "payload_validation_failed"
+      : error instanceof Error && error.message === "notification_profile_disabled" ? "notification_profile_disabled"
+        : error instanceof Error && error.message === "delivery_rejected" ? "delivery_rejected" : "delivery_failed";
+    const deadLetter = errorCode === "notification_profile_disabled"
+      || errorCode === "payload_validation_failed" || item.attemptCount >= (options.maxAttempts ?? 8);
+    await store.finish(item.id, false, errorCode, deadLetter);
+    return Object.freeze({ status: deadLetter ? "dead_letter" as const : "retrying" as const,
+      outboxId: item.id, errorCode });
   }
 }
 

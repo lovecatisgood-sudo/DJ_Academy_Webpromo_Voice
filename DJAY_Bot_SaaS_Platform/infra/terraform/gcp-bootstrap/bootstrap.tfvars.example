@@ -1,0 +1,7 @@
+project_id        = "replace-with-billing-enabled-project-id"
+state_bucket_name = "replace-with-globally-unique-djay-terraform-state"
+github_repository = "lovecatisgood-sudo/DJ_Academy_Webpromo_Voice"
+github_branches   = ["main"]
+billing_account_id = "000000-000000-000000"
+budget_currency_code = "USD"
+monthly_budget_amount = 20

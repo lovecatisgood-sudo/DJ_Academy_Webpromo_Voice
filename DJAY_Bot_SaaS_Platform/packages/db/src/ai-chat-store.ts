@@ -14,6 +14,13 @@ type AiAuthority = Readonly<{
   limits: Record<string, number | null>;
 }>;
 
+async function aiResourceWritable(sql: postgres.TransactionSql, agentId: string) {
+  const rows = await sql<{ writable: boolean }[]>`
+    SELECT tenancy.entitlement_resource_is_writable('ai_chat', 'bot', ${agentId}::uuid) AS writable
+  `;
+  return rows[0]?.writable === true;
+}
+
 export class AiChatStore {
   constructor(private readonly client: DatabaseClient) {}
 
@@ -82,6 +89,16 @@ export class AiChatStore {
       const authority = await this.authority(sql, context.tenantId);
       if (!authority || authority.accessMode !== "active" || authority.entitlements["ai.text"] !== true
         || authority.entitlements["sales_core.enabled"] !== true) return { status: "not_entitled" as const };
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${context.tenantId}:ai_chat:active_bots`}, 0))`;
+      const counts = await sql<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM tenancy.ai_agents
+        WHERE tenant_id = ${context.tenantId}::uuid AND status <> 'archived'
+          AND id NOT IN (SELECT agent_id FROM tenancy.voice_deployments WHERE tenant_id = ${context.tenantId}::uuid)
+      `;
+      const activeBotLimit = authority.limits.active_bots;
+      if (typeof activeBotLimit === "number" && (counts[0]?.count ?? 0) >= activeBotLimit) {
+        return { status: "limit_reached" as const };
+      }
       const agentId = randomUUID(); const draftVersionId = randomUUID();
       const definition: AiPlaybook = {
         schemaVersion: 1, playbookVersionId: draftVersionId, businessName: input.businessName,
@@ -93,6 +110,8 @@ export class AiChatStore {
         requiredContactFields: ["name", "email"],
         greeting: { th: "สวัสดีครับ มีอะไรให้ช่วยเกี่ยวกับธุรกิจของคุณได้บ้าง?", en: "Hello. What would you like to improve in your business?" },
         offlineMessage: { th: "ทีมงานจะติดต่อกลับในเวลาทำการ", en: "Our team will follow up during business hours." },
+        confidenceThreshold: 0.6,
+        publicActions: [],
         timezone: "Asia/Bangkok", weeklyWindows: [1, 2, 3, 4, 5].map((dayOfWeek) => ({ dayOfWeek, startMinute: 540, endMinute: 1020 })),
       };
       await sql`
@@ -123,6 +142,7 @@ export class AiChatStore {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await this.authority(sql, context.tenantId);
       if (!authority || authority.accessMode !== "active" || authority.entitlements["ai.text"] !== true) return { status: "not_entitled" as const };
+      if (!(await aiResourceWritable(sql, agentId))) return { status: "resource_read_only" as const };
       const revisionIds = [...new Set(input.knowledgeRevisionIds)];
       const available = revisionIds.length ? await sql<{ count: number }[]>`
         SELECT count(*)::int AS count FROM tenancy.knowledge_source_revisions
@@ -155,6 +175,7 @@ export class AiChatStore {
       const authority = await this.authority(sql, context.tenantId);
       if (!authority || authority.accessMode !== "active" || authority.entitlements["ai.text"] !== true
         || authority.entitlements["knowledge.enabled"] !== true) return { status: "not_entitled" as const };
+      if (!(await aiResourceWritable(sql, agentId))) return { status: "resource_read_only" as const };
       const drafts = await sql<{ definition: unknown; knowledgeRevisionIds: string[] }[]>`
         SELECT definition_json AS definition, knowledge_revision_ids AS "knowledgeRevisionIds"
         FROM tenancy.ai_playbook_drafts WHERE tenant_id = ${context.tenantId}::uuid AND agent_id = ${agentId}::uuid FOR UPDATE
@@ -196,6 +217,7 @@ export class AiChatStore {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await this.authority(sql, context.tenantId);
       if (!authority || authority.accessMode !== "active" || authority.entitlements["channel.web"] !== true) return { status: "not_entitled" as const };
+      if (!(await aiResourceWritable(sql, agentId))) return { status: "resource_read_only" as const };
       const origins = [...new Set(input.allowedOrigins.map(normalizeExactWebsiteOrigin))];
       if (!origins.length || origins.some((value) => value === null)) return { status: "validation_failed" as const };
       const agents = await sql<{ published: boolean }[]>`
@@ -346,9 +368,27 @@ export class AiChatStore {
              AND event.occurred_at >= now() - make_interval(days => ${periodDays})) AS "attemptedQuantity"
         FROM (VALUES ('web'::text), ('line'::text), ('whatsapp'::text), ('messenger'::text)) scope(channel)
       `;
+      const advanced = authority.entitlements["analytics.level"] === "advanced";
+      const questions = advanced ? await sql<{ question: string; occurrences: number }[]>`
+        SELECT left(lower(btrim(message.content_json->'content'->>'text')), 500) AS question, count(*)::int AS occurrences
+        FROM tenancy.messages message JOIN tenancy.conversations conversation ON conversation.tenant_id = message.tenant_id AND conversation.id = message.conversation_id
+        WHERE message.tenant_id = ${context.tenantId}::uuid AND conversation.product_key = 'ai_chat' AND message.actor_type = 'customer'
+          AND message.created_at >= now() - make_interval(days => ${periodDays}) AND nullif(btrim(message.content_json->'content'->>'text'), '') IS NOT NULL
+        GROUP BY left(lower(btrim(message.content_json->'content'->>'text')), 500) ORDER BY occurrences DESC, question LIMIT 20` : [];
+      const intents = advanced ? await sql<{ intent: string; occurrences: number }[]>`
+        SELECT turn.structured_output_json->>'intent' AS intent, count(*)::int AS occurrences FROM tenancy.ai_turns turn
+        WHERE turn.tenant_id = ${context.tenantId}::uuid AND turn.status = 'completed'
+          AND turn.started_at >= now() - make_interval(days => ${periodDays})
+        GROUP BY turn.structured_output_json->>'intent' ORDER BY occurrences DESC, intent LIMIT 20` : [];
+      const segments = advanced ? await sql<{ segment: string; customers: number }[]>`
+        SELECT segment, count(*)::int AS customers FROM tenancy.ai_contact_insights WHERE tenant_id = ${context.tenantId}::uuid
+        GROUP BY segment ORDER BY CASE segment WHEN 'hot' THEN 1 WHEN 'warm' THEN 2 WHEN 'engaged' THEN 3 ELSE 4 END` : [];
+      const unanswered = advanced ? await sql<{ unanswered: number }[]>`
+        SELECT COALESCE(sum(unanswered_count), 0)::int AS unanswered FROM tenancy.ai_conversation_insights
+        WHERE tenant_id = ${context.tenantId}::uuid AND updated_at >= now() - make_interval(days => ${periodDays})` : [{ unanswered: 0 }];
       return {
         periodDays, level: authority.entitlements["analytics.level"] ?? "core",
-        ...rows[0]!, channels,
+        ...rows[0]!, channels, questions, intents, segments, unanswered: unanswered[0]?.unanswered ?? 0,
       };
     });
   }

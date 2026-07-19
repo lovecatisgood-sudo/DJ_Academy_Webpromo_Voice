@@ -18,6 +18,7 @@ const platformNavigation: readonly PlatformArea[] = [
   { href: "#voice-operations", label: "Voice", permission: "platform.routing.read" },
   { href: "#queue-recovery", label: "Recovery", permission: "platform.recovery.read" },
   { href: "#commerce", label: "Commerce", permission: "platform.billing.read" },
+  { href: "#fulfillment", label: "Fulfillment", permission: "platform.fulfillment.read" },
   { href: "#support-access", label: "Support", permission: "platform.audit.read" },
 ];
 

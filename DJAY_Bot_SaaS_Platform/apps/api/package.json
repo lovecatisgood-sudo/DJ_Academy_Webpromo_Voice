@@ -11,9 +11,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@djay/auth": "workspace:*",
     "@djay/action-gateway": "workspace:*",
     "@djay/ai-chat-runtime": "workspace:*",
+    "@djay/auth": "workspace:*",
     "@djay/authorization": "workspace:*",
     "@djay/channel-adapters": "workspace:*",
     "@djay/db": "workspace:*",
@@ -26,6 +26,7 @@
     "@djay/tenancy": "workspace:*",
     "@djay/usage-billing": "workspace:*",
     "@djay/voice-runtime": "workspace:*",
+    "@google-cloud/storage": "^7.21.0",
     "@node-rs/argon2": "2.0.2",
     "next": "16.2.10",
     "postgres": "3.4.9",

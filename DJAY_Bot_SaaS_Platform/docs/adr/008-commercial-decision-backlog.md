@@ -1,6 +1,6 @@
 # ADR-008: Commercial Decision Backlog
 
-- Status: Proposed; must be accepted before paid P9 launch
+- Status: Partially superseded by the market-release PRD and catalogue; remaining policies block paid GA
 - Date: 2026-07-14
 - Phase: P0 decision boundary
 
@@ -15,7 +15,11 @@ stack and implementation-state record.
 
 ## Context
 
-Implementation can build provider-neutral billing primitives before final commercial values are chosen, but paid launch cannot infer payment, tax, refund, trial, allowance, or overage policy.
+The exact annual first-term and renewal prices, included allowances, advertised
+overage rates, packs, add-ons and professional-service floors are locked by the
+market-release PRD and catalogue version `djay-bots-th-2026-01`. Paid launch
+still cannot infer tax, refund, dunning, pack consumption, overage consent,
+safety-cap or accounting policy.
 
 ## Decision already locked
 
@@ -34,7 +38,7 @@ Before checkout implementation is finalized:
 2. VAT registration/status, inclusive versus exclusive display, tax invoice fields, numbering, credit-note behavior, and retention;
 3. monthly/annual billing availability and proration;
 4. free trial length, card requirement, and one-trial-per-business controls;
-5. included usage and overage for every plan/meter;
+5. overage consent and enforcement policy for each published meter;
 6. hard cap, prepaid credit, or postpaid overage behavior;
 7. failed-payment retry, grace, suspension, cancellation, and data retention;
 8. upgrade/downgrade timing and entitlement effects;
@@ -47,4 +51,8 @@ Legal/accounting review is required for Thai tax invoices, VAT, consumer/busines
 
 ## Implementation constraint
 
-P1-P3 may define catalog/subscription/ledger schemas and test providers. P4-P8 may meter non-paid staging usage. No real charge, public price promise, paid activation, invoice, or overage collection launches until this ADR is superseded by an Accepted commercial ADR with exact values, provider contracts, test fixtures, reconciliation, migration, and rollback.
+Public prices may be displayed from the immutable catalogue, but no real
+charge, paid activation, invoice or overage collection launches until the
+remaining decisions in `requirements/market-release-decisions.yaml` are
+accepted with provider contracts, test fixtures, reconciliation, migration and
+rollback evidence.

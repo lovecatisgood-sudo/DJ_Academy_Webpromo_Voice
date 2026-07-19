@@ -32,6 +32,7 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
     const subscriptionId = randomUUID();
     const snapshotId = randomUUID();
     const quotaId = randomUUID();
+    const packLotId = randomUUID();
     const deploymentId = randomUUID();
     const agentId = randomUUID();
     const playbookVersionId = randomUUID();
@@ -85,7 +86,17 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
         included_quantity, safety_cap_quantity
       ) VALUES (
         ${quotaId}::uuid, ${tenantId}::uuid, ${subscriptionId}::uuid, 'voice', 'voice_minute',
-        now() - interval '1 minute', now() + interval '30 days', 100, 10
+        now() - interval '1 minute', now() + interval '30 days', 0, 10
+      )
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.usage_pack_lots (
+        id, tenant_id, subscription_id, customer_unit, pack_key,
+        purchased_quantity, effective_from, expires_at, status
+      ) VALUES (
+        ${packLotId}::uuid, ${tenantId}::uuid, ${subscriptionId}::uuid,
+        'voice_minute', 'voice_runtime_test_pack', 20,
+        now() - interval '1 minute', now() + interval '30 days', 'active'
       )
     `;
     await adminClient!`
@@ -370,11 +381,24 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
     await expect(runtime.finish({
       sessionId: competing.sessionId, connectionId: secondConnectionId, elapsedSeconds: 1, terminalReason: "customer_ended",
     })).resolves.toEqual({ status: "ended", customerMinutes: 1, replayed: false });
-    const finalAccount = await adminClient!<{ reserved: number; settled: number }[]>`
-      SELECT reserved_quantity::int AS reserved, settled_quantity::int AS settled
-      FROM tenancy.quota_accounts WHERE id = ${quotaId}::uuid
+    const finalAccount = await adminClient!<{
+      reserved: number; settled: number; packConsumed: number; packFundedReservations: number;
+    }[]>`
+      SELECT reserved_quantity::int AS reserved, settled_quantity::int AS settled,
+        (SELECT COALESCE(sum(CASE consumption.event_type WHEN 'allocated' THEN consumption.quantity
+          ELSE -consumption.quantity END), 0)::int
+          FROM tenancy.usage_pack_consumptions consumption
+          WHERE consumption.tenant_id = account.tenant_id
+            AND consumption.pack_lot_id = ${packLotId}::uuid) AS "packConsumed",
+        (SELECT count(*)::int FROM tenancy.usage_reservations reservation
+          WHERE reservation.tenant_id = account.tenant_id
+            AND reservation.quota_account_id = account.id
+            AND (reservation.funding_json->>'packs')::numeric > 0) AS "packFundedReservations"
+      FROM tenancy.quota_accounts account WHERE account.id = ${quotaId}::uuid
     `;
-    expect(finalAccount[0]).toEqual({ reserved: 0, settled: 3 });
+    expect(finalAccount[0]).toEqual({
+      reserved: 0, settled: 3, packConsumed: 3, packFundedReservations: 2,
+    });
 
     const expired = await runtime.issue({
       deploymentKey, origin: "https://merchant.example", locale: "en", expiresAt: new Date(Date.now() + 60_000),
@@ -621,5 +645,14 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
       sessionId: advancedIssued.sessionId, connectionId: advancedReconnectId,
       elapsedSeconds: 1, terminalReason: "unavailable",
     })).resolves.toMatchObject({ status: "failed", replayed: false });
+    await expect(adminClient!<{ included: number; packs: number; overage: number }[]>`
+      SELECT (reservation.funding_json->>'included')::numeric::int AS included,
+        (reservation.funding_json->>'packs')::numeric::int AS packs,
+        (reservation.funding_json->>'overage')::numeric::int AS overage
+      FROM tenancy.voice_sessions session
+      JOIN tenancy.usage_reservations reservation
+        ON reservation.tenant_id = session.tenant_id AND reservation.id = session.usage_reservation_id
+      WHERE session.id = ${advancedIssued.sessionId}::uuid
+    `).resolves.toEqual([{ included: 2, packs: 0, overage: 0 }]);
   });
 });

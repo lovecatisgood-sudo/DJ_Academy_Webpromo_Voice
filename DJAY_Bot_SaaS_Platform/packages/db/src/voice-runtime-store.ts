@@ -20,8 +20,21 @@ export type RestrictedVoiceRoute = Readonly<{
 export class VoiceRuntimeStore {
   constructor(private readonly client: DatabaseClient) {}
 
+  async config(input: Readonly<{ deploymentKey: string; origin: string }>) {
+    const rows = await this.client<{ brandingRemoved: boolean }[]>`
+      SELECT branding_removed AS "brandingRemoved"
+      FROM tenancy.voice_runtime_config(${hashOpaqueToken(input.deploymentKey)}, ${input.origin})
+    `;
+    return rows[0] ?? null;
+  }
+
   async issue(input: Readonly<{ deploymentKey: string; origin: string; locale: "th" | "en"; expiresAt: Date }>): Promise<IssuedVoiceGrant> {
     const sessionGrant = `djay_voice_grant_${createOpaqueToken()}`;
+    const deploymentKeyHash = hashOpaqueToken(input.deploymentKey);
+    const active = await this.client<{ active: boolean }[]>`
+      SELECT tenancy.voice_runtime_resource_active(${deploymentKeyHash}) AS active
+    `;
+    if (!active[0]?.active) throw new Error("voice_deployment_not_available");
     const rows = await this.client<{
       sessionId: string; capabilityProfile: "voice_gen1" | "voice_gen2";
       publicLabel: "First-Generation Voice Engine" | "Second-Generation Voice Engine";
@@ -34,7 +47,7 @@ export class VoiceRuntimeStore {
              max_call_seconds AS "maxCallSeconds",
              reconnect_window_seconds AS "reconnectWindowSeconds", expires_at AS "expiresAt"
       FROM tenancy.issue_voice_session_grant(
-        ${hashOpaqueToken(input.deploymentKey)}, ${hashOpaqueToken(sessionGrant)}, ${input.origin},
+        ${deploymentKeyHash}, ${hashOpaqueToken(sessionGrant)}, ${input.origin},
         ${randomUUID()}::uuid, ${randomUUID()}::uuid, ${randomUUID()}::uuid,
         ${input.expiresAt}, ${input.locale}
       )

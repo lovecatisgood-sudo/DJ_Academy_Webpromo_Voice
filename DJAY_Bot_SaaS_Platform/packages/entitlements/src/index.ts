@@ -96,3 +96,60 @@ export class EntitlementDeniedError extends Error {
     this.name = "EntitlementDeniedError";
   }
 }
+
+export const contractResourceKeys = [
+  "active_bots", "workspaces", "topics", "seats", "social_channels",
+  "knowledge_collections", "knowledge_documents", "storage_mb", "concurrent_calls",
+] as const;
+export type ContractResourceKey = (typeof contractResourceKeys)[number];
+
+export type ResourceBoundary = Readonly<{
+  key: ContractResourceKey;
+  used: number;
+  limit: number | null;
+  excess: number;
+}>;
+
+export function evaluateResourceBoundaries(
+  limits: Readonly<Record<string, number | null>>,
+  usage: Readonly<Partial<Record<ContractResourceKey, number>>>,
+): readonly ResourceBoundary[] {
+  return contractResourceKeys.flatMap((key) => {
+    const used = usage[key] ?? 0;
+    const limit = limits[key];
+    if (limit === undefined) return [];
+    return [{ key, used, limit, excess: limit === null ? 0 : Math.max(0, used - limit) }];
+  });
+}
+
+export type RetainedResourceSelection = Readonly<{
+  retained: readonly string[];
+  excess: readonly string[];
+}>;
+
+export function selectRetainedResources(
+  resourceIds: readonly string[],
+  limit: number | null | undefined,
+  selectedResourceIds: readonly string[],
+): RetainedResourceSelection {
+  const resources = [...new Set(resourceIds)];
+  if (limit === null || limit === undefined || resources.length <= limit) {
+    return Object.freeze({ retained: Object.freeze(resources), excess: Object.freeze([]) });
+  }
+  const selected = [...new Set(selectedResourceIds)];
+  if (selected.length !== limit || selected.some((id) => !resources.includes(id))) {
+    throw new ResourceSelectionError(limit, resources.length);
+  }
+  return Object.freeze({
+    retained: Object.freeze(selected),
+    excess: Object.freeze(resources.filter((id) => !selected.includes(id))),
+  });
+}
+
+export class ResourceSelectionError extends Error {
+  readonly code = "invalid_retained_resource_selection";
+  constructor(readonly requiredCount: number, readonly availableCount: number) {
+    super("Select exactly the resources that will remain active after the plan change.");
+    this.name = "ResourceSelectionError";
+  }
+}

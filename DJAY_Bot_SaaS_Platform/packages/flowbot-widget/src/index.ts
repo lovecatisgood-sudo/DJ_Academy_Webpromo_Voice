@@ -10,7 +10,7 @@ export type FlowbotWidgetOptions = Readonly<{
 }>;
 
 type RuntimeMessage = Readonly<{
-  type: "text" | "media" | "options" | "form" | "system";
+  type: "text" | "media" | "card" | "carousel" | "actions" | "options" | "form" | "system";
   nodeId: string;
   content: Record<string, unknown>;
 }>;
@@ -348,9 +348,59 @@ class FlowbotWidget {
       });
       wrap.append(form);
     } else if (message.type === "media") {
-      wrap.append(element("p", "", String(message.content.label ?? "Media")));
+      const assetRef = safeHttpsUrl(message.content.assetRef);
+      const label = String(message.content.label ?? "Media");
+      if (!assetRef) return element("div", "message system", label);
+      if (message.content.mediaType === "video") {
+        const video = document.createElement("video");
+        video.src = assetRef; video.controls = true; video.preload = "metadata";
+        video.setAttribute("aria-label", label); wrap.append(video);
+      } else {
+        const image = document.createElement("img");
+        image.src = assetRef; image.alt = label; image.loading = "lazy"; image.decoding = "async"; wrap.append(image);
+      }
+      if (label) wrap.append(element("p", "media-label", label));
+    } else if (message.type === "card") {
+      wrap.append(this.renderCard(message.content));
+    } else if (message.type === "carousel") {
+      const rail = element("div", "carousel-rail");
+      const cards = Array.isArray(message.content.cards) ? message.content.cards : [];
+      for (const card of cards) if (card && typeof card === "object") rail.append(this.renderCard(card as Record<string, unknown>));
+      wrap.append(rail);
+    } else if (message.type === "actions") {
+      if (message.content.text) wrap.append(element("p", "", String(message.content.text)));
+      wrap.append(this.renderActions(message.content.actions));
     }
     return wrap;
+  }
+
+  private renderCard(content: Record<string, unknown>) {
+    const card = element("article", "rich-card");
+    const imageUrl = safeHttpsUrl(content.imageUrl);
+    if (imageUrl) {
+      const image = document.createElement("img"); image.src = imageUrl; image.alt = String(content.title ?? ""); image.loading = "lazy"; image.decoding = "async"; card.append(image);
+    }
+    const body = element("div", "rich-card-body");
+    body.append(element("strong", "rich-card-title", String(content.title ?? "")));
+    if (content.description) body.append(element("p", "", String(content.description)));
+    if (content.priceLabel) body.append(element("span", "price", String(content.priceLabel)));
+    body.append(this.renderActions(content.actions)); card.append(body); return card;
+  }
+
+  private renderActions(value: unknown) {
+    const group = element("div", "typed-actions");
+    const actions = Array.isArray(value) ? value : [];
+    for (const item of actions) {
+      if (!item || typeof item !== "object") continue;
+      const action = item as { type?: unknown; label?: unknown; url?: unknown };
+      const href = safeActionUrl(action.type, action.url);
+      if (!href) continue;
+      const link = element("a", `typed-action action-${String(action.type)}`, String(action.label ?? "Open"));
+      link.href = href;
+      if (!href.startsWith("tel:")) { link.target = "_blank"; link.rel = "noopener noreferrer"; }
+      group.append(link);
+    }
+    return group;
   }
 }
 
@@ -368,12 +418,38 @@ function safeStorage() {
   try { return window.localStorage; } catch { return null; }
 }
 
+function safeHttpsUrl(value: unknown) {
+  if (typeof value !== "string") return null;
+  try { const url = new URL(value); return url.protocol === "https:" ? url.toString() : null; } catch { return null; }
+}
+
+function safeActionUrl(type: unknown, value: unknown) {
+  if (typeof value !== "string") return null;
+  if (type === "call") return /^tel:\+?[0-9(). -]{7,30}$/.test(value) ? value : null;
+  return ["line", "website", "booking", "checkout"].includes(String(type)) ? safeHttpsUrl(value) : null;
+}
+
 const styles = `
   ${djayWidgetBaseStyles}
   .panel { height: min(640px, calc(100vh - 108px)); height: min(640px, calc(100dvh - 108px)); min-height: 360px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; }
   .stream { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px; background: var(--djay-widget-canvas); }
   .message { max-width: 92%; align-self: flex-start; display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--djay-widget-border); border-radius: 12px; background: var(--djay-widget-surface); }
   .message p { margin: 0; overflow-wrap: anywhere; color: var(--djay-widget-ink); font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
+  .message.media { width: min(92%, 360px); }
+  .message.media img, .message.media video { display: block; width: 100%; max-height: 360px; border-radius: 6px; object-fit: contain; background: #eef2f0; }
+  .media-label { color: var(--djay-widget-muted) !important; font-size: 12px !important; }
+  .message.card, .message.carousel { width: min(92%, 420px); padding: 0; overflow: hidden; }
+  .rich-card { min-width: 240px; display: grid; background: var(--djay-widget-surface); }
+  .rich-card > img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #eef2f0; }
+  .rich-card-body { display: grid; gap: 8px; padding: 12px; }
+  .rich-card-title { overflow-wrap: anywhere; font-size: 15px; line-height: 1.35; }
+  .price { color: var(--djay-widget-green-hover); font-size: 14px; font-weight: 800; }
+  .carousel-rail { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 10px; }
+  .carousel-rail .rich-card { flex: 0 0 min(82%, 300px); border: 1px solid var(--djay-widget-border); border-radius: 6px; overflow: hidden; scroll-snap-align: start; }
+  .typed-actions { display: grid; gap: 7px; }
+  .typed-actions:empty { display: none; }
+  .typed-action { min-height: 44px; display: grid; place-items: center; padding: 8px 10px; border: 1px solid var(--djay-widget-green); border-radius: 6px; background: var(--djay-widget-green-soft); color: var(--djay-widget-green-hover); font-size: 13px; font-weight: 800; text-align: center; text-decoration: none; overflow-wrap: anywhere; }
+  .typed-action:hover, .typed-action:focus-visible { background: #d6ebe1; }
   .choice, .submit, .small { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--djay-widget-green); border-radius: 6px; background: var(--djay-widget-green-soft); color: var(--djay-widget-green-hover); font-weight: 800; cursor: pointer; }
   .notice { display: grid; gap: 8px; padding: 10px 12px; border-left: 3px solid var(--djay-widget-green); border-radius: 0 6px 6px 0; background: var(--djay-widget-green-soft); color: var(--djay-widget-green-hover); font-size: 13px; line-height: 1.45; }
   .notice.error { border-color: var(--djay-widget-danger); background: var(--djay-widget-danger-soft); color: #812e29; }

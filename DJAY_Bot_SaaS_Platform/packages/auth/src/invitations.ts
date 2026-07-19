@@ -6,7 +6,10 @@ import type { AuthStore } from "./store";
 
 const invitationSchema = z.object({
   email: z.email().max(320),
-  role: z.enum(["tenant_admin", "tenant_operator", "tenant_analyst"]),
+  role: z.enum([
+    "tenant_admin", "tenant_operator", "tenant_conversation_manager",
+    "tenant_human_agent", "tenant_analyst", "tenant_billing_manager",
+  ]),
   requestId: z.string().min(8).max(128),
 }).strict();
 

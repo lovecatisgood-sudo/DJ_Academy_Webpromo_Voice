@@ -33,6 +33,10 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
       WHERE tenant_id = ${tenantId}::uuid AND product_key = 'voice' AND status <> 'cancelled'
     `;
     await adminClient!`
+      UPDATE tenancy.voice_deployments SET status = 'revoked', revoked_at = COALESCE(revoked_at, now())
+      WHERE tenant_id = ${tenantId}::uuid AND status <> 'revoked'
+    `;
+    await adminClient!`
       INSERT INTO tenancy.product_subscriptions (id, tenant_id, product_key, plan_version_id, status, period_start, period_end)
       VALUES (${subscriptionId}::uuid, ${tenantId}::uuid, 'voice', ${planVersionId}::uuid, 'active', now(), now() + interval '30 days')
     `;
@@ -46,7 +50,7 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
           tenantId, subscriptionId, productKey: "voice", publicPlanKey: "voice_basic_gen1", planVersionId,
           accessMode: "active", entitlements: { "voice.enabled": true, "voice.capability_profile": "voice_gen1" },
           allowances: { voice_minute: 100 }, overageRatesMinor: { voice_minute: null },
-          limits: { concurrent_calls: 1 }, resolvedAt: new Date().toISOString(),
+          limits: { active_bots: 1, concurrent_calls: 1 }, resolvedAt: new Date().toISOString(),
         })}, digest(${snapshotId}, 'sha256')
       )
     `;
@@ -74,6 +78,8 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
     const created = await store.create(owner, input);
     expect(created.status).toBe("created");
     if (created.status !== "created") throw new Error("Expected Voice deployment.");
+    await expect(store.create(owner, { ...input, name: "Second browser voice" }))
+      .resolves.toEqual({ status: "limit_reached" });
     expect(created.deploymentKey).toMatch(/^djay_voice_deploy_/);
     const listed = await store.list(owner);
     expect(listed.capability).toEqual({ enabled: true, publicLabel: "First-Generation Voice Engine" });

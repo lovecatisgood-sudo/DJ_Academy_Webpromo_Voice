@@ -62,7 +62,7 @@ function assertSecurityHeaders(response, app) {
 function manifest(directory) {
   const value = JSON.parse(readFileSync(resolve(directory, "release-manifest.json"), "utf8"));
   assert(value.schema === "djay.release-artifact.v1", `${value.app ?? directory} manifest schema`);
-  assert(value.runtime === (value.app === "widget-cdn" ? "static" : "node24"), `${value.app} runtime contract`);
+  assert(value.runtime === "node24", `${value.app} runtime contract`);
   assert(typeof value.readinessPath === "string" || value.readinessPath === null, `${value.app} readiness contract`);
   return value;
 }
@@ -257,6 +257,66 @@ for (const asset of widgetManifest.assets) {
 }
 console.info("Verified widget-cdn: three versioned, integrity-recorded, cross-origin-safe, branded browser bundles.");
 
+const widgetRuntime = start("index.js", widgetRoot, { PORT: "3126" });
+try {
+  const health = await waitFor("http://127.0.0.1:3126/health/live", widgetRuntime.child, widgetRuntime.output);
+  assert((await health.json()).app === "widget-cdn", "widget-cdn liveness contract");
+  for (const asset of widgetManifest.assets) {
+    const response = await fetch(`http://127.0.0.1:3126${asset.publicPath}`);
+    assert(response.ok, `${asset.product} CDN origin returned ${response.status}`);
+    assert(response.headers.get("access-control-allow-origin") === "*", `${asset.product} CDN CORS`);
+    assert(response.headers.get("cross-origin-resource-policy") === "cross-origin", `${asset.product} CDN CORP`);
+    assert(response.headers.get("cache-control") === "public, max-age=300, must-revalidate", `${asset.product} CDN cache contract`);
+  }
+  assert((await fetch("http://127.0.0.1:3126/release-manifest.json")).status === 404, "widget CDN exposed release manifest");
+  console.info("Verified widget-cdn runtime: health, admitted assets, cross-origin headers, and deny-by-default paths.");
+} finally {
+  await stop(widgetRuntime.child);
+}
+
+const aiRoot = resolve(isolationRoot, "ai-gateway");
+cpSync(resolve(root, "apps", "ai-gateway", "dist"), aiRoot, { recursive: true });
+const aiManifest = manifest(aiRoot);
+assert(evidence(aiRoot).sha256 === aiManifest.bundles.sha256, "ai-gateway bundle evidence mismatch");
+const ai = start("index.js", aiRoot, {
+  PORT: "3127",
+  AI_TEXT_GATEWAY_SERVICE_TOKEN: "release-artifact-ai-service-token-00000001",
+  OPENAI_API_KEY: "sk-release-artifact-runtime-key-00000001",
+  OPENAI_RESPONSES_MODEL: "restricted-release-model",
+});
+try {
+  const health = await waitFor("http://127.0.0.1:3127/health/live", ai.child, ai.output);
+  assert((await health.json()).status === "live", "ai-gateway liveness contract");
+  const ready = await fetch("http://127.0.0.1:3127/health/ready");
+  assert(ready.ok && JSON.stringify(await ready.json()) === JSON.stringify({ status: "ready" }), "ai-gateway readiness contract");
+  const unauthorized = await fetch("http://127.0.0.1:3127/v1/generate", { method: "POST", body: "{}" });
+  assert(unauthorized.status === 404, "ai-gateway exposed its restricted generation route");
+  console.info("Verified ai-gateway: liveness, readiness, and restricted route authorization.");
+} finally {
+  await stop(ai.child);
+}
+
+const rejectedAi = spawn(process.execPath, ["index.js"], {
+  cwd: aiRoot,
+  env: {
+    ...process.env,
+    NODE_ENV: "production",
+    PORT: "3128",
+    AI_TEXT_GATEWAY_SERVICE_TOKEN: "replace-with-independent-ai-service-token",
+    OPENAI_API_KEY: "replace-with-openai-api-key",
+    OPENAI_RESPONSES_MODEL: "restricted-release-model",
+  },
+  stdio: ["ignore", "pipe", "pipe"],
+});
+let rejectedAiOutput = "";
+rejectedAi.stdout.on("data", (chunk) => { rejectedAiOutput += chunk; });
+rejectedAi.stderr.on("data", (chunk) => { rejectedAiOutput += chunk; });
+const rejectedAiExit = await new Promise((done) => rejectedAi.once("exit", done));
+assert(rejectedAiExit !== 0, "ai-gateway accepted example production credentials");
+assert(rejectedAiOutput.includes("contains an example value"), "ai-gateway did not identify rejected example authority");
+assert(!rejectedAiOutput.includes("replace-with-openai-api-key"), "ai-gateway disclosed rejected credential material");
+console.info("Verified ai-gateway: copied example production credentials fail startup without value disclosure.");
+
 const voiceRoot = resolve(isolationRoot, "voice-gateway");
 cpSync(resolve(root, "apps", "voice-gateway", "dist"), voiceRoot, { recursive: true });
 const voiceManifest = manifest(voiceRoot);
@@ -320,4 +380,4 @@ assert(!/postgres(?:ql)?:\/\//i.test(workerOutput), "worker startup output discl
 console.info("Verified workers: bundles present and missing database authority fails closed.");
 
 rmSync(isolationRoot, { recursive: true, force: true });
-console.info("All seven production release artifacts passed packaging and runtime smoke acceptance.");
+console.info("All eight production release artifacts passed packaging and runtime smoke acceptance.");

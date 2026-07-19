@@ -1,4 +1,4 @@
-import type { PlatformRole, TenantRole } from "@djay/authorization";
+import { tenantRoles, type PlatformRole, type TenantRole } from "@djay/authorization";
 import {
   asMembershipId,
   asSessionId,
@@ -11,6 +11,8 @@ import {
   type UserId,
 } from "@djay/shared";
 import { z } from "zod";
+
+export type { TenantRole } from "@djay/authorization";
 
 declare const contextBrand: unique symbol;
 
@@ -47,7 +49,7 @@ const tenantContextInput = z.object({
   userId: z.uuid(),
   membershipId: z.uuid(),
   sessionId: z.uuid(),
-  role: z.enum(["tenant_master_admin", "tenant_admin", "tenant_operator", "tenant_analyst"]),
+  role: z.enum(tenantRoles),
   requestId: requestIdSchema,
 }).strict();
 
@@ -91,4 +93,3 @@ export function createSystemContext(service: SystemContext["service"], requestId
     requestId: requestIdSchema.parse(requestId),
   }) as SystemContext;
 }
-

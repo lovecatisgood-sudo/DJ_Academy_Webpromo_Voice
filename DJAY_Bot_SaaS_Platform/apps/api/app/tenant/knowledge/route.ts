@@ -8,6 +8,7 @@ const sourceSchema = z.object({
   name: z.string().trim().min(2).max(160),
   sourceKind: z.enum(["text", "file", "url", "structured"]),
   content: z.string().min(1).max(500_000),
+  collectionId: z.uuid().optional(),
 }).strict();
 
 export async function GET(request: NextRequest) {
@@ -22,7 +23,14 @@ export async function POST(request: NextRequest) {
     return safeJson({ status: "not_found" }, 404);
   }
   try {
-    return safeJson(await resolved.services.sharedDomain.createKnowledgeSource(resolved.context, sourceSchema.parse(await readJson(request))), 201);
+    const parsed = sourceSchema.parse(await readJson(request));
+    const result = await resolved.services.sharedDomain.createKnowledgeSource(resolved.context, {
+      name: parsed.name,
+      sourceKind: parsed.sourceKind,
+      content: parsed.content,
+      ...(parsed.collectionId ? { collectionId: parsed.collectionId } : {}),
+    });
+    return safeJson(result, result.status === "created" ? 201 : 403);
   } catch (error) {
     return error instanceof ZodError || error instanceof SyntaxError
       ? safeJson({ status: "validation_failed" }, 400) : safeJson({ status: "temporarily_unavailable" }, 503);

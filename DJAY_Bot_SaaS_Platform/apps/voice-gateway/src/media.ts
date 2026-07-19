@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   createGen1LiveVoiceProviderGateway,
+  createOpenAIRealtimeVoiceGateway,
   type LiveVoiceEvent,
   type LiveVoiceProviderGateway,
   type LiveVoiceSession,
@@ -205,20 +206,36 @@ export function createGen1VoiceMediaFactory(config: VoiceMediaCommonConfig & Rea
 }
 
 export function createConfiguredVoiceMediaFactory(config: VoiceMediaCommonConfig & Readonly<{
-  gen1?: Readonly<{ apiKey: string; model: string; voiceName: string }>;
+  gen1?: Readonly<{
+    providerKey?: "google_live" | "openai_realtime";
+    apiKey: string; model: string; voiceName: string;
+    transcriptionModel?: string;
+  }>;
   gen2?: Readonly<{
     providerKey: "google_live"; modelKey: string; regionKey: string;
     apiKey: string; voiceName: string;
   }>;
 }>): VoiceMediaFactory {
-  const socketFactory = (url: string) => new WebSocket(url) as unknown as RestrictedLiveSocket;
+  const socketFactory = (url: string, headers: Readonly<Record<string, string>> = {}) => new WebSocket(
+    url, Object.keys(headers).length ? { headers } : undefined,
+  ) as unknown as RestrictedLiveSocket;
+  const gen1Gateway = config.gen1
+    ? config.gen1.providerKey === "openai_realtime"
+      ? createOpenAIRealtimeVoiceGateway({
+        apiKey: config.gen1.apiKey, model: config.gen1.model, voiceName: config.gen1.voiceName,
+        ...(config.gen1.transcriptionModel ? { transcriptionModel: config.gen1.transcriptionModel } : {}),
+        socketFactory,
+      })
+      : createGen1LiveVoiceProviderGateway({
+        apiKey: config.gen1.apiKey, model: config.gen1.model,
+        voiceName: config.gen1.voiceName, socketFactory,
+      })
+    : undefined;
   return createVoiceMediaFactory({
     contextEndpoint: config.contextEndpoint, turnEndpoint: config.turnEndpoint,
     serviceToken: config.serviceToken,
     ...(config.fetchImpl ? { fetchImpl: config.fetchImpl } : {}),
-    ...(config.gen1 ? { gen1Gateway: createGen1LiveVoiceProviderGateway({
-      ...config.gen1, socketFactory,
-    }) } : {}),
+    ...(gen1Gateway ? { gen1Gateway } : {}),
     ...(config.gen2 ? { gen2Routes: [{
       providerKey: config.gen2.providerKey, modelKey: config.gen2.modelKey,
       regionKey: config.gen2.regionKey,

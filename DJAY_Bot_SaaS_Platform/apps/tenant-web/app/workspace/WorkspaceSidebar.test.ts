@@ -5,7 +5,7 @@ const paths = (role: string) => workspaceNavigationForRole(role).map((item) => i
 
 describe("role-aware workspace navigation", () => {
   it("shows every governed workspace area to the owner", () => {
-    expect(paths("tenant_master_admin")).toHaveLength(12);
+    expect(paths("tenant_master_admin")).toHaveLength(13);
   });
 
   it("keeps admin, operator, and analyst navigation inside their permissions", () => {

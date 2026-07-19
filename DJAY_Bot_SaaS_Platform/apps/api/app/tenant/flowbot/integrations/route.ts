@@ -4,8 +4,10 @@ import type { NextRequest } from "next/server";
 import { ZodError, z } from "zod";
 import { hasTrustedOrigin, readJson, safeJson } from "../../../../lib/http";
 import { resolveTenantRequest } from "../../../../lib/tenant-context";
+import { hasSensitiveTenantAssurance } from "../../../../lib/tenant-assurance";
 
 const requestSchema = z.object({
+  integrationKind: z.enum(["external_api", "google_sheets"]),
   name: z.string().trim().min(2).max(160),
   endpoint: z.url().transform((value, context) => {
     const url = new URL(value);
@@ -16,7 +18,14 @@ const requestSchema = z.object({
     return url.toString();
   }),
   allowedTemplateKeys: z.array(z.string().regex(/^[a-z][a-z0-9_.-]{1,99}$/)).min(1).max(20),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.integrationKind === "google_sheets") {
+    const url = new URL(value.endpoint);
+    if (url.hostname !== "script.google.com" || !/^\/macros\/s\/[^/]+\/exec$/.test(url.pathname)) {
+      context.addIssue({ code: "custom", path: ["endpoint"], message: "A deployed Google Apps Script web app URL is required." });
+    }
+  }
+});
 
 export async function GET(request: NextRequest) {
   const resolved = await resolveTenantRequest(request);
@@ -31,7 +40,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const resolved = await resolveTenantRequest(request);
-  if (!resolved || !tenantRoleAllows(resolved.context.role, "flowbot.deploy") || !(await hasTrustedOrigin(request))) return safeJson({ status: "not_found" }, 404);
+  if (!resolved || !tenantRoleAllows(resolved.context.role, "integrations.manage") || !(await hasTrustedOrigin(request))) return safeJson({ status: "not_found" }, 404);
+  if (!hasSensitiveTenantAssurance(resolved.session)) return safeJson({ status: "reauthentication_required" }, 403);
   const key = resolved.services.flowbotIntegrationEnvelopeKey;
   if (!key) return safeJson({ status: "not_available" }, 503);
   try {

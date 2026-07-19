@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
       requestId: resolved.context.requestId,
     });
     if (result.status === "not_found") return safeJson({ status: "not_found" }, 404);
+    if (result.status === "seat_limit_reached") return safeJson({ status: result.status }, 409);
     return safeJson({ status: result.status }, result.status === "created" ? 201 : 202);
   } catch (error) {
     return error instanceof ZodError || error instanceof SyntaxError

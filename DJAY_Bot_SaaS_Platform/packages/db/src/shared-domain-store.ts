@@ -29,6 +29,8 @@ export class SharedDomainStore {
     return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
       id: string; displayName: string; locale: string; consentStatus: string;
       identities: { kind: string; value: string; verificationStatus: string }[];
+      tags: { key: string; label: string; color: string }[];
+      attributes: { key: string; label: string; valueType: string; value: string }[];
       leadCount: number; updatedAt: Date;
     }[]>`
       SELECT contact.id, contact.display_name AS "displayName", contact.locale,
@@ -38,7 +40,19 @@ export class SharedDomainStore {
                'kind', identity.identity_kind,
                'value', identity.normalized_value,
                'verificationStatus', identity.verification_status
-             )) FILTER (WHERE identity.id IS NOT NULL), '[]'::jsonb) AS identities
+             )) FILTER (WHERE identity.id IS NOT NULL), '[]'::jsonb) AS identities,
+             (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'key', tag.tag_key, 'label', tag.label, 'color', tag.color
+             ) ORDER BY tag.label, tag.id), '[]'::jsonb)
+              FROM tenancy.contact_tag_assignments assignment
+              JOIN tenancy.contact_tags tag ON tag.tenant_id = assignment.tenant_id AND tag.id = assignment.tag_id
+              WHERE assignment.tenant_id = contact.tenant_id AND assignment.contact_id = contact.id) AS tags,
+             (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'key', attribute.attribute_key, 'label', attribute.label,
+               'valueType', attribute.value_type, 'value', attribute.value_text
+             ) ORDER BY attribute.label, attribute.id), '[]'::jsonb)
+              FROM tenancy.contact_attributes attribute
+              WHERE attribute.tenant_id = contact.tenant_id AND attribute.contact_id = contact.id) AS attributes
       FROM tenancy.contacts contact
       LEFT JOIN tenancy.contact_identities identity ON identity.contact_id = contact.id
         AND identity.tenant_id = contact.tenant_id AND identity.revoked_at IS NULL
@@ -48,6 +62,53 @@ export class SharedDomainStore {
       ORDER BY contact.updated_at DESC, contact.id DESC
       LIMIT 500
     `);
+  }
+
+  async updateContactMetadata(context: TenantContext, contactId: string, input: Readonly<{
+    tags: readonly Readonly<{ key: string; label: string; color: string }>[];
+    attributes: readonly Readonly<{ key: string; label: string; valueType: "text" | "number" | "boolean" | "date"; value: string }>[];
+  }>) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const contact = await sql<{ id: string }[]>`
+        SELECT id FROM tenancy.contacts WHERE tenant_id = ${context.tenantId}::uuid
+          AND id = ${contactId}::uuid AND status = 'active' FOR UPDATE
+      `;
+      if (!contact[0]) return { status: "not_found" as const };
+      const tagIds: string[] = [];
+      for (const tag of input.tags) {
+        const rows = await sql<{ id: string }[]>`
+          INSERT INTO tenancy.contact_tags (tenant_id, tag_key, label, color, created_by_membership_id)
+          VALUES (${context.tenantId}::uuid, ${tag.key}, ${tag.label}, ${tag.color}, ${context.membershipId}::uuid)
+          ON CONFLICT (tenant_id, tag_key) DO UPDATE
+          SET label = EXCLUDED.label, color = EXCLUDED.color, updated_at = now()
+          RETURNING id
+        `;
+        tagIds.push(rows[0]!.id);
+      }
+      await sql`DELETE FROM tenancy.contact_tag_assignments WHERE tenant_id = ${context.tenantId}::uuid AND contact_id = ${contactId}::uuid`;
+      for (const tagId of tagIds) await sql`
+        INSERT INTO tenancy.contact_tag_assignments (tenant_id, contact_id, tag_id, assigned_by_membership_id)
+        VALUES (${context.tenantId}::uuid, ${contactId}::uuid, ${tagId}::uuid, ${context.membershipId}::uuid)
+      `;
+      const attributeKeys = input.attributes.map((attribute) => attribute.key);
+      await sql`DELETE FROM tenancy.contact_attributes WHERE tenant_id = ${context.tenantId}::uuid AND contact_id = ${contactId}::uuid AND NOT (attribute_key = ANY(${attributeKeys}::text[]))`;
+      for (const attribute of input.attributes) await sql`
+        INSERT INTO tenancy.contact_attributes (
+          tenant_id, contact_id, attribute_key, label, value_type, value_text, updated_by_membership_id
+        ) VALUES (
+          ${context.tenantId}::uuid, ${contactId}::uuid, ${attribute.key}, ${attribute.label},
+          ${attribute.valueType}, ${attribute.value}, ${context.membershipId}::uuid
+        )
+        ON CONFLICT (tenant_id, contact_id, attribute_key) DO UPDATE
+        SET label = EXCLUDED.label, value_type = EXCLUDED.value_type,
+            value_text = EXCLUDED.value_text, updated_by_membership_id = EXCLUDED.updated_by_membership_id,
+            updated_at = now()
+      `;
+      await sql`UPDATE tenancy.contacts SET updated_at = now() WHERE tenant_id = ${context.tenantId}::uuid AND id = ${contactId}::uuid`;
+      await sql`INSERT INTO tenancy.audit_logs (tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id, request_id, result, metadata)
+        VALUES (${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid, 'contact.metadata_updated', 'contact', ${contactId}, ${context.requestId}, 'succeeded', ${sql.json({ tagCount: input.tags.length, attributeCount: input.attributes.length })})`;
+      return { status: "updated" as const };
+    });
   }
 
   async listIdentityReviewCandidates(context: TenantContext) {
@@ -418,9 +479,27 @@ export class SharedDomainStore {
   }
 
   async createKnowledgeSource(context: TenantContext, input: Readonly<{
-    name: string; sourceKind: "text" | "file" | "url" | "structured"; content: string;
+    name: string; sourceKind: "text" | "file" | "url" | "structured"; content: string; collectionId?: string;
   }>) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const authority = await sql<{ allowed: boolean }[]>`
+        SELECT EXISTS (
+          SELECT 1 FROM tenancy.product_subscriptions subscription
+          JOIN LATERAL (
+            SELECT snapshot.access_mode, snapshot.resolved_json
+            FROM tenancy.entitlement_snapshots snapshot
+            WHERE snapshot.tenant_id = subscription.tenant_id
+              AND snapshot.subscription_id = subscription.id
+            ORDER BY snapshot.created_at DESC, snapshot.id DESC LIMIT 1
+          ) current_snapshot ON true
+          WHERE subscription.tenant_id = ${context.tenantId}::uuid
+            AND subscription.product_key IN ('ai_chat', 'voice')
+            AND subscription.status IN ('active', 'trialing', 'scheduled_change')
+            AND current_snapshot.access_mode = 'active'
+            AND current_snapshot.resolved_json->'entitlements'->>'knowledge.enabled' = 'true'
+        ) AS allowed
+      `;
+      if (!authority[0]?.allowed) return { status: "not_entitled" as const };
       const sourceId = randomUUID();
       const revisionId = randomUUID();
       const checksum = createHash("sha256").update(input.content).digest();
@@ -438,6 +517,16 @@ export class SharedDomainStore {
           ${input.content}, ${checksum}, 'ready', ${context.membershipId}::uuid
         )
       `;
+      if (input.collectionId) {
+        const attached = await sql<{ id: string }[]>`
+          INSERT INTO tenancy.knowledge_collection_sources (tenant_id, collection_id, source_id)
+          SELECT ${context.tenantId}::uuid, collection.id, ${sourceId}::uuid
+          FROM tenancy.knowledge_collections collection
+          WHERE collection.tenant_id = ${context.tenantId}::uuid AND collection.id = ${input.collectionId}::uuid
+            AND collection.status = 'active' RETURNING source_id AS id
+        `;
+        if (!attached[0]) throw new Error("knowledge_collection_not_found");
+      }
       const chunks = chunkKnowledge(input.content);
       for (const [index, content] of chunks.entries()) {
         await sql`

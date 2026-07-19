@@ -33,7 +33,7 @@ const runtimeRowSchema = z.object({
 const syncedMessageSchema = z.object({
   sequence: z.number().int().positive(),
   message: z.object({
-    type: z.enum(["text", "media", "options", "form", "system"]),
+    type: z.enum(["text", "media", "card", "carousel", "actions", "options", "form", "system"]),
     nodeId: z.uuid(),
     content: z.record(z.string(), z.unknown()),
   }).strict(),
@@ -98,8 +98,13 @@ export class FlowbotRuntimeStore {
   ) {}
 
   async config(deploymentKey: string, origin: string) {
+    const deploymentKeyHash = hashOpaqueToken(deploymentKey);
+    const active = await this.client<{ active: boolean }[]>`
+      SELECT tenancy.flowbot_runtime_resource_active(${deploymentKeyHash}) AS active
+    `;
+    if (!active[0]?.active) return null;
     const rows = await this.client<{ bot_name: string; default_language: "th" | "en"; branding_removed: boolean }[]>`
-      SELECT * FROM tenancy.flowbot_runtime_config(${hashOpaqueToken(deploymentKey)}, ${origin})
+      SELECT * FROM tenancy.flowbot_runtime_config(${deploymentKeyHash}, ${origin})
     `;
     const row = rows[0];
     return row ? {
@@ -122,9 +127,14 @@ export class FlowbotRuntimeStore {
     const inputId = randomUUID();
     const now = new Date();
     return this.client.begin(async (sql) => {
+      const deploymentKeyHash = hashOpaqueToken(input.deploymentKey);
+      const active = await sql<{ active: boolean }[]>`
+        SELECT tenancy.flowbot_runtime_resource_active(${deploymentKeyHash}) AS active
+      `;
+      if (!active[0]?.active) throw new FlowbotRuntimeError("deployment_not_available");
       const rows = await sql<Record<string, unknown>[]>`
         SELECT * FROM tenancy.start_flowbot_execution(
-          ${hashOpaqueToken(input.deploymentKey)}, ${hashOpaqueToken(sessionToken)}, ${input.origin},
+          ${deploymentKeyHash}, ${hashOpaqueToken(sessionToken)}, ${input.origin},
           ${executionId}::uuid, ${randomUUID()}::uuid, ${randomUUID()}::uuid, ${randomUUID()}::uuid,
           ${new Date(now.getTime() + 24 * 60 * 60 * 1000)}, ${input.language ?? "en"}
         )

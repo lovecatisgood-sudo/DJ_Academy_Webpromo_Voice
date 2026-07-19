@@ -20,6 +20,8 @@ export async function GET(request: NextRequest) {
     ["metric", "value"], ["executions", analytics.executions], ["completed", analytics.completed],
     ["handovers", analytics.handovers], ["leads", analytics.leads], ["messages", analytics.messages],
     ...analytics.nodeEvents.map((item) => [`event:${item.eventType}`, item.eventCount]),
+    ...analytics.unansweredInputs.map((item) => [`unanswered:${item.reason}:${item.inputText ?? ""}`, 1]),
+    ...analytics.journeys.map((item) => [`journey:${item.path}`, item.executions]),
   ];
   return new Response(rows.map((row) => row.map(csvCell).join(",")).join("\r\n"), {
     headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": "attachment; filename=flowbot-analytics.csv", "cache-control": "no-store" },

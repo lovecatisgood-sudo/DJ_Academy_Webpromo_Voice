@@ -10,11 +10,12 @@ export type AiChatWidgetOptions = Readonly<{
 }>;
 
 type ChatMessage = Readonly<{ role: "customer" | "assistant" | "human"; text: string; sequence?: number }>;
+type PublicAction = Readonly<{ type: "booking" | "quotation" | "checkout" | "call" | "line" | "website"; label: string; url: string }>;
 type PublicConfig = Readonly<{ agentName: string; defaultLanguage: "th" | "en"; brandingRemoved: boolean }>;
 type SyncResponse = Readonly<{
   status: "active" | "processing" | "handover" | "completed" | "failed" | "expired";
   lastMessageSequence: number;
-  messages: readonly Readonly<{ sequence: number; message: { content?: { text?: string } } }>[];
+  messages: readonly Readonly<{ sequence: number; message: { content?: { text?: string; quickReplies?: string[]; actions?: PublicAction[] } } }>[];
 }>;
 
 const copy = {
@@ -45,6 +46,8 @@ class AiChatWidget {
   private pollTimer: number | null = null;
   private syncing = false;
   private announcement = "";
+  private quickReplies: string[] = [];
+  private actions: PublicAction[] = [];
   private readonly panelId = `djay-ai-chat-panel-${++aiChatWidgetSequence}`;
 
   constructor(private readonly options: AiChatWidgetOptions) {
@@ -139,10 +142,12 @@ class AiChatWidget {
 
   private applyStreamEvent(value: unknown, assistant: { role: "assistant"; text: string }) {
     if (!value || typeof value !== "object") throw new Error("ai_chat_stream_invalid");
-    const event = value as { type?: unknown; text?: unknown; status?: unknown };
+    const event = value as { type?: unknown; text?: unknown; status?: unknown; quickReplies?: unknown; actions?: unknown };
     if (event.type === "response.delta" && typeof event.text === "string") assistant.text += event.text;
     if (event.type === "response.done" && ["active", "processing", "handover", "completed", "failed", "expired"].includes(String(event.status))) {
       this.status = event.status as SyncResponse["status"];
+      this.quickReplies = Array.isArray(event.quickReplies) ? event.quickReplies.filter((item): item is string => typeof item === "string").slice(0, 6) : [];
+      this.actions = Array.isArray(event.actions) ? event.actions.filter(safePublicAction).slice(0, 12) : [];
       this.announcement = assistant.text;
     }
   }
@@ -170,6 +175,8 @@ class AiChatWidget {
         if (entry.sequence > this.lastMessageSequence && text) {
           const duplicate = this.messages.some((message) => message.sequence === entry.sequence || (message.role === "assistant" && message.text === text));
           if (!duplicate) { this.messages.push({ role: result.response.status === "handover" ? "human" : "assistant", text, sequence: entry.sequence }); added = true; latestText = text; }
+          this.quickReplies = Array.isArray(entry.message.content?.quickReplies) ? entry.message.content.quickReplies.slice(0, 6) : [];
+          this.actions = Array.isArray(entry.message.content?.actions) ? entry.message.content.actions.filter(safePublicAction).slice(0, 12) : [];
         }
       }
       this.lastMessageSequence = Math.max(this.lastMessageSequence, result.response.lastMessageSequence);
@@ -251,6 +258,8 @@ class AiChatWidget {
       if (this.loading || this.status === "processing") stream.append(element("div", "notice", this.sessionToken ? text.thinking : text.connecting));
       if (this.unavailable) { const retry = button(text.retry, text.retry, "small"); retry.addEventListener("click", () => void this.bootstrap()); const notice = element("div", "notice error", text.unavailable); notice.setAttribute("role", "alert"); notice.append(retry); stream.append(notice); }
       if (this.status === "handover") stream.append(element("div", "notice", text.handover));
+      if (this.actions.length) { const actions = element("div", "response-actions"); for (const action of this.actions) { const link = document.createElement("a"); link.className = "response-action"; link.href = action.url; link.textContent = action.label; link.target = action.type === "call" ? "_self" : "_blank"; link.rel = "noopener noreferrer"; actions.append(link); } stream.append(actions); }
+      if (this.quickReplies.length && this.status === "active") { const replies = element("div", "quick-replies"); for (const label of this.quickReplies) { const choice = button(label, label, "quick-reply"); choice.addEventListener("click", () => { this.quickReplies = []; void this.send(label); }); replies.append(choice); } stream.append(replies); }
       if (["completed", "failed", "expired"].includes(this.status)) {
         const notice = element("div", `notice ${this.status === "failed" ? "error" : ""}`, text[this.status as "completed" | "failed" | "expired"]); if (this.status === "failed") notice.setAttribute("role", "alert");
         const start = button(text.newConversation, text.newConversation, "small"); start.addEventListener("click", () => void this.startOver()); notice.append(start); stream.append(notice);
@@ -276,8 +285,10 @@ class AiChatWidget {
 function element(tag: string, className: string, text?: string) { const node = document.createElement(tag); node.className = className; if (text !== undefined) node.textContent = text; return node; }
 function button(label: string, ariaLabel: string, className: string) { const node = document.createElement("button"); node.type = "button"; node.className = className; node.textContent = label; node.setAttribute("aria-label", ariaLabel); return node; }
 function safeStorage() { try { return window.localStorage; } catch { return null; } }
+function safePublicAction(value: unknown): value is PublicAction { if (!value || typeof value !== "object") return false; const action = value as Record<string, unknown>; if (typeof action.label !== "string" || typeof action.url !== "string" || !["booking", "quotation", "checkout", "call", "line", "website"].includes(String(action.type))) return false; try { const protocol = new URL(action.url).protocol; return action.type === "call" ? protocol === "tel:" : protocol === "https:"; } catch { return false; } }
 
 const styles = `
 ${djayWidgetBaseStyles}
+.response-actions,.quick-replies{display:flex;flex-wrap:wrap;gap:8px}.response-action,.quick-reply{min-height:40px;display:inline-flex;align-items:center;border:1px solid var(--djay-widget-green);border-radius:6px;padding:8px 11px;background:var(--djay-widget-surface);color:var(--djay-widget-green-hover);font:inherit;font-weight:700;text-decoration:none;cursor:pointer}.response-action:hover,.quick-reply:hover{background:var(--djay-widget-green-soft)}
 .panel{height:min(640px,calc(100vh - 108px));height:min(640px,calc(100dvh - 108px));display:grid;grid-template-rows:auto minmax(0,1fr) auto auto}.stream{min-height:0;padding:16px;overflow:auto;display:flex;flex-direction:column;gap:10px;background:var(--djay-widget-canvas)}.message{max-width:84%;padding:11px 13px;border:1px solid transparent;border-radius:14px;overflow-wrap:anywhere;white-space:pre-wrap;line-height:1.45;font-size:14px}.assistant{align-self:flex-start;background:var(--djay-widget-surface);border-color:var(--djay-widget-border)}.human{align-self:flex-start;background:var(--djay-widget-green-soft);border-color:#9fc9b8}.customer{align-self:flex-end;background:var(--djay-widget-warning-soft);border-color:#ead59f}.notice{display:grid;gap:8px;padding:10px 12px;border-left:3px solid var(--djay-widget-green);border-radius:0 6px 6px 0;background:var(--djay-widget-green-soft);color:var(--djay-widget-green-hover);font-size:13px;line-height:1.45}.notice.error{border-color:var(--djay-widget-danger);background:var(--djay-widget-danger-soft);color:#812e29}.small{min-height:44px;border:1px solid currentColor;border-radius:6px;background:transparent;color:inherit;padding:8px 10px;cursor:pointer;font-weight:800}.composer{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:10px;border-top:1px solid var(--djay-widget-border);background:var(--djay-widget-surface)}.composer input{min-width:0;height:46px;border:1px solid #aebbb6;border-radius:6px;padding:0 11px;color:var(--djay-widget-ink)}.send{min-width:68px;height:46px;border:0;border-radius:6px;padding:0 14px;background:var(--djay-widget-green);color:#fff;font-weight:800;cursor:pointer}.send:hover{background:var(--djay-widget-green-hover)}@media(max-width:520px){.panel{height:calc(100vh - 82px - env(safe-area-inset-bottom));height:calc(100dvh - 82px - env(safe-area-inset-bottom))}}
 `;

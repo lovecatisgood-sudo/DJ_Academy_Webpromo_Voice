@@ -4,7 +4,10 @@ import type { VerifiedWebhook } from "@djay/usage-billing";
 import { afterAll, describe, expect, it } from "vitest";
 import { BillingWebhookStore } from "./billing-webhook-store";
 import { createDatabaseClient } from "./client";
-import { PlatformCommerceStore, PostgresCatalogStore, TenantCommerceStore } from "./commerce-store";
+import {
+  PlatformCommerceStore, PostgresCatalogStore, TenantCommerceStore,
+  UsageAlertWorkerStore, UsagePeriodWorkerStore,
+} from "./commerce-store";
 
 const tenantUrl = process.env.TENANT_DATABASE_URL;
 const platformUrl = process.env.PLATFORM_DATABASE_URL;
@@ -23,8 +26,17 @@ afterAll(async () => {
 describe.runIf(enabled)("P2 commerce repositories", () => {
   it("isolates subscriptions, activates a pilot, reconciles usage, and inboxes webhook replay", async () => {
     const catalog = await new PostgresCatalogStore(tenantClient!).listPublic(new Date("2026-07-14T12:00:00Z"));
-    expect(catalog).toHaveLength(6);
-    expect(JSON.stringify(catalog)).not.toMatch(/provider|model|adapter/i);
+    expect(catalog).toHaveLength(0);
+    const marketCatalog = await new PostgresCatalogStore(tenantClient!).listPublic(new Date("2026-07-18T12:00:00Z"));
+    expect(marketCatalog).toHaveLength(6);
+    expect(marketCatalog.find((plan) => plan.planKey === "flowbot_basic")).toMatchObject({
+      publicName: "Flow Bot Starter", firstTermAmountMinor: 249_900,
+      renewalAmountMinor: 499_900, firstTermDiscountMinor: 250_000,
+      sellable: false, stripeMappingState: "missing",
+    });
+    await expect(new PostgresCatalogStore(tenantClient!).quote("flowbot_basic", new Date("2026-07-18T12:00:00Z")))
+      .resolves.toEqual({ status: "checkout_unavailable", reason: "stripe_mapping_missing" });
+    expect(JSON.stringify(marketCatalog)).not.toMatch(/provider|model|adapter/i);
 
     const contextA = createTenantContext({
       tenantId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10",
@@ -46,6 +58,38 @@ describe.runIf(enabled)("P2 commerce repositories", () => {
       snapshotId: randomUUID(), quotaAccountId: randomUUID(), now,
     });
     expect(pendingA.status).toBe("created");
+    const contractId = randomUUID();
+    const acceptedAt = new Date("2026-07-18T12:30:00Z");
+    const contract = await commerce.createContractSnapshot(contextA, {
+      subscriptionId: subscriptionA, contractId, acceptedAt,
+    });
+    expect(contract).toMatchObject({
+      status: "created", contractId,
+      contract: {
+        catalogVersion: "djay-bots-th-2026-01", planKey: "ai_chat_basic",
+        firstTermAmountMinor: 595_000, renewalAmountMinor: 1_190_000,
+        firstTermDiscountMinor: 595_000, thirdPartyFeesIncluded: false,
+        taxTreatment: "calculated_at_checkout",
+        promotion: { key: "first-year-launch-2026-01", applicationMethod: "server_side", termCount: 1 },
+        allowancePolicy: { interval: "month", timezone: "Asia/Bangkok", rollover: false },
+      },
+    });
+    expect(contract.contractSha256).toMatch(/^[a-f0-9]{64}$/);
+    await expect(commerce.createContractSnapshot(contextA, {
+      subscriptionId: subscriptionA, contractId: randomUUID(), acceptedAt,
+    })).resolves.toMatchObject({ status: "exists", contractId, contractSha256: contract.contractSha256 });
+    await expect(commerce.createContractSnapshot(contextB, {
+      subscriptionId: subscriptionA, contractId: randomUUID(), acceptedAt,
+    })).resolves.toEqual({ status: "subscription_not_found" });
+    await expect(adminClient!`
+      UPDATE tenancy.subscription_contract_snapshots SET accepted_at = now()
+      WHERE id = ${contractId}::uuid
+    `).rejects.toThrow(/subscription contract snapshots are immutable/);
+    await expect(adminClient!`
+      UPDATE catalog.plan_commercial_terms SET first_term_amount_minor = 1
+      WHERE catalog_version_id = '63000000-0000-4000-8000-000000000001'::uuid
+        AND plan_version_id = '62000000-0000-4000-8000-000000000103'::uuid
+    `).rejects.toThrow(/locked catalog content is immutable/);
     await expect(commerce.createPendingSubscription(contextA, {
       planKey: "ai_chat_premium", subscriptionId: randomUUID(),
       snapshotId: randomUUID(), quotaAccountId: randomUUID(), now,
@@ -71,6 +115,29 @@ describe.runIf(enabled)("P2 commerce repositories", () => {
       platformUserId, sessionId: randomUUID(), role: "platform_owner",
       requestId: "commerce-platform-activation", reauthenticatedAt: now,
     });
+    expect(await platform.catalogLifecycle(platformContext)).toEqual([
+      expect.objectContaining({
+        versionKey: "djay-bots-th-2026-01", status: "active", planCount: 6,
+        sellablePlanCount: 0, liveMappingCount: 0,
+      }),
+    ]);
+    const operatorContext = createPlatformContext({
+      platformUserId, sessionId: randomUUID(), role: "platform_finance",
+      requestId: "commerce-catalog-operator", reauthenticatedAt: now,
+    });
+    await expect(platform.approveCatalogVersion(operatorContext, {
+      catalogVersionId: "63000000-0000-4000-8000-000000000001",
+      expectedContentSha256: "00".repeat(32), now,
+    })).rejects.toThrow(/platform_owner_required/);
+    await expect(adminClient!`
+      INSERT INTO catalog.promotions (
+        catalog_version_id, promotion_key, public_name, eligibility,
+        application_method, term_count, effective_from
+      ) VALUES (
+        '63000000-0000-4000-8000-000000000001', 'late-mutation', 'Late Mutation',
+        'new_annual_subscription', 'server_side', 1, now()
+      )
+    `).rejects.toThrow(/locked catalog content is immutable/);
     const activeSnapshotId = randomUUID();
     await expect(platform.activatePilot(platformContext, {
       subscriptionId: subscriptionA, snapshotId: activeSnapshotId, now,
@@ -103,6 +170,11 @@ describe.runIf(enabled)("P2 commerce repositories", () => {
     await expect(commerce.settle(contextA, {
       reservationId: reserved.reservationId, actualQuantity: 1, idempotencyKey: settleKey, now: new Date(),
     })).resolves.toEqual({ status: "settled", replayed: true });
+    await expect(adminClient!`
+      UPDATE tenancy.usage_reservations
+      SET funding_json = '{"included":0,"packs":0,"overage":1}'::jsonb
+      WHERE tenant_id = ${contextA.tenantId}::uuid AND id = ${reserved.reservationId}::uuid
+    `).rejects.toThrow(/usage_reservation_authority_is_immutable/);
 
     await adminClient!`
       UPDATE tenancy.quota_accounts
@@ -116,12 +188,58 @@ describe.runIf(enabled)("P2 commerce repositories", () => {
       includedQuantity: 100, safetyCapQuantity: 120, reservedQuantity: 0,
       settledQuantity: 1, committedQuantity: 1, remainingIncludedQuantity: 99,
       remainingSafetyCapQuantity: 119, pricingConfigured: false,
-      recurringAmountMinor: null, billingInterval: null, overageRateMinor: null,
+      recurringAmountMinor: 1_190_000, billingInterval: "year", overageRateMinor: 35,
     });
     const usageB = await commerce.usageOverview(contextB, now);
     expect(usageB.subscriptions).toHaveLength(1);
     expect(usageB.subscriptions.every((item) => item.productKey === "voice")).toBe(true);
     expect(JSON.stringify({ usageA, usageB })).not.toMatch(/provider|model|adapter|nativeUsage|cost/i);
+
+    const exhaustionRequest = {
+      ...reservationRequest,
+      operationId: "conversation-a-exhaustion",
+      idempotencyKey: `reserve-exhaustion-${randomUUID()}`,
+      requestedQuantity: 100,
+    };
+    await expect(commerce.reserve(contextA, exhaustionRequest)).resolves.toMatchObject({
+      status: "rejected", reason: "allowance_exhausted",
+    });
+    const packLotId = randomUUID();
+    await adminClient!`
+      INSERT INTO tenancy.usage_pack_lots (
+        id, tenant_id, subscription_id, customer_unit, pack_key,
+        purchased_quantity, effective_from, expires_at, status
+      ) VALUES (${packLotId}::uuid, ${contextA.tenantId}::uuid, ${subscriptionA}::uuid,
+        'ai_response', 'ai_starter_1000', 10, now() - interval '1 minute',
+        now() + interval '30 days', 'active')
+    `;
+    const packFunded = await commerce.reserve(contextA, {
+      ...exhaustionRequest, idempotencyKey: `reserve-pack-${randomUUID()}`,
+    });
+    expect(packFunded).toMatchObject({ status: "reserved", reservedQuantity: 100 });
+    if (!("reservationId" in packFunded)) throw new Error("Expected pack-funded reservation.");
+    await expect(commerce.release(contextA, {
+      reservationId: packFunded.reservationId,
+      idempotencyKey: `release-pack-${randomUUID()}`, now,
+    })).resolves.toMatchObject({ status: "released", replayed: false });
+    const packBalance = await adminClient!<{ consumed: string }[]>`
+      SELECT COALESCE(sum(CASE event_type WHEN 'allocated' THEN quantity ELSE -quantity END), 0) AS consumed
+      FROM tenancy.usage_pack_consumptions WHERE pack_lot_id = ${packLotId}::uuid
+    `;
+    expect(Number(packBalance[0]!.consumed)).toBe(0);
+    const usageAlerts = new UsageAlertWorkerStore(workerClient!);
+    const alertTime = new Date(now.getTime() + 60_000);
+    expect(await usageAlerts.generate(alertTime)).toBeGreaterThanOrEqual(1);
+    expect(await usageAlerts.generate(alertTime)).toBe(0);
+    const alertEvidence = await adminClient!<{ alerts: number; outbox: number }[]>`
+      SELECT
+        (SELECT count(*)::int FROM tenancy.usage_alert_deliveries
+          WHERE tenant_id = ${contextA.tenantId}::uuid) AS alerts,
+        (SELECT count(*)::int FROM tenancy.outbox WHERE tenant_id = ${contextA.tenantId}::uuid
+          AND topic = 'usage.alert.created') AS outbox
+    `;
+    expect(alertEvidence[0]!.alerts).toBeGreaterThanOrEqual(1);
+    expect(alertEvidence[0]!.outbox).toBe(alertEvidence[0]!.alerts);
 
     const healthyReconciliation = await platform.reconciliationOverview(platformContext, now);
     expect(healthyReconciliation).toMatchObject({
@@ -137,7 +255,8 @@ describe.runIf(enabled)("P2 commerce repositories", () => {
       reservationSettled: 1, settledEvents: 1, netSettledEvents: 1,
       reservedVariance: 0, settledVariance: 0, eventVariance: 0, status: "healthy",
     });
-    expect(JSON.stringify(healthyReconciliation)).not.toMatch(/provider|model|adapter|nativeUsage|cost|margin/i);
+    expect(JSON.stringify(healthyReconciliation.accounts)).not.toMatch(/provider|model|adapter|nativeUsage|cost|margin/i);
+    expect(healthyReconciliation.providerResults).toEqual([]);
 
     await adminClient!`
       UPDATE tenancy.quota_accounts SET settled_quantity = settled_quantity + 1
@@ -154,6 +273,47 @@ describe.runIf(enabled)("P2 commerce repositories", () => {
       UPDATE tenancy.quota_accounts SET settled_quantity = settled_quantity - 1
       WHERE tenant_id = ${contextA.tenantId}::uuid AND subscription_id = ${subscriptionA}::uuid
     `;
+
+    const expiringReservation = await commerce.reserve(contextA, {
+      ...reservationRequest, operationId: "conversation-before-period-expiry",
+      idempotencyKey: `reserve-before-expiry-${randomUUID()}`,
+    });
+    expect(expiringReservation).toMatchObject({ status: "reserved" });
+    if (!("reservationId" in expiringReservation)) throw new Error("Expected expiring reservation.");
+    const rolloverAt = new Date(now.getTime() + 2 * 60 * 60 * 1_000);
+    await adminClient!`
+      UPDATE tenancy.quota_accounts
+      SET period_start = ${new Date(rolloverAt.getTime() - 31 * 24 * 60 * 60 * 1_000)},
+          period_end = ${new Date(rolloverAt.getTime() - 60_000)}
+      WHERE tenant_id = ${contextA.tenantId}::uuid AND subscription_id = ${subscriptionA}::uuid
+    `;
+    await adminClient!`
+      UPDATE tenancy.product_subscriptions
+      SET period_end = ${new Date(rolloverAt.getTime() - 60_000)}
+      WHERE tenant_id = ${contextA.tenantId}::uuid AND id = ${subscriptionA}::uuid
+    `;
+    const periodWorker = new UsagePeriodWorkerStore(workerClient!);
+    await expect(periodWorker.roll(rolloverAt)).resolves.toEqual({
+      periodsCreated: 1, reservationsReleased: 1,
+    });
+    await expect(periodWorker.roll(rolloverAt)).resolves.toEqual({
+      periodsCreated: 0, reservationsReleased: 0,
+    });
+    const rolloverEvidence = await adminClient!<{
+      periods: number; reservationStatus: string; periodEvents: number;
+    }[]>`
+      SELECT
+        (SELECT count(*)::int FROM tenancy.quota_accounts
+          WHERE tenant_id = ${contextA.tenantId}::uuid
+            AND subscription_id = ${subscriptionA}::uuid) AS periods,
+        (SELECT status FROM tenancy.usage_reservations
+          WHERE tenant_id = ${contextA.tenantId}::uuid
+            AND id = ${expiringReservation.reservationId}::uuid) AS "reservationStatus",
+        (SELECT count(*)::int FROM tenancy.outbox
+          WHERE tenant_id = ${contextA.tenantId}::uuid
+            AND topic = 'usage.period.started') AS "periodEvents"
+    `;
+    expect(rolloverEvidence[0]).toEqual({ periods: 2, reservationStatus: "released", periodEvents: 1 });
 
     const webhookStore = new BillingWebhookStore(workerClient!);
     const event: VerifiedWebhook = {

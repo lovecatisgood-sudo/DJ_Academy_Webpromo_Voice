@@ -183,8 +183,60 @@ function splitText(value: string, maximum: number) {
 }
 
 export type SocialRenderInput = Readonly<{
-  recipient: string; text: string; quickReplies: readonly string[]; replyToken?: string | null;
+  recipient: string; text: string; quickReplies: readonly (string | Readonly<{ label: string; payload: string }>)[]; replyToken?: string | null;
 }>;
+
+function socialChoice(value: SocialRenderInput["quickReplies"][number]) {
+  return typeof value === "string" ? { label: value, payload: value } : value;
+}
+
+export type StructuredFlowMessage = Readonly<{
+  type: "text" | "media" | "card" | "carousel" | "actions" | "options" | "form" | "system";
+  content: Readonly<Record<string, unknown>>;
+}>;
+
+function flowActionLines(value: unknown) {
+  return array(value).flatMap((item) => {
+    const action = record(item); const label = text(action?.label); const url = text(action?.url);
+    return label && url ? [`${label}: ${url}`] : [];
+  });
+}
+
+function flowCardLines(value: unknown) {
+  const card = record(value); if (!card) return [];
+  return [text(card.title), text(card.description), text(card.priceLabel), ...flowActionLines(card.actions)].filter((item): item is string => Boolean(item));
+}
+
+export function flowMessagesToSocialReplyInput(input: Readonly<{
+  recipient: string; messages: readonly StructuredFlowMessage[]; replyToken?: string | null;
+}>): SocialRenderInput {
+  const lines: string[] = []; let quickReplies: Array<string | { label: string; payload: string }> = [];
+  for (const message of input.messages) {
+    if (message.type === "text" || message.type === "system") {
+      const value = text(message.content.text); if (value) lines.push(value);
+    } else if (message.type === "media") {
+      const label = text(message.content.label); const url = text(message.content.assetRef);
+      if (label) lines.push(label); if (url) lines.push(url);
+    } else if (message.type === "card") {
+      lines.push(...flowCardLines(message.content));
+    } else if (message.type === "carousel") {
+      for (const card of array(message.content.cards)) lines.push(...flowCardLines(card));
+    } else if (message.type === "actions") {
+      const prompt = text(message.content.text); if (prompt) lines.push(prompt);
+      lines.push(...flowActionLines(message.content.actions));
+    } else if (message.type === "options") {
+      const prompt = text(message.content.text); if (prompt) lines.push(prompt);
+      quickReplies = array(message.content.options).flatMap((item) => {
+        const option = record(item); const id = identifier(option?.id); const label = text(option?.label);
+        return id && label ? [{ label, payload: `djay_option:${id}` }] : [];
+      });
+    } else if (message.type === "form") {
+      const prompt = text(message.content.text); if (prompt) lines.push(prompt);
+    }
+  }
+  if (!lines.length && !quickReplies.length) throw new Error("empty_flow_social_reply");
+  return { recipient: input.recipient, text: lines.join("\n\n") || "Please choose an option.", quickReplies, ...(input.replyToken !== undefined ? { replyToken: input.replyToken } : {}) };
+}
 
 export function renderSocialReply(channel: SocialChannel, input: SocialRenderInput) {
   if (!input.recipient || !input.text.trim()) throw new Error("invalid_social_reply");
@@ -193,17 +245,17 @@ export function renderSocialReply(channel: SocialChannel, input: SocialRenderInp
   if (channel === "line") return {
     endpoint: input.replyToken ? "reply" as const : "push" as const,
     body: input.replyToken ? { replyToken: input.replyToken, messages: chunks.map((value, index) => ({
-      type: "text", text: value, ...(index === chunks.length - 1 && input.quickReplies.length ? { quickReply: { items: input.quickReplies.slice(0, 13).map((label) => ({ type: "action", action: { type: "message", label: label.slice(0, 20), text: label.slice(0, 300) } })) } } : {}),
+      type: "text", text: value, ...(index === chunks.length - 1 && input.quickReplies.length ? { quickReply: { items: input.quickReplies.slice(0, 13).map((value) => { const choice = socialChoice(value); return { type: "action", action: { type: "message", label: choice.label.slice(0, 20), text: choice.payload.slice(0, 300) } }; }) } } : {}),
     })) } : { to: input.recipient, messages: chunks.map((value) => ({ type: "text", text: value })) },
   };
   if (channel === "whatsapp") {
     const final = chunks.at(-1)!; const prefix = chunks.slice(0, -1).map((body) => ({ type: "text", text: { body } }));
-    const last = input.quickReplies.length ? { type: "interactive", interactive: { type: "button", body: { text: final }, action: { buttons: input.quickReplies.slice(0, 3).map((label, index) => ({ type: "reply", reply: { id: `choice_${index + 1}`, title: label.slice(0, 20) } })) } } } : { type: "text", text: { body: final } };
+    const last = input.quickReplies.length ? { type: "interactive", interactive: { type: "button", body: { text: final }, action: { buttons: input.quickReplies.slice(0, 3).map((value, index) => { const choice = socialChoice(value); return { type: "reply", reply: { id: choice.payload.slice(0, 256) || `choice_${index + 1}`, title: choice.label.slice(0, 20) } }; }) } } } : { type: "text", text: { body: final } };
     return { endpoint: "messages" as const, bodies: [...prefix, last].map((message) => ({ messaging_product: "whatsapp", recipient_type: "individual", to: input.recipient, ...message })) };
   }
   return { endpoint: "messages" as const, bodies: chunks.map((value, index) => ({
     recipient: { id: input.recipient }, messaging_type: "RESPONSE", message: {
-      text: value, ...(index === chunks.length - 1 && input.quickReplies.length ? { quick_replies: input.quickReplies.slice(0, 13).map((title) => ({ content_type: "text", title: title.slice(0, 20), payload: title.slice(0, 1000) })) } : {}),
+      text: value, ...(index === chunks.length - 1 && input.quickReplies.length ? { quick_replies: input.quickReplies.slice(0, 13).map((value) => { const choice = socialChoice(value); return { content_type: "text", title: choice.label.slice(0, 20), payload: choice.payload.slice(0, 1000) }; }) } : {}),
     },
   })) };
 }

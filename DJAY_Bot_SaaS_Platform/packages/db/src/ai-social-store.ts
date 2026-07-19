@@ -80,10 +80,18 @@ export class AiSocialConnectionStore {
 
   private async createChannel(context: TenantContext, channel: SocialChannel, input: SocialConnectionInput) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
-      const authority = await sql<{ entitled: boolean; deploymentLimit: number | null }[]>`
+      const authority = await sql<{ entitled: boolean; socialChannelLimit: number | null }[]>`
         SELECT true AS entitled,
-               CASE WHEN jsonb_typeof(snapshot.resolved_json->'limits'->'deployments') = 'number'
-                 THEN (snapshot.resolved_json->'limits'->>'deployments')::int ELSE NULL END AS "deploymentLimit"
+               CASE WHEN jsonb_typeof(snapshot.resolved_json->'limits'->'social_channels') = 'number'
+                 THEN (snapshot.resolved_json->'limits'->>'social_channels')::int + COALESCE((
+                   SELECT sum(add_on.quantity)::int FROM tenancy.subscription_add_ons add_on
+                   WHERE add_on.tenant_id = snapshot.tenant_id
+                     AND add_on.subscription_id = snapshot.subscription_id
+                     AND add_on.add_on_key = 'additional_social_channel'
+                     AND add_on.status IN ('active', 'scheduled_end')
+                     AND add_on.effective_from <= now()
+                     AND (add_on.effective_until IS NULL OR add_on.effective_until > now())
+                 ), 0) ELSE NULL END AS "socialChannelLimit"
         FROM tenancy.entitlement_snapshots snapshot
         JOIN tenancy.product_subscriptions subscription
           ON subscription.tenant_id = snapshot.tenant_id AND subscription.id = snapshot.subscription_id
@@ -97,8 +105,10 @@ export class AiSocialConnectionStore {
         ORDER BY snapshot.created_at DESC, snapshot.id DESC LIMIT 1
       `;
       if (!authority[0]?.entitled) return { status: "not_entitled" as const };
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${context.tenantId}:ai_chat:social_channels`}, 0))`;
       const agents = await sql<{ available: boolean }[]>`
-        SELECT status = 'active' AND current_published_playbook_version_id IS NOT NULL AS available
+        SELECT status = 'active' AND current_published_playbook_version_id IS NOT NULL
+          AND tenancy.entitlement_resource_is_writable('ai_chat', 'bot', id) AS available
         FROM tenancy.ai_agents
         WHERE tenant_id = ${context.tenantId}::uuid AND id = ${input.agentId}::uuid
       `;
@@ -112,10 +122,10 @@ export class AiSocialConnectionStore {
       `;
       if (existing[0]?.exists) return { status: "conflict" as const };
       const counts = await sql<{ count: number }[]>`
-        SELECT count(*)::int AS count FROM tenancy.ai_deployments
-        WHERE tenant_id = ${context.tenantId}::uuid AND status = 'active'
+        SELECT count(*)::int AS count FROM tenancy.ai_social_connections
+        WHERE tenant_id = ${context.tenantId}::uuid AND status <> 'revoked'
       `;
-      const limit = authority[0].deploymentLimit;
+      const limit = authority[0].socialChannelLimit;
       if (typeof limit === "number" && (counts[0]?.count ?? 0) >= limit) {
         return { status: "limit_reached" as const };
       }

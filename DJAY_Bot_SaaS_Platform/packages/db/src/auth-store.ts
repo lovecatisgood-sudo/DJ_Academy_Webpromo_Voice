@@ -20,6 +20,8 @@ import {
   type RotateWorkspaceSessionCommand,
   type ResendVerificationCommand,
 } from "@djay/auth";
+import type { TenantRole } from "@djay/authorization";
+import type { InvitationRole } from "@djay/auth";
 import type { DatabaseClient } from "./client";
 
 type SignupRow = {
@@ -355,7 +357,7 @@ export class PostgresAuthStore implements AuthStore {
       tenant_slug: string;
       business_name: string;
       membership_id: string;
-      membership_role: "tenant_master_admin" | "tenant_admin" | "tenant_operator" | "tenant_analyst";
+      membership_role: TenantRole;
     }[]>`
       SELECT * FROM identity.active_memberships_for_user(${identity.user_id}::uuid)
     `;
@@ -592,7 +594,7 @@ export class PostgresAuthStore implements AuthStore {
       tenant_slug: string;
       business_name: string;
       membership_id: string;
-      membership_role: "tenant_master_admin" | "tenant_admin" | "tenant_operator" | "tenant_analyst";
+      membership_role: TenantRole;
     }[]>`SELECT * FROM identity.active_memberships_for_user(${session.user_id}::uuid)`;
     const mapped = workspaces.map((workspace) => ({
       tenantId: workspace.tenant_id,
@@ -754,6 +756,11 @@ export class PostgresAuthStore implements AuthStore {
       `;
       if (pending[0]) return { status: "already_pending" as const };
 
+      const capacity = await sql<{ allowed: boolean }[]>`
+        SELECT allowed FROM tenancy.administrator_seat_capacity(false)
+      `;
+      if (!capacity[0]?.allowed) return { status: "seat_limit_reached" as const };
+
       await sql`
         INSERT INTO identity.one_time_tokens (
           id, token_hash, purpose, tenant_id, expires_at
@@ -818,7 +825,7 @@ export class PostgresAuthStore implements AuthStore {
         invitation_id: string;
         invitation_status: string;
         email_normalized: string;
-        role: "tenant_admin" | "tenant_operator" | "tenant_analyst";
+        role: InvitationRole;
         accepted_by_user_id: string | null;
       }[]>`
         SELECT token.id AS token_id, token.consumed_at AS token_consumed_at,
@@ -862,6 +869,11 @@ export class PostgresAuthStore implements AuthStore {
         `;
         return { status: "invalid_or_expired" as const };
       }
+
+      const capacity = await sql<{ allowed: boolean }[]>`
+        SELECT allowed FROM tenancy.administrator_seat_capacity(true)
+      `;
+      if (!capacity[0]?.allowed) return { status: "seat_limit_reached" as const };
 
       const existing = await sql<{ user_id: string }[]>`
         SELECT user_id FROM identity.email_addresses
@@ -1282,7 +1294,7 @@ export class PostgresAuthStore implements AuthStore {
       tenant_slug: string;
       business_name: string;
       membership_id: string;
-      membership_role: "tenant_master_admin" | "tenant_admin" | "tenant_operator" | "tenant_analyst";
+      membership_role: TenantRole;
     }[]>`SELECT * FROM identity.active_memberships_for_user(${row.user_id}::uuid)`;
     return {
       challengeId: row.challenge_id,

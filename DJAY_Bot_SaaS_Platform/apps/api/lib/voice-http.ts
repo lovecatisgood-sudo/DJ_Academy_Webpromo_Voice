@@ -19,7 +19,7 @@ export function voiceRequestCredentials(request: NextRequest) {
 export function voiceCorsHeaders(origin: string): HeadersInit {
   return {
     "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-DJAY-Voice-Key",
     "Access-Control-Max-Age": "600",
     Vary: "Origin",

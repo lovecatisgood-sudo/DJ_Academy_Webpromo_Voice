@@ -23,9 +23,11 @@ const env = z.object({
   VOICE_AUTHORIZATION_SERVICE_TOKEN: z.string().min(32),
   VOICE_MEDIA_CONTEXT_ENDPOINT: z.string().url().optional(),
   VOICE_TURN_ENDPOINT: z.string().url().optional(),
+  VOICE_GEN1_PROVIDER_KEY: z.enum(["google_live", "openai_realtime"]).default("google_live"),
   VOICE_GEN1_API_KEY: z.string().min(20).optional(),
-  VOICE_GEN1_MODEL: z.literal("gemini-3.1-flash-live-preview").default("gemini-3.1-flash-live-preview"),
+  VOICE_GEN1_MODEL: z.string().min(2).max(160).default("gemini-3.1-flash-live-preview"),
   VOICE_GEN1_VOICE_NAME: z.string().min(2).max(80).default("Puck"),
+  VOICE_GEN1_TRANSCRIPTION_MODEL: z.string().min(2).max(160).optional(),
   VOICE_GEN2_PROVIDER_KEY: z.literal("google_live").optional(),
   VOICE_GEN2_API_KEY: z.string().min(20).optional(),
   VOICE_GEN2_MODEL: z.string().min(2).max(160).optional(),
@@ -104,8 +106,11 @@ const mediaFactory: VoiceMediaFactory = mediaReady ? createConfiguredVoiceMediaF
   contextEndpoint: env.VOICE_MEDIA_CONTEXT_ENDPOINT!, turnEndpoint: env.VOICE_TURN_ENDPOINT!,
   serviceToken: env.VOICE_AUTHORIZATION_SERVICE_TOKEN,
   ...(gen1Ready ? { gen1: {
+    providerKey: env.VOICE_GEN1_PROVIDER_KEY,
     apiKey: env.VOICE_GEN1_API_KEY!, model: env.VOICE_GEN1_MODEL,
     voiceName: env.VOICE_GEN1_VOICE_NAME,
+    ...(env.VOICE_GEN1_TRANSCRIPTION_MODEL
+      ? { transcriptionModel: env.VOICE_GEN1_TRANSCRIPTION_MODEL } : {}),
   } } : {}),
   ...(gen2Ready ? { gen2: {
     providerKey: env.VOICE_GEN2_PROVIDER_KEY!, apiKey: env.VOICE_GEN2_API_KEY!,

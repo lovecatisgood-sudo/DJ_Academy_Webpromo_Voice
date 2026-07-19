@@ -14,12 +14,16 @@ import { createSocialDeliveryClient } from "@djay/channel-adapters";
 import {
   AiChatRuntimeStore,
   AiChatStore,
+  TenantAiOperationsStore,
   AiSocialConnectionStore,
   AiSocialRuntimeStore,
   createDatabaseClient,
   DatabaseReadinessProbe,
   BillingWebhookStore,
+  TenantBillingNotificationStore,
   FlowBotStore,
+  FlowSocialConnectionStore,
+  FlowSocialRuntimeStore,
   TenantFlowbotNotificationStore,
   TenantAiNotificationStore,
   FlowbotRuntimeStore,
@@ -36,13 +40,19 @@ import {
   TenantCommerceStore,
   TenantFlowbotIntegrationStore,
   SharedDomainStore,
+  TenantKnowledgeIngestionStore,
   TenantWorkspaceStore,
+  TenantResourceBoundaryStore,
   VoiceRuntimeStore,
   VoiceDeploymentStore,
+  TenantVoiceTelephonyStore,
+  TenantSharedSaasOperationsStore,
+  PlatformSharedSaasOperationsStore,
 } from "@djay/db";
 import { createPlatformAuthService } from "@djay/platform-auth";
 import { createHttpTextProviderGateway } from "@djay/provider-gateway";
 import { assertNoProductionPlaceholders } from "@djay/shared/production-config";
+import { createStripePaymentProvider } from "@djay/usage-billing";
 import { z } from "zod";
 import { assertApiProductionUrlPolicy } from "./environment-policy";
 import { loadLegalDocuments } from "./legal-documents";
@@ -55,6 +65,7 @@ const envSchema = z.object({
   TENANT_APP_URL: z.string().url(),
   PLATFORM_APP_URL: z.string().url(),
   API_APP_URL: z.string().url().optional(),
+  KNOWLEDGE_OBJECT_BUCKET: z.string().min(3).max(222).optional(),
   AUTH_REQUEST_HASH_KEY: z.string().min(40),
   AUTH_EMAIL_ENVELOPE_KEY: z.string().min(40),
   AUTH_RATE_LIMIT_KEY: z.string().min(40),
@@ -65,14 +76,23 @@ const envSchema = z.object({
   BILLING_DATABASE_URL: z.string().url().optional(),
   BILLING_WEBHOOK_SECRET: z.string().min(40).optional(),
   BILLING_WEBHOOK_ENVELOPE_KEY: z.string().min(40).optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().min(16).optional(),
+  STRIPE_SECRET_KEY: z.string().min(20).optional(),
+  BILLING_CHECKOUT_ENVELOPE_KEY: z.string().min(40).optional(),
+  STRIPE_LIVE_MODE: z.enum(["true", "false"]).default("false"),
   PRIVACY_EXPORT_KEY: z.string().min(40).optional(),
   FLOWBOT_DATABASE_URL: z.string().url().optional(),
   FLOWBOT_INTEGRATION_ENVELOPE_KEY: z.string().min(40).optional(),
   FLOWBOT_NOTIFICATION_ENVELOPE_KEY: z.string().min(40).optional(),
+  FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY: z.string().min(40).optional(),
+  FLOWBOT_SOCIAL_SUBJECT_HASH_KEY: z.string().min(40).optional(),
   AI_DATABASE_URL: z.string().url().optional(),
   AI_TEXT_GATEWAY_ENDPOINT: z.string().url().optional(),
   AI_TEXT_GATEWAY_SERVICE_TOKEN: z.string().min(32).optional(),
   AI_NOTIFICATION_ENVELOPE_KEY: z.string().min(40).optional(),
+  AI_INTEGRATION_ENVELOPE_KEY: z.string().min(40).optional(),
+  USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY: z.string().min(40).optional(),
+  BILLING_NOTIFICATION_ENVELOPE_KEY: z.string().min(40).optional(),
   AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY: z.string().min(40).optional(),
   AI_SOCIAL_SUBJECT_HASH_KEY: z.string().min(40).optional(),
   AI_SOCIAL_LINE_API_BASE_URL: z.string().url().default("https://api.line.me/"),
@@ -81,6 +101,7 @@ const envSchema = z.object({
   VOICE_RUNTIME_ENABLED: z.enum(["true", "false"]).default("false"),
   VOICE_GATEWAY_URL: z.string().url().refine((value) => ["ws:", "wss:"].includes(new URL(value).protocol)).optional(),
   VOICE_AUTHORIZATION_SERVICE_TOKEN: z.string().min(32).optional(),
+  VOICE_TELEPHONY_ENVELOPE_KEY: z.string().min(40).optional(),
   VOICE_SESSION_GRANT_TTL_SECONDS: z.coerce.number().int().min(15).max(300).default(60),
   VOICE_RECONNECT_MAX_ATTEMPTS: z.coerce.number().int().min(0).max(10).default(3),
   VOICE_RECONNECT_BACKOFF_MS: z.coerce.number().int().min(100).max(30_000).default(500),
@@ -106,17 +127,28 @@ async function buildServices() {
   if (env.NODE_ENV === "production" && !env.FLOWBOT_DATABASE_URL) throw new Error("FLOWBOT_DATABASE_URL is required in production.");
   if (env.NODE_ENV === "production" && !env.FLOWBOT_INTEGRATION_ENVELOPE_KEY) throw new Error("FLOWBOT_INTEGRATION_ENVELOPE_KEY is required in production.");
   if (env.NODE_ENV === "production" && !env.FLOWBOT_NOTIFICATION_ENVELOPE_KEY) throw new Error("FLOWBOT_NOTIFICATION_ENVELOPE_KEY is required in production.");
+  if (env.NODE_ENV === "production" && !env.FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY) throw new Error("FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY is required in production.");
+  if (env.NODE_ENV === "production" && !env.FLOWBOT_SOCIAL_SUBJECT_HASH_KEY) throw new Error("FLOWBOT_SOCIAL_SUBJECT_HASH_KEY is required in production.");
   if (env.NODE_ENV === "production" && !env.AI_DATABASE_URL) throw new Error("AI_DATABASE_URL is required in production.");
   if (env.NODE_ENV === "production" && !env.AI_TEXT_GATEWAY_ENDPOINT) throw new Error("AI_TEXT_GATEWAY_ENDPOINT is required in production.");
   if (env.NODE_ENV === "production" && !env.AI_TEXT_GATEWAY_SERVICE_TOKEN) throw new Error("AI_TEXT_GATEWAY_SERVICE_TOKEN is required in production.");
   if (env.NODE_ENV === "production" && !env.AI_NOTIFICATION_ENVELOPE_KEY) throw new Error("AI_NOTIFICATION_ENVELOPE_KEY is required in production.");
+  if (env.NODE_ENV === "production" && !env.AI_INTEGRATION_ENVELOPE_KEY) throw new Error("AI_INTEGRATION_ENVELOPE_KEY is required in production.");
+  if (env.NODE_ENV === "production" && !env.USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY) throw new Error("USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY is required in production.");
+  if (env.NODE_ENV === "production" && env.BILLING_DATABASE_URL && !env.BILLING_NOTIFICATION_ENVELOPE_KEY) throw new Error("BILLING_NOTIFICATION_ENVELOPE_KEY is required when commerce is enabled.");
   if (env.NODE_ENV === "production" && !env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY) throw new Error("AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY is required in production.");
+  if (env.NODE_ENV === "production" && !env.VOICE_TELEPHONY_ENVELOPE_KEY) throw new Error("VOICE_TELEPHONY_ENVELOPE_KEY is required in production.");
+  if (env.NODE_ENV === "production" && !env.KNOWLEDGE_OBJECT_BUCKET) throw new Error("KNOWLEDGE_OBJECT_BUCKET is required in production.");
   if (env.NODE_ENV === "production" && !env.AI_SOCIAL_SUBJECT_HASH_KEY) throw new Error("AI_SOCIAL_SUBJECT_HASH_KEY is required in production.");
   if (env.VOICE_RUNTIME_ENABLED === "true" && (!env.VOICE_DATABASE_URL || !env.VOICE_GATEWAY_URL || !env.VOICE_AUTHORIZATION_SERVICE_TOKEN)) {
     throw new Error("Voice database, gateway, and authorization configuration is required in production.");
   }
   if (env.NODE_ENV === "production" && !env.OPERATIONS_INGEST_TOKEN) {
     throw new Error("OPERATIONS_INGEST_TOKEN is required in production.");
+  }
+  if (env.BILLING_DATABASE_URL && (!env.STRIPE_SECRET_KEY || !env.BILLING_CHECKOUT_ENVELOPE_KEY
+    || !env.STRIPE_WEBHOOK_SECRET || !env.BILLING_WEBHOOK_ENVELOPE_KEY)) {
+    throw new Error("Stripe billing configuration is incomplete.");
   }
   const store = new PostgresAuthStore(client);
   const platformStore = new PostgresPlatformAuthStore(platformClient);
@@ -128,6 +160,10 @@ async function buildServices() {
     ? parse32ByteSecret(env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY, "AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY") : null;
   const aiSocialSubjectHashKey = env.AI_SOCIAL_SUBJECT_HASH_KEY
     ? parse32ByteSecret(env.AI_SOCIAL_SUBJECT_HASH_KEY, "AI_SOCIAL_SUBJECT_HASH_KEY") : null;
+  const flowSocialCredentialKey = env.FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY
+    ? parse32ByteSecret(env.FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY, "FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY") : null;
+  const flowSocialSubjectHashKey = env.FLOWBOT_SOCIAL_SUBJECT_HASH_KEY
+    ? parse32ByteSecret(env.FLOWBOT_SOCIAL_SUBJECT_HASH_KEY, "FLOWBOT_SOCIAL_SUBJECT_HASH_KEY") : null;
   const aiGateway = env.AI_TEXT_GATEWAY_ENDPOINT && env.AI_TEXT_GATEWAY_SERVICE_TOKEN
     ? createHttpTextProviderGateway({
       endpoint: env.AI_TEXT_GATEWAY_ENDPOINT,
@@ -139,10 +175,19 @@ async function buildServices() {
     env,
     store,
     tenantWorkspace: new TenantWorkspaceStore(tenantClient),
+    tenantResourceBoundaries: new TenantResourceBoundaryStore(tenantClient),
     tenantCommerce: new TenantCommerceStore(tenantClient),
+    tenantBillingNotifications: new TenantBillingNotificationStore(tenantClient),
+    billingNotificationEnvelopeKey: env.BILLING_NOTIFICATION_ENVELOPE_KEY
+      ? parse32ByteSecret(env.BILLING_NOTIFICATION_ENVELOPE_KEY, "BILLING_NOTIFICATION_ENVELOPE_KEY") : null,
+    usageAlertNotificationEnvelopeKey: env.USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY
+      ? parse32ByteSecret(env.USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY, "USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY") : null,
     sharedDomain: new SharedDomainStore(tenantClient),
+    knowledgeIngestion: new TenantKnowledgeIngestionStore(tenantClient),
     flowbot: new FlowBotStore(tenantClient),
+    tenantFlowSocial: new FlowSocialConnectionStore(tenantClient),
     aiChat: new AiChatStore(tenantClient),
+    tenantAiOperations: new TenantAiOperationsStore(tenantClient),
     tenantAiSocial: new AiSocialConnectionStore(tenantClient),
     tenantFlowbotNotifications: new TenantFlowbotNotificationStore(tenantClient),
     tenantAiNotifications: new TenantAiNotificationStore(tenantClient),
@@ -153,6 +198,10 @@ async function buildServices() {
         ? parse32ByteSecret(env.FLOWBOT_INTEGRATION_ENVELOPE_KEY, "FLOWBOT_INTEGRATION_ENVELOPE_KEY")
         : null,
     ) : null,
+    flowSocialRuntime: env.FLOWBOT_DATABASE_URL && flowSocialCredentialKey
+      ? new FlowSocialRuntimeStore(createDatabaseClient(env.FLOWBOT_DATABASE_URL), flowSocialCredentialKey) : null,
+    flowSocialCredentialKey,
+    flowSocialSubjectHashKey,
     aiChatRuntimeStore: aiRuntimeStore,
     aiSocialRuntime: env.AI_DATABASE_URL && aiSocialCredentialKey
       ? new AiSocialRuntimeStore(createDatabaseClient(env.AI_DATABASE_URL), aiSocialCredentialKey)
@@ -167,6 +216,10 @@ async function buildServices() {
     voiceRuntime: env.VOICE_RUNTIME_ENABLED === "true" && env.VOICE_DATABASE_URL
       ? new VoiceRuntimeStore(createDatabaseClient(env.VOICE_DATABASE_URL)) : null,
     voiceDeployments: new VoiceDeploymentStore(tenantClient),
+    tenantVoiceTelephony: new TenantVoiceTelephonyStore(tenantClient),
+    tenantSharedOperations: new TenantSharedSaasOperationsStore(tenantClient),
+    voiceTelephonyEnvelopeKey: env.VOICE_TELEPHONY_ENVELOPE_KEY
+      ? parse32ByteSecret(env.VOICE_TELEPHONY_ENVELOPE_KEY, "VOICE_TELEPHONY_ENVELOPE_KEY") : null,
     aiTextGateway: aiGateway,
     privacy: new PrivacyStore(tenantClient),
     privacyExportKey: env.PRIVACY_EXPORT_KEY
@@ -179,6 +232,7 @@ async function buildServices() {
     platformVoiceOperations: new PlatformVoiceOperationsStore(platformClient),
     platformSupport: new PlatformSupportStore(platformClient),
     platformFlowbotIntegrations: new PlatformFlowbotIntegrationStore(platformClient),
+    platformSharedOperations: new PlatformSharedSaasOperationsStore(platformClient),
     flowbotIntegrationEnvelopeKey: env.FLOWBOT_INTEGRATION_ENVELOPE_KEY
       ? parse32ByteSecret(env.FLOWBOT_INTEGRATION_ENVELOPE_KEY, "FLOWBOT_INTEGRATION_ENVELOPE_KEY")
       : null,
@@ -188,11 +242,22 @@ async function buildServices() {
     aiNotificationEnvelopeKey: env.AI_NOTIFICATION_ENVELOPE_KEY
       ? parse32ByteSecret(env.AI_NOTIFICATION_ENVELOPE_KEY, "AI_NOTIFICATION_ENVELOPE_KEY")
       : null,
+    aiIntegrationEnvelopeKey: env.AI_INTEGRATION_ENVELOPE_KEY
+      ? parse32ByteSecret(env.AI_INTEGRATION_ENVELOPE_KEY, "AI_INTEGRATION_ENVELOPE_KEY")
+      : null,
     billingWebhook: billingClient ? new BillingWebhookStore(billingClient) : null,
     billingWebhookSecret: env.BILLING_WEBHOOK_SECRET
       ? parse32ByteSecret(env.BILLING_WEBHOOK_SECRET, "BILLING_WEBHOOK_SECRET") : null,
     billingWebhookEnvelopeKey: env.BILLING_WEBHOOK_ENVELOPE_KEY
       ? parse32ByteSecret(env.BILLING_WEBHOOK_ENVELOPE_KEY, "BILLING_WEBHOOK_ENVELOPE_KEY") : null,
+    billingCheckoutEnvelopeKey: env.BILLING_CHECKOUT_ENVELOPE_KEY
+      ? parse32ByteSecret(env.BILLING_CHECKOUT_ENVELOPE_KEY, "BILLING_CHECKOUT_ENVELOPE_KEY") : null,
+    stripePaymentProvider: env.STRIPE_SECRET_KEY ? createStripePaymentProvider({
+      secretKey: env.STRIPE_SECRET_KEY,
+      allowedReturnOrigins: [env.TENANT_APP_URL],
+    }) : null,
+    stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET ?? null,
+    stripeLiveMode: env.STRIPE_LIVE_MODE === "true",
     platformStore,
     rateLimitKey: parse32ByteSecret(env.AUTH_RATE_LIMIT_KEY, "AUTH_RATE_LIMIT_KEY"),
     legalDocuments,

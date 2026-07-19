@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   platformPermissions,
   platformRoleAllows,
+  hasRecentTenantAssurance,
   tenantPermissions,
   tenantRoleAllows,
+  tenantPermissionRequiresAssurance,
 } from "./index";
 
 describe("authorization policy", () => {
@@ -30,6 +32,30 @@ describe("authorization policy", () => {
     expect(tenantRoleAllows("tenant_master_admin", "subscriptions.manage")).toBe(true);
     expect(tenantRoleAllows("tenant_admin", "subscriptions.manage")).toBe(false);
     expect(tenantRoleAllows("tenant_operator", "subscriptions.manage")).toBe(false);
+  });
+
+  it("separates billing, conversation design, human-agent, analyst, and support jobs", () => {
+    expect(tenantRoleAllows("tenant_billing_manager", "billing.checkout")).toBe(true);
+    expect(tenantRoleAllows("tenant_billing_manager", "flowbot.author")).toBe(false);
+    expect(tenantRoleAllows("tenant_conversation_manager", "flowbot.publish")).toBe(true);
+    expect(tenantRoleAllows("tenant_conversation_manager", "billing.cancel")).toBe(false);
+    expect(tenantRoleAllows("tenant_human_agent", "conversations.reply")).toBe(true);
+    expect(tenantRoleAllows("tenant_human_agent", "ai_chat.publish")).toBe(false);
+    expect(tenantRoleAllows("tenant_analyst", "conversations.reply")).toBe(false);
+    expect(tenantRoleAllows("tenant_readonly_support", "contacts.write")).toBe(false);
+  });
+
+  it("requires recent password and MFA assurance for every sensitive billing job", () => {
+    for (const permission of [
+      "billing.checkout", "billing.portal", "billing.tax.manage", "billing.overage.manage",
+      "billing.packs.purchase", "billing.plan.change", "billing.cancel",
+    ] as const) expect(tenantPermissionRequiresAssurance(permission)).toBe(true);
+    const now = new Date("2026-07-18T12:00:00Z");
+    expect(hasRecentTenantAssurance({ reauthenticatedAt: now, mfaVerifiedAt: now, now })).toBe(true);
+    expect(hasRecentTenantAssurance({
+      reauthenticatedAt: new Date(now.getTime() - 11 * 60 * 1000), mfaVerifiedAt: now, now,
+    })).toBe(false);
+    expect(hasRecentTenantAssurance({ reauthenticatedAt: now, mfaVerifiedAt: null, now })).toBe(false);
   });
 
   it("keeps billing reconciliation restricted to Platform Owner and Finance", () => {

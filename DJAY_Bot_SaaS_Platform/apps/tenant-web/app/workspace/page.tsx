@@ -23,6 +23,7 @@ type Onboarding = {
     configuredProducts: Subscription["productKey"][];
     testedProducts: Subscription["productKey"][];
     launchReadyProducts: Subscription["productKey"][];
+    productStates: { productKey: Subscription["productKey"]; activeAccess: boolean; configured: boolean; tested: boolean; deployed: boolean; launchReady: boolean; nextAction: "activate" | "configure" | "deploy" | "test" | "operate" }[];
   };
 };
 type Subscription = {
@@ -153,15 +154,11 @@ export default function WorkspacePage() {
   if (loadError) return <WorkspacePageLoadError active="overview" title={activeWorkspace?.businessName || "Workspace"} resource="workspace setup" workspaces={workspaces} selectedTenantId={selectedTenantId} onSelect={(tenantId) => void selectWorkspace(tenantId)} onLogout={() => void logout()} onRetry={() => void load()} />;
 
   const readiness = onboarding?.readiness;
-  const primaryProduct = readiness?.selectedProducts[0];
-  const productHref = primaryProduct ? productRoutes[primaryProduct] : null;
-  const checklist = [
+  const checklist: { key: string; label: string; detail: string; complete: boolean; href?: string }[] = [
     { key: "account", label: "Account secured", detail: "Email verification and workspace ownership are complete.", complete: true },
     { key: "business", label: "Business profile", detail: readiness?.businessProfile ? "Business name, language, and timezone are available." : "Complete the required business details.", complete: readiness?.businessProfile ?? false },
     { key: "product", label: "Product access", detail: readiness?.productSelected ? readiness.activeAccess ? "A selected product has active access." : "Product selected; reviewed activation is still pending." : "No product has been selected for this workspace.", complete: readiness?.activeAccess ?? false },
-    { key: "configure", label: "Configure", detail: readiness?.configuredProducts.length ? "A current product version is published." : "Publish the product behavior customers should receive.", complete: Boolean(readiness?.configuredProducts.length), href: productHref },
-    { key: "test", label: "Test end to end", detail: readiness?.testedProducts.length ? "Current-version customer journey evidence is available." : "Complete a real safe test of the current published version.", complete: Boolean(readiness?.testedProducts.length), href: productHref },
-    { key: "launch", label: "Technical launch readiness", detail: readiness?.launchReadyProducts.length ? "Active access, configuration, deployment, and current-version test evidence agree." : "Launch stays blocked until access, configuration, deployment, and test evidence agree.", complete: Boolean(readiness?.launchReadyProducts.length) },
+    { key: "technical", label: "Technical launch readiness", detail: readiness?.launchReadyProducts.length ? "At least one product has current configuration, deployment, and successful test evidence." : "Configure, deploy, and test a product before public rollout.", complete: Boolean(readiness?.launchReadyProducts.length) },
   ];
 
   return (
@@ -190,6 +187,16 @@ export default function WorkspacePage() {
               <small>{step.complete ? "Complete" : "Action needed"}</small>
             </li>)}
           </ol>
+          {readiness?.productStates.length ? <div className="product-lifecycle-list" aria-label="Product setup progress">{readiness.productStates.map((product) => {
+            const title = product.productKey === "flowbot" ? "Flow Bot" : product.productKey === "ai_chat" ? "AI Text Bot" : "AI Voice Bot";
+            const labels = [
+              ["Access", product.activeAccess], ["Configured", product.configured], ["Deployed", product.deployed], ["Tested", product.tested], ["Ready", product.launchReady],
+            ] as const;
+            return <article key={product.productKey}><div><span>{product.launchReady ? "Live operations" : "Setup in progress"}</span><h3>{title}</h3></div>
+              <ol>{labels.map(([label, complete]) => <li className={complete ? "complete" : "pending"} key={label}><span aria-hidden="true">{complete ? "✓" : "·"}</span>{label}</li>)}</ol>
+              <a href={productRoutes[product.productKey]}>{product.nextAction === "operate" ? "Open operations" : product.nextAction === "activate" ? "Review access" : `Continue ${product.nextAction}`}</a>
+            </article>;
+          })}</div> : null}
           <div className="onboarding-refresh">
             <p>Public rollout still requires the applicable product, legal, commercial, and operational release gates.</p>
             {canUpdateOnboarding ? <button type="button" disabled={refreshing} onClick={() => void refreshOnboarding()}>{refreshing ? "Checking evidence…" : "Refresh checklist"}</button> : null}

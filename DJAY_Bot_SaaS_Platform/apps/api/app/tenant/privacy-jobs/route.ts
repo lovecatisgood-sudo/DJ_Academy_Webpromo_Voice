@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { ZodError } from "zod";
 import { hasTrustedOrigin, readJson, safeJson } from "../../../lib/http";
 import { resolveTenantRequest } from "../../../lib/tenant-context";
+import { hasSensitiveTenantAssurance } from "../../../lib/tenant-assurance";
 
 export async function GET(request: NextRequest) {
   const resolved = await resolveTenantRequest(request);
@@ -16,6 +17,7 @@ export async function POST(request: NextRequest) {
   if (!resolved || !tenantRoleAllows(resolved.context.role, "privacy.manage") || !(await hasTrustedOrigin(request))) {
     return safeJson({ status: "not_found" }, 404);
   }
+  if (!hasSensitiveTenantAssurance(resolved.session)) return safeJson({ status: "reauthentication_required" }, 403);
   try {
     const result = await resolved.services.sharedDomain.requestPrivacyJob(
       resolved.context,

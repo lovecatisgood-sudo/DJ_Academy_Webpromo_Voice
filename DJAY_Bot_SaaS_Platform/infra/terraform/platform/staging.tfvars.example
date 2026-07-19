@@ -1,0 +1,70 @@
+environment                = "staging"
+aws_region                 = "ap-southeast-7"
+recovery_region            = "ap-southeast-1"
+release_version            = "replace-with-immutable-git-sha"
+certificate_arn            = "arn:aws:acm:ap-southeast-7:111122223333:certificate/replace"
+cloudfront_certificate_arn = "arn:aws:acm:us-east-1:111122223333:certificate/replace"
+route53_zone_id            = "replace-with-zone-id"
+
+hostnames = {
+  public   = "staging.djaybot.com"
+  tenant   = "tenant.staging.djaybot.com"
+  platform = "platform.staging.djaybot.com"
+  api      = "api.staging.djaybot.com"
+  voice    = "voice.staging.djaybot.com"
+  widget   = "cdn.staging.djaybot.com"
+}
+
+desired_counts = {
+  public-site     = 1
+  tenant-web      = 1
+  platform-master = 1
+  api             = 1
+  ai-gateway      = 1
+  voice-gateway   = 1
+  workers         = 1
+}
+
+service_environment = {
+  public-site = {
+    PORT           = "8080"
+    PUBLIC_APP_URL = "https://staging.djaybot.com"
+    API_APP_URL    = "https://api.staging.djaybot.com"
+  }
+  tenant-web = {
+    PORT                       = "8080"
+    PUBLIC_APP_URL             = "https://staging.djaybot.com"
+    TENANT_APP_URL             = "https://tenant.staging.djaybot.com"
+    API_APP_URL                = "https://api.staging.djaybot.com"
+    NEXT_PUBLIC_PUBLIC_APP_URL = "https://staging.djaybot.com"
+    NEXT_PUBLIC_API_APP_URL    = "https://api.staging.djaybot.com"
+    NEXT_PUBLIC_WIDGET_CDN_URL = "https://cdn.staging.djaybot.com"
+  }
+  platform-master = {
+    PORT             = "8080"
+    PLATFORM_APP_URL = "https://platform.staging.djaybot.com"
+    API_APP_URL      = "https://api.staging.djaybot.com"
+  }
+  api = {
+    PORT                      = "8080"
+    PUBLIC_APP_URL            = "https://staging.djaybot.com"
+    TENANT_APP_URL            = "https://tenant.staging.djaybot.com"
+    PLATFORM_APP_URL          = "https://platform.staging.djaybot.com"
+    API_APP_URL               = "https://api.staging.djaybot.com"
+    AI_TEXT_GATEWAY_ENDPOINT  = "http://ai-gateway.staging.djay.internal:8080/v1/generate"
+    VOICE_GATEWAY_URL         = "wss://voice.staging.djaybot.com/v1/connect"
+    STRIPE_LIVE_MODE          = "false"
+    VOICE_RUNTIME_ENABLED     = "false"
+  }
+  ai-gateway = {
+    PORT                   = "8080"
+    OPENAI_RESPONSES_MODEL = "replace-after-live-evaluation"
+  }
+  voice-gateway = {
+    PORT                           = "8080"
+    VOICE_GEN1_PROVIDER_KEY        = "openai_realtime"
+    VOICE_GEN1_MODEL               = "replace-after-live-evaluation"
+    VOICE_GEN1_VOICE_NAME          = "replace-after-live-evaluation"
+    VOICE_GEN1_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe"
+  }
+}

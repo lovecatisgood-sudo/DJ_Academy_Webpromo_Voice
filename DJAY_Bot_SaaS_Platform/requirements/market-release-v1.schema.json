@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://djbot.djai.academy/schemas/market-release-v1.schema.json",
+  "title": "DJay Bots V1 market-release requirement registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "prd", "packages", "requirements"],
+  "properties": {
+    "$schema": { "const": "./market-release-v1.schema.json" },
+    "schema_version": { "const": "1.0.0" },
+    "prd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "expected_requirement_count"],
+      "properties": {
+        "path": { "const": "docs/product/djay-bots-v1-market-release-prd.md" },
+        "expected_requirement_count": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "packages": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["plan_key", "sellable"],
+        "properties": {
+          "plan_key": {
+            "enum": ["flowbot_basic", "flowbot_premium", "ai_chat_basic", "ai_chat_premium", "voice_basic_gen1", "voice_advanced_gen2"]
+          },
+          "sellable": { "type": "boolean" }
+        }
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/requirement" }
+    }
+  },
+  "$defs": {
+    "stringArray": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "title", "packages", "owner_work_package", "supporting_work_packages", "implementation_paths",
+        "migration_ids", "api_contracts", "ui_routes", "entitlement_keys", "meter_keys", "test_ids", "runbooks",
+        "evidence", "status", "accepted_by"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Z]{2,4}-[0-9]{3}$" },
+        "title": { "type": "string", "minLength": 1 },
+        "packages": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["shared", "flowbot_basic", "flowbot_premium", "ai_chat_basic", "ai_chat_premium", "voice_basic_gen1", "voice_advanced_gen2"]
+          }
+        },
+        "owner_work_package": { "type": "string", "pattern": "^[A-Z]+-[0-9]{2}$" },
+        "supporting_work_packages": { "$ref": "#/$defs/stringArray" },
+        "implementation_paths": { "$ref": "#/$defs/stringArray" },
+        "migration_ids": { "$ref": "#/$defs/stringArray" },
+        "api_contracts": { "$ref": "#/$defs/stringArray" },
+        "ui_routes": { "$ref": "#/$defs/stringArray" },
+        "entitlement_keys": { "$ref": "#/$defs/stringArray" },
+        "meter_keys": { "$ref": "#/$defs/stringArray" },
+        "test_ids": { "$ref": "#/$defs/stringArray" },
+        "runbooks": { "$ref": "#/$defs/stringArray" },
+        "evidence": { "$ref": "#/$defs/stringArray" },
+        "status": {
+          "enum": ["planned", "in_progress", "implemented", "staging_verified", "accepted", "blocked", "not_applicable"]
+        },
+        "accepted_by": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

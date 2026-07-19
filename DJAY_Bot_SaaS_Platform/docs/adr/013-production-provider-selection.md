@@ -28,17 +28,17 @@ offered only under its supported collection contract: Stripe documents
 subscriptions and invoices as `send_invoice` collection, not automatic
 subscription-mode Checkout. No production charge is authorized by this ADR.
 
-## Recommended stack awaiting owner and acceptance approval
+## Owner-selected cloud direction and remaining acceptance
 
 | Capability | Recommended provider or service | Current decision state |
 |---|---|---|
-| Primary cloud | AWS | Recommended; account, region, quota, cost, and privacy review pending |
-| Compute | ECS Fargate plus Application Load Balancer | Recommended for the separate web/API/worker/Voice artifacts and WSS |
-| Database | Amazon RDS for PostgreSQL 16 Multi-AZ | Recommended; managed PITR and restore exercise required |
-| Static widget CDN | Amazon S3 plus CloudFront | Recommended; immutable artifact and origin-access validation required |
-| DNS and certificates | Route 53 plus ACM | Recommended; existing registrar may remain |
-| Secrets and encryption | AWS Secrets Manager plus KMS | Recommended; independent environment/purpose secrets required |
-| Monitoring | CloudWatch plus CloudWatch Synthetics | Recommended; real observations and on-call alerts required |
+| Primary cloud | Google Cloud | Owner selected; staging project is `master-deck-476811-a8`; separate production and recovery approval pending |
+| Compute | Cloud Run plus external HTTPS Load Balancer | Selected topology for separate web/API/worker/Voice artifacts and WSS; staging acceptance pending |
+| Database | Cloud SQL for PostgreSQL 16 | Selected instead of Neon; HA/PITR and restore exercise required |
+| Static widget CDN | Cloud Storage plus Cloud CDN | Selected; immutable artifact and origin-access validation required |
+| DNS and certificates | Existing Hostinger DNS plus Google-managed certificate | Selected; `djbot.djai.academy` is the target hostname and DNS remains externally owned |
+| Secrets and encryption | Secret Manager plus Cloud KMS | Selected; independent environment/purpose secrets required |
+| Monitoring | Cloud Monitoring, Logging and uptime checks | Selected; real observations, budget alerts and on-call alerts required |
 | Transactional email | Resend | Recommended; its Bearer HTTP and idempotency-key contract fits the existing adapter |
 | AI text | OpenAI Responses API through the restricted internal gateway | Recommended; exact pinned route requires Thai/English evaluation |
 | Primary production Voice candidate | OpenAI Realtime API | Recommended; a new restricted adapter and full live acceptance are required |
@@ -46,13 +46,13 @@ subscription-mode Checkout. No production charge is authorized by this ADR.
 | Thai accounting/tax documents | FlowAccount Open API | Recommended; Thai accountant and legal approval remain authoritative |
 | LINE | LINE Messaging API directly | Implemented locally; merchant/channel acceptance pending |
 | WhatsApp and Messenger | Meta Cloud APIs directly | Implemented locally; business verification, policy, and merchant acceptance pending |
-| Build and deployment | GitHub Actions plus Amazon ECR | Recommended; immutable target-environment deployment workflow pending |
+| Build and deployment | GitHub Actions plus Artifact Registry | Selected direction; immutable target-environment deployment workflow pending |
 
-AWS Asia Pacific (Thailand), `ap-southeast-7`, is the preferred primary-region
-candidate only if the selected account exposes every required service and quota
-and the privacy review accepts the topology. Singapore is the fallback and
-recovery-region candidate. Cross-region RDS/backup availability must be proven
-for the exact configuration rather than assumed.
+The GCP primary and recovery regions remain an explicit release decision. The
+exact Cloud Run, Cloud SQL, load-balancing, CDN, KMS and backup capabilities,
+quotas, latency, data residency and cost must be validated for the chosen
+regions rather than inferred. The current project is admitted only through the
+isolated `djay-master-deck` gcloud configuration and account guard.
 
 ## Implementation state and gaps
 
@@ -74,7 +74,7 @@ for the exact configuration rather than assumed.
 
 ## Required next owner actions
 
-1. Approve or revise the recommended non-payment providers.
+1. Approve the separate GCP production project, primary region and recovery topology.
 2. Create organization-owned provider accounts with MFA and at least two
    administrators; never use a developer's personal ownership.
 3. Decide the six-plan commercial values and complete Thai legal/accounting

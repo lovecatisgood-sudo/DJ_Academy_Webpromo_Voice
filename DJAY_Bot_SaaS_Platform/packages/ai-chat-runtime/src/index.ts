@@ -21,6 +21,7 @@ export type AiPublicResponse = Readonly<{
   inputId: string;
   text: string;
   quickReplies: readonly string[];
+  actions?: readonly Readonly<{ type: "booking" | "quotation" | "checkout" | "call" | "line" | "website"; label: string; url: string }>[];
   nextTurnSequence: number;
 }>;
 
@@ -81,13 +82,22 @@ export async function generateAiTurn(input: Readonly<{
     messages: recentMessages, customerMessage: input.message,
     structuredOutputSchemaVersion: "sales-core.v1",
   });
-  const output = salesCoreOutputSchema.parse(generated.output);
+  let output = salesCoreOutputSchema.parse(generated.output);
   assertProviderNeutralCustomerText(output.customerResponse);
-  validateActionAuthority(output, input.context.authority);
   validateCitations(output, selectedChunks);
+  const confidence = responseConfidence(output, selectedChunks.length);
+  if (confidence < playbook.confidenceThreshold && !output.handover) {
+    const reason = `confidence_below_threshold:${confidence.toFixed(2)}`;
+    output = salesCoreOutputSchema.parse({ ...output,
+      proposedActions: [...output.proposedActions, { type: "handover.request", reason, summary: output.customerResponse }],
+      handover: { reason, summary: output.customerResponse },
+    });
+  }
+  validateActionAuthority(output, input.context.authority);
   const publicResponse: AiPublicResponse = {
     status: output.handover ? "handover" : "completed", inputId: input.inputId,
     text: output.customerResponse, quickReplies: output.channelResponse.quickReplies,
+    actions: playbook.publicActions.map((action) => ({ type: action.type, label: action.label[input.context.language], url: action.url })),
     nextTurnSequence: input.context.turnSequence + 1,
   };
   return {
@@ -99,6 +109,16 @@ export async function generateAiTurn(input: Readonly<{
       cachedUnits: generated.nativeUsage.cachedUnits ?? 0,
     },
   };
+}
+
+function responseConfidence(output: SalesCoreOutput, selectedChunkCount: number) {
+  const discoveryOnly = ["S0_GREETING", "S1_INTENT", "S2_DISCOVERY"].includes(output.stage)
+    && output.facts.every((fact) => fact.source === "customer")
+    && !output.proposedActions.some((action) => ["appointment.request", "merchant_email.send"].includes(action.type));
+  const citationConfidence = output.knowledgeCitations.length > 0 ? 0.9
+    : discoveryOnly ? 0.8 : selectedChunkCount > 0 ? 0.45 : 0.35;
+  const factConfidence = output.facts.length ? Math.min(...output.facts.map((fact) => fact.confidence)) : 1;
+  return Math.min(citationConfidence, factConfidence);
 }
 
 function validateActionAuthority(output: SalesCoreOutput, authorityValue: unknown) {
@@ -210,5 +230,6 @@ export async function runAiTextPreview(input: Readonly<{
     proposedActionTypes: output.proposedActions.map((action) => action.type),
     citationCount: output.knowledgeCitations.length,
     handover: Boolean(output.handover),
+    actions: playbook.publicActions.map((action) => ({ type: action.type, label: action.label[input.language], url: action.url })),
   });
 }

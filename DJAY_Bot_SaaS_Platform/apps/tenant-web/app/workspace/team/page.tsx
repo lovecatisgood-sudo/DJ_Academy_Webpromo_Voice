@@ -15,7 +15,15 @@ type Member = {
 };
 
 type Invitation = { id: string; email_normalized: string; role: string; expires_at: string };
-type TeamOverview = { members: Member[]; invitations: Invitation[]; transfers: { id: string }[] };
+type TeamOverview = { members: Member[]; invitations: Invitation[]; transfers: { id: string }[]; capacity: { allowed: boolean; seatLimit: number; occupied: number } };
+
+const manageableRoles = [
+  ["tenant_admin", "Tenant admin"],
+  ["tenant_conversation_manager", "Conversation manager"],
+  ["tenant_human_agent", "Human agent"],
+  ["tenant_billing_manager", "Billing manager"],
+  ["tenant_analyst", "Analyst / viewer"],
+] as const;
 
 export default function TeamPage() {
   const session = useWorkspaceSession();
@@ -52,7 +60,10 @@ export default function TeamPage() {
     });
     setWorking(false);
     if (!response.ok) {
-      setMessage("The invitation could not be created.");
+      const result = await response.json().catch(() => ({}));
+      setMessage(result.status === "seat_limit_reached"
+        ? "This workspace has reached its administrator seat allowance."
+        : "The invitation could not be created.");
       return;
     }
     form.reset();
@@ -76,12 +87,45 @@ export default function TeamPage() {
     await loadTeam();
   }
 
+  async function changeRole(membershipId: string, role: string) {
+    setWorking(true);
+    setMessage("");
+    const response = await safeMutationFetch(`/tenant/team/${membershipId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    });
+    const result = await response.json().catch(() => ({}));
+    setWorking(false);
+    setMessage(response.ok ? "Member role updated." : result.status === "reauthentication_required"
+      ? "Sign in again and complete MFA before changing access."
+      : result.status === "owner_protected"
+        ? "The workspace owner role cannot be changed here."
+        : "The member role could not be updated.");
+    await loadTeam();
+  }
+
+  async function removeMember(membershipId: string, displayName: string) {
+    if (!window.confirm(`Remove ${displayName}'s workspace access?`)) return;
+    setWorking(true);
+    setMessage("");
+    const response = await safeMutationFetch(`/tenant/team/${membershipId}`, { method: "DELETE" });
+    const result = await response.json().catch(() => ({}));
+    setWorking(false);
+    setMessage(response.ok ? "Member access removed." : result.status === "reauthentication_required"
+      ? "Sign in again and complete MFA before removing access."
+      : result.status === "owner_protected"
+        ? "Transfer ownership before removing the workspace owner."
+        : "The member could not be removed.");
+    await loadTeam();
+  }
+
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading team...</main>;
   if (!session.allows("team.read")) return <WorkspaceAccessDenied active="team" title="Team" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(tenantId) => void session.selectWorkspace(tenantId)} onLogout={() => void session.logout()} />;
   if (loadError) return <WorkspacePageLoadError active="team" title="Team" resource="workspace members" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(tenantId) => void session.selectWorkspace(tenantId)} onLogout={() => void session.logout()} onRetry={() => void loadTeam()} />;
   const isOwner = activeWorkspace?.role === "tenant_master_admin";
-  const canInvite = isOwner || activeWorkspace?.role === "tenant_admin";
+  const canInvite = session.allows("team.invite");
 
   return (
     <main className="workspace-shell">
@@ -96,13 +140,16 @@ export default function TeamPage() {
         <header className="workspace-header"><div><p>Workspace</p><h1>Team</h1></div><span className="role-label">{activeWorkspace?.businessName}</span></header>
         {canInvite ? (
           <section className="tool-band">
-            <div className="band-heading"><div><p>Access</p><h2>Invite a team member</h2></div></div>
+            <div className="band-heading"><div><p>Access</p><h2>Invite a team member</h2></div><span>{team ? `${team.capacity.occupied} / ${team.capacity.seatLimit} seats` : "Loading"}</span></div>
             <form className="inline-form" onSubmit={invite}>
               <label>Email<input name="email" type="email" autoComplete="email" {...emailFieldConstraints} required /></label>
-              <label>Role<select name="role" defaultValue="tenant_operator"><option value="tenant_admin">Tenant Admin</option><option value="tenant_operator">Operator</option><option value="tenant_analyst">Analyst</option></select></label>
+              <label>Role<select name="role" defaultValue="tenant_human_agent">
+                {manageableRoles.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+              </select></label>
               <button type="submit" disabled={working}>Send invitation</button>
             </form>
             {message ? <p className="inline-message" role="status">{message}</p> : null}
+            {team && !team.capacity.allowed ? <p className="field-help">Seat capacity is full. <a href="/workspace/operations">Request an additional administrator</a> before inviting another member.</p> : null}
           </section>
         ) : null}
         <section className="tool-band">
@@ -113,7 +160,14 @@ export default function TeamPage() {
                 <div><strong>{member.display_name}</strong><span>{member.email_normalized}</span></div>
                 <span className="role-label">{member.membership_role.replaceAll("_", " ")}</span>
                 {isOwner && member.membership_role !== "tenant_master_admin" ? (
-                  <button className="secondary-command" type="button" disabled={working || Boolean(team.transfers.length)} onClick={() => void transferOwnership(member.membership_id)}>Transfer ownership</button>
+                  <div className="member-actions">
+                    <label className="visually-hidden" htmlFor={`role-${member.membership_id}`}>Role for {member.display_name}</label>
+                    <select id={`role-${member.membership_id}`} aria-label={`Role for ${member.display_name}`} value={member.membership_role} disabled={working} onChange={(event) => void changeRole(member.membership_id, event.target.value)}>
+                      {manageableRoles.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+                    </select>
+                    <button className="secondary-command" type="button" disabled={working || Boolean(team.transfers.length)} onClick={() => void transferOwnership(member.membership_id)}>Transfer ownership</button>
+                    <button className="danger-command" type="button" disabled={working} onClick={() => void removeMember(member.membership_id, member.display_name)}>Remove access</button>
+                  </div>
                 ) : <span />}
               </div>
             ))}

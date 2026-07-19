@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
     if (result.status === "invalid_or_expired") return safeJson(result, 404);
     if (result.status === "sign_in_required") return safeJson(result, 401);
     if (result.status === "account_details_required") return safeJson(result, 422);
+    if (result.status === "seat_limit_reached") return safeJson(result, 409);
     if (result.status !== "accepted" && result.status !== "already_accepted") {
       return safeJson({ status: "invalid_or_expired" }, 404);
     }

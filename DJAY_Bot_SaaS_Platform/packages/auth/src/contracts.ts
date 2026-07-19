@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { TenantRole } from "@djay/tenancy";
 import { publicPlanKeySchema } from "@djay/shared";
 import { legalDocumentVersionSchema } from "@djay/shared/legal-documents";
 
@@ -69,7 +70,7 @@ export type WorkspaceSummary = Readonly<{
   slug: string;
   businessName: string;
   membershipId: string;
-  role: "tenant_master_admin" | "tenant_admin" | "tenant_operator" | "tenant_analyst";
+  role: TenantRole;
 }>;
 
 export const recoveryRequestInputSchema = z.object({

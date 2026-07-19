@@ -7,4 +7,13 @@ coverage/
 .env.local
 playwright-report/
 test-results/
-
+.terraform/
+.terraform.*/
+build/
+*.tfstate
+*.tfstate.*
+*.auto.tfvars
+*.auto.tfvars.json
+crash.log
+*.tfplan
+gha-creds-*.json

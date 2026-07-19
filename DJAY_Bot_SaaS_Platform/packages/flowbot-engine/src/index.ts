@@ -1,7 +1,7 @@
 import { flowNodeEntitlementIssue, type FlowEntitlements, type FlowExecutionState, type FlowInput, type FlowNode, type FlowSnapshot } from "@djay/flowbot-domain";
 
 export type FlowMessage = Readonly<{
-  type: "text" | "media" | "options" | "form" | "system";
+  type: "text" | "media" | "card" | "carousel" | "actions" | "options" | "form" | "system";
   content: Readonly<Record<string, unknown>>;
   nodeId: string;
 }>;
@@ -73,6 +73,13 @@ export function advanceFlow(request: FlowEngineRequest): FlowEngineResult {
       result.events.push({ type: "input_captured", nodeId: current.id, detail: { variableKey: current.variableKey } });
       return runAutomatic(request, result, current.nextNodeId);
     }
+    if (current.type === "options") {
+      const option = resolveTextOption(current, request.input.payload.text, request.state.lang);
+      if (option) {
+        result.events.push({ type: "option_selected", nodeId: current.id, detail: { optionId: option.id, source: "text" } });
+        return runAutomatic(request, result, option.targetNodeId);
+      }
+    }
     const match = matchKeyword(request.input.payload.text, request.state.lang, activeGraph);
     if (match.kind === "match") {
       result.events.push({ type: "keyword_matched", nodeId: match.nodeId, detail: { tier: match.tier } });
@@ -104,7 +111,10 @@ function runAutomatic(request: FlowEngineRequest, result: MutableResult, startin
     result.state = { ...result.state, currentNodeId: node.id, status: "active" };
     result.events.push({ type: "node_entered", nodeId: node.id, detail: { nodeType: node.type } });
     if (node.type === "message") { result.messages.push({ type: "text", nodeId: node.id, content: { text: localized(node.content, result.state.lang) } }); nodeId = node.nextNodeId; continue; }
-    if (node.type === "media_reference") { result.messages.push({ type: "media", nodeId: node.id, content: { assetRef: node.assetRef, label: localized(node.label, result.state.lang) } }); nodeId = node.nextNodeId; continue; }
+    if (node.type === "media_reference") { result.messages.push({ type: "media", nodeId: node.id, content: { assetRef: node.assetRef, mediaType: node.mediaType, label: localized(node.label, result.state.lang) } }); nodeId = node.nextNodeId; continue; }
+    if (node.type === "product_card") { result.messages.push({ type: "card", nodeId: node.id, content: localizeCard(node.card, result.state.lang) }); nodeId = node.nextNodeId; continue; }
+    if (node.type === "carousel") { result.messages.push({ type: "carousel", nodeId: node.id, content: { cards: node.cards.map((card) => localizeCard(card, result.state.lang)) } }); nodeId = node.nextNodeId; continue; }
+    if (node.type === "actions") { result.messages.push({ type: "actions", nodeId: node.id, content: { ...(node.prompt ? { text: localized(node.prompt, result.state.lang) } : {}), actions: localizeActions(node.actions, result.state.lang) } }); nodeId = node.nextNodeId; continue; }
     if (node.type === "options") { result.messages.push({ type: "options", nodeId: node.id, content: { text: localized(node.prompt, result.state.lang), options: node.options.map((option) => ({ id: option.id, label: localized(option.label, result.state.lang) })) } }); return freeze(result); }
     if (node.type === "input_capture") { result.messages.push({ type: "text", nodeId: node.id, content: { text: localized(node.prompt, result.state.lang), input: true } }); return freeze(result); }
     if (node.type === "form") { result.messages.push({ type: "form", nodeId: node.id, content: { text: localized(node.prompt, result.state.lang), fields: node.fields.map((field) => ({ key: field.key, label: localized(field.label, result.state.lang), type: field.type, required: field.required })) } }); return freeze(result); }
@@ -141,7 +151,7 @@ function runAutomatic(request: FlowEngineRequest, result: MutableResult, startin
       continue;
     }
     if (node.type === "team_route") { if (node.message) result.messages.push({ type: "text", nodeId: node.id, content: { text: localized(node.message, result.state.lang) } }); result.state = { ...result.state, status: "handover" }; result.commands.push(command(request, node.id, "handover.request", { teamKey: node.teamKey, strategy: node.strategy })); return freeze(result); }
-    if (node.type === "webhook") { result.state = { ...result.state, status: "waiting" }; result.commands.push(command(request, node.id, "integration.dispatch", { integrationProfileId: node.integrationProfileId, templateKey: node.templateKey, nodeId: node.id })); return freeze(result); }
+    if (node.type === "webhook") { result.state = { ...result.state, status: "waiting" }; result.commands.push(command(request, node.id, "integration.dispatch", { integrationProfileId: node.integrationProfileId, templateKey: node.templateKey, nodeId: node.id, variables: result.state.variables })); return freeze(result); }
   }
   throw new FlowRuntimeError("automatic_transition_limit");
 }
@@ -161,6 +171,12 @@ function complete(result: MutableResult): FlowEngineResult { result.state = { ..
 function freeze(result: MutableResult): FlowEngineResult { return { nextState: result.state, messages: result.messages, commands: result.commands, events: result.events }; }
 function localized(value: { th: string; en: string }, lang: "th" | "en") { return value[lang]; }
 function local(lang: "th" | "en", th: string, en: string) { return lang === "th" ? th : en; }
+function localizeActions(actions: readonly { type: string; label: { th: string; en: string }; url: string }[], lang: "th" | "en") {
+  return actions.map((action) => ({ type: action.type, label: localized(action.label, lang), url: action.url }));
+}
+function localizeCard(card: { id: string; kind: string; title: { th: string; en: string }; description: { th: string; en: string }; imageUrl?: string | undefined; priceLabel?: { th: string; en: string } | undefined; actions: readonly { type: string; label: { th: string; en: string }; url: string }[] }, lang: "th" | "en") {
+  return { id: card.id, kind: card.kind, title: localized(card.title, lang), description: localized(card.description, lang), ...(card.imageUrl ? { imageUrl: card.imageUrl } : {}), ...(card.priceLabel ? { priceLabel: localized(card.priceLabel, lang) } : {}), actions: localizeActions(card.actions, lang) };
+}
 function interpolate(template: string, variables: Record<string, string>) { return template.replace(/\{\{([a-z][a-z0-9_]*)\}\}/g, (_, key: string) => variables[key] ?? ""); }
 function evaluateClause(actual: string | undefined, operator: string, expected?: string): boolean {
   if (operator === "exists") return Boolean(actual);
@@ -179,6 +195,14 @@ function validateForm(node: Extract<FlowNode, { type: "form" }>, data: Record<st
     if (value && field.type === "phone" && value.replace(/\D/g, "").length < 7) return true;
     return false;
   }).map((field) => field.key);
+}
+
+function resolveTextOption(node: Extract<FlowNode, { type: "options" }>, value: string, lang: "th" | "en") {
+  const normalized = normalize(value);
+  const encoded = /^djay_option:([0-9a-f-]{36})$/i.exec(normalized)?.[1];
+  if (encoded) return node.options.find((option) => option.id.toLowerCase() === encoded.toLowerCase());
+  const matches = node.options.filter((option) => normalize(localized(option.label, lang)) === normalized);
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 function normalize(value: string) { return value.normalize("NFKC").trim().toLocaleLowerCase().replace(/\s+/g, " "); }

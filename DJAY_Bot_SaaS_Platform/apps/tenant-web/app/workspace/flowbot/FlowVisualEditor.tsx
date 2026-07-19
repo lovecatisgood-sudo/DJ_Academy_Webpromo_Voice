@@ -7,13 +7,18 @@ import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 type NodeRecord = Record<string, unknown> & { id: string; type: string; title: string };
 type Definition = { schemaVersion: number; flowVersionId: string; rootNodeId: string; keywords: unknown[]; nodes: Record<string, NodeRecord> };
 
-const coreTypes = ["message", "media_reference", "options", "input_capture", "form", "condition", "jump", "end"] as const;
+const coreTypes = ["message", "media_reference", "product_card", "carousel", "actions", "options", "input_capture", "form", "condition", "jump", "end"] as const;
 const premiumTypes = ["advanced_condition", "variable_set", "delay", "business_hours", "team_route"] as const;
 
 function starterNode(type: string, id: string, rootNodeId: string): NodeRecord {
   const base = { id, type, title: type.replaceAll("_", " ") };
   if (type === "message") return { ...base, content: { th: "ข้อความใหม่", en: "New message" }, nextNodeId: null };
-  if (type === "media_reference") return { ...base, assetRef: "https://example.com/asset", label: { th: "สื่อ", en: "Media" }, nextNodeId: null };
+  if (type === "media_reference") return { ...base, assetRef: "https://example.com/image.jpg", mediaType: "image", label: { th: "สื่อ", en: "Media" }, nextNodeId: null };
+  const action = { type: "website", label: { th: "ดูเพิ่มเติม", en: "Learn more" }, url: "https://example.com" };
+  const card = { id: crypto.randomUUID(), kind: "product", title: { th: "สินค้า", en: "Product" }, description: { th: "รายละเอียดสินค้า", en: "Product details" }, actions: [action] };
+  if (type === "product_card") return { ...base, card, nextNodeId: null };
+  if (type === "carousel") return { ...base, cards: [card], nextNodeId: null };
+  if (type === "actions") return { ...base, prompt: { th: "เลือกการดำเนินการ", en: "Choose an action" }, actions: [action], nextNodeId: null };
   if (type === "options") return { ...base, prompt: { th: "เลือกตัวเลือก", en: "Choose an option" }, options: [{ id: crypto.randomUUID(), label: { th: "ตัวเลือก", en: "Option" }, targetNodeId: rootNodeId }] };
   if (type === "input_capture") return { ...base, prompt: { th: "กรอกข้อมูล", en: "Enter a value" }, variableKey: "answer", nextNodeId: rootNodeId };
   if (type === "form") return { ...base, prompt: { th: "ข้อมูลติดต่อ", en: "Contact details" }, fields: [{ key: "email", label: { th: "อีเมล", en: "Email" }, type: "email", required: true }], nextNodeId: null };

@@ -63,5 +63,30 @@ describe.runIf(enabled)("tenant workspace repository", () => {
     expect(teamB.members).toHaveLength(1);
     expect(teamB.members[0]?.email_normalized).toBe("owner-b@example.test");
     expect(teamB.members.some((member) => member.email_normalized === "owner-a@example.test")).toBe(false);
+
+    const currentOwner = teamA.members.find((member) => member.membership_role === "tenant_master_admin")!;
+    const managedMember = teamA.members.find((member) => member.membership_role !== "tenant_master_admin")!;
+    const ownerContext = createTenantContext({
+      tenantId: tenantA.tenantId,
+      userId: currentOwner.user_id,
+      membershipId: currentOwner.membership_id,
+      sessionId: tenantA.sessionId,
+      role: "tenant_master_admin",
+      requestId: "tenant-store-role-lifecycle",
+    });
+    await expect(store.changeMembershipRole(ownerContext, {
+      membershipId: managedMember.membership_id, role: "tenant_billing_manager",
+    })).resolves.toEqual({ status: "role_changed" });
+    expect((await store.getTeamOverview(tenantA)).members.find(
+      (member) => member.membership_id === managedMember.membership_id,
+    )?.membership_role).toBe("tenant_billing_manager");
+    await expect(store.changeMembershipRole(tenantB, {
+      membershipId: managedMember.membership_id, role: "tenant_human_agent",
+    })).resolves.toEqual({ status: "not_found" });
+    await expect(store.revokeMembership(ownerContext, currentOwner.membership_id))
+      .resolves.toEqual({ status: "owner_protected" });
+    await expect(store.revokeMembership(ownerContext, managedMember.membership_id))
+      .resolves.toEqual({ status: "revoked" });
+    expect((await store.getTeamOverview(tenantA)).members).toHaveLength(1);
   });
 });

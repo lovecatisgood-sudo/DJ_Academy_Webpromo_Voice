@@ -1,0 +1,76 @@
+project_id      = "replace-with-staging-project-id"
+environment     = "staging"
+region          = "asia-southeast3"
+recovery_region = "asia-southeast1"
+deploy_services = false
+commerce_enabled = false
+release_version = "replace-with-immutable-git-sha"
+dns_zone_name   = null
+database_tier   = "db-f1-micro"
+
+hostnames = {
+  public   = "staging.djbot.djai.academy"
+  tenant   = "app.staging.djbot.djai.academy"
+  platform = "platform.staging.djbot.djai.academy"
+  api      = "api.staging.djbot.djai.academy"
+  voice    = "voice.staging.djbot.djai.academy"
+  runtime  = "runtime.staging.djbot.djai.academy"
+  widget   = "cdn.staging.djbot.djai.academy"
+}
+
+service_environment = {
+  public-site = {
+    PUBLIC_APP_URL = "https://staging.djbot.djai.academy"
+    API_APP_URL    = "https://api.staging.djbot.djai.academy"
+  }
+  tenant-web = {
+    PUBLIC_APP_URL             = "https://staging.djbot.djai.academy"
+    TENANT_APP_URL             = "https://app.staging.djbot.djai.academy"
+    API_APP_URL                = "https://api.staging.djbot.djai.academy"
+    NEXT_PUBLIC_PUBLIC_APP_URL = "https://staging.djbot.djai.academy"
+    NEXT_PUBLIC_API_APP_URL    = "https://api.staging.djbot.djai.academy"
+    NEXT_PUBLIC_WIDGET_CDN_URL = "https://cdn.staging.djbot.djai.academy"
+  }
+  platform-master = {
+    PLATFORM_APP_URL = "https://platform.staging.djbot.djai.academy"
+    API_APP_URL      = "https://api.staging.djbot.djai.academy"
+  }
+  api = {
+    PUBLIC_APP_URL                   = "https://staging.djbot.djai.academy"
+    TENANT_APP_URL                   = "https://app.staging.djbot.djai.academy"
+    PLATFORM_APP_URL                 = "https://platform.staging.djbot.djai.academy"
+    API_APP_URL                      = "https://api.staging.djbot.djai.academy"
+    AI_TEXT_GATEWAY_ENDPOINT         = "https://runtime.staging.djbot.djai.academy/v1/generate"
+    VOICE_GATEWAY_URL                = "wss://voice.staging.djbot.djai.academy/v1/connect"
+    VOICE_RUNTIME_ENABLED            = "false"
+  }
+  ai-gateway = {
+    OPENAI_RESPONSES_MODEL = "replace-after-live-evaluation"
+  }
+  voice-gateway = {
+    VOICE_GEN1_PROVIDER_KEY        = "openai_realtime"
+    VOICE_GEN1_MODEL               = "replace-after-live-evaluation"
+    VOICE_GEN1_VOICE_NAME          = "replace-after-live-evaluation"
+    VOICE_GEN1_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe"
+  }
+  workers = {
+    EMAIL_DELIVERY_MODE              = "http"
+    EMAIL_DELIVERY_ENDPOINT          = "https://replace-with-email-provider-endpoint.example"
+    EMAIL_FROM                       = "replace-with-approved-sender@example.com"
+    PRIVACY_WORKER_ENABLED           = "true"
+    FLOWBOT_WORKER_ENABLED           = "true"
+    AI_WORKER_ENABLED                = "true"
+    AI_INTEGRATION_WORKER_ENABLED    = "true"
+    KNOWLEDGE_WORKER_ENABLED         = "true"
+    MALWARE_SCANNER_ENDPOINT         = "https://replace-with-malware-scanner.example/scan"
+    AI_SOCIAL_WORKER_ENABLED         = "true"
+    FLOWBOT_SOCIAL_WORKER_ENABLED    = "true"
+    AI_TEXT_GATEWAY_ENDPOINT         = "https://runtime.staging.djbot.djai.academy/v1/generate"
+    VOICE_REAPER_ENABLED             = "true"
+    ENTITLEMENT_CHANGE_WORKER_ENABLED = "true"
+    USAGE_ALERT_WORKER_ENABLED        = "true"
+    USAGE_PERIOD_WORKER_ENABLED       = "true"
+    USAGE_RECONCILIATION_WORKER_ENABLED = "true"
+    TENANT_APP_URL = "https://app.staging.djbot.djai.academy"
+  }
+}

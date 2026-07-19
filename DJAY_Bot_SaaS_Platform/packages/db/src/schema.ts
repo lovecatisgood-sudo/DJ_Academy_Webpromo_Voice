@@ -7,6 +7,7 @@ import {
   jsonb,
   numeric,
   pgSchema,
+  primaryKey,
   text,
   smallint,
   timestamp,
@@ -154,6 +155,58 @@ export const planVersions = catalogSchema.table("plan_versions", {
   publishedAt: timestamp("published_at", { withTimezone: true }),
 });
 
+export const meterVersions = catalogSchema.table("meter_versions", {
+  meterKey: text("meter_key").notNull(),
+  version: integer("version").notNull(),
+  customerUnit: text("customer_unit").notNull(),
+  definitionJson: jsonb("definition_json").notNull(),
+  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+  effectiveTo: timestamp("effective_to", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (table) => [primaryKey({ columns: [table.meterKey, table.version] })]);
+
+export const catalogVersions = catalogSchema.table("catalog_versions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  versionKey: text("version_key").notNull().unique(),
+  status: text("status").notNull(),
+  currency: text("currency").notNull(),
+  contentSha256: bytea("content_sha256").notNull(),
+  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+  effectiveTo: timestamp("effective_to", { withTimezone: true }),
+  createdByPlatformUserId: uuid("created_by_platform_user_id"),
+  approvedByPlatformUserId: uuid("approved_by_platform_user_id"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  activatedAt: timestamp("activated_at", { withTimezone: true }),
+  retiredAt: timestamp("retired_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const catalogPromotions = catalogSchema.table("promotions", {
+  catalogVersionId: uuid("catalog_version_id").notNull().references(() => catalogVersions.id, { onDelete: "restrict" }),
+  promotionKey: text("promotion_key").notNull(),
+  publicName: text("public_name").notNull(),
+  eligibility: text("eligibility").notNull(),
+  applicationMethod: text("application_method").notNull(),
+  termCount: smallint("term_count").notNull(),
+  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+  effectiveTo: timestamp("effective_to", { withTimezone: true }),
+}, (table) => [primaryKey({ columns: [table.catalogVersionId, table.promotionKey] })]);
+
+export const planCommercialTerms = catalogSchema.table("plan_commercial_terms", {
+  catalogVersionId: uuid("catalog_version_id").notNull().references(() => catalogVersions.id, { onDelete: "restrict" }),
+  planVersionId: uuid("plan_version_id").notNull().references(() => planVersions.id, { onDelete: "restrict" }),
+  promotionKey: text("promotion_key").notNull(),
+  firstTermAmountMinor: bigint("first_term_amount_minor", { mode: "number" }).notNull(),
+  renewalAmountMinor: bigint("renewal_amount_minor", { mode: "number" }).notNull(),
+  firstTermDiscountMinor: bigint("first_term_discount_minor", { mode: "number" }).notNull(),
+  billingInterval: text("billing_interval").notNull(),
+  billingIntervalCount: smallint("billing_interval_count").notNull(),
+  allowancePeriodTimezone: text("allowance_period_timezone").notNull(),
+  allowancePeriodInterval: text("allowance_period_interval").notNull(),
+  allowanceRollover: boolean("allowance_rollover").notNull().default(false),
+  sellable: boolean("sellable").notNull().default(false),
+}, (table) => [primaryKey({ columns: [table.catalogVersionId, table.planVersionId] })]);
+
 export const productSubscriptions = tenancySchema.table("product_subscriptions", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
@@ -167,6 +220,90 @@ export const productSubscriptions = tenancySchema.table("product_subscriptions",
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+export const tenantSecurityPolicies = tenancySchema.table("security_policies", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => tenants.id, { onDelete: "restrict" }),
+  sensitiveActionsRequireMfa: boolean("sensitive_actions_require_mfa").notNull().default(true),
+  tenantAdminMfaRequired: boolean("tenant_admin_mfa_required").notNull().default(false),
+  assuranceMaxAgeSeconds: integer("assurance_max_age_seconds").notNull().default(600),
+  approvedPolicyRef: text("approved_policy_ref"),
+  updatedByUserId: uuid("updated_by_user_id").references(() => users.id, { onDelete: "restrict" }),
+  updatedAt: updatedAt(),
+});
+
+export const subscriptionAddOns = tenancySchema.table("subscription_add_ons", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  subscriptionId: uuid("subscription_id").notNull().references(() => productSubscriptions.id, { onDelete: "restrict" }),
+  addOnKey: text("add_on_key").notNull(),
+  quantity: integer("quantity").notNull(),
+  status: text("status").notNull(),
+  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+  effectiveUntil: timestamp("effective_until", { withTimezone: true }),
+  providerItemRef: text("provider_item_ref"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const subscriptionScheduledChanges = tenancySchema.table("subscription_scheduled_changes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  subscriptionId: uuid("subscription_id").notNull().references(() => productSubscriptions.id, { onDelete: "restrict" }),
+  fromPlanVersionId: uuid("from_plan_version_id").notNull().references(() => planVersions.id, { onDelete: "restrict" }),
+  toPlanVersionId: uuid("to_plan_version_id").notNull().references(() => planVersions.id, { onDelete: "restrict" }),
+  effectiveAt: timestamp("effective_at", { withTimezone: true }).notNull(),
+  retainedResourceSelection: jsonb("retained_resource_selection").notNull().default({}),
+  status: text("status").notNull(),
+  requestedByUserId: uuid("requested_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  requestedByMembershipId: uuid("requested_by_membership_id").notNull().references(() => memberships.id, { onDelete: "restrict" }),
+  requestId: text("request_id").notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
+  failureCode: text("failure_code"),
+});
+
+export const entitlementResourceStates = tenancySchema.table("entitlement_resource_states", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  productKey: text("product_key").notNull().references(() => products.productKey, { onDelete: "restrict" }),
+  resourceKind: text("resource_kind").notNull(),
+  resourceId: uuid("resource_id").notNull(),
+  state: text("state").notNull(),
+  sourceChangeId: uuid("source_change_id").references(() => subscriptionScheduledChanges.id, { onDelete: "restrict" }),
+  reasonCode: text("reason_code").notNull(),
+  disabledAt: timestamp("disabled_at", { withTimezone: true }),
+  restoredAt: timestamp("restored_at", { withTimezone: true }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+export const downgradePreflightEvidence = tenancySchema.table("downgrade_preflight_evidence", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  subscriptionId: uuid("subscription_id").notNull().references(() => productSubscriptions.id, { onDelete: "restrict" }),
+  destinationPlanVersionId: uuid("destination_plan_version_id").notNull().references(() => planVersions.id, { onDelete: "restrict" }),
+  currentResourceCounts: jsonb("current_resource_counts").notNull(),
+  destinationLimits: jsonb("destination_limits").notNull(),
+  blockers: jsonb("blockers").notNull(),
+  requiredSelection: jsonb("required_selection").notNull(),
+  contentHash: bytea("content_hash").notNull(),
+  evaluatedAt: timestamp("evaluated_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export const subscriptionContractSnapshots = tenancySchema.table("subscription_contract_snapshots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  subscriptionId: uuid("subscription_id").notNull().references(() => productSubscriptions.id, { onDelete: "restrict" }),
+  catalogVersionId: uuid("catalog_version_id").notNull().references(() => catalogVersions.id, { onDelete: "restrict" }),
+  planVersionId: uuid("plan_version_id").notNull().references(() => planVersions.id, { onDelete: "restrict" }),
+  contractJson: jsonb("contract_json").notNull(),
+  contractSha256: bytea("contract_sha256").notNull(),
+  acceptedByUserId: uuid("accepted_by_user_id").references(() => users.id, { onDelete: "restrict" }),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  createdAt: createdAt(),
+}, (table) => [uniqueIndex("subscription_contract_tenant_subscription_unique").on(table.tenantId, table.subscriptionId)]);
 
 export const entitlementOverrides = tenancySchema.table("entitlement_overrides", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -206,6 +343,9 @@ export const quotaAccounts = tenancySchema.table("quota_accounts", {
   safetyCapQuantity: numeric("safety_cap_quantity", { mode: "number" }),
   reservedQuantity: numeric("reserved_quantity", { mode: "number" }).notNull().default(0),
   settledQuantity: numeric("settled_quantity", { mode: "number" }).notNull().default(0),
+  overageConsentStatus: text("overage_consent_status").notNull().default("none"),
+  overageConsentedAt: timestamp("overage_consented_at", { withTimezone: true }),
+  overageConsentedByUserId: uuid("overage_consented_by_user_id").references(() => users.id, { onDelete: "restrict" }),
   updatedAt: updatedAt(),
 });
 
@@ -221,6 +361,7 @@ export const usageReservations = tenancySchema.table("usage_reservations", {
   settledQuantity: numeric("settled_quantity", { mode: "number" }),
   status: text("status").notNull(),
   reasonCode: text("reason_code"),
+  fundingJson: jsonb("funding_json").notNull().default({ included: 0, packs: 0, overage: 0 }),
   createdAt: createdAt(),
   settledAt: timestamp("settled_at", { withTimezone: true }),
 });
@@ -241,6 +382,113 @@ export const usageEvents = tenancySchema.table("usage_events", {
   idempotencyKey: text("idempotency_key").notNull(),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   createdAt: createdAt(),
+});
+
+export const usagePackLots = tenancySchema.table("usage_pack_lots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  subscriptionId: uuid("subscription_id").notNull().references(() => productSubscriptions.id, { onDelete: "restrict" }),
+  customerUnit: text("customer_unit").notNull(),
+  packKey: text("pack_key").notNull(),
+  purchasedQuantity: numeric("purchased_quantity", { mode: "number" }).notNull(),
+  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  providerLineItemRef: text("provider_line_item_ref"),
+  status: text("status").notNull(),
+  createdAt: createdAt(),
+});
+
+export const usagePackConsumptions = tenancySchema.table("usage_pack_consumptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  packLotId: uuid("pack_lot_id").notNull().references(() => usagePackLots.id, { onDelete: "restrict" }),
+  reservationId: uuid("reservation_id").notNull().references(() => usageReservations.id, { onDelete: "restrict" }),
+  eventType: text("event_type").notNull(),
+  quantity: numeric("quantity", { mode: "number" }).notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  createdAt: createdAt(),
+});
+
+export const usageAlertPreferences = tenancySchema.table("usage_alert_preferences", {
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  quotaAccountId: uuid("quota_account_id").notNull().references(() => quotaAccounts.id, { onDelete: "restrict" }),
+  thresholds: smallint("thresholds").array().notNull().default([50, 75, 90, 100]),
+  exhaustionAlert: boolean("exhaustion_alert").notNull().default(true),
+  anomalyAlert: boolean("anomaly_alert").notNull().default(true),
+  cooldownHours: integer("cooldown_hours").notNull().default(24),
+  notificationProfileId: uuid("notification_profile_id"),
+  updatedByUserId: uuid("updated_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  updatedAt: updatedAt(),
+}, (table) => [primaryKey({ columns: [table.tenantId, table.quotaAccountId] })]);
+
+export const usageAlertDeliveries = tenancySchema.table("usage_alert_deliveries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  quotaAccountId: uuid("quota_account_id").notNull().references(() => quotaAccounts.id, { onDelete: "restrict" }),
+  alertKey: text("alert_key").notNull(),
+  periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+  forecastJson: jsonb("forecast_json").notNull(),
+  deliveryStatus: text("delivery_status").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  createdAt: createdAt(),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+});
+
+export const usageAlertDeliveryAttempts = tenancySchema.table("usage_alert_delivery_attempts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  alertDeliveryId: uuid("alert_delivery_id").notNull().references(() => usageAlertDeliveries.id, { onDelete: "restrict" }),
+  tenantOutboxId: uuid("tenant_outbox_id").notNull(),
+  attemptNumber: integer("attempt_number").notNull(),
+  outcome: text("outcome").notNull(),
+  safeErrorCode: text("safe_error_code"),
+  attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull(),
+});
+
+export const providerUsageEvents = tenancySchema.table("provider_usage_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  subscriptionId: uuid("subscription_id").notNull().references(() => productSubscriptions.id, { onDelete: "restrict" }),
+  providerKey: text("provider_key").notNull(),
+  providerMeterKey: text("provider_meter_key").notNull(),
+  sourceEventId: text("source_event_id").notNull(),
+  nativeQuantity: numeric("native_quantity", { mode: "number" }).notNull(),
+  nativeUnit: text("native_unit").notNull(),
+  estimatedCostMinor: numeric("estimated_cost_minor", { mode: "number" }),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  reconciliationStatus: text("reconciliation_status").notNull().default("pending"),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: createdAt(),
+});
+
+export const providerUsageReconciliationResults = tenancySchema.table("provider_usage_reconciliation_results", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  providerUsageEventId: uuid("provider_usage_event_id").notNull().references(() => providerUsageEvents.id, { onDelete: "restrict" }),
+  customerUsageEventId: uuid("customer_usage_event_id").references(() => usageEvents.id, { onDelete: "restrict" }),
+  status: text("status").notNull(),
+  evidenceJson: jsonb("evidence_json").notNull(),
+  reconciledAt: timestamp("reconciled_at", { withTimezone: true }).notNull(),
+});
+
+export const usageReconciliationCases = platformSchema.table("usage_reconciliation_cases", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  reconciliationResultId: uuid("reconciliation_result_id").notNull(),
+  requestedAction: text("requested_action").notNull(),
+  reason: text("reason").notNull(),
+  requestedByPlatformUserId: uuid("requested_by_platform_user_id").notNull(),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).notNull(),
+});
+
+export const usageReconciliationCaseEvents = platformSchema.table("usage_reconciliation_case_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  caseId: uuid("case_id").notNull().references(() => usageReconciliationCases.id, { onDelete: "restrict" }),
+  eventType: text("event_type").notNull(),
+  actorPlatformUserId: uuid("actor_platform_user_id").notNull(),
+  safeNote: text("safe_note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 });
 
 export const paymentCustomers = billingSchema.table("payment_customers", {

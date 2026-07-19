@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { ZodError, z } from "zod";
 import { hasTrustedOrigin, readJson, safeJson } from "../../../lib/http";
 import { resolveTenantRequest } from "../../../lib/tenant-context";
+import { hasSensitiveTenantAssurance } from "../../../lib/tenant-assurance";
 
 const retentionPolicySchema = z.object({
   transcriptDays: z.number().int().min(30).max(3650),
@@ -23,6 +24,7 @@ export async function PUT(request: NextRequest) {
       || !(await hasTrustedOrigin(request))) {
     return safeJson({ status: "not_found" }, 404);
   }
+  if (!hasSensitiveTenantAssurance(resolved.session)) return safeJson({ status: "reauthentication_required" }, 403);
   try {
     const body = retentionPolicySchema.parse(await readJson(request));
     const result = await resolved.services.sharedDomain.updateRetentionPolicy(

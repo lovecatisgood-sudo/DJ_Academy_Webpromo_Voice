@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { aiPlaybookSchema, type AiPlaybook } from "@djay/sales-core";
 import { safeMutationFetch } from "@djay/shared";
 import { createSocialCallbackUrl, createWidgetInstallSnippet } from "@djay/shared/widget-install";
@@ -20,7 +20,7 @@ type Deployment = { id: string; name: string; channel: string; keyPrefix: string
 type Notification = { id: string; name: string; allowedTemplateKeys: string[]; status: string };
 type Preview = { stage: string; text: string; proposedActionTypes: string[]; citationCount: number; handover: boolean };
 type ChannelAnalytics = { channel: "web" | "line" | "whatsapp" | "messenger"; sessions: number; completedTurns: number; failedTurns: number; leads: number; appointmentRequests: number; delivered: number; pendingDeliveries: number; failedDeliveries: number; attemptedQuantity: number };
-type Analytics = { periodDays: number; level: string; sessions: number; completedTurns: number; failedTurns: number; handovers: number; leads: number; appointmentRequests: number; settledResponses: number; channels?: ChannelAnalytics[] };
+type Analytics = { periodDays: number; level: string; sessions: number; completedTurns: number; failedTurns: number; handovers: number; leads: number; appointmentRequests: number; settledResponses: number; unanswered: number; channels?: ChannelAnalytics[]; questions?: { question: string; occurrences: number }[]; intents?: { intent: string; occurrences: number }[]; segments?: { segment: string; customers: number }[] };
 type SocialConnection = { id: string; agentId: string; channel: "line" | "whatsapp" | "messenger"; name: string; externalAccountRef: string; status: string; healthStatus: string; safeErrorCode: string | null; lastHealthAt: string | null; pendingDeliveries: number; failedDeliveries: number; deadLetterDeliveries: number; succeededDeliveries: number; attemptedQuantity: number };
 
 function playbookValidationMessage(path: string, issue: string): string {
@@ -53,8 +53,7 @@ export default function AiChatPage() {
   const [loadError, setLoadError] = useState(false);
   const [knowledgeLoadError, setKnowledgeLoadError] = useState(false); const [notificationsLoadError, setNotificationsLoadError] = useState(false);
   const [analyticsLoadError, setAnalyticsLoadError] = useState(false); const [socialLoadError, setSocialLoadError] = useState(false);
-  const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
-  const canAuthor = workspace?.role === "tenant_master_admin" || workspace?.role === "tenant_admin";
+  const canAuthor = session.allows("ai_chat.author");
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
   const installSnippet = newDeploymentKey
     ? createWidgetInstallSnippet("ai-chat", newDeploymentKey, tenantWidgetInstallEnvironment)
@@ -354,8 +353,13 @@ export default function AiChatPage() {
           </div>)}{socialLoadError ? <div className="pending-line inline-retry" role="alert"><strong>Social connections could not be loaded</strong><span>Existing Messenger settings have not changed.</span><button className="secondary-command" type="button" onClick={() => void loadShared()}>Try again</button></div> : !socialConnections.some((item) => item.agentId === selectedAgentId && item.channel === "messenger") ? <div className="pending-line"><strong>No Messenger connection</strong><span>Publish the agent, then connect its Messenger Page.</span></div> : null}</div>
         </section>
         {analyticsLoadError ? <section className="tool-band"><div className="pending-line inline-retry" role="alert"><strong>AI Chat analytics could not be loaded</strong><span>Agent and deployment records remain available.</span><button className="secondary-command" type="button" onClick={() => void loadShared()}>Try again</button></div></section> : null}
-        {analytics ? <section className="tool-band"><div className="band-heading"><div><p>{analytics.periodDays}-day {analytics.level}</p><h2>AI Chat analytics</h2></div><span>{analytics.settledResponses} metered responses</span></div><div className="metric-grid"><div><strong>{analytics.sessions}</strong><span>Sessions</span></div><div><strong>{analytics.completedTurns}</strong><span>Completed turns</span></div><div><strong>{analytics.leads}</strong><span>Leads</span></div><div><strong>{analytics.appointmentRequests}</strong><span>Appointment requests</span></div><div><strong>{analytics.handovers}</strong><span>Handovers</span></div></div>
+        {analytics ? <section className="tool-band"><div className="band-heading"><div><p>{analytics.periodDays}-day {analytics.level}</p><h2>AI Chat analytics</h2></div><span>{analytics.settledResponses} metered responses</span></div><div className="metric-grid"><div><strong>{analytics.sessions}</strong><span>Sessions</span></div><div><strong>{analytics.completedTurns}</strong><span>Completed turns</span></div><div><strong>{analytics.leads}</strong><span>Leads</span></div><div><strong>{analytics.appointmentRequests}</strong><span>Appointment requests</span></div><div><strong>{analytics.handovers}</strong><span>Handovers</span></div><div><strong>{analytics.unanswered}</strong><span>Low-confidence questions</span></div></div>
           {analytics.channels?.length ? <div className="data-table channel-analytics"><div className="data-row channel-analytics-heading"><strong>Channel</strong><span>Sessions / turns</span><span>Leads / appointments</span><span>Delivery</span></div>{analytics.channels.map((channel) => <div className="data-row" key={channel.channel}><strong>{channel.channel === "web" ? "Website" : channel.channel === "line" ? "LINE" : channel.channel === "whatsapp" ? "WhatsApp" : "Messenger"}</strong><span>{channel.sessions} sessions / {channel.completedTurns} completed / {channel.failedTurns} failed</span><span>{channel.leads} leads / {channel.appointmentRequests} appointments</span><span>{channel.channel === "web" ? "Web runtime" : `${channel.delivered} delivered / ${channel.pendingDeliveries} pending / ${channel.failedDeliveries} failed / ${channel.attemptedQuantity} units`}</span></div>)}</div> : null}
+          {analytics.level === "advanced" ? <div className="ai-analytics-breakdown">
+            <div><h3>Top customer questions</h3>{analytics.questions?.length ? <ol>{analytics.questions.map((item) => <li key={item.question}><span>{item.question}</span><strong>{item.occurrences}</strong></li>)}</ol> : <p>No questions in this period.</p>}</div>
+            <div><h3>Customer intents</h3>{analytics.intents?.length ? <ol>{analytics.intents.map((item) => <li key={item.intent}><span>{item.intent.replaceAll("_", " ")}</span><strong>{item.occurrences}</strong></li>)}</ol> : <p>No classified intents in this period.</p>}</div>
+            <div><h3>Lead segments</h3>{analytics.segments?.length ? <ol>{analytics.segments.map((item) => <li key={item.segment}><span>{item.segment}</span><strong>{item.customers}</strong></li>)}</ol> : <p>No scored customers yet.</p>}</div>
+          </div> : null}
         </section> : null}
       </> : null}
     </section>

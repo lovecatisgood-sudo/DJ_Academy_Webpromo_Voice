@@ -4,6 +4,7 @@ import { aiPlaybookFieldLimits, type AiPlaybook } from "@djay/sales-core";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 const CONTACT_FIELDS = ["name", "email", "phone"] as const;
+const ACTION_TYPES = ["booking", "quotation", "checkout", "call", "line", "website"] as const;
 
 type Props = Readonly<{
   definition: AiPlaybook;
@@ -42,6 +43,9 @@ export function AiPlaybookEditor(props: Props) {
   const updateWindow = (index: number, next: AiPlaybook["weeklyWindows"][number]) => {
     update("weeklyWindows", props.definition.weeklyWindows.map((item, itemIndex) => itemIndex === index ? next : item));
   };
+  const updateAction = (index: number, next: AiPlaybook["publicActions"][number]) => {
+    update("publicActions", props.definition.publicActions.map((item, itemIndex) => itemIndex === index ? next : item));
+  };
 
   return <div className="ai-playbook-editor">
     {props.advancedPending ? <div className="flow-editor-invalid" role="alert">
@@ -63,6 +67,36 @@ export function AiPlaybookEditor(props: Props) {
           {CONTACT_FIELDS.map((field) => <label key={field}><input type="checkbox" checked={props.definition.requiredContactFields.includes(field)} onChange={(event) => update("requiredContactFields", event.target.checked ? [...props.definition.requiredContactFields, field] : props.definition.requiredContactFields.filter((item) => item !== field))} />{field}</label>)}
         </div><small>Select at least two.</small></div>
       </div>
+    </fieldset>
+
+    <fieldset disabled={disabled} className="ai-playbook-fieldset">
+      <legend>Escalation and customer actions</legend>
+      <div className="ai-playbook-grid two-columns">
+        <label>Confidence escalation threshold
+          <input type="number" min="0.1" max="1" step="0.05" data-ai-playbook-path="confidenceThreshold" value={props.definition.confidenceThreshold} aria-invalid={issueFor(props.validationPath, "confidenceThreshold") || undefined} onChange={(event) => update("confidenceThreshold", Number(event.target.value))} />
+          <small>Lower-confidence answers are transferred to your team.</small>
+        </label>
+        <label>Routing team key
+          <input data-ai-playbook-path="routingTeamKey" value={props.definition.routingTeamKey ?? ""} placeholder="sales_team" pattern="[a-z][a-z0-9_-]{1,63}" aria-invalid={issueFor(props.validationPath, "routingTeamKey") || undefined} onChange={(event) => {
+            const value = event.target.value.trim();
+            const next = { ...props.definition };
+            if (value) next.routingTeamKey = value;
+            else delete next.routingTeamKey;
+            props.onDefinitionChange(next);
+          }} />
+          <small>Used when a conversation needs human assistance.</small>
+        </label>
+      </div>
+      <div className="ai-playbook-windows" data-ai-playbook-path="publicActions">
+        {props.definition.publicActions.map((action, index) => <div className="ai-playbook-window ai-playbook-action" key={`${action.type}-${index}`}>
+          <label>Action<select value={action.type} onChange={(event) => updateAction(index, { ...action, type: event.target.value as typeof action.type })}>{ACTION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
+          <label>English label<input value={action.label.en} maxLength={80} onChange={(event) => updateAction(index, { ...action, label: { ...action.label, en: event.target.value } })} /></label>
+          <label>Thai label<input value={action.label.th} maxLength={80} onChange={(event) => updateAction(index, { ...action, label: { ...action.label, th: event.target.value } })} /></label>
+          <label>Destination<input type={action.type === "call" ? "tel" : "url"} value={action.url} placeholder={action.type === "call" ? "tel:+66..." : "https://..."} onChange={(event) => updateAction(index, { ...action, url: event.target.value })} /></label>
+          <button type="button" className="secondary-command danger-command" aria-label={`Remove customer action ${index + 1}`} onClick={() => update("publicActions", props.definition.publicActions.filter((_, itemIndex) => itemIndex !== index))}>Remove</button>
+        </div>)}
+      </div>
+      {!props.readOnly ? <button type="button" className="secondary-command ai-playbook-add-window" disabled={props.advancedPending || props.definition.publicActions.length >= 12} onClick={() => update("publicActions", [...props.definition.publicActions, { type: "website", label: { en: "Learn more", th: "ดูเพิ่มเติม" }, url: "https://" }])}>Add customer action</button> : null}
     </fieldset>
 
     <fieldset disabled={disabled} className="ai-playbook-fieldset">

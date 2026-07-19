@@ -143,6 +143,7 @@ class VoiceWidget {
   private confirmEnd = false;
   private errorCode: "permission" | "unsupported" | "unavailable" | null = null;
   private statusDetail = "";
+  private brandingRemoved = false;
   private transcript: TranscriptLine[] = [];
   private readonly panelId = `djay-voice-panel-${++voiceWidgetSequence}`;
 
@@ -156,8 +157,23 @@ class VoiceWidget {
   mount() {
     (this.options.mountTarget ?? document.body).append(this.host);
     this.render();
+    void this.loadPublicConfig();
     window.addEventListener("pagehide", () => this.pageClosed(), { once: true });
     return this.host;
+  }
+
+  private async loadPublicConfig() {
+    try {
+      const response = await widgetFetch(`${this.apiBaseUrl}/public/voice/config`, {
+        headers: { "x-djay-voice-key": this.options.deploymentKey },
+      });
+      if (!response.ok) return;
+      const body = await response.json() as { status?: unknown; config?: { brandingRemoved?: unknown } };
+      if (body.status === "available" && typeof body.config?.brandingRemoved === "boolean") {
+        this.brandingRemoved = body.config.brandingRemoved;
+        this.render();
+      }
+    } catch { /* Branding remains visible when public configuration cannot be verified. */ }
   }
 
   private active() {
@@ -444,7 +460,9 @@ class VoiceWidget {
           controls.append(mute, end); content.append(controls);
         }
       }
-      panel.append(header, content, element("div", "brand", text.powered)); shell.append(panel);
+      panel.append(header, content);
+      if (!this.brandingRemoved) panel.append(element("div", "brand", text.powered));
+      shell.append(panel);
     }
     const launcher = button(this.opened ? "×" : "DJ", this.opened ? text.close : text.open, "launcher"); launcher.setAttribute("aria-expanded", String(this.opened)); launcher.setAttribute("aria-controls", this.panelId);
     launcher.addEventListener("click", () => {

@@ -153,7 +153,13 @@ export type RotateWorkspaceSessionCommand = Readonly<{
   requestId: string;
 }>;
 
-export type InvitationRole = "tenant_admin" | "tenant_operator" | "tenant_analyst";
+export type InvitationRole =
+  | "tenant_admin"
+  | "tenant_operator"
+  | "tenant_conversation_manager"
+  | "tenant_human_agent"
+  | "tenant_analyst"
+  | "tenant_billing_manager";
 
 export type CreateTenantInvitationCommand = Readonly<{
   context: TenantContext;
@@ -168,7 +174,7 @@ export type CreateTenantInvitationCommand = Readonly<{
 
 export type CreateTenantInvitationResult =
   | Readonly<{ status: "created"; invitationId: string }>
-  | Readonly<{ status: "already_pending" | "not_found" }>;
+  | Readonly<{ status: "already_pending" | "seat_limit_reached" | "not_found" }>;
 
 export type AcceptTenantInvitationCommand = Readonly<{
   tokenHash: Buffer;
@@ -191,7 +197,7 @@ export type AcceptTenantInvitationResult =
       emailNormalized: string;
       createdUser: boolean;
     }>
-  | Readonly<{ status: "invalid_or_expired" | "sign_in_required" | "account_details_required" }>;
+  | Readonly<{ status: "invalid_or_expired" | "sign_in_required" | "account_details_required" | "seat_limit_reached" }>;
 
 export type CreateOwnershipTransferCommand = Readonly<{
   context: TenantContext;

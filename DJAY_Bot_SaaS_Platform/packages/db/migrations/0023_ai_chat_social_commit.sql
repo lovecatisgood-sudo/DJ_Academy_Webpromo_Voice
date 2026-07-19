@@ -307,7 +307,9 @@ BEGIN
   ai_message_id := gen_random_uuid(); delivery_id := gen_random_uuid();
   INSERT INTO tenancy.messages (id, tenant_id, conversation_id, sequence, actor_type, direction, content_json)
   SELECT ai_message_id, runtime.tenant_id, runtime.conversation_id, conversation.next_sequence,
-    'ai', 'outbound', jsonb_build_object('type', 'text', 'content', jsonb_build_object('text', structured_output->>'customerResponse'))
+    'ai', 'outbound', jsonb_build_object('type', 'text', 'content', jsonb_build_object(
+      'text', structured_output->>'customerResponse', 'quickReplies', COALESCE(public_response->'quickReplies', '[]'::jsonb),
+      'actions', COALESCE(public_response->'actions', '[]'::jsonb)))
   FROM tenancy.conversations conversation
   WHERE conversation.tenant_id = runtime.tenant_id AND conversation.id = runtime.conversation_id;
   UPDATE tenancy.conversations SET next_sequence = next_sequence + 1, updated_at = now()

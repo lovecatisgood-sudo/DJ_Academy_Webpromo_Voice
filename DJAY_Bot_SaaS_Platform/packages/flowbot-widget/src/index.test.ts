@@ -12,4 +12,12 @@ describe("SaaS FlowBot widget", () => {
     const source = await import("./index");
     expect(Object.keys(source).join(" ")).not.toMatch(/provider|model/i);
   });
+
+  it("ships native media, carousel, card, and typed-action renderers", async () => {
+    const source = await import("node:fs/promises").then(({ readFile }) => readFile(new URL("./index.ts", import.meta.url), "utf8"));
+    expect(source).toContain('message.type === "carousel"');
+    expect(source).toContain('document.createElement("video")');
+    expect(source).toContain('link.rel = "noopener noreferrer"');
+    expect(source).not.toContain("innerHTML");
+  });
 });

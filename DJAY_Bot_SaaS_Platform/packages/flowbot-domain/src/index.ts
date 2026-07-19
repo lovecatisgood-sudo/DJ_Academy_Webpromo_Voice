@@ -10,6 +10,8 @@ const localizedTextSchema = z.object({
   th: z.string().max(flowbotEditorFieldLimits.localizedText.maxLength),
   en: z.string().max(flowbotEditorFieldLimits.localizedText.maxLength),
 }).strict();
+const httpsUrlSchema = z.string().trim().min(1).max(2000).url().refine((value) => new URL(value).protocol === "https:", "URL must use HTTPS");
+const telephoneUrlSchema = z.string().trim().max(64).regex(/^tel:\+?[0-9(). -]{7,30}$/);
 const nextNodeSchema = z.uuid().nullable();
 const baseNode = {
   id: z.uuid(),
@@ -23,8 +25,27 @@ const formFieldSchema = z.object({
   required: z.boolean(),
 }).strict();
 
+export const flowActionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("call"), label: localizedTextSchema, url: telephoneUrlSchema }).strict(),
+  z.object({ type: z.literal("line"), label: localizedTextSchema, url: httpsUrlSchema }).strict(),
+  z.object({ type: z.literal("website"), label: localizedTextSchema, url: httpsUrlSchema }).strict(),
+  z.object({ type: z.literal("booking"), label: localizedTextSchema, url: httpsUrlSchema }).strict(),
+  z.object({ type: z.literal("checkout"), label: localizedTextSchema, url: httpsUrlSchema }).strict(),
+]);
+export type FlowAction = z.infer<typeof flowActionSchema>;
+
+const flowCardSchema = z.object({
+  id: z.uuid(),
+  kind: z.enum(["product", "service"]),
+  title: localizedTextSchema,
+  description: localizedTextSchema,
+  imageUrl: httpsUrlSchema.optional(),
+  priceLabel: localizedTextSchema.optional(),
+  actions: z.array(flowActionSchema).max(5).default([]),
+}).strict();
+
 export const coreFlowNodeTypes = [
-  "message", "media_reference", "options", "input_capture", "form", "condition", "jump", "end",
+  "message", "media_reference", "product_card", "carousel", "actions", "options", "input_capture", "form", "condition", "jump", "end",
 ] as const;
 export const premiumFlowNodeTypes = [
   "advanced_condition", "variable_set", "delay", "subflow", "business_hours", "team_route", "webhook",
@@ -34,7 +55,10 @@ export type FlowNodeType = (typeof flowNodeTypes)[number];
 
 export const flowNodeSchema = z.discriminatedUnion("type", [
   z.object({ ...baseNode, type: z.literal("message"), content: localizedTextSchema, nextNodeId: nextNodeSchema }).strict(),
-  z.object({ ...baseNode, type: z.literal("media_reference"), assetRef: z.string().min(1).max(500), label: localizedTextSchema, nextNodeId: nextNodeSchema }).strict(),
+  z.object({ ...baseNode, type: z.literal("media_reference"), assetRef: httpsUrlSchema, mediaType: z.enum(["image", "video"]).default("image"), label: localizedTextSchema, nextNodeId: nextNodeSchema }).strict(),
+  z.object({ ...baseNode, type: z.literal("product_card"), card: flowCardSchema, nextNodeId: nextNodeSchema }).strict(),
+  z.object({ ...baseNode, type: z.literal("carousel"), cards: z.array(flowCardSchema).min(1).max(10), nextNodeId: nextNodeSchema }).strict(),
+  z.object({ ...baseNode, type: z.literal("actions"), prompt: localizedTextSchema.optional(), actions: z.array(flowActionSchema).min(1).max(8), nextNodeId: nextNodeSchema }).strict(),
   z.object({ ...baseNode, type: z.literal("options"), prompt: localizedTextSchema, options: z.array(z.object({ id: z.uuid(), label: localizedTextSchema, targetNodeId: z.uuid() }).strict()).min(1).max(8) }).strict(),
   z.object({ ...baseNode, type: z.literal("input_capture"), prompt: localizedTextSchema, variableKey: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/), nextNodeId: z.uuid() }).strict(),
   z.object({ ...baseNode, type: z.literal("form"), prompt: localizedTextSchema, fields: z.array(formFieldSchema).min(1).max(20), nextNodeId: nextNodeSchema }).strict(),
@@ -103,6 +127,10 @@ export type FlowEntitlements = Readonly<{
 
 export type FlowValidationIssue = Readonly<{ code: string; nodeId?: string; detail?: string }>;
 
+export function countFlowTopics(snapshot: Pick<FlowSnapshot, "rootNodeId" | "keywords">) {
+  return new Set([snapshot.rootNodeId, ...snapshot.keywords.map((keyword) => keyword.nodeId)]).size;
+}
+
 export const flowBusinessScheduleSchema = z.object({
   scheduleKey: z.string().trim().regex(flowbotOperationKeyPattern),
   timezone: z.string().trim()
@@ -162,7 +190,7 @@ export function flowNodeEntitlementIssue(node: FlowNode, authority: FlowEntitlem
 
 function references(node: FlowNode): readonly string[] {
   switch (node.type) {
-    case "message": case "media_reference": case "form": return node.nextNodeId ? [node.nextNodeId] : [];
+    case "message": case "media_reference": case "product_card": case "carousel": case "actions": case "form": return node.nextNodeId ? [node.nextNodeId] : [];
     case "input_capture": case "variable_set": case "delay": return [node.nextNodeId];
     case "options": return node.options.map((option) => option.targetNodeId);
     case "condition": case "advanced_condition": return [node.trueNodeId, node.falseNodeId];
@@ -187,6 +215,8 @@ export function validateFlowForPublish(snapshotInput: unknown, authority: FlowEn
   if (nodes.length > 500) issues.push({ code: "absolute_node_safety_limit" });
   const configuredLimit = authority.limits.flow_nodes_per_bot;
   if (typeof configuredLimit === "number" && nodes.length > configuredLimit) issues.push({ code: "plan_node_limit_exceeded" });
+  const topicLimit = authority.limits.topics;
+  if (typeof topicLimit === "number" && countFlowTopics(snapshot) > topicLimit) issues.push({ code: "plan_topic_limit_exceeded", detail: `${countFlowTopics(snapshot)}/${topicLimit}` });
   for (const node of nodes) {
     if (premiumFlowNodeTypes.includes(node.type as (typeof premiumFlowNodeTypes)[number]) && authority.entitlements["flow.nodes.advanced"] !== true) issues.push({ code: "premium_node_not_entitled", nodeId: node.id, detail: node.type });
     const entitlementIssue = flowNodeEntitlementIssue(node, authority);

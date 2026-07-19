@@ -113,6 +113,21 @@ export class PrivacyStore {
         FROM tenancy.contact_identities WHERE tenant_id = ${job.tenantId}::uuid
           AND (${contactId}::uuid IS NULL OR contact_id = ${contactId}::uuid) ORDER BY id
       `;
+      data.contactTags = await sql<ExportRow[]>`
+        SELECT tag.id, tag.tag_key AS "tagKey", tag.label, tag.color,
+               assignment.contact_id AS "contactId", assignment.assigned_at AS "assignedAt"
+        FROM tenancy.contact_tag_assignments assignment
+        JOIN tenancy.contact_tags tag ON tag.tenant_id = assignment.tenant_id AND tag.id = assignment.tag_id
+        WHERE assignment.tenant_id = ${job.tenantId}::uuid
+          AND (${contactId}::uuid IS NULL OR assignment.contact_id = ${contactId}::uuid)
+        ORDER BY assignment.contact_id, tag.id
+      `;
+      data.contactAttributes = await sql<ExportRow[]>`
+        SELECT id, contact_id AS "contactId", attribute_key AS "attributeKey", label,
+               value_type AS "valueType", value_text AS value, created_at AS "createdAt", updated_at AS "updatedAt"
+        FROM tenancy.contact_attributes WHERE tenant_id = ${job.tenantId}::uuid
+          AND (${contactId}::uuid IS NULL OR contact_id = ${contactId}::uuid) ORDER BY id
+      `;
       data.leads = await sql<ExportRow[]>`
         SELECT lead.* FROM tenancy.leads lead WHERE lead.tenant_id = ${job.tenantId}::uuid
           AND (${contactId}::uuid IS NULL OR lead.contact_id = ${contactId}::uuid) ORDER BY lead.id

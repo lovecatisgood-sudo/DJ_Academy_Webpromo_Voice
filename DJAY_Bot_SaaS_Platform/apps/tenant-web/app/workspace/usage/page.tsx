@@ -17,6 +17,8 @@ type UsageSubscription = {
   customerUnit: CustomerUnit;
   periodStart: string;
   periodEnd: string;
+  cancelAt: string | null;
+  cancellationStatus: "prepared" | "scheduled" | "revoked" | "applied" | "failed" | null;
   includedQuantity: number | null;
   safetyCapQuantity: number | null;
   reservedQuantity: number;
@@ -28,12 +30,61 @@ type UsageSubscription = {
   billingInterval: "month" | "year" | null;
   overageRateMinor: number | null;
   pricingConfigured: boolean;
+  alertPolicy: {
+    thresholds: number[];
+    exhaustionAlert: boolean;
+    anomalyAlert: boolean;
+    cooldownHours: number;
+    emailConfigured: boolean;
+  };
+  forecast: {
+    projectedQuantity: number;
+    projectedOverageQuantity: number | null;
+    estimatedOverageMinor: number | null;
+    projectedExhaustionAt: string | null;
+    confidence: "low" | "medium" | "high";
+  };
 };
 type UsageOverview = {
   asOf: string;
   billingMode: "pre_release" | "configured";
-  invoicesAvailable: false;
+  invoicesAvailable: boolean;
   subscriptions: UsageSubscription[];
+};
+type FinancialDocument = {
+  documentId: string; documentKind: "invoice" | "credit_note";
+  subscriptionId: string; documentNumber: string; status: string; currency: "THB";
+  subtotalMinor: number; taxMinor: number; totalMinor: number;
+  amountPaidMinor: number; amountRemainingMinor: number;
+  issuedAt: string | null; recordedAt: string;
+};
+type ResourceBoundaries = {
+  seatCapacity: { allowed: boolean; limit: number; occupied: number };
+  products: Array<{
+    subscriptionId: string; productKey: "flowbot" | "ai_chat" | "voice"; planKey: string;
+    boundaries: Array<{ key: string; used: number; limit: number | null; excess: number }>;
+  }>;
+};
+type AlertDraft = {
+  thresholds: number[];
+  exhaustionAlert: boolean;
+  anomalyAlert: boolean;
+  cooldownHours: number;
+  recipientEmail: string;
+};
+const billingEventKeys = [
+  "subscription.active", "subscription.past_due", "subscription.grace_period",
+  "subscription.restricted", "subscription.cancelled", "cancellation.scheduled",
+  "cancellation.revoked", "cancellation.failed", "payment.succeeded", "payment.failed",
+  "refund.updated", "credit_note.issued",
+] as const;
+type BillingEventKey = typeof billingEventKeys[number];
+type BillingNotificationOverview = {
+  preference: { emailEnabled: boolean; locale: "en" | "th"; eventKeys: BillingEventKey[]; updatedAt: string } | null;
+  notifications: Array<{
+    id: string; subscriptionId: string | null; eventKey: BillingEventKey;
+    facts: Record<string, unknown>; effectiveAt: string; readAt: string | null;
+  }>;
 };
 
 const unitCopy: Record<CustomerUnit, { short: string; singular: string; plural: string }> = {
@@ -67,6 +118,18 @@ export default function UsagePage() {
   const [usage, setUsage] = useState<UsageOverview | null>(null);
   const [loadingUsage, setLoadingUsage] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [resourceBoundaries, setResourceBoundaries] = useState<ResourceBoundaries | null>(null);
+  const [documents, setDocuments] = useState<FinancialDocument[]>([]);
+  const [documentsUnavailable, setDocumentsUnavailable] = useState(false);
+  const [billingNotifications, setBillingNotifications] = useState<BillingNotificationOverview | null>(null);
+  const [billingNotificationEmail, setBillingNotificationEmail] = useState("");
+  const [billingNotificationStatus, setBillingNotificationStatus] = useState("");
+  const [portalStatus, setPortalStatus] = useState("");
+  const [cancellationStatus, setCancellationStatus] = useState<Record<string, string>>({});
+  const [capDrafts, setCapDrafts] = useState<Record<string, string>>({});
+  const [capStatus, setCapStatus] = useState<Record<string, string>>({});
+  const [alertDrafts, setAlertDrafts] = useState<Record<string, AlertDraft>>({});
+  const [alertStatus, setAlertStatus] = useState<Record<string, string>>({});
   const activeWorkspace = useMemo(
     () => session.workspaces.find((workspace) => workspace.tenantId === session.selectedTenantId),
     [session.workspaces, session.selectedTenantId],
@@ -74,7 +137,12 @@ export default function UsagePage() {
   const loadUsage = useCallback(async () => {
     setLoadingUsage(true);
     setLoadError(false);
-    const response = await fetch("/tenant/usage", { cache: "no-store" }).catch(() => null);
+    const [response, boundaryResponse, documentResponse, notificationResponse] = await Promise.all([
+      fetch("/tenant/usage", { cache: "no-store" }).catch(() => null),
+      fetch("/tenant/resource-boundaries", { cache: "no-store" }).catch(() => null),
+      fetch("/tenant/billing/documents", { cache: "no-store" }).catch(() => null),
+      fetch("/tenant/billing/notifications", { cache: "no-store" }).catch(() => null),
+    ]);
     if (!response?.ok) {
       setUsage(null);
       setLoadError(true);
@@ -83,6 +151,11 @@ export default function UsagePage() {
     }
     const result = await response.json();
     setUsage(result.usage);
+    setResourceBoundaries(boundaryResponse?.ok ? (await boundaryResponse.json()).boundaries : null);
+    setDocuments(documentResponse?.ok ? (await documentResponse.json()).documents ?? [] : []);
+    setDocumentsUnavailable(!documentResponse?.ok);
+    setBillingNotifications(notificationResponse?.ok
+      ? (await notificationResponse.json()).billingNotifications : null);
     setLoadingUsage(false);
   }, []);
 
@@ -93,8 +166,148 @@ export default function UsagePage() {
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading usage...</main>;
   const isOwner = activeWorkspace?.role === "tenant_master_admin";
+  const canManageUsage = isOwner || activeWorkspace?.role === "tenant_billing_manager";
   const subscriptions = usage?.subscriptions ?? [];
   const activeCount = subscriptions.filter((subscription) => subscription.accessMode === "active").length;
+  const updateSafetyCap = async (subscription: UsageSubscription) => {
+    const draft = capDrafts[subscription.subscriptionId];
+    const quantity = draft === undefined || draft.trim() === ""
+      ? subscription.safetyCapQuantity : Number(draft);
+    if (quantity !== null && (!Number.isSafeInteger(quantity) || quantity < 0)) {
+      setCapStatus((current) => ({ ...current, [subscription.subscriptionId]: "Enter a whole number" }));
+      return;
+    }
+    setCapStatus((current) => ({ ...current, [subscription.subscriptionId]: "Saving" }));
+    const response = await fetch("/tenant/usage/safety-cap", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ subscriptionId: subscription.subscriptionId, safetyCapQuantity: quantity }),
+    }).catch(() => null);
+    if (response?.ok) {
+      setCapStatus((current) => ({ ...current, [subscription.subscriptionId]: "Saved" }));
+      await loadUsage();
+      return;
+    }
+    const result = response ? await response.json().catch(() => null) : null;
+    setCapStatus((current) => ({
+      ...current,
+      [subscription.subscriptionId]: result?.status === "reauthentication_required"
+        ? "Sign in again with MFA" : result?.status === "overage_consent_required"
+          ? "Overage consent required" : result?.status === "below_committed_usage"
+            ? "Below committed usage" : "Could not save",
+    }));
+  };
+  const alertDraft = (subscription: UsageSubscription): AlertDraft => alertDrafts[subscription.subscriptionId] ?? {
+    thresholds: subscription.alertPolicy.thresholds,
+    exhaustionAlert: subscription.alertPolicy.exhaustionAlert,
+    anomalyAlert: subscription.alertPolicy.anomalyAlert,
+    cooldownHours: subscription.alertPolicy.cooldownHours,
+    recipientEmail: "",
+  };
+  const updateAlertDraft = (subscription: UsageSubscription, change: Partial<AlertDraft>) => {
+    setAlertDrafts((current) => ({
+      ...current, [subscription.subscriptionId]: { ...alertDraft(subscription), ...change },
+    }));
+  };
+  const saveAlertPolicy = async (subscription: UsageSubscription) => {
+    const draft = alertDraft(subscription);
+    if (!draft.recipientEmail.trim()) {
+      setAlertStatus((current) => ({ ...current, [subscription.subscriptionId]: "Enter the billing recipient email" }));
+      return;
+    }
+    setAlertStatus((current) => ({ ...current, [subscription.subscriptionId]: "Saving" }));
+    const response = await fetch("/tenant/usage/alerts", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...draft, subscriptionId: subscription.subscriptionId }),
+    }).catch(() => null);
+    if (response?.ok) {
+      setAlertStatus((current) => ({ ...current, [subscription.subscriptionId]: "Saved" }));
+      setAlertDrafts((current) => ({
+        ...current, [subscription.subscriptionId]: { ...draft, recipientEmail: "" },
+      }));
+      await loadUsage();
+      return;
+    }
+    const result = response ? await response.json().catch(() => null) : null;
+    setAlertStatus((current) => ({
+      ...current, [subscription.subscriptionId]: result?.status === "reauthentication_required"
+        ? "Sign in again with MFA" : "Could not save",
+    }));
+  };
+  const openBillingPortal = async () => {
+    setPortalStatus("Opening secure billing");
+    const response = await fetch("/tenant/billing/portal", {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
+      body: JSON.stringify({ returnTo: "usage" }),
+    }).catch(() => null);
+    const result = response ? await response.json().catch(() => null) : null;
+    if (response?.ok && typeof result?.portalUrl === "string") {
+      window.location.assign(result.portalUrl);
+      return;
+    }
+    setPortalStatus(result?.status === "reauthentication_required" ? "Sign in again with MFA"
+      : result?.status === "portal_unavailable" ? "Billing Portal is not configured" : "Billing Portal could not be opened");
+  };
+  const changeCancellation = async (subscription: UsageSubscription, action: "schedule" | "revoke") => {
+    if (action === "schedule" && !window.confirm(
+      `Cancel ${subscription.publicName} at the end of the current annual term? Access remains available until then.`,
+    )) return;
+    setCancellationStatus((current) => ({ ...current, [subscription.subscriptionId]: "Saving" }));
+    const response = await fetch("/tenant/billing/cancellation", {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
+      body: JSON.stringify({ subscriptionId: subscription.subscriptionId, action }),
+    }).catch(() => null);
+    const result = response ? await response.json().catch(() => null) : null;
+    if (response?.ok) {
+      setCancellationStatus((current) => ({ ...current,
+        [subscription.subscriptionId]: action === "schedule" ? "Cancellation scheduled" : "Renewal restored" }));
+      await loadUsage();
+      return;
+    }
+    setCancellationStatus((current) => ({ ...current,
+      [subscription.subscriptionId]: result?.status === "reauthentication_required"
+        ? "Sign in again with MFA" : result?.status === "cancellation_unavailable"
+          ? "Cancellation is not available for this plan" : "Could not update renewal" }));
+  };
+  const saveBillingNotifications = async () => {
+    const preference = billingNotifications?.preference;
+    const emailEnabled = preference?.emailEnabled ?? true;
+    if (emailEnabled && !billingNotificationEmail.trim()) {
+      setBillingNotificationStatus("Enter the billing recipient email");
+      return;
+    }
+    setBillingNotificationStatus("Saving");
+    const response = await fetch("/tenant/billing/notifications", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "configure", emailEnabled,
+        recipientEmail: emailEnabled ? billingNotificationEmail.trim() : null,
+        locale: preference?.locale ?? "en", eventKeys: preference?.eventKeys ?? [...billingEventKeys] }),
+    }).catch(() => null);
+    const result = response ? await response.json().catch(() => null) : null;
+    if (!response?.ok) {
+      setBillingNotificationStatus(result?.status === "reauthentication_required"
+        ? "Sign in again with MFA" : "Could not save billing notifications");
+      return;
+    }
+    setBillingNotificationEmail("");
+    setBillingNotificationStatus("Saved");
+    await loadUsage();
+  };
+  const updateBillingPreference = (change: Partial<NonNullable<BillingNotificationOverview["preference"]>>) => {
+    setBillingNotifications((current) => current ? {
+      ...current,
+      preference: { emailEnabled: true, locale: "en", eventKeys: [...billingEventKeys],
+        updatedAt: new Date().toISOString(), ...current.preference, ...change },
+    } : current);
+  };
+  const markBillingNotificationRead = async (notificationId: string) => {
+    const response = await fetch("/tenant/billing/notifications", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "mark_read", notificationId }),
+    }).catch(() => null);
+    if (response?.ok) await loadUsage();
+  };
 
   return (
     <main className="workspace-shell">
@@ -175,10 +388,39 @@ export default function UsagePage() {
                       </div>
                     )}
                     <dl className="usage-card-details">
+                      <div><dt>Projected use</dt><dd>{formatQuantity(subscription.forecast.projectedQuantity, subscription.customerUnit)}</dd></div>
+                      <div><dt>Forecast confidence</dt><dd>{subscription.forecast.confidence}</dd></div>
+                      <div><dt>Projected overage</dt><dd>{subscription.forecast.estimatedOverageMinor === null ? "Not enabled" : formatMoney(subscription.forecast.estimatedOverageMinor)}</dd></div>
                       <div><dt>Safety cap</dt><dd>{subscription.safetyCapQuantity === null ? "Not set" : formatQuantity(subscription.safetyCapQuantity, subscription.customerUnit)}</dd></div>
                       <div><dt>Overage</dt><dd>{subscription.pricingConfigured && subscription.overageRateMinor !== null ? `${formatMoney(subscription.overageRateMinor)} / ${unitCopy[subscription.customerUnit].singular}` : "Not enabled"}</dd></div>
                       <div><dt>Plan access</dt><dd>{statusCopy(subscription.status, subscription.accessMode)}</dd></div>
+                      <div><dt>Renewal</dt><dd>{subscription.cancelAt
+                        ? `Ends ${formatDate(subscription.cancelAt)}` : "Renews automatically"}</dd></div>
                     </dl>
+                    {canManageUsage && ["trialing", "active", "past_due", "grace_period", "restricted", "paused"].includes(subscription.status) ? (
+                      <div className="usage-cap-control">
+                        <span>{subscription.cancelAt ? "Cancellation scheduled" : "Annual renewal"}</span>
+                        <button className="secondary-command" type="button"
+                          onClick={() => void changeCancellation(subscription, subscription.cancelAt ? "revoke" : "schedule")}>
+                          {subscription.cancelAt ? "Keep subscription" : "Cancel at term end"}
+                        </button>
+                        <span aria-live="polite">{cancellationStatus[subscription.subscriptionId] ?? ""}</span>
+                      </div>
+                    ) : null}
+                    {canManageUsage ? (
+                      <form className="usage-cap-control" onSubmit={(event) => {
+                        event.preventDefault(); void updateSafetyCap(subscription);
+                      }}>
+                        <label htmlFor={`cap-${subscription.subscriptionId}`}>Safety cap</label>
+                        <input id={`cap-${subscription.subscriptionId}`} type="number" min="0" step="1"
+                          value={capDrafts[subscription.subscriptionId] ?? subscription.safetyCapQuantity ?? ""}
+                          onChange={(event) => setCapDrafts((current) => ({
+                            ...current, [subscription.subscriptionId]: event.target.value,
+                          }))} />
+                        <button className="secondary-command" type="submit">Update cap</button>
+                        <span aria-live="polite">{capStatus[subscription.subscriptionId] ?? ""}</span>
+                      </form>
+                    ) : null}
                   </article>
                 );
               })}
@@ -190,18 +432,146 @@ export default function UsagePage() {
           </section>
         )}
 
-        <section className="tool-band muted-band billing-readiness" aria-labelledby="billing-title">
-          <div className="band-heading"><div><p>Billing</p><h2 id="billing-title">Invoices and plan management</h2></div><span>{usage?.invoicesAvailable ? "Available" : "Not yet available"}</span></div>
-          <div className="billing-readiness-copy">
-            <div className="billing-lock" aria-hidden="true">D</div>
-            <div>
-              <strong>{usage?.billingMode === "configured" ? "Commercial billing is configured" : "No public charges are being collected"}</strong>
-              <p>{usage?.billingMode === "configured"
-                ? "Invoice access and plan actions will appear here when enabled for this workspace."
-                : "Prices, invoices, overage charges, tax treatment, and cancellation actions stay unavailable until the commercial launch review is approved."}</p>
-              <span>{isOwner ? "As workspace owner, you will manage payment and plan changes here once they are released." : "Only the workspace owner can manage payment methods, plan changes, and cancellation."}</span>
+        {subscriptions.length && canManageUsage ? (
+          <section className="tool-band usage-alert-settings" aria-labelledby="usage-alerts-title">
+            <div className="band-heading">
+              <div><p>Controls</p><h2 id="usage-alerts-title">Usage alerts</h2></div>
+              <span>Billing managers and owners</span>
             </div>
+            <div className="usage-alert-list">
+              {subscriptions.map((subscription) => {
+                const draft = alertDraft(subscription);
+                return <form className="usage-alert-row" key={subscription.subscriptionId} onSubmit={(event) => {
+                  event.preventDefault(); void saveAlertPolicy(subscription);
+                }}>
+                  <div className="usage-alert-product">
+                    <strong>{subscription.publicName}</strong>
+                    <span>{subscription.alertPolicy.emailConfigured ? "Email delivery configured" : "Email delivery not configured"}</span>
+                  </div>
+                  <fieldset>
+                    <legend>Allowance thresholds</legend>
+                    {[50, 75, 90, 100].map((threshold) => <label key={threshold}>
+                      <input type="checkbox" checked={draft.thresholds.includes(threshold)} onChange={(event) => {
+                        const thresholds = event.target.checked
+                          ? [...draft.thresholds, threshold].sort((left, right) => left - right)
+                          : draft.thresholds.filter((value) => value !== threshold);
+                        updateAlertDraft(subscription, { thresholds });
+                      }} /> {threshold}%
+                    </label>)}
+                  </fieldset>
+                  <div className="usage-alert-toggles">
+                    <label><input type="checkbox" checked={draft.exhaustionAlert} onChange={(event) => updateAlertDraft(subscription, { exhaustionAlert: event.target.checked })} /> Forecast exhaustion</label>
+                    <label><input type="checkbox" checked={draft.anomalyAlert} onChange={(event) => updateAlertDraft(subscription, { anomalyAlert: event.target.checked })} /> Usage anomaly</label>
+                  </div>
+                  <label className="usage-alert-cooldown">Cooldown
+                    <select value={draft.cooldownHours} onChange={(event) => updateAlertDraft(subscription, { cooldownHours: Number(event.target.value) })}>
+                      <option value={6}>6 hours</option><option value={12}>12 hours</option>
+                      <option value={24}>24 hours</option><option value={48}>48 hours</option>
+                      <option value={72}>72 hours</option><option value={168}>7 days</option>
+                    </select>
+                  </label>
+                  <label className="usage-alert-recipient">Billing recipient
+                    <input type="email" maxLength={320} required placeholder={subscription.alertPolicy.emailConfigured ? "Enter email to update" : "billing@business.com"}
+                      value={draft.recipientEmail} onChange={(event) => updateAlertDraft(subscription, { recipientEmail: event.target.value })} />
+                  </label>
+                  <button className="secondary-command" type="submit">Save alerts</button>
+                  <span className="usage-alert-result" aria-live="polite">{alertStatus[subscription.subscriptionId] ?? ""}</span>
+                </form>;
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {resourceBoundaries ? (
+          <section className="tool-band" aria-labelledby="resource-limits-title">
+            <div className="band-heading">
+              <div><p>Contract boundaries</p><h2 id="resource-limits-title">Resources and seats</h2></div>
+              <span>{resourceBoundaries.seatCapacity.occupied} / {resourceBoundaries.seatCapacity.limit} seats</span>
+            </div>
+            <div className="data-table">
+              {resourceBoundaries.products.flatMap((product) => product.boundaries.map((boundary) => (
+                <div className="data-row" key={`${product.subscriptionId}-${boundary.key}`}>
+                  <div><strong>{product.productKey.replaceAll("_", " ")} · {boundary.key.replaceAll("_", " ")}</strong><span>{product.planKey.replaceAll("_", " ")}</span></div>
+                  <span>{boundary.used} used</span>
+                  <span>{boundary.limit === null ? "Unlimited" : `${boundary.limit} included${boundary.excess ? ` · ${boundary.excess} excess` : ""}`}</span>
+                </div>
+              )))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="tool-band usage-alert-settings" aria-labelledby="billing-notifications-title">
+          <div className="band-heading">
+            <div><p>Account activity</p><h2 id="billing-notifications-title">Billing notifications</h2></div>
+            <span>{billingNotifications?.notifications.filter((notice) => !notice.readAt).length ?? 0} unread</span>
           </div>
+          {canManageUsage ? <form className="usage-alert-row" onSubmit={(event) => {
+            event.preventDefault(); void saveBillingNotifications();
+          }}>
+            <label><input type="checkbox" checked={billingNotifications?.preference?.emailEnabled ?? true}
+              onChange={(event) => updateBillingPreference({ emailEnabled: event.target.checked })} /> Email billing events</label>
+            <label className="usage-alert-cooldown">Language
+              <select value={billingNotifications?.preference?.locale ?? "en"}
+                onChange={(event) => updateBillingPreference({ locale: event.target.value as "en" | "th" })}>
+                <option value="en">English</option><option value="th">Thai</option>
+              </select>
+            </label>
+            <label className="usage-alert-recipient">Billing recipient
+              <input type="email" maxLength={320}
+                required={billingNotifications?.preference?.emailEnabled ?? true}
+                disabled={billingNotifications?.preference?.emailEnabled === false}
+                placeholder={billingNotifications?.preference ? "Enter email to update" : "billing@business.com"}
+                value={billingNotificationEmail} onChange={(event) => setBillingNotificationEmail(event.target.value)} />
+            </label>
+            <fieldset>
+              <legend>Events</legend>
+              {billingEventKeys.map((eventKey) => <label key={eventKey}>
+                <input type="checkbox" checked={(billingNotifications?.preference?.eventKeys ?? billingEventKeys).includes(eventKey)}
+                  onChange={(event) => {
+                    const current = billingNotifications?.preference?.eventKeys ?? [...billingEventKeys];
+                    updateBillingPreference({ eventKeys: event.target.checked
+                      ? [...new Set([...current, eventKey])] : current.filter((key) => key !== eventKey) });
+                  }} /> {eventKey.replaceAll(".", " ").replaceAll("_", " ")}
+              </label>)}
+            </fieldset>
+            <button className="secondary-command" type="submit">Save notifications</button>
+            <span className="usage-alert-result" aria-live="polite">{billingNotificationStatus}</span>
+          </form> : null}
+          <div className="data-table" role="list" aria-label="Recent billing notifications">
+            {billingNotifications?.notifications.length ? billingNotifications.notifications.map((notice) => (
+              <div className="data-row" role="listitem" key={notice.id}>
+                <div><strong>{notice.eventKey.replaceAll(".", " ").replaceAll("_", " ")}</strong>
+                  <span>{formatDate(notice.effectiveAt)}</span></div>
+                <span>{notice.readAt ? "Read" : "New"}</span>
+                {!notice.readAt ? <button className="secondary-command" type="button"
+                  onClick={() => void markBillingNotificationRead(notice.id)}>Mark read</button> : <span />}
+              </div>
+            )) : <div className="billing-document-state" role="listitem"><strong>No billing activity yet</strong>
+              <span>Subscription, payment, cancellation and credit events will appear here.</span></div>}
+          </div>
+        </section>
+
+        <section className="tool-band billing-readiness" aria-labelledby="billing-title">
+          <div className="band-heading">
+            <div><p>Billing</p><h2 id="billing-title">Invoices and plan management</h2></div>
+            {canManageUsage ? <button className="secondary-command" type="button" onClick={() => void openBillingPortal()}>Manage billing</button> : null}
+          </div>
+          {portalStatus ? <p className="billing-action-status" role="status">{portalStatus}</p> : null}
+          {documentsUnavailable ? <div className="billing-document-state" role="alert">Billing documents are temporarily unavailable.</div>
+            : documents.length ? <div className="billing-document-list" role="list" aria-label="Billing documents">
+              {documents.map((document) => <div className="billing-document-row" role="listitem" key={document.documentId}>
+                <div><strong>{document.documentKind === "invoice" ? "Invoice" : "Credit note"} {document.documentNumber}</strong>
+                  <span>{formatDate(document.issuedAt ?? document.recordedAt)}</span></div>
+                <span>{document.status.replaceAll("_", " ")}</span>
+                <span>{formatMoney(document.totalMinor)}</span>
+                {document.documentKind === "invoice" ? <span>{document.amountRemainingMinor > 0
+                  ? `${formatMoney(document.amountRemainingMinor)} due` : `${formatMoney(document.amountPaidMinor)} paid`}</span> : <span>Account credit</span>}
+              </div>)}
+            </div> : <div className="billing-document-state">
+              <strong>No billing documents yet</strong>
+              <span>{usage?.billingMode === "configured" ? "Invoices and credit notes will appear after Stripe finalizes them."
+                : "Public charging remains disabled until the commercial release gates are approved."}</span>
+            </div>}
         </section>
       </section>
     </main>

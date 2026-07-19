@@ -8,10 +8,12 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "package:release": "pnpm run build && node scripts/package-release.mjs",
+    "package:release": "pnpm run lint:market-release-requirements && pnpm run lint:market-release-decisions && pnpm run build && node scripts/package-release.mjs",
     "dev": "turbo run dev --parallel",
-    "lint": "turbo run lint && pnpm run lint:boundaries && pnpm run lint:browser-origins && pnpm run lint:auth-cookies && pnpm run lint:runtime-proxies && pnpm run lint:ui-recovery && pnpm run lint:widget-foundation && pnpm run lint:legal-registration && pnpm run lint:production-config && pnpm run lint:onboarding-readiness && pnpm run lint:platform-snapshot && pnpm run lint:verification-continuity && pnpm run lint:auth-continuations && pnpm run lint:password-journeys && pnpm run lint:identity-fields && pnpm run lint:contact-creation && pnpm run lint:voice-deployment-fields && pnpm run lint:website-deployment-fields && pnpm run lint:flowbot-operations-fields && pnpm run lint:flowbot-editor-fields && pnpm run lint:ai-playbook-editor && pnpm run lint:privacy-job-scope && pnpm run lint:inbox-replies && pnpm run lint:platform-incident-resolution && pnpm run lint:platform-voice-actions",
+    "lint": "turbo run lint && pnpm run lint:boundaries && pnpm run lint:market-release-requirements && pnpm run lint:market-release-decisions && pnpm run lint:browser-origins && pnpm run lint:auth-cookies && pnpm run lint:runtime-proxies && pnpm run lint:ui-recovery && pnpm run lint:widget-foundation && pnpm run lint:legal-registration && pnpm run lint:production-config && pnpm run lint:onboarding-readiness && pnpm run lint:platform-snapshot && pnpm run lint:verification-continuity && pnpm run lint:auth-continuations && pnpm run lint:password-journeys && pnpm run lint:identity-fields && pnpm run lint:contact-creation && pnpm run lint:voice-deployment-fields && pnpm run lint:website-deployment-fields && pnpm run lint:flowbot-operations-fields && pnpm run lint:flowbot-editor-fields && pnpm run lint:ai-playbook-editor && pnpm run lint:privacy-job-scope && pnpm run lint:inbox-replies && pnpm run lint:platform-incident-resolution && pnpm run lint:platform-voice-actions",
     "lint:boundaries": "node scripts/check-boundaries.mjs",
+    "lint:market-release-requirements": "node scripts/check-market-release-requirements.mjs",
+    "lint:market-release-decisions": "node scripts/check-market-release-decisions.mjs",
     "lint:browser-origins": "node scripts/check-browser-mutation-origins.mjs",
     "lint:auth-cookies": "node scripts/check-auth-cookie-writes.mjs",
     "lint:runtime-proxies": "node scripts/check-runtime-api-proxies.mjs",
@@ -36,7 +38,8 @@
     "lint:platform-incident-resolution": "node scripts/check-platform-incident-resolution.mjs",
     "lint:platform-voice-actions": "node scripts/check-platform-voice-action-fields.mjs",
     "test:db": "scripts/test-db-integration.sh",
-    "test": "turbo run test",
+    "test": "turbo run test && pnpm run test:market-release-requirements",
+    "test:market-release-requirements": "node --test scripts/check-market-release-requirements.test.mjs",
     "typecheck": "turbo run typecheck",
     "qa:p3-ui": "node scripts/qa-p3-ui.mjs",
     "qa:ui-foundation": "node scripts/qa-ui-foundation.mjs",
@@ -53,7 +56,7 @@
     "qa:p9-recovery": "P9_RECOVERY_ONLY=true scripts/test-db-integration.sh",
     "qa:p9-dependency-outage": "pnpm --filter @djay/provider-gateway exec vitest run src/index.test.ts && pnpm --filter @djay/ai-chat-runtime exec vitest run src/index.test.ts && pnpm --filter @djay/voice-gateway exec vitest run src/media.test.ts && pnpm --filter @djay/notifications exec vitest run src/notifications.test.ts && pnpm --filter @djay/channel-adapters exec vitest run src/index.test.ts",
     "qa:p9-restore": "scripts/test-p9-backup-restore.sh",
-    "qa:release-artifacts": "node scripts/qa-release-artifacts.mjs",
+    "qa:release-artifacts": "pnpm run lint:market-release-requirements && pnpm run lint:market-release-decisions && node scripts/qa-release-artifacts.mjs",
     "verify": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
   },
   "devDependencies": {

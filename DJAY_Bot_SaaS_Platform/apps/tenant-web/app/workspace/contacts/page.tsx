@@ -15,7 +15,9 @@ import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 
 type Identity = { kind: string; value: string; verificationStatus: string };
-type Contact = { id: string; displayName: string; locale: string; consentStatus: string; identities: Identity[]; leadCount: number; updatedAt: string };
+type ContactTag = { key: string; label: string; color: string };
+type ContactAttribute = { key: string; label: string; valueType: "text" | "number" | "boolean" | "date"; value: string };
+type Contact = { id: string; displayName: string; locale: string; consentStatus: string; identities: Identity[]; tags: ContactTag[]; attributes: ContactAttribute[]; leadCount: number; updatedAt: string };
 type IdentityReview = { id: string; sourceContactId: string; sourceContactName: string; candidateContactId: string; candidateContactName: string; identityKind: "email" | "phone"; matchValue: string; observedAt: string };
 
 export default function ContactsPage() {
@@ -26,6 +28,9 @@ export default function ContactsPage() {
   const [messageTone, setMessageTone] = useState<"success" | "error">("success");
   const [working, setWorking] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [editingContactId, setEditingContactId] = useState<string | null>(null);
+  const [tagDraft, setTagDraft] = useState("");
+  const [attributeDrafts, setAttributeDrafts] = useState<ContactAttribute[]>([]);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canWrite = session.allows("contacts.write");
 
@@ -77,6 +82,29 @@ export default function ContactsPage() {
     form.reset(); setMessageTone("success"); setMessage("Contact created."); await load();
   }
 
+  function editMetadata(contact: Contact) {
+    setEditingContactId(contact.id);
+    setTagDraft(contact.tags.map((tag) => tag.label).join(", "));
+    setAttributeDrafts(contact.attributes);
+    setMessage("");
+  }
+
+  async function saveMetadata(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!canWrite || !editingContactId) return;
+    const tags = [...new Set(tagDraft.split(",").map((value) => value.trim()).filter(Boolean))].map((label) => ({
+      key: label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 64), label, color: "#236b4e",
+    })).filter((tag) => /^[a-z][a-z0-9_]{0,63}$/.test(tag.key));
+    const attributes = attributeDrafts.map((attribute) => ({ ...attribute, key: attribute.key.trim().toLowerCase(), label: attribute.label.trim(), value: attribute.value.trim() }))
+      .filter((attribute) => attribute.key && attribute.label && attribute.value);
+    setWorking(true); setMessage("");
+    const response = await safeMutationFetch(`/tenant/contacts/${editingContactId}/metadata`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tags, attributes }),
+    });
+    setWorking(false);
+    if (!response.ok) { setMessageTone("error"); setMessage("Customer metadata could not be saved. Check attribute keys and typed values."); return; }
+    setEditingContactId(null); setMessageTone("success"); setMessage("Customer metadata saved."); await load();
+  }
+
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading contacts...</main>;
   if (loadError) return <WorkspacePageLoadError active="contacts" title="Contacts" resource="customer records" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} onRetry={() => void load()} />;
@@ -115,12 +143,32 @@ export default function ContactsPage() {
           <div className="band-heading"><div><p>Directory</p><h2>Customer records</h2></div><span>{contacts.length}</span></div>
           <div className="data-table">
             {contacts.map((contact) => <div className="data-row contact-row" key={contact.id}>
-              <div><strong>{contact.displayName}</strong><span>{contact.identities.map((identity) => identity.value).join(" / ") || "No active identity"}</span></div>
-              <span>{contact.consentStatus.replaceAll("_", " ")} consent</span><span>{contact.leadCount} lead{contact.leadCount === 1 ? "" : "s"}</span>
+              <div><strong>{contact.displayName}</strong><span>{contact.identities.map((identity) => identity.value).join(" / ") || "No active identity"}</span>
+                {contact.tags.length ? <span>{contact.tags.map((tag) => tag.label).join(" · ")}</span> : null}
+                {contact.attributes.length ? <span>{contact.attributes.map((attribute) => `${attribute.label}: ${attribute.value}`).join(" · ")}</span> : null}
+              </div>
+              <span>{contact.consentStatus.replaceAll("_", " ")} consent</span>
+              <span>{contact.leadCount} lead{contact.leadCount === 1 ? "" : "s"}{canWrite ? <button type="button" className="table-action" onClick={() => editMetadata(contact)}>Edit profile</button> : null}</span>
             </div>)}
             {!contacts.length ? <div className="pending-line"><strong>No contacts</strong><span>Customer records appear here.</span></div> : null}
           </div>
         </section>
+        {editingContactId ? <section className="tool-band">
+          <div className="band-heading"><div><p>Customer profile</p><h2>Tags and attributes</h2></div><button type="button" onClick={() => setEditingContactId(null)}>Close</button></div>
+          <form className="record-form" onSubmit={saveMetadata}>
+            <label>Tags<input value={tagDraft} maxLength={800} placeholder="Qualified lead, VIP, Follow up" onChange={(event) => setTagDraft(event.target.value)} /></label>
+            {attributeDrafts.map((attribute, index) => <fieldset key={`${attribute.key}-${index}`} className="record-form">
+              <label>Key<input value={attribute.key} pattern="[a-z][a-z0-9_]{0,63}" maxLength={64} required onChange={(event) => setAttributeDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, key: event.target.value } : item))} /></label>
+              <label>Label<input value={attribute.label} maxLength={80} required onChange={(event) => setAttributeDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, label: event.target.value } : item))} /></label>
+              <label>Type<select value={attribute.valueType} onChange={(event) => setAttributeDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, valueType: event.target.value as ContactAttribute["valueType"], value: "" } : item))}><option value="text">Text</option><option value="number">Number</option><option value="boolean">Yes / No</option><option value="date">Date</option></select></label>
+              <label>Value{attribute.valueType === "boolean" ? <select value={attribute.value} required onChange={(event) => setAttributeDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, value: event.target.value } : item))}><option value="">Select</option><option value="true">Yes</option><option value="false">No</option></select> : <input type={attribute.valueType === "date" ? "date" : attribute.valueType === "number" ? "number" : "text"} value={attribute.value} maxLength={2000} required onChange={(event) => setAttributeDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, value: event.target.value } : item))} />}</label>
+              <button type="button" onClick={() => setAttributeDrafts((current) => current.filter((_, itemIndex) => itemIndex !== index))}>Remove attribute</button>
+            </fieldset>)}
+            <button type="button" onClick={() => setAttributeDrafts((current) => [...current, { key: "", label: "", valueType: "text", value: "" }])}>Add attribute</button>
+            <button type="submit" disabled={working}>{working ? "Saving..." : "Save profile"}</button>
+          </form>
+          {message ? <p className={`inline-message ${messageTone}`} role={messageTone === "error" ? "alert" : "status"}>{message}</p> : null}
+        </section> : null}
       </section>
     </main>
   );

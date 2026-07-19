@@ -1,0 +1,15 @@
+.git
+.github
+.turbo
+**/.next
+**/.turbo
+**/dist
+**/node_modules
+node_modules
+infra
+docs
+*.log
+.env
+.env.*
+!.env.example
+gha-creds-*.json

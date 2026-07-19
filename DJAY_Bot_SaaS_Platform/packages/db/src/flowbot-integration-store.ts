@@ -9,10 +9,10 @@ export class TenantFlowbotIntegrationStore {
 
   async list(context: TenantContext) {
     return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
-      id: string; name: string; endpointCiphertext: string; allowedTemplateKeys: string[];
+      id: string; name: string; integrationKind: "external_api" | "google_sheets"; endpointCiphertext: string; allowedTemplateKeys: string[];
       status: string; createdAt: Date; approvedAt: Date | null;
     }[]>`
-      SELECT id, name, endpoint_ciphertext AS "endpointCiphertext",
+      SELECT id, name, integration_kind AS "integrationKind", endpoint_ciphertext AS "endpointCiphertext",
              allowed_template_keys AS "allowedTemplateKeys", status,
              created_at AS "createdAt", approved_at AS "approvedAt"
       FROM tenancy.flow_integration_profiles
@@ -22,7 +22,7 @@ export class TenantFlowbotIntegrationStore {
   }
 
   async request(context: TenantContext, input: Readonly<{
-    name: string; endpoint: string; allowedTemplateKeys: readonly string[]; envelopeKey: Buffer;
+    name: string; integrationKind?: "external_api" | "google_sheets"; endpoint: string; allowedTemplateKeys: readonly string[]; envelopeKey: Buffer;
   }>) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await sql<{ entitled: boolean }[]>`
@@ -33,17 +33,19 @@ export class TenantFlowbotIntegrationStore {
           WHERE snapshot.tenant_id = ${context.tenantId}::uuid
             AND snapshot.product_key = 'flowbot' AND snapshot.access_mode = 'active'
             AND subscription.status IN ('active', 'trialing', 'scheduled_change')
-            AND snapshot.resolved_json->'entitlements'->>'flow.webhook' = 'approved'
+            AND (snapshot.resolved_json->'entitlements'->>'flow.webhook' = 'approved'
+              OR (${input.integrationKind ?? "external_api"} = 'google_sheets'
+                AND (snapshot.resolved_json->'entitlements'->>'integration.google_sheets')::boolean IS TRUE))
         ) AS entitled
       `;
       if (!authority[0]?.entitled) return { status: "not_entitled" as const };
       const integrationId = randomUUID();
       await sql`
         INSERT INTO tenancy.flow_integration_profiles (
-          id, tenant_id, name, endpoint_ciphertext, allowed_template_keys,
+          id, tenant_id, name, integration_kind, endpoint_ciphertext, allowed_template_keys,
           requested_by_membership_id
         ) VALUES (
-          ${integrationId}::uuid, ${context.tenantId}::uuid, ${input.name},
+          ${integrationId}::uuid, ${context.tenantId}::uuid, ${input.name}, ${input.integrationKind ?? "external_api"},
           ${sealJson({ url: input.endpoint }, input.envelopeKey)},
           ${input.allowedTemplateKeys as string[]}, ${context.membershipId}::uuid
         )
@@ -55,7 +57,7 @@ export class TenantFlowbotIntegrationStore {
         ) VALUES (
           ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
           'flowbot.integration_requested', 'flow_integration_profile', ${integrationId},
-          ${context.requestId}, 'succeeded', ${sql.json({ templateKeys: input.allowedTemplateKeys })}
+          ${context.requestId}, 'succeeded', ${sql.json({ integrationKind: input.integrationKind ?? "external_api", templateKeys: input.allowedTemplateKeys })}
         )
       `;
       return { status: "requested" as const, integrationId };
@@ -68,12 +70,12 @@ export class PlatformFlowbotIntegrationStore {
 
   async list(context: PlatformContext) {
     return withPlatformTransaction(this.client, context, async ({ sql }) => sql<{
-      id: string; tenantId: string; businessName: string; name: string;
+      id: string; tenantId: string; businessName: string; name: string; integrationKind: "external_api" | "google_sheets";
       endpointCiphertext: string; allowedTemplateKeys: string[]; status: string;
       createdAt: Date; approvedAt: Date | null;
     }[]>`
       SELECT profile.id, profile.tenant_id AS "tenantId", tenant.business_name AS "businessName",
-             profile.name, profile.endpoint_ciphertext AS "endpointCiphertext",
+             profile.name, profile.integration_kind AS "integrationKind", profile.endpoint_ciphertext AS "endpointCiphertext",
              profile.allowed_template_keys AS "allowedTemplateKeys", profile.status,
              profile.created_at AS "createdAt", profile.approved_at AS "approvedAt"
       FROM tenancy.flow_integration_profiles profile

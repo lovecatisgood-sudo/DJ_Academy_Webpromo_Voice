@@ -5,9 +5,9 @@ import type { NextRequest } from "next/server";
 import { ZodError, z } from "zod";
 import { hasTrustedOrigin, readJson, safeJson } from "../../../lib/http";
 import { resolveTenantRequest } from "../../../lib/tenant-context";
+import { hasSensitiveTenantAssurance } from "../../../lib/tenant-assurance";
 
 const selectionSchema = z.object({ planKey: publicPlanKeySchema }).strict();
-const assuranceWindowMs = 10 * 60 * 1000;
 
 export async function GET(request: NextRequest) {
   const resolved = await resolveTenantRequest(request);
@@ -19,13 +19,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const resolved = await resolveTenantRequest(request);
-  if (!resolved || !tenantRoleAllows(resolved.context.role, "subscriptions.manage")) {
+  if (!resolved || !tenantRoleAllows(resolved.context.role, "billing.checkout")) {
     return safeJson({ status: "not_found" }, 404);
   }
   if (!(await hasTrustedOrigin(request))) return safeJson({ status: "not_found" }, 404);
-  const mfaAt = resolved.session.mfaVerifiedAt?.getTime() ?? 0;
-  const reauthAt = resolved.session.reauthenticatedAt.getTime();
-  if (Date.now() - mfaAt > assuranceWindowMs || Date.now() - reauthAt > assuranceWindowMs) {
+  if (!hasSensitiveTenantAssurance(resolved.session)) {
     return safeJson({ status: "reauthentication_required" }, 403);
   }
   try {

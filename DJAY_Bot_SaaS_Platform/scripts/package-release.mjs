@@ -92,6 +92,8 @@ for (const app of nextApps) {
 
 const widgetCdnRoot = resolve(root, "apps", "widget-cdn", "dist");
 rmSync(widgetCdnRoot, { recursive: true, force: true });
+mkdirSync(widgetCdnRoot, { recursive: true });
+cpSync(resolve(root, "apps", "widget-cdn", "build", "index.js"), resolve(widgetCdnRoot, "index.js"));
 const widgetSources = {
   flowbot: "packages/flowbot-widget/dist/index.js",
   "ai-chat": "packages/ai-chat-widget/dist/index.js",
@@ -112,10 +114,10 @@ const widgetEvidence = treeEvidence(widgetCdnRoot);
 writeManifest(widgetCdnRoot, {
   schema: "djay.release-artifact.v1",
   app: "widget-cdn",
-  runtime: "static",
-  entrypoint: null,
-  healthPath: null,
-  readinessPath: null,
+  runtime: "node24",
+  entrypoint: "index.js",
+  healthPath: "/health/live",
+  readinessPath: "/health/ready",
   cacheControl: "public, max-age=300, must-revalidate",
   responseHeaders: {
     "Access-Control-Allow-Origin": "*",
@@ -128,14 +130,16 @@ writeManifest(widgetCdnRoot, {
 console.info(`Packaged widget-cdn: ${widgetEvidence.fileCount} assets (${widgetEvidence.sha256}).`);
 
 for (const [app, entries] of [
+  ["ai-gateway", ["index.js"]],
   ["voice-gateway", ["index.js"]],
-  ["workers", ["index.js", "bootstrap-platform-owner.js", "migrate-flowbot-v1.js", "migrate-voice-text-v2.js"]],
+  ["workers", ["index.js", "bootstrap-platform-owner.js", "migrate-database.js", "migrate-flowbot-v1.js", "migrate-voice-text-v2.js"]],
 ]) {
   const directory = resolve(root, "apps", app, "dist");
   for (const entry of entries) {
     if (!existsSync(resolve(directory, entry))) fail(`${app}/${entry} is missing`);
   }
   if (app === "workers") {
+    replaceDirectory(resolve(root, "packages", "db", "migrations"), resolve(directory, "migrations"));
     const runtimeModules = resolve(directory, "node_modules");
     rmSync(runtimeModules, { recursive: true, force: true });
     copyRuntimeDependency(
@@ -146,11 +150,21 @@ for (const [app, entries] of [
       resolve(root, "apps", "workers", "node_modules", "@node-rs", "argon2"),
       resolve(runtimeModules, "@node-rs", "argon2"),
     );
+    copyRuntimeDependency(
+      resolve(root, "apps", "workers", "node_modules", "@napi-rs", "canvas"),
+      resolve(runtimeModules, "@napi-rs", "canvas"),
+    );
     const optionalRoot = resolve(root, "node_modules", ".pnpm", "node_modules", "@node-rs");
     const nativePackages = readdirSync(optionalRoot).filter((name) => name.startsWith("argon2-")).sort();
     if (nativePackages.length === 0) fail("worker Argon2 native runtime is missing");
     for (const name of nativePackages) {
       copyRuntimeDependency(resolve(optionalRoot, name), resolve(runtimeModules, "@node-rs", name));
+    }
+    const canvasOptionalRoot = resolve(root, "node_modules", ".pnpm", "node_modules", "@napi-rs");
+    const canvasNativePackages = readdirSync(canvasOptionalRoot).filter((name) => name.startsWith("canvas-")).sort();
+    if (canvasNativePackages.length === 0) fail("worker Canvas native runtime is missing");
+    for (const name of canvasNativePackages) {
+      copyRuntimeDependency(resolve(canvasOptionalRoot, name), resolve(runtimeModules, "@napi-rs", name));
     }
   }
   const evidence = treeEvidence(directory);
@@ -159,8 +173,8 @@ for (const [app, entries] of [
     app,
     runtime: "node24",
     entrypoint: "index.js",
-    healthPath: app === "voice-gateway" ? "/health/live" : null,
-    readinessPath: app === "voice-gateway" ? "/health/ready" : null,
+    healthPath: app.endsWith("gateway") || app === "workers" ? "/health/live" : null,
+    readinessPath: app.endsWith("gateway") || app === "workers" ? "/health/ready" : null,
     bundles: evidence,
   });
   console.info(`Packaged ${app}: ${evidence.fileCount} bundles (${evidence.sha256}).`);

@@ -9,7 +9,7 @@ export type WorkspaceSummary = Readonly<{
   role: string;
 }>;
 
-export type WorkspaceArea = "overview" | "flowbot" | "ai_chat" | "voice" | "inbox" | "contacts" | "leads" | "knowledge" | "data" | "team" | "usage" | "security";
+export type WorkspaceArea = "overview" | "flowbot" | "ai_chat" | "voice" | "inbox" | "contacts" | "leads" | "knowledge" | "operations" | "data" | "team" | "usage" | "security";
 
 const workspaceNavigation: ReadonlyArray<Readonly<{
   area: WorkspaceArea; href: string; label: string; permission: TenantPermission;
@@ -22,6 +22,7 @@ const workspaceNavigation: ReadonlyArray<Readonly<{
   { area: "contacts", href: "/workspace/contacts", label: "Contacts", permission: "contacts.read" },
   { area: "leads", href: "/workspace/leads", label: "Leads", permission: "leads.read" },
   { area: "knowledge", href: "/workspace/knowledge", label: "Knowledge", permission: "knowledge.read" },
+  { area: "operations", href: "/workspace/operations", label: "Services & add-ons", permission: "tenant.read" },
   { area: "data", href: "/workspace/data", label: "Data controls", permission: "privacy.manage" },
   { area: "team", href: "/workspace/team", label: "Team", permission: "team.read" },
   { area: "usage", href: "/workspace/usage", label: "Usage", permission: "usage.read" },
@@ -37,7 +38,11 @@ const roleLabels: Readonly<Record<TenantRole, string>> = {
   tenant_master_admin: "Workspace owner",
   tenant_admin: "Tenant admin",
   tenant_operator: "Operator",
+  tenant_conversation_manager: "Conversation manager",
+  tenant_human_agent: "Human agent",
   tenant_analyst: "Analyst",
+  tenant_billing_manager: "Billing manager",
+  tenant_readonly_support: "Read-only support",
 };
 
 export function WorkspaceSidebar({

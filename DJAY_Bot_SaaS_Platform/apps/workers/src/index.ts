@@ -1,18 +1,34 @@
-import { parse32ByteSecret } from "@djay/auth";
+import { createServer } from "node:http";
+import { openJson, parse32ByteSecret, sealJson } from "@djay/auth";
+import { createHash } from "node:crypto";
 import { AiTextRuntimeError, generateAiTurn } from "@djay/ai-chat-runtime";
 import {
-  AiChatNotificationWorkerStore, AiSocialWorkerStore, createDatabaseClient, FlowbotNotificationWorkerStore, FlowbotWorkerStore,
-  PostgresEmailOutboxStore, PrivacyStore, VoiceReaperStore,
+  AiChatNotificationWorkerStore, AiIntegrationWorkerStore, AiSocialWorkerStore, BillingNotificationWorkerStore, BillingWebhookStore, createDatabaseClient, DatabaseReadinessProbe, EntitlementChangeWorkerStore,
+  FinancialEventReconciliationWorkerStore, FinancialReconciliationWorkerStore, FlowbotNotificationWorkerStore, FlowbotWorkerStore,
+  FlowSocialWorkerStore,
+  KnowledgeIngestionWorkerStore,
+  PostgresEmailOutboxStore, PrivacyStore, ProviderUsageReconciliationWorkerStore,
+  UsageAlertNotificationWorkerStore,
+  UsageAlertWorkerStore, UsagePeriodWorkerStore, VoiceReaperStore,
+  SubscriptionLifecycleWorkerStore,
+  BillingWebhookRecoveryWorkerStore,
 } from "@djay/db";
-import { createHttpEmailDelivery, runAiChatMerchantEmail, runEmailBatch, runFlowbotMerchantEmail } from "@djay/notifications";
+import {
+  createHttpEmailDelivery, runAiChatMerchantEmail, runCustomerBillingEmail, runEmailBatch,
+  runFlowbotMerchantEmail, runUsageAlertEmail,
+} from "@djay/notifications";
 import { createHttpTextProviderGateway, ProviderGatewayError } from "@djay/provider-gateway";
 import { assertNoProductionPlaceholders } from "@djay/shared/production-config";
-import { createSocialDeliveryClient, renderSocialReply, resumeSocialReply, SocialDeliveryError, socialCredentialSchema } from "@djay/channel-adapters";
+import { createStripePaymentProvider } from "@djay/usage-billing";
+import { createSocialDeliveryClient, flowMessagesToSocialReplyInput, renderSocialReply, resumeSocialReply, SocialDeliveryError, socialCredentialSchema, type StructuredFlowMessage } from "@djay/channel-adapters";
 import { z } from "zod";
 import { deliverFlowbotIntegration } from "./flowbot-integration";
+import { runKnowledgeIngestionBatch } from "./knowledge-ingestion";
+import { deliverAiIntegration } from "./ai-integration";
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.coerce.number().int().min(1).max(65_535).default(8080),
   WORKER_DATABASE_URL: z.string().url(),
   AUTH_EMAIL_ENVELOPE_KEY: z.string().min(40).optional(),
   EMAIL_DELIVERY_MODE: z.enum(["disabled", "http"]).default("disabled"),
@@ -26,7 +42,15 @@ const envSchema = z.object({
   FLOWBOT_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
   FLOWBOT_INTEGRATION_ENVELOPE_KEY: z.string().min(40).optional(),
   FLOWBOT_NOTIFICATION_ENVELOPE_KEY: z.string().min(40).optional(),
+  FLOWBOT_SOCIAL_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY: z.string().min(40).optional(),
   AI_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  AI_INTEGRATION_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  AI_INTEGRATION_ENVELOPE_KEY: z.string().min(40).optional(),
+  KNOWLEDGE_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  KNOWLEDGE_OBJECT_BUCKET: z.string().min(3).max(222).optional(),
+  MALWARE_SCANNER_ENDPOINT: z.string().url().optional(),
+  MALWARE_SCANNER_TOKEN: z.string().min(16).optional(),
   AI_NOTIFICATION_ENVELOPE_KEY: z.string().min(40).optional(),
   AI_SOCIAL_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
   AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY: z.string().min(40).optional(),
@@ -37,6 +61,21 @@ const envSchema = z.object({
   VOICE_REAPER_ENABLED: z.enum(["true", "false"]).default("false"),
   VOICE_REAPER_STALE_SECONDS: z.coerce.number().int().min(15).max(300).default(30),
   VOICE_REAPER_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(100),
+  ENTITLEMENT_CHANGE_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  USAGE_ALERT_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY: z.string().min(40).optional(),
+  BILLING_NOTIFICATION_ENVELOPE_KEY: z.string().min(40).optional(),
+  COMMERCE_WORKERS_ENABLED: z.enum(["true", "false"]).default("false"),
+  USAGE_PERIOD_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  USAGE_RECONCILIATION_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  BILLING_WEBHOOK_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  SUBSCRIPTION_LIFECYCLE_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  BILLING_WEBHOOK_RECOVERY_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  BILLING_WEBHOOK_ENVELOPE_KEY: z.string().min(40).optional(),
+  BILLING_FINANCIAL_RECONCILIATION_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  BILLING_FINANCIAL_ENVELOPE_KEY: z.string().min(40).optional(),
+  STRIPE_SECRET_KEY: z.string().min(20).optional(),
+  TENANT_APP_URL: z.string().url().optional(),
 });
 
 const env = envSchema.parse(process.env);
@@ -44,26 +83,63 @@ assertNoProductionPlaceholders(env.NODE_ENV, env);
 if (env.NODE_ENV === "production" && env.EMAIL_DELIVERY_MODE !== "http") throw new Error("EMAIL_DELIVERY_MODE=http is required in production.");
 if (env.NODE_ENV === "production" && env.PRIVACY_WORKER_ENABLED !== "true") throw new Error("PRIVACY_WORKER_ENABLED=true is required in production.");
 if (env.NODE_ENV === "production" && env.FLOWBOT_WORKER_ENABLED !== "true") throw new Error("FLOWBOT_WORKER_ENABLED=true is required in production.");
+if (env.NODE_ENV === "production" && env.FLOWBOT_SOCIAL_WORKER_ENABLED !== "true") throw new Error("FLOWBOT_SOCIAL_WORKER_ENABLED=true is required in production.");
 if (env.NODE_ENV === "production" && env.AI_WORKER_ENABLED !== "true") throw new Error("AI_WORKER_ENABLED=true is required in production.");
+if (env.NODE_ENV === "production" && env.AI_INTEGRATION_WORKER_ENABLED !== "true") throw new Error("AI_INTEGRATION_WORKER_ENABLED=true is required in production.");
+if (env.NODE_ENV === "production" && env.KNOWLEDGE_WORKER_ENABLED !== "true") throw new Error("KNOWLEDGE_WORKER_ENABLED=true is required in production.");
 if (env.NODE_ENV === "production" && env.AI_SOCIAL_WORKER_ENABLED !== "true") throw new Error("AI_SOCIAL_WORKER_ENABLED=true is required in production.");
+if (env.NODE_ENV === "production" && env.ENTITLEMENT_CHANGE_WORKER_ENABLED !== "true") throw new Error("ENTITLEMENT_CHANGE_WORKER_ENABLED=true is required in production.");
+if (env.NODE_ENV === "production" && env.USAGE_ALERT_WORKER_ENABLED !== "true") throw new Error("USAGE_ALERT_WORKER_ENABLED=true is required in production.");
+if (env.NODE_ENV === "production" && env.USAGE_PERIOD_WORKER_ENABLED !== "true") throw new Error("USAGE_PERIOD_WORKER_ENABLED=true is required in production.");
+if (env.NODE_ENV === "production" && env.USAGE_RECONCILIATION_WORKER_ENABLED !== "true") throw new Error("USAGE_RECONCILIATION_WORKER_ENABLED=true is required in production.");
+const commerceWorkerFlags = [env.BILLING_WEBHOOK_WORKER_ENABLED, env.SUBSCRIPTION_LIFECYCLE_WORKER_ENABLED,
+  env.BILLING_WEBHOOK_RECOVERY_WORKER_ENABLED, env.BILLING_FINANCIAL_RECONCILIATION_WORKER_ENABLED];
+if (env.NODE_ENV === "production" && env.COMMERCE_WORKERS_ENABLED === "true" && commerceWorkerFlags.some((flag) => flag !== "true")) {
+  throw new Error("All commerce workers must be enabled when COMMERCE_WORKERS_ENABLED=true in production.");
+}
+if (env.COMMERCE_WORKERS_ENABLED === "false" && commerceWorkerFlags.some((flag) => flag === "true")) {
+  throw new Error("Commerce worker flags require COMMERCE_WORKERS_ENABLED=true.");
+}
 if (env.EMAIL_DELIVERY_MODE === "http" && (!env.EMAIL_DELIVERY_ENDPOINT || !env.EMAIL_DELIVERY_API_TOKEN || !env.EMAIL_FROM || !env.AUTH_EMAIL_ENVELOPE_KEY)) {
   throw new Error("HTTP email delivery configuration is incomplete.");
 }
 if (env.PRIVACY_WORKER_ENABLED === "true" && !env.PRIVACY_EXPORT_KEY) throw new Error("PRIVACY_EXPORT_KEY is required when privacy processing is enabled.");
 if (env.FLOWBOT_WORKER_ENABLED === "true" && !env.FLOWBOT_INTEGRATION_ENVELOPE_KEY) throw new Error("FLOWBOT_INTEGRATION_ENVELOPE_KEY is required when FlowBot processing is enabled.");
 if (env.FLOWBOT_WORKER_ENABLED === "true" && !env.FLOWBOT_NOTIFICATION_ENVELOPE_KEY) throw new Error("FLOWBOT_NOTIFICATION_ENVELOPE_KEY is required when FlowBot processing is enabled.");
+if (env.FLOWBOT_SOCIAL_WORKER_ENABLED === "true" && !env.FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY) throw new Error("FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY is required when FlowBot social processing is enabled.");
 if (env.AI_WORKER_ENABLED === "true" && !env.AI_NOTIFICATION_ENVELOPE_KEY) throw new Error("AI_NOTIFICATION_ENVELOPE_KEY is required when AI processing is enabled.");
+if (env.AI_INTEGRATION_WORKER_ENABLED === "true" && !env.AI_INTEGRATION_ENVELOPE_KEY) throw new Error("AI_INTEGRATION_ENVELOPE_KEY is required when AI integration processing is enabled.");
+if (env.KNOWLEDGE_WORKER_ENABLED === "true" && (!env.KNOWLEDGE_OBJECT_BUCKET || !env.MALWARE_SCANNER_ENDPOINT || !env.MALWARE_SCANNER_TOKEN)) {
+  throw new Error("Knowledge object storage and malware scanner configuration is incomplete.");
+}
 if (env.AI_SOCIAL_WORKER_ENABLED === "true" && (!env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY
   || !env.AI_TEXT_GATEWAY_ENDPOINT || !env.AI_TEXT_GATEWAY_SERVICE_TOKEN)) {
   throw new Error("AI social worker credential and text gateway configuration is incomplete.");
 }
+if (env.USAGE_ALERT_WORKER_ENABLED === "true" && !env.USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY) {
+  throw new Error("USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY is required when usage alerts are enabled.");
+}
+if (env.COMMERCE_WORKERS_ENABLED === "true" && !env.BILLING_NOTIFICATION_ENVELOPE_KEY) {
+  throw new Error("BILLING_NOTIFICATION_ENVELOPE_KEY is required when commerce workers are enabled.");
+}
+if (env.BILLING_WEBHOOK_WORKER_ENABLED === "true" && !env.BILLING_WEBHOOK_ENVELOPE_KEY) {
+  throw new Error("BILLING_WEBHOOK_ENVELOPE_KEY is required when billing webhook processing is enabled.");
+}
+if (env.BILLING_FINANCIAL_RECONCILIATION_WORKER_ENABLED === "true"
+  && (!env.BILLING_FINANCIAL_ENVELOPE_KEY || !env.STRIPE_SECRET_KEY || !env.TENANT_APP_URL)) {
+  throw new Error("Stripe financial reconciliation configuration is incomplete.");
+}
 
 const client = createDatabaseClient(env.WORKER_DATABASE_URL);
+const databaseReadiness = new DatabaseReadinessProbe(client);
 const emailStore = new PostgresEmailOutboxStore(client);
 const privacyStore = new PrivacyStore(client);
 const flowbotWorker = new FlowbotWorkerStore(client);
 const flowbotNotificationWorker = new FlowbotNotificationWorkerStore(client);
+const flowSocialWorker = new FlowSocialWorkerStore(client);
 const aiChatNotificationWorker = new AiChatNotificationWorkerStore(client);
+const knowledgeWorker = new KnowledgeIngestionWorkerStore(client);
+const aiIntegrationWorker = new AiIntegrationWorkerStore(client);
 const delivery = env.EMAIL_DELIVERY_MODE === "http" ? createHttpEmailDelivery({
   endpoint: env.EMAIL_DELIVERY_ENDPOINT!, apiToken: env.EMAIL_DELIVERY_API_TOKEN!, from: env.EMAIL_FROM!,
 }) : null;
@@ -71,11 +147,35 @@ const emailEnvelopeKey = env.AUTH_EMAIL_ENVELOPE_KEY ? parse32ByteSecret(env.AUT
 const privacyExportKey = env.PRIVACY_EXPORT_KEY ? parse32ByteSecret(env.PRIVACY_EXPORT_KEY, "PRIVACY_EXPORT_KEY") : null;
 const flowbotIntegrationKey = env.FLOWBOT_INTEGRATION_ENVELOPE_KEY ? parse32ByteSecret(env.FLOWBOT_INTEGRATION_ENVELOPE_KEY, "FLOWBOT_INTEGRATION_ENVELOPE_KEY") : null;
 const flowbotNotificationKey = env.FLOWBOT_NOTIFICATION_ENVELOPE_KEY ? parse32ByteSecret(env.FLOWBOT_NOTIFICATION_ENVELOPE_KEY, "FLOWBOT_NOTIFICATION_ENVELOPE_KEY") : null;
+const flowSocialCredentialKey = env.FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY
+  ? parse32ByteSecret(env.FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY, "FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY") : null;
 const aiNotificationKey = env.AI_NOTIFICATION_ENVELOPE_KEY ? parse32ByteSecret(env.AI_NOTIFICATION_ENVELOPE_KEY, "AI_NOTIFICATION_ENVELOPE_KEY") : null;
+const aiIntegrationKey = env.AI_INTEGRATION_ENVELOPE_KEY ? parse32ByteSecret(env.AI_INTEGRATION_ENVELOPE_KEY, "AI_INTEGRATION_ENVELOPE_KEY") : null;
 const aiSocialCredentialKey = env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY
   ? parse32ByteSecret(env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY, "AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY") : null;
+const usageAlertNotificationKey = env.USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY
+  ? parse32ByteSecret(env.USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY, "USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY") : null;
+const billingNotificationKey = env.BILLING_NOTIFICATION_ENVELOPE_KEY
+  ? parse32ByteSecret(env.BILLING_NOTIFICATION_ENVELOPE_KEY, "BILLING_NOTIFICATION_ENVELOPE_KEY") : null;
 const aiSocialWorker = aiSocialCredentialKey ? new AiSocialWorkerStore(client, aiSocialCredentialKey) : null;
 const voiceReaper = new VoiceReaperStore(client);
+const entitlementChangeWorker = new EntitlementChangeWorkerStore(client);
+const usageAlertWorker = new UsageAlertWorkerStore(client);
+const usageAlertNotificationWorker = new UsageAlertNotificationWorkerStore(client);
+const billingNotificationWorker = new BillingNotificationWorkerStore(client);
+const usagePeriodWorker = new UsagePeriodWorkerStore(client);
+const usageReconciliationWorker = new ProviderUsageReconciliationWorkerStore(client);
+const billingWebhookWorker = new BillingWebhookStore(client);
+const subscriptionLifecycleWorker = new SubscriptionLifecycleWorkerStore(client);
+const billingWebhookRecoveryWorker = new BillingWebhookRecoveryWorkerStore(client);
+const billingWebhookEnvelopeKey = env.BILLING_WEBHOOK_ENVELOPE_KEY
+  ? parse32ByteSecret(env.BILLING_WEBHOOK_ENVELOPE_KEY, "BILLING_WEBHOOK_ENVELOPE_KEY") : null;
+const financialReconciliationWorker = new FinancialReconciliationWorkerStore(client);
+const financialEventReconciliationWorker = new FinancialEventReconciliationWorkerStore(client);
+const billingFinancialEnvelopeKey = env.BILLING_FINANCIAL_ENVELOPE_KEY
+  ? parse32ByteSecret(env.BILLING_FINANCIAL_ENVELOPE_KEY, "BILLING_FINANCIAL_ENVELOPE_KEY") : null;
+const stripeFinancialProvider = env.STRIPE_SECRET_KEY && env.TENANT_APP_URL
+  ? createStripePaymentProvider({ secretKey: env.STRIPE_SECRET_KEY, allowedReturnOrigins: [env.TENANT_APP_URL] }) : null;
 const aiTextGateway = env.AI_TEXT_GATEWAY_ENDPOINT && env.AI_TEXT_GATEWAY_SERVICE_TOKEN
   ? createHttpTextProviderGateway({
     endpoint: env.AI_TEXT_GATEWAY_ENDPOINT, serviceToken: env.AI_TEXT_GATEWAY_SERVICE_TOKEN,
@@ -86,6 +186,28 @@ const aiSocialDelivery = createSocialDeliveryClient({
 });
 let stopping = false;
 let nextRetentionSweepAt = 0;
+let nextUsageAlertSweepAt = 0;
+let nextUsagePeriodSweepAt = 0;
+let nextUsageReconciliationSweepAt = 0;
+
+const healthServer = createServer(async (request, response) => {
+  response.setHeader("content-type", "application/json");
+  response.setHeader("cache-control", "no-store");
+  if (request.method === "GET" && request.url === "/health/live") {
+    response.writeHead(200).end(JSON.stringify({ status: "live" }));
+    return;
+  }
+  if (request.method === "GET" && request.url === "/health/ready") {
+    const database = stopping ? { status: "unavailable" as const, reason: "stopping" as const } : await databaseReadiness.check();
+    const ready = database.status === "ready";
+    response.writeHead(ready ? 200 : 503).end(JSON.stringify({ status: ready ? "ready" : "not_ready", database }));
+    return;
+  }
+  response.writeHead(404).end(JSON.stringify({ status: "not_found" }));
+});
+healthServer.listen(env.PORT, "0.0.0.0", () => {
+  console.info("worker_health_listening", { port: env.PORT });
+});
 
 function socialErrorCode(error: unknown) {
   if (error instanceof AiTextRuntimeError || error instanceof ProviderGatewayError) return error.code;
@@ -94,7 +216,7 @@ function socialErrorCode(error: unknown) {
   const allowed = new Set([
     "structured_output_invalid", "action_not_entitled", "grounding_invalid",
     "gateway_invalid_response", "ai_social_turn_not_available", "ai_quota_unavailable",
-    "ai_safety_cap", "ai_social_automation_suspended", "invalid_ai_social_turn_request",
+    "ai_safety_cap", "ai_allowance_exhausted", "ai_social_automation_suspended", "invalid_ai_social_turn_request",
     "ai_social_subject_not_active", "ai_social_idempotency_conflict",
     "ai_social_turn_not_found", "ai_social_turn_not_committable",
     "invalid_ai_structured_output", "ai_action_not_allowed", "ai_lead_action_required",
@@ -106,7 +228,7 @@ function socialErrorCode(error: unknown) {
 function terminalSocialError(code: string) {
   return new Set([
     "structured_output_invalid", "action_not_entitled", "grounding_invalid",
-    "gateway_invalid_response", "ai_social_turn_not_available", "ai_safety_cap",
+    "gateway_invalid_response", "ai_social_turn_not_available", "ai_safety_cap", "ai_allowance_exhausted",
     "ai_social_automation_suspended", "invalid_ai_social_turn_request",
     "ai_social_subject_not_active", "ai_social_idempotency_conflict",
     "ai_social_turn_not_found", "ai_social_turn_not_committable",
@@ -115,10 +237,138 @@ function terminalSocialError(code: string) {
   ]).has(code);
 }
 
+function socialResponseText(response: Readonly<{ text: string; actions?: readonly Readonly<{ label?: unknown; url?: unknown }>[] }>) {
+  const links = (response.actions ?? []).flatMap((action) => typeof action.label === "string" && typeof action.url === "string"
+    && (action.url.startsWith("https://") || action.url.startsWith("tel:")) ? [`${action.label}: ${action.url}`] : []);
+  return links.length ? `${response.text}\n\n${links.join("\n")}` : response.text;
+}
+
 process.on("SIGTERM", () => { stopping = true; });
 process.on("SIGINT", () => { stopping = true; });
 
 do {
+  if (env.BILLING_FINANCIAL_RECONCILIATION_WORKER_ENABLED === "true"
+    && stripeFinancialProvider && billingFinancialEnvelopeKey) {
+    const job = await financialReconciliationWorker.claim();
+    if (job) {
+      try {
+        const invoice = await stripeFinancialProvider.retrieveInvoice(job.externalInvoiceRef);
+        const serialized = JSON.stringify(invoice.raw);
+        const result = await financialReconciliationWorker.record({
+          jobId: job.jobId, externalInvoiceRef: invoice.externalInvoiceRef,
+          status: invoice.status, currency: invoice.currency, totalMinor: invoice.totalMinor,
+          amountPaidMinor: invoice.amountPaidMinor, amountRemainingMinor: invoice.amountRemainingMinor,
+          payloadHash: createHash("sha256").update(serialized).digest(),
+          payloadCiphertext: sealJson({ raw: invoice.raw }, billingFinancialEnvelopeKey),
+        });
+        console.info("financial_reconciliation_result", { jobId: job.jobId, status: result.status });
+      } catch (error) {
+        const code = error instanceof Error ? error.message.slice(0, 100) : "stripe_invoice_retrieval_failed";
+        await financialReconciliationWorker.fail(job.jobId, code, job.attemptCount >= 12);
+        console.warn("financial_reconciliation_failed", { jobId: job.jobId, errorCode: code });
+      }
+    }
+  }
+  if (env.BILLING_FINANCIAL_RECONCILIATION_WORKER_ENABLED === "true"
+    && stripeFinancialProvider && billingFinancialEnvelopeKey) {
+    const job = await financialEventReconciliationWorker.claim();
+    if (job) {
+      try {
+        const evidence = await stripeFinancialProvider.retrieveFinancialEvent(job.evidenceKind, job.externalRef);
+        const serialized = JSON.stringify(evidence.raw);
+        const result = await financialEventReconciliationWorker.record({
+          jobId: job.jobId, externalRef: evidence.externalRef, relatedRef: evidence.relatedRef,
+          status: evidence.status, currency: evidence.currency, totalMinor: evidence.totalMinor,
+          refundMinor: evidence.refundMinor, creditMinor: evidence.creditMinor,
+          payloadHash: createHash("sha256").update(serialized).digest(),
+          payloadCiphertext: sealJson({ raw: evidence.raw }, billingFinancialEnvelopeKey),
+        });
+        console.info("financial_event_reconciliation_result", {
+          jobId: job.jobId, evidenceKind: job.evidenceKind, status: result.status,
+        });
+      } catch (error) {
+        const code = error instanceof Error ? error.message.slice(0, 100) : "stripe_financial_event_retrieval_failed";
+        await financialEventReconciliationWorker.fail(job.jobId, code, job.attemptCount >= 12);
+        console.warn("financial_event_reconciliation_failed", {
+          jobId: job.jobId, evidenceKind: job.evidenceKind, errorCode: code,
+        });
+      }
+    }
+  }
+  if (env.BILLING_WEBHOOK_WORKER_ENABLED === "true" && billingWebhookEnvelopeKey) {
+    const claimed = await billingWebhookWorker.claim();
+    if (claimed) {
+      try {
+        const envelope = openJson<{ rawBody: string }>(claimed.payloadCiphertext, billingWebhookEnvelopeKey);
+        const parsed = z.object({ data: z.object({ object: z.unknown() }) })
+          .parse(JSON.parse(envelope.rawBody));
+        const applied = await billingWebhookWorker.apply(claimed.webhookEventId, parsed.data.object);
+        console.info("billing_webhook_result", { webhookEventId: claimed.webhookEventId, status: applied.status });
+      } catch (error) {
+        const errorCode = error instanceof Error ? error.message.slice(0, 100) : "billing_webhook_processing_failed";
+        await billingWebhookWorker.fail(claimed.webhookEventId, errorCode, claimed.attemptCount >= 12);
+        console.warn("billing_webhook_failed", { webhookEventId: claimed.webhookEventId, errorCode });
+      }
+    }
+  }
+  if (env.SUBSCRIPTION_LIFECYCLE_WORKER_ENABLED === "true") {
+    const transition = await subscriptionLifecycleWorker.applyNext();
+    if (transition) console.info("subscription_lifecycle_transition", transition);
+  }
+  if (env.BILLING_WEBHOOK_RECOVERY_WORKER_ENABLED === "true"
+    && stripeFinancialProvider && billingFinancialEnvelopeKey) {
+    const recovery = await billingWebhookRecoveryWorker.claim();
+    if (recovery) {
+      try {
+        const evidence = await stripeFinancialProvider.retrieveWebhookEvent(recovery.externalEventId);
+        const serialized = JSON.stringify(evidence.raw);
+        const result = await billingWebhookRecoveryWorker.record({
+          jobId: recovery.jobId, externalEventId: evidence.externalEventId,
+          eventType: evidence.eventType, occurredAt: evidence.occurredAt,
+          payloadHash: createHash("sha256").update(serialized).digest(),
+          payloadCiphertext: sealJson({ raw: evidence.raw }, billingFinancialEnvelopeKey),
+        });
+        console.info("billing_webhook_recovery_evidence", { jobId: recovery.jobId, status: result.status });
+      } catch (error) {
+        const code = error instanceof Error ? error.message.slice(0, 100) : "stripe_event_retrieval_failed";
+        await billingWebhookRecoveryWorker.fail(recovery.jobId, code, recovery.attemptCount >= 12);
+        console.warn("billing_webhook_recovery_failed", { jobId: recovery.jobId, errorCode: code });
+      }
+    }
+  }
+  if (env.USAGE_PERIOD_WORKER_ENABLED === "true" && Date.now() >= nextUsagePeriodSweepAt) {
+    const result = await usagePeriodWorker.roll();
+    nextUsagePeriodSweepAt = Date.now() + 3_600_000;
+    if (result.periodsCreated > 0 || result.reservationsReleased > 0) {
+      console.info("usage_period_rollover_complete", result);
+    }
+  }
+  if (env.USAGE_RECONCILIATION_WORKER_ENABLED === "true" && Date.now() >= nextUsageReconciliationSweepAt) {
+    const result = await usageReconciliationWorker.reconcile();
+    nextUsageReconciliationSweepAt = Date.now() + 3_600_000;
+    if (result.matched > 0 || result.attention > 0) {
+      console.info("provider_usage_reconciliation_complete", result);
+    }
+  }
+  if (env.USAGE_ALERT_WORKER_ENABLED === "true" && Date.now() >= nextUsageAlertSweepAt) {
+    const generated = await usageAlertWorker.generate();
+    nextUsageAlertSweepAt = Date.now() + 3_600_000;
+    if (generated > 0) console.info("usage_alerts_generated", { generated });
+  }
+  if (env.USAGE_ALERT_WORKER_ENABLED === "true" && delivery && usageAlertNotificationKey) {
+    const result = await runUsageAlertEmail(
+      usageAlertNotificationWorker, delivery, usageAlertNotificationKey,
+    );
+    if (result.status !== "idle") console.info("usage_alert_email_result", result);
+  }
+  if (delivery && billingNotificationKey) {
+    const result = await runCustomerBillingEmail(billingNotificationWorker, delivery, billingNotificationKey);
+    if (result.status !== "idle") console.info("billing_customer_email_result", result);
+  }
+  if (env.ENTITLEMENT_CHANGE_WORKER_ENABLED === "true") {
+    const applied = await entitlementChangeWorker.applyNext();
+    if (applied) console.info("entitlement_change_result", applied);
+  }
   if (env.PRIVACY_WORKER_ENABLED === "true" && Date.now() >= nextRetentionSweepAt) {
     const result = await privacyStore.applyRetention();
     nextRetentionSweepAt = Date.now() + 3_600_000;
@@ -166,9 +416,72 @@ do {
       if (notification.status !== "idle") console.info("flowbot_notification_result", notification);
     }
   }
+  if (env.FLOWBOT_SOCIAL_WORKER_ENABLED === "true" && flowSocialCredentialKey) {
+    const claimed = await flowSocialWorker.claim();
+    if (claimed) {
+      try {
+        if (!claimed.processing_allowed) throw new Error("flow_social_authority_unavailable");
+        await flowSocialWorker.processInbound(claimed);
+        console.info("flow_social_inbound_processed", { receiptId: claimed.receipt_id, channel: claimed.channel });
+      } catch (error) {
+        const code = error instanceof Error ? error.message.slice(0, 100) : "flow_social_processing_failed";
+        const deadLetter = ["flow_social_authority_unavailable", "flow_social_subject_not_active"].includes(code) || claimed.attempt_count >= 10;
+        await flowSocialWorker.finish(claimed.outbox_id, false, code, deadLetter).catch(() => undefined);
+        console.warn("flow_social_inbound_failed", { receiptId: claimed.receipt_id, channel: claimed.channel, code, deadLetter });
+      }
+    }
+    const deliveryClaim = await flowSocialWorker.claimDelivery();
+    if (deliveryClaim) {
+      let attemptedCount = 0;
+      try {
+        if (!deliveryClaim.delivery_allowed) throw new Error("flow_social_authority_unavailable");
+        const credentials = socialCredentialSchema.parse(openJson<unknown>(deliveryClaim.credential_ciphertext, flowSocialCredentialKey));
+        const recipient = openJson<{ value: string }>(deliveryClaim.recipient_ciphertext, flowSocialCredentialKey).value;
+        const replyToken = deliveryClaim.reply_token_ciphertext
+          ? openJson<{ value: string }>(deliveryClaim.reply_token_ciphertext, flowSocialCredentialKey).value : null;
+        const input = flowMessagesToSocialReplyInput({ recipient, replyToken,
+          messages: deliveryClaim.response_json.messages as StructuredFlowMessage[] });
+        const rendered = resumeSocialReply(renderSocialReply(deliveryClaim.channel, input), deliveryClaim.delivered_part_count);
+        attemptedCount = "body" in rendered ? rendered.body.messages.length : rendered.bodies.length;
+        const delivered = await aiSocialDelivery.deliver(deliveryClaim.channel, credentials, rendered);
+        await flowSocialWorker.finishDelivery({ deliveryId: deliveryClaim.delivery_id, delivered: true,
+          externalMessageIds: delivered.externalMessageIds, completedPartCount: delivered.deliveredCount, safeErrorCode: null });
+        console.info("flow_social_delivery_succeeded", { deliveryId: deliveryClaim.delivery_id, channel: deliveryClaim.channel });
+      } catch (error) {
+        const partial = error instanceof SocialDeliveryError ? error : null;
+        const code = error instanceof Error ? error.message.slice(0, 100) : "channel_delivery_failed";
+        const deadLetter = ["credential_reauthorization_required", "flow_social_authority_unavailable"].includes(code) || deliveryClaim.attempt_count >= 10;
+        await flowSocialWorker.finishDelivery({ deliveryId: deliveryClaim.delivery_id, delivered: false,
+          externalMessageIds: partial?.externalMessageIds ?? [], completedPartCount: partial?.deliveredCount ?? 0,
+          safeErrorCode: code, deadLetter }).catch(() => undefined);
+        console.warn("flow_social_delivery_failed", { deliveryId: deliveryClaim.delivery_id, channel: deliveryClaim.channel, code, attemptedCount, deadLetter });
+      }
+    }
+  }
   if (env.AI_WORKER_ENABLED === "true" && delivery && aiNotificationKey) {
     const notification = await runAiChatMerchantEmail(aiChatNotificationWorker, delivery, aiNotificationKey);
     if (notification.status !== "idle") console.info("ai_chat_notification_result", notification);
+  }
+  if (env.KNOWLEDGE_WORKER_ENABLED === "true") {
+    const processed = await runKnowledgeIngestionBatch(knowledgeWorker, {
+      bucket: env.KNOWLEDGE_OBJECT_BUCKET!, malwareScannerEndpoint: env.MALWARE_SCANNER_ENDPOINT!,
+      malwareScannerToken: env.MALWARE_SCANNER_TOKEN!,
+    });
+    if (processed > 0) console.info("knowledge_ingestion_batch_complete", { processed });
+  }
+  if (env.AI_INTEGRATION_WORKER_ENABLED === "true" && aiIntegrationKey) {
+    const claim = await aiIntegrationWorker.claim();
+    if (claim) {
+      try {
+        await deliverAiIntegration(claim, aiIntegrationKey);
+        await aiIntegrationWorker.finish(claim.job_id, true);
+        console.info("ai_integration_delivery_succeeded", { jobId: claim.job_id, kind: claim.integration_kind });
+      } catch (error) {
+        const code = error instanceof Error && /^[a-z0-9_]{2,100}$/.test(error.message) ? error.message : "integration_delivery_failed";
+        await aiIntegrationWorker.finish(claim.job_id, false, code);
+        console.warn("ai_integration_delivery_failed", { jobId: claim.job_id, kind: claim.integration_kind, code });
+      }
+    }
   }
   if (env.AI_SOCIAL_WORKER_ENABLED === "true" && aiSocialWorker && aiTextGateway) {
     const claimed = await aiSocialWorker.claim();
@@ -230,7 +543,7 @@ do {
           const credentials = socialCredentialSchema.parse(deliveryClaim.credentials);
           const rendered = renderSocialReply(deliveryClaim.channel, {
             recipient: deliveryClaim.recipient, replyToken: deliveryClaim.replyToken,
-            text: deliveryClaim.response.text, quickReplies: deliveryClaim.response.quickReplies,
+            text: socialResponseText(deliveryClaim.response), quickReplies: deliveryClaim.response.quickReplies,
           });
           const pendingRendered = resumeSocialReply(rendered, deliveryClaim.deliveredPartCount);
           attemptedQuantity = "body" in pendingRendered
@@ -273,3 +586,4 @@ do {
 } while (!stopping);
 
 await client.end({ timeout: 5 });
+await new Promise<void>((resolve) => healthServer.close(() => resolve()));

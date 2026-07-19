@@ -1,8 +1,9 @@
-import type { TenantContext } from "@djay/tenancy";
+import type { TenantContext, TenantRole } from "@djay/tenancy";
 import type { DatabaseClient, DatabaseTransaction } from "./client";
 import { withTenantTransaction } from "./scoped-transaction";
 
 export type OnboardingStage = "account_created" | "business_profile" | "product_selection" | "ready";
+export type ManagedTenantRole = Exclude<TenantRole, "tenant_master_admin" | "tenant_readonly_support">;
 type OnboardingProductKey = "flowbot" | "ai_chat" | "voice";
 
 type OnboardingRecord = Readonly<{
@@ -20,6 +21,11 @@ type OnboardingRecord = Readonly<{
     configuredProducts: readonly OnboardingProductKey[];
     testedProducts: readonly OnboardingProductKey[];
     launchReadyProducts: readonly OnboardingProductKey[];
+    productStates: readonly Readonly<{
+      productKey: OnboardingProductKey; activeAccess: boolean; configured: boolean;
+      tested: boolean; deployed: boolean; launchReady: boolean;
+      nextAction: "activate" | "configure" | "deploy" | "test" | "operate";
+    }>[];
   }>;
 }>;
 
@@ -148,6 +154,15 @@ async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Pro
     const fact = factByProduct.get(product);
     return activeProducts.has(product) && fact?.configured && fact.tested && fact.deployed;
   });
+  const productStates = selectedProducts.map((productKey) => {
+    const fact = factByProduct.get(productKey);
+    const activeAccess = activeProducts.has(productKey);
+    const configured = fact?.configured === true; const tested = fact?.tested === true; const deployed = fact?.deployed === true;
+    const launchReady = activeAccess && configured && tested && deployed;
+    const nextAction = !activeAccess ? "activate" as const : !configured ? "configure" as const
+      : !deployed ? "deploy" as const : !tested ? "test" as const : "operate" as const;
+    return { productKey, activeAccess, configured, tested, deployed, launchReady, nextAction };
+  });
   const businessProfile = Boolean(tenant.business_name.trim() && tenant.locale.trim() && tenant.timezone.trim());
   const stage = deriveOnboardingStage({
     businessProfile, productSelected: selectedProducts.length > 0,
@@ -164,6 +179,7 @@ async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Pro
       configuredProducts,
       testedProducts,
       launchReadyProducts,
+      productStates,
     },
   };
 }
@@ -243,7 +259,37 @@ export class TenantWorkspaceStore {
         WHERE tenant_id = ${context.tenantId}::uuid AND status = 'pending'
         ORDER BY created_at DESC
       `;
-      return { members, invitations, transfers };
+      const capacityRows = await sql<{ allowed: boolean; seatLimit: number; occupied: number }[]>`
+        SELECT allowed, seat_limit AS "seatLimit", occupied FROM tenancy.administrator_seat_capacity(false)
+      `;
+      return {
+        members, invitations, transfers,
+        capacity: capacityRows[0] ?? { allowed: false, seatLimit: 0, occupied: members.length + invitations.length },
+      };
+    });
+  }
+
+  async changeMembershipRole(context: TenantContext, input: Readonly<{
+    membershipId: string; role: ManagedTenantRole;
+  }>) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ status: "role_changed" | "not_authorized" | "not_found" | "owner_protected" | "invalid_role" }[]>`
+        SELECT tenancy.manage_membership(
+          ${input.membershipId}::uuid, ${input.role}, false, ${context.requestId}
+        ) AS status
+      `;
+      return { status: rows[0]!.status };
+    });
+  }
+
+  async revokeMembership(context: TenantContext, membershipId: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ status: "revoked" | "not_authorized" | "not_found" | "owner_protected" }[]>`
+        SELECT tenancy.manage_membership(
+          ${membershipId}::uuid, NULL, true, ${context.requestId}
+        ) AS status
+      `;
+      return { status: rows[0]!.status };
     });
   }
 }

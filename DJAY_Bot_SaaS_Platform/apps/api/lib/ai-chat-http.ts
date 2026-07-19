@@ -40,7 +40,7 @@ export function aiChatNdjson(response: AiPublicResponse, origin: string) {
       controller.enqueue(encoder.encode(`${JSON.stringify({ type: "response.start", inputId: response.inputId })}\n`));
       for (const text of chunks) controller.enqueue(encoder.encode(`${JSON.stringify({ type: "response.delta", text })}\n`));
       controller.enqueue(encoder.encode(`${JSON.stringify({
-        type: "response.done", status: response.status, quickReplies: response.quickReplies,
+        type: "response.done", status: response.status, quickReplies: response.quickReplies, actions: response.actions ?? [],
         nextTurnSequence: response.nextTurnSequence,
       })}\n`));
       controller.close();

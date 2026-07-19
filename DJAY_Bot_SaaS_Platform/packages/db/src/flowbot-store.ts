@@ -14,6 +14,13 @@ import { withTenantTransaction } from "./scoped-transaction";
 
 type FlowAuthority = FlowEntitlements & Readonly<{ snapshotId: string; subscriptionId: string }>;
 
+async function flowResourceWritable(sql: postgres.TransactionSql, botId: string) {
+  const rows = await sql<{ writable: boolean }[]>`
+    SELECT tenancy.entitlement_resource_is_writable('flowbot', 'bot', ${botId}::uuid) AS writable
+  `;
+  return rows[0]?.writable === true;
+}
+
 export class FlowBotStore {
   constructor(private readonly client: DatabaseClient) {}
 
@@ -141,13 +148,16 @@ export class FlowBotStore {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await this.authority(sql, context.tenantId);
       if (!authority) return null;
+      const branding = await sql<{ enabled: boolean }[]>`
+        SELECT tenancy.active_branding_removal(${context.tenantId}::uuid, 'flowbot') AS enabled
+      `;
       return {
         planKey: authority.planKey,
         accessMode: authority.accessMode,
         advancedNodes: authority.entitlements["flow.nodes.advanced"] === true,
         approvedWebhooks: authority.entitlements["flow.webhook"] === "approved",
         teamRouting: authority.entitlements["flow.team_routing"] === true,
-        brandingRemoval: authority.entitlements["branding.remove"] === true,
+        brandingRemoval: branding[0]?.enabled ?? false,
         limits: {
           activeBots: authority.limits.active_bots ?? null,
           nodesPerBot: authority.limits.flow_nodes_per_bot ?? null,
@@ -181,6 +191,7 @@ export class FlowBotStore {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await this.authority(sql, context.tenantId);
       if (!authority || authority.accessMode !== "active" || authority.entitlements["ai.enabled"] !== false) return { status: "not_entitled" as const };
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${context.tenantId}:flowbot:active_bots`}, 0))`;
       const counts = await sql<{ count: number }[]>`SELECT count(*)::int AS count FROM tenancy.flow_bots WHERE tenant_id = ${context.tenantId}::uuid AND status <> 'archived'`;
       const limit = authority.limits.active_bots;
       if (typeof limit === "number" && (counts[0]?.count ?? 0) >= limit) return { status: "limit_reached" as const };
@@ -215,6 +226,7 @@ export class FlowBotStore {
       if (!authority || authority.accessMode !== "active" || authority.entitlements["ai.enabled"] !== false) {
         return { status: "not_entitled" as const };
       }
+      if (!(await flowResourceWritable(sql, botId))) return { status: "resource_read_only" as const };
       const issues = validateFlowForPublish(definition, authority);
       const referenceIssues = issues.length ? [] : await this.referenceIssues(sql, context.tenantId, definition);
       if (issues.length || referenceIssues.length) return { status: "validation_failed" as const, issues: [...issues, ...referenceIssues] };
@@ -232,6 +244,7 @@ export class FlowBotStore {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await this.authority(sql, context.tenantId);
       if (!authority) return { status: "not_entitled" as const };
+      if (!(await flowResourceWritable(sql, botId))) return { status: "resource_read_only" as const };
       const rows = await sql<{ definition_json: unknown; based_on_version_id: string | null }[]>`
         SELECT draft.definition_json, draft.based_on_version_id FROM tenancy.flow_drafts draft
         JOIN tenancy.flow_bots bot ON bot.tenant_id = draft.tenant_id AND bot.id = draft.bot_id
@@ -259,6 +272,7 @@ export class FlowBotStore {
   async rollback(context: TenantContext, botId: string, sourceVersionId: string) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await this.authority(sql, context.tenantId); if (!authority) return { status: "not_entitled" as const };
+      if (!(await flowResourceWritable(sql, botId))) return { status: "resource_read_only" as const };
       const source = await sql<{ snapshot_json: unknown }[]>`SELECT snapshot_json FROM tenancy.flow_versions WHERE tenant_id = ${context.tenantId}::uuid AND bot_id = ${botId}::uuid AND id = ${sourceVersionId}::uuid`;
       if (!source[0]) return { status: "not_found" as const };
       const versionId = randomUUID();
@@ -290,6 +304,7 @@ export class FlowBotStore {
       if (!authority || authority.accessMode !== "active" || authority.entitlements["ai.enabled"] !== false) {
         return { status: "not_entitled" as const };
       }
+      if (!(await flowResourceWritable(sql, botId))) return { status: "resource_read_only" as const };
       const origins = [...new Set(input.allowedOrigins.map(normalizeExactWebsiteOrigin))];
       if (!origins.length || origins.some((value) => value === null)) return { status: "validation_failed" as const };
       const bots = await sql<{ current_published_version_id: string | null }[]>`SELECT current_published_version_id FROM tenancy.flow_bots WHERE tenant_id = ${context.tenantId}::uuid AND id = ${botId}::uuid AND status = 'active'`;
@@ -376,7 +391,48 @@ export class FlowBotStore {
         WHERE tenant_id = ${context.tenantId}::uuid AND occurred_at >= now() - make_interval(days => ${days})
         GROUP BY event_type ORDER BY count(*) DESC, event_type LIMIT 100
       ` : [];
-      return { periodDays: days, level: advanced ? "advanced" as const : "core" as const, ...summary[0]!, nodeEvents };
+      const unansweredInputs = advanced ? await sql<{
+        executionId: string; conversationId: string; contactName: string; reason: string;
+        inputText: string | null; occurredAt: Date;
+      }[]>`
+        SELECT event.execution_id AS "executionId", execution.conversation_id AS "conversationId",
+               contact.display_name AS "contactName", event.detail_json->>'reason' AS reason,
+               inbound.content_json->>'text' AS "inputText", event.occurred_at AS "occurredAt"
+        FROM tenancy.flow_events event
+        JOIN tenancy.flow_executions execution ON execution.tenant_id = event.tenant_id AND execution.id = event.execution_id
+        JOIN tenancy.conversations conversation ON conversation.tenant_id = execution.tenant_id AND conversation.id = execution.conversation_id
+        JOIN tenancy.contacts contact ON contact.tenant_id = conversation.tenant_id AND contact.id = conversation.contact_id
+        LEFT JOIN LATERAL (
+          SELECT message.content_json FROM tenancy.messages message
+          WHERE message.tenant_id = conversation.tenant_id AND message.conversation_id = conversation.id
+            AND message.direction = 'inbound' AND message.created_at <= event.occurred_at
+          ORDER BY message.created_at DESC, message.sequence DESC LIMIT 1
+        ) inbound ON true
+        WHERE event.tenant_id = ${context.tenantId}::uuid
+          AND event.occurred_at >= now() - make_interval(days => ${days})
+          AND event.event_type = 'handover_requested'
+          AND event.detail_json->>'reason' IN ('keyword_miss', 'ambiguous_keyword')
+        ORDER BY event.occurred_at DESC, event.id DESC LIMIT 200
+      ` : [];
+      const journeys = advanced ? await sql<{ path: string; executions: number; completed: number; handovers: number }[]>`
+        WITH execution_paths AS (
+          SELECT execution.id,
+                 string_agg(COALESCE(event.detail_json->>'nodeType', 'unknown'), ' > ' ORDER BY event.occurred_at, event.id) AS path,
+                 execution.status
+          FROM tenancy.flow_executions execution
+          JOIN tenancy.flow_events event ON event.tenant_id = execution.tenant_id AND event.execution_id = execution.id
+            AND event.event_type = 'node_entered'
+          WHERE execution.tenant_id = ${context.tenantId}::uuid
+            AND execution.started_at >= now() - make_interval(days => ${days})
+          GROUP BY execution.id
+        )
+        SELECT path, count(*)::int AS executions,
+               count(*) FILTER (WHERE status = 'completed')::int AS completed,
+               count(*) FILTER (WHERE status = 'handover')::int AS handovers
+        FROM execution_paths WHERE path IS NOT NULL
+        GROUP BY path ORDER BY count(*) DESC, path LIMIT 100
+      ` : [];
+      return { periodDays: days, level: advanced ? "advanced" as const : "core" as const, ...summary[0]!, nodeEvents, unansweredInputs, journeys };
     });
   }
 

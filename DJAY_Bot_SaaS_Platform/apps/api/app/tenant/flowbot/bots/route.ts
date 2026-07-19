@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   if (!resolved || !tenantRoleAllows(resolved.context.role, "flowbot.author") || !(await hasTrustedOrigin(request))) return safeJson({ status: "not_found" }, 404);
   try {
     const result = await resolved.services.flowbot.createBot(resolved.context, botSchema.parse(await readJson(request)));
-    return safeJson(result, result.status === "created" ? 201 : 403);
+    return safeJson(result, result.status === "created" ? 201 : result.status === "limit_reached" ? 409 : 403);
   } catch (error) {
     return error instanceof ZodError || error instanceof SyntaxError ? safeJson({ status: "validation_failed" }, 400) : safeJson({ status: "temporarily_unavailable" }, 503);
   }

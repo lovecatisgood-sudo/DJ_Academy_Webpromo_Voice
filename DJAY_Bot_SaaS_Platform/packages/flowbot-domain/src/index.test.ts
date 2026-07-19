@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { flowbotDowngradeBlockers, isWithinFlowBusinessSchedule, validateFlowForPublish, type FlowEntitlements, type FlowSnapshot } from "./index";
+import { countFlowTopics, flowbotDowngradeBlockers, flowNodeSchema, isWithinFlowBusinessSchedule, validateFlowForPublish, type FlowEntitlements, type FlowSnapshot } from "./index";
 
 const root = randomUUID();
 const premium = randomUUID();
@@ -40,5 +40,29 @@ describe("FlowBot plan validation", () => {
     expect(isWithinFlowBusinessSchedule(schedule, "2026-07-13T03:00:00.000Z")).toBe(true);
     expect(isWithinFlowBusinessSchedule(schedule, "2026-07-13T11:00:00.000Z")).toBe(false);
     expect(isWithinFlowBusinessSchedule(schedule, "2026-07-20T03:00:00.000Z")).toBe(false);
+  });
+
+  it("accepts typed customer actions and rejects unsafe action URLs", () => {
+    const valid = {
+      id: randomUUID(), type: "actions", title: "Contact us",
+      prompt: { th: "ติดต่อเรา", en: "Contact us" },
+      actions: [
+        { type: "call", label: { th: "โทร", en: "Call" }, url: "tel:+6621234567" },
+        { type: "checkout", label: { th: "ชำระเงิน", en: "Checkout" }, url: "https://checkout.example.test/order" },
+      ], nextNodeId: null,
+    };
+    expect(flowNodeSchema.safeParse(valid).success).toBe(true);
+    expect(flowNodeSchema.safeParse({ ...valid, actions: [{ type: "website", label: { th: "เปิด", en: "Open" }, url: "javascript:alert(1)" }] }).success).toBe(false);
+    expect(flowNodeSchema.safeParse({ ...valid, actions: [{ type: "website", label: { th: "เปิด", en: "Open" }, url: "http://example.test" }] }).success).toBe(false);
+  });
+
+  it("counts distinct entry destinations as commercial conversation topics", () => {
+    const second = randomUUID();
+    const topicSnapshot = { ...snapshot, keywords: [
+      { id: randomUUID(), nodeId: root, keyword: "welcome", lang: "en" as const, priority: 100, substringEnabled: true, order: 0 },
+      { id: randomUUID(), nodeId: second, keyword: "pricing", lang: "en" as const, priority: 100, substringEnabled: true, order: 1 },
+    ] };
+    expect(countFlowTopics(topicSnapshot)).toBe(2);
+    expect(validateFlowForPublish(topicSnapshot, { ...premiumAuthority, limits: { ...premiumAuthority.limits, topics: 1 } })).toContainEqual({ code: "plan_topic_limit_exceeded", detail: "2/1" });
   });
 });

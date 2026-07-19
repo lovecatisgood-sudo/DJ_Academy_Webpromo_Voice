@@ -34,6 +34,13 @@ function publicLabel(profile: VoiceCapabilityProfile): VoicePublicLabel {
   return profile === "voice_gen1" ? "First-Generation Voice Engine" : "Second-Generation Voice Engine";
 }
 
+async function voiceResourceWritable(sql: postgres.TransactionSql, deploymentId: string) {
+  const rows = await sql<{ writable: boolean }[]>`
+    SELECT tenancy.entitlement_resource_is_writable('voice', 'deployment', ${deploymentId}::uuid) AS writable
+  `;
+  return rows[0]?.writable === true;
+}
+
 async function voiceAuthority(sql: postgres.TransactionSql, tenantId: string) {
   const rows = await sql<{
     snapshotId: string; subscriptionId: string; accessMode: "none" | "read_only" | "active";
@@ -406,6 +413,7 @@ export class VoiceDeploymentStore {
       `;
       const deployment = deployments[0];
       if (!deployment) return { status: "not_found" as const };
+      if (!(await voiceResourceWritable(sql, deploymentId))) return { status: "resource_read_only" as const };
       if (!(await hasVoiceAuthority(sql, context.tenantId, deployment.capabilityProfile))) {
         return { status: "not_entitled" as const };
       }
@@ -479,6 +487,7 @@ export class VoiceDeploymentStore {
       `;
       const row = rows[0];
       if (!row) return { status: "not_found" as const };
+      if (!(await voiceResourceWritable(sql, deploymentId))) return { status: "resource_read_only" as const };
       if (!(await hasVoiceAuthority(sql, context.tenantId, row.capabilityProfile))) {
         return { status: "not_entitled" as const };
       }
@@ -542,6 +551,15 @@ export class VoiceDeploymentStore {
       if (!authority) return { status: "not_entitled" as const };
       const origins = [...new Set(input.allowedOrigins.map(normalizeExactWebsiteOrigin))];
       if (!origins.length || origins.some((origin) => origin === null)) return { status: "validation_failed" as const };
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${context.tenantId}:voice:active_bots`}, 0))`;
+      const counts = await sql<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM tenancy.voice_deployments
+        WHERE tenant_id = ${context.tenantId}::uuid AND status <> 'revoked'
+      `;
+      const activeBotLimit = authority.limits.active_bots;
+      if (typeof activeBotLimit === "number" && (counts[0]?.count ?? 0) >= activeBotLimit) {
+        return { status: "limit_reached" as const };
+      }
       const deploymentId = randomUUID(); const agentId = randomUUID(); const playbookVersionId = randomUUID();
       const deploymentKey = `djay_voice_deploy_${createOpaqueToken()}`;
       const agentName = input.agentName?.trim() || input.name.trim();

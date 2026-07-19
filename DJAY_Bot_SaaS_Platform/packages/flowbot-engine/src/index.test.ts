@@ -27,6 +27,12 @@ describe("deterministic FlowBot engine", () => {
     expect(completed.commands).toMatchObject([{ type: "lead.create" }]);
     expect(completed.nextState.status).toBe("completed");
   });
+  it("resolves a social option postback deterministically", () => {
+    const started = advanceFlow(base);
+    const selected = advanceFlow({ ...base, sequence: 2, input: { type: "text", payload: { text: `djay_option:${ids.option}` } }, state: started.nextState });
+    expect(selected.messages[0]?.type).toBe("form");
+    expect(selected.events).toContainEqual(expect.objectContaining({ type: "option_selected", detail: { optionId: ids.option, source: "text" } }));
+  });
   it("pins execution to the original immutable version", () => {
     expect(() => advanceFlow({ ...base, flowVersionId: randomUUID() })).toThrowError("Flow execution was rejected.");
   });
@@ -81,5 +87,22 @@ describe("deterministic FlowBot engine", () => {
     expect(result.messages.map((message) => message.content.text)).toEqual(["Child greeting", "Parent complete"]);
     expect(result.events.map((event) => event.type)).toContain("subflow_completed");
     expect(result.nextState).toMatchObject({ status: "completed", subflowStack: [] });
+  });
+
+  it("emits localized rich media, cards, carousels, and typed actions deterministically", () => {
+    const media = randomUUID(); const card = randomUUID(); const carousel = randomUUID(); const actions = randomUUID();
+    const richSnapshot = {
+      schemaVersion: 1 as const, flowVersionId: ids.version, rootNodeId: media, keywords: [], nodes: {
+        [media]: { id: media, type: "media_reference" as const, title: "Photo", assetRef: "https://cdn.example.test/photo.jpg", mediaType: "image" as const, label: { th: "ภาพ", en: "Photo" }, nextNodeId: card },
+        [card]: { id: card, type: "product_card" as const, title: "Product", card: { id: randomUUID(), kind: "product" as const, title: { th: "สินค้า", en: "Product" }, description: { th: "รายละเอียด", en: "Details" }, priceLabel: { th: "฿100", en: "THB 100" }, actions: [{ type: "website" as const, label: { th: "ดู", en: "View" }, url: "https://example.test/product" }] }, nextNodeId: carousel },
+        [carousel]: { id: carousel, type: "carousel" as const, title: "Services", cards: [{ id: randomUUID(), kind: "service" as const, title: { th: "บริการ", en: "Service" }, description: { th: "รายละเอียด", en: "Details" }, actions: [] }], nextNodeId: actions },
+        [actions]: { id: actions, type: "actions" as const, title: "Actions", actions: [{ type: "call" as const, label: { th: "โทร", en: "Call" }, url: "tel:+6621234567" }], nextNodeId: ids.end },
+        [ids.end]: base.snapshot.nodes[ids.end]!,
+      },
+    };
+    const result = advanceFlow({ ...base, snapshot: richSnapshot });
+    expect(result.messages.map((message) => message.type)).toEqual(["media", "card", "carousel", "actions", "text"]);
+    expect(result.messages[1]?.content).toMatchObject({ title: "Product", priceLabel: "THB 100", actions: [{ type: "website", label: "View" }] });
+    expect(result.nextState.status).toBe("completed");
   });
 });

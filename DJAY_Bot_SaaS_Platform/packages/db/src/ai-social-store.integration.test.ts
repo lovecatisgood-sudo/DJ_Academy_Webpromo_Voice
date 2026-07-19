@@ -246,7 +246,8 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
     await expect(worker.claim(new Date(Date.now() + 120_000))).resolves.toBeNull();
     const committedEvidence = await adminClient!<{
       leads: number; facts: number; appointments: number; options: number;
-      outbound: number; ai_messages: number; settled: number; reserved: number; native_usage: number;
+      outbound: number; ai_messages: number; settled: number; reserved: number;
+      native_usage: number; fundingIncluded: number;
     }[]>`
       SELECT
         (SELECT count(*)::int FROM tenancy.leads lead WHERE lead.tenant_id = ${tenantId}::uuid AND lead.source = 'ai_chat_line') AS leads,
@@ -257,11 +258,17 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
         (SELECT count(*)::int FROM tenancy.messages message WHERE message.tenant_id = ${tenantId}::uuid AND message.actor_type = 'ai') AS ai_messages,
         (SELECT count(*)::int FROM tenancy.usage_reservations reservation WHERE reservation.tenant_id = ${tenantId}::uuid AND reservation.status = 'settled' AND reservation.idempotency_key LIKE 'ai:social:turn:%') AS settled,
         (SELECT count(*)::int FROM tenancy.usage_reservations reservation WHERE reservation.tenant_id = ${tenantId}::uuid AND reservation.status = 'reserved' AND reservation.idempotency_key LIKE 'ai:social:turn:%') AS reserved,
+        (SELECT (reservation.funding_json->>'included')::numeric::int
+          FROM tenancy.usage_reservations reservation
+          WHERE reservation.tenant_id = ${tenantId}::uuid
+            AND reservation.idempotency_key LIKE 'ai:social:turn:%'
+          ORDER BY reservation.created_at LIMIT 1) AS "fundingIncluded",
         (SELECT count(*)::int FROM operations.ai_native_usage usage WHERE usage.tenant_id = ${tenantId}::uuid) AS native_usage
     `;
     expect(committedEvidence[0]).toEqual({
       leads: 1, facts: 1, appointments: 1, options: 2,
-      outbound: 1, ai_messages: 1, settled: 1, reserved: 0, native_usage: 1,
+      outbound: 1, ai_messages: 1, settled: 1, reserved: 0,
+      native_usage: 1, fundingIncluded: 1,
     });
     const identityReviews = await new SharedDomainStore(tenantClient!).listIdentityReviewCandidates(context);
     expect(identityReviews).toHaveLength(2);

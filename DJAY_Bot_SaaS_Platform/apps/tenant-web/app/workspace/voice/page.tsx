@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { normalizeExactWebsiteOrigin, safeMutationFetch, voiceDeploymentFieldConstraints, voiceDeploymentValidationError } from "@djay/shared";
 import { createWidgetInstallSnippet } from "@djay/shared/widget-install";
 import { tenantWidgetInstallEnvironment } from "../../../lib/widget-install-environment";
@@ -106,8 +106,7 @@ export default function VoicePage() {
   const [knowledgeLoadError, setKnowledgeLoadError] = useState(false);
   const [notificationLoadError, setNotificationLoadError] = useState(false);
   const [analyticsLoadError, setAnalyticsLoadError] = useState(false);
-  const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session.workspaces, session.selectedTenantId]);
-  const canDeploy = workspace?.role === "tenant_master_admin" || workspace?.role === "tenant_admin";
+  const canDeploy = session.allows("voice.deploy");
   const canEdit = Boolean(canDeploy && studio?.editable && studio.deployment.status !== "revoked");
   const installSnippet = deploymentKey
     ? createWidgetInstallSnippet("voice", deploymentKey, tenantWidgetInstallEnvironment)

@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { ZodError, z } from "zod";
 import { hasTrustedOrigin, readJson, safeJson } from "../../../../lib/http";
 import { resolveTenantRequest } from "../../../../lib/tenant-context";
+import { hasSensitiveTenantAssurance } from "../../../../lib/tenant-assurance";
 
 const lineConnectionSchema = z.object({
   channel: z.literal("line"),
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
   const resolved = await resolveTenantRequest(request);
   if (!resolved || !tenantRoleAllows(resolved.context.role, "ai_chat.channels.manage")
     || !(await hasTrustedOrigin(request))) return safeJson({ status: "not_found" }, 404);
+  if (!hasSensitiveTenantAssurance(resolved.session)) return safeJson({ status: "reauthentication_required" }, 403);
   const envelopeKey = resolved.services.aiSocialCredentialKey;
   if (!envelopeKey) return safeJson({ status: "not_available" }, 503);
   try {

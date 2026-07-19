@@ -56,7 +56,7 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       "channel.messenger": false,
       "branding.remove": false,
     };
-    const limits = { deployments: 1, knowledge_documents: 10, seats: 5, storage_mb: 100 };
+    const limits = { active_bots: 1, deployments: 1, knowledge_documents: 10, seats: 5, storage_mb: 100 };
     await adminClient!`
       UPDATE tenancy.product_subscriptions SET status = 'cancelled', cancelled_at = now()
       WHERE tenant_id = ${tenantId}::uuid AND product_key = 'ai_chat' AND status <> 'cancelled'
@@ -100,6 +100,7 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       sourceKind: "text",
       content: "The discovery consultation is 30 minutes. Appointment times are requests until the merchant confirms them.",
     });
+    if (knowledge.status !== "created") throw new Error("Expected knowledge source.");
     const notificationKey = Buffer.alloc(32, 7);
     const notifications = new TenantAiNotificationStore(tenantClient!);
     const notification = await notifications.create(context, {
@@ -114,6 +115,9 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
     });
     expect(agent.status).toBe("created");
     if (agent.status !== "created") throw new Error("Expected AI agent.");
+    await expect(authoring.createAgent(context, {
+      name: "Second agent", businessName: "Acme Studio", defaultLanguage: "th",
+    })).resolves.toEqual({ status: "limit_reached" });
     const draft = await authoring.getDraft(context, agent.agentId);
     expect(draft).toBeTruthy();
     const updated = await authoring.updateDraft(context, agent.agentId, {
@@ -200,7 +204,8 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
 
     const effects = await adminClient!<{
       leads: number; appointments: number; appointment_options: number; emails: number;
-      settled: number; reserved: number; native_usage: number; session_playbook: string; current_playbook: string;
+      settled: number; reserved: number; native_usage: number; fundingIncluded: number;
+      session_playbook: string; current_playbook: string;
     }[]>`
       SELECT
         (SELECT count(*)::int FROM tenancy.leads lead WHERE lead.tenant_id = session.tenant_id AND lead.source = 'ai_chat_web') AS leads,
@@ -210,6 +215,12 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
         )) AS appointment_options,
         (SELECT count(*)::int FROM tenancy.outbox item WHERE item.tenant_id = session.tenant_id AND item.topic = 'ai_chat.merchant_email.requested') AS emails,
         account.settled_quantity::int AS settled, account.reserved_quantity::int AS reserved,
+        (SELECT (reservation.funding_json->>'included')::numeric::int
+          FROM tenancy.ai_turns turn
+          JOIN tenancy.usage_reservations reservation
+            ON reservation.tenant_id = turn.tenant_id AND reservation.id = turn.usage_reservation_id
+          WHERE turn.tenant_id = session.tenant_id AND turn.session_id = session.id
+          ORDER BY turn.turn_sequence LIMIT 1) AS "fundingIncluded",
         (SELECT count(*)::int FROM operations.ai_native_usage usage WHERE usage.tenant_id = session.tenant_id) AS native_usage,
         session.playbook_version_id AS session_playbook,
         agent.current_published_playbook_version_id AS current_playbook
@@ -220,7 +231,8 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
     `;
     expect(effects[0]).toMatchObject({
       leads: 1, appointments: 1, appointment_options: 2, emails: 1,
-      settled: 1, reserved: 0, native_usage: 1, session_playbook: published.playbookVersionId,
+      settled: 1, reserved: 0, native_usage: 1, fundingIncluded: 1,
+      session_playbook: published.playbookVersionId,
       current_playbook: replacement.status === "published" ? replacement.playbookVersionId : "missing",
     });
     const sentMessages: { to: string; subject: string }[] = [];

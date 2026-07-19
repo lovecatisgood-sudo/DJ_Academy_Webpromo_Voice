@@ -154,6 +154,10 @@ async function mockTenantRole(page, role, requestedPaths, failedPaths, abortedMu
         businessProfile: true, productSelected: true, activeAccess: true,
         selectedProducts: ["ai_chat"], configuredProducts: ["ai_chat"],
         testedProducts: ["ai_chat"], launchReadyProducts: ["ai_chat"],
+        productStates: [{
+          productKey: "ai_chat", activeAccess: true, configured: true,
+          tested: true, deployed: true, launchReady: true, nextAction: "operate",
+        }],
       },
     } });
     if (path === "/tenant/subscriptions") return json(route, { subscriptions: [{ id: "subscription", productKey: "ai_chat", planKey: "ai_chat_premium", publicName: "AI Chatbot Premium", tierName: "Premium", status: "active", accessMode: "active", snapshotId: "snapshot", periodStart: new Date().toISOString(), periodEnd: new Date(Date.now() + 30 * 86400_000).toISOString() }] });
@@ -161,9 +165,11 @@ async function mockTenantRole(page, role, requestedPaths, failedPaths, abortedMu
     if (path === "/tenant/contacts") return json(route, { contacts: [], identityReviewCandidates: [] });
     if (path === "/tenant/leads") return json(route, { leads: [] });
     if (path === "/tenant/knowledge") return json(route, { sources: [] });
+    if (path === "/tenant/knowledge/collections") return json(route, { collections: [] });
     if (path === "/tenant/conversations") return json(route, { conversations: [{ id: "conversation", contactName: "QA customer", productKey: "ai_chat", channelKind: "web", automationMode: "human", status: "open", lastMessage: "Could you help?", lastMessageAt: new Date().toISOString(), voiceStatus: null, voiceTerminalReason: null, voiceMinutes: null, voiceDurationSeconds: null, voiceOutcome: null, voiceSummary: null, callbackStatus: null, callbackDueAt: null }] });
     if (path === "/tenant/conversations/conversation/messages") return json(route, { messages: [] });
-    if (path === "/tenant/team") return json(route, { team: { members: [], invitations: [], transfers: [] } });
+    if (path === "/tenant/team") return json(route, { team: { members: [], invitations: [], transfers: [], capacity: { allowed: true, seatLimit: 5, occupied: 1 } } });
+    if (path === "/tenant/operations") return json(route, { operations: { addOns: [], activeAddOns: [], serviceRequests: [], engagements: [], engagementUpdates: [], tutorials: [] } });
     if (path === "/tenant/security/sessions") return json(route, { sessions: [] });
     if (/^\/tenant\/ownership-transfers\/[^/]+\/accept$/.test(path)) return json(route, { status: "accepted" });
     if (path === "/tenant/privacy-jobs") return json(route, { jobs: [] });
@@ -222,6 +228,7 @@ async function mockPlatformRole(page, role, failedPaths, abortedMutationPaths) {
     if (path === "/platform/voice/routing") return json(route, { routing: { admissionEnabled: false, admissionChanges: [], profiles: [], candidates: [], changes: [], incidents: [] } });
     if (path === "/platform/voice/incidents") return json(route, { incidents: [] });
     if (path === "/platform/dead-letter-recovery") return json(route, { recovery: { recoverable: [], requests: [], policy: { replayableQueueKinds: [], excludedQueueKinds: [] } } });
+    if (path === "/platform/shared-operations") return json(route, { queue: { addOns: [], services: [], engagements: [] } });
     if (path === "/platform/release-readiness" || path === "/platform/usage-reconciliation") return json(route, { status: "evidence_unavailable" }, 503);
     return json(route, { status: "not_found" }, 404);
   });
@@ -546,8 +553,12 @@ await visit({ name: "tenant-ownership-session-failure", url: `${tenantUrl}/owner
 await visit({ name: "workspace-subscription-summary", url: `${tenantUrl}/workspace`, mock: (page) => mockTenantRole(page, "tenant_analyst"), ready: ".product-overview-grid", check: async (page) => {
   if (!await page.getByRole("link", { name: /AI Chatbot Premium/ }).count()) failures.push("workspace-subscription-summary: product route missing");
   if (await page.getByText("No products are configured yet", { exact: true }).count()) failures.push("workspace-subscription-summary: active subscription presented as empty");
-  for (const step of ["Account secured", "Business profile", "Product access", "Configure", "Test end to end", "Technical launch readiness"]) {
+  for (const step of ["Account secured", "Business profile", "Product access"]) {
     if (!await page.getByText(step, { exact: true }).count()) failures.push(`workspace-subscription-summary: launch step missing ${step}`);
+  }
+  const lifecycle = await page.locator(".product-lifecycle-list").innerText();
+  for (const step of ["Access", "Configured", "Deployed", "Tested", "Ready"]) {
+    if (!lifecycle.includes(step)) failures.push(`workspace-subscription-summary: product lifecycle stage missing ${step}`);
   }
   if (await page.locator(".onboarding-checklist button").count()) failures.push("workspace-subscription-summary: browser stage controls remain exposed");
 } });
@@ -567,7 +578,7 @@ for (const [role, privilegedLabels] of Object.entries(tenantExpectations)) {
   } });
 }
 
-const workspaceRoutes = ["", "flowbot", "ai-chat", "voice", "inbox", "contacts", "leads", "knowledge", "data", "team", "usage", "security"];
+const workspaceRoutes = ["", "flowbot", "ai-chat", "voice", "inbox", "contacts", "leads", "knowledge", "operations", "data", "team", "usage", "security"];
 for (const [viewportName, viewport] of [["desktop", desktop], ["mobile", mobile]]) {
   for (const route of workspaceRoutes) {
     const routeName = route || "overview";
@@ -583,6 +594,11 @@ for (const [viewportName, viewport] of [["desktop", desktop], ["mobile", mobile]
     } });
   }
 }
+
+await visit({ name: "analyst-operations", url: `${tenantUrl}/workspace/operations`, mock: (page) => mockTenantRole(page, "tenant_analyst"), ready: "h1", check: async (page) => {
+  if (!await page.locator(".workspace-access-note").count()) failures.push("analyst-operations: view-only explanation missing");
+  for (const action of ["Submit request", "Request consultation"]) if (await page.getByRole("button", { name: action }).count()) failures.push(`analyst-operations: ${action} exposed`);
+} });
 
 await visit({ name: "analyst-overview", url: `${tenantUrl}/workspace`, mock: (page) => mockTenantRole(page, "tenant_analyst"), ready: ".onboarding-checklist", check: async (page) => {
   if (await page.getByRole("button", { name: "Refresh checklist" }).count()) failures.push("analyst-overview: onboarding refresh exposed");
@@ -723,10 +739,10 @@ await visit({ name: "workspace-session-failure", url: `${tenantUrl}/workspace/co
 } });
 
 const platformExpectations = {
-  platform_owner: ["Overview", "Release", "Usage", "Voice", "Recovery", "Commerce", "Support"],
+  platform_owner: ["Overview", "Release", "Usage", "Voice", "Recovery", "Commerce", "Fulfillment", "Support"],
   platform_ai_operations: ["Overview", "Release", "Voice", "Recovery", "Support"],
-  platform_support: ["Overview", "Release", "Recovery", "Support"],
-  platform_finance: ["Overview", "Release", "Usage", "Commerce", "Support"],
+  platform_support: ["Overview", "Release", "Recovery", "Fulfillment", "Support"],
+  platform_finance: ["Overview", "Release", "Usage", "Commerce", "Fulfillment", "Support"],
 };
 for (const [role, expected] of Object.entries(platformExpectations)) {
   await visit({ name: `platform-${role}`, url: platformUrl, mock: (page) => mockPlatformRole(page, role), ready: "nav[aria-label='Platform operations']", check: async (page) => {
