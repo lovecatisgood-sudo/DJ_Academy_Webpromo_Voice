@@ -9,6 +9,7 @@ COPY apps ./apps
 COPY config ./config
 COPY packages ./packages
 COPY requirements ./requirements
+COPY docs ./docs
 COPY scripts ./scripts
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm run package:release
