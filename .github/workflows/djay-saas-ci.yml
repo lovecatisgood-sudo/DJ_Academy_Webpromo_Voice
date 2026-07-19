@@ -1,0 +1,67 @@
+name: DJAY SaaS CI
+
+on:
+  pull_request:
+    paths: ["DJAY_Bot_SaaS_Platform/**", ".github/workflows/djay-saas-ci.yml", ".github/workflows/djay-saas-deploy.yml"]
+  push:
+    branches: [main]
+    paths: ["DJAY_Bot_SaaS_Platform/**", ".github/workflows/djay-saas-ci.yml", ".github/workflows/djay-saas-deploy.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: djay-saas-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: DJAY_Bot_SaaS_Platform
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: DJAY_Bot_SaaS_Platform/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run verify
+      - run: pnpm run package:release
+      - run: pnpm run qa:release-artifacts
+
+  terraform-format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.14.6"
+          terraform_wrapper: false
+      - run: terraform fmt -check -recursive DJAY_Bot_SaaS_Platform/infra/terraform
+
+  terraform-validate-gcp:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        root: [gcp-bootstrap, gcp-platform]
+    defaults:
+      run:
+        working-directory: DJAY_Bot_SaaS_Platform/infra/terraform/${{ matrix.root }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.14.6"
+          terraform_wrapper: false
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
+
+  workflow-lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - run: docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint:1.7.7 .github/workflows/djay-saas-ci.yml .github/workflows/djay-saas-deploy.yml
