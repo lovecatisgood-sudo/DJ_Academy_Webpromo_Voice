@@ -99,3 +99,24 @@ plan.
    balancer/CDN plan.
 3. Add the seven Hostinger A records, wait for managed TLS, and execute staging
    browser, provider, load, recovery, and security acceptance.
+
+## Exact resume point
+
+- Active branch: `agent/recovery-p6-start`.
+- The `openai-api-key` Secret Manager container has no version. The operator
+  must add a project-scoped staging key directly in Google Secret Manager and
+  must not place it in chat, Git, Terraform variables, or an environment file.
+- AI Text and Voice intentionally use separate provider authorities. Do not
+  populate `voice-gen1-api-key` during the AI Text qualification step.
+- The Responses adapter and pure Thai/English/adversarial result scorer exist.
+  A live corpus runner that invokes the staging Responses route and emits
+  restricted acceptance evidence is still missing and must be implemented
+  before model activation.
+- After the AI Text key version exists: implement the live runner, compare
+  approved cost/quality candidates, run the complete bilingual and adversarial
+  corpus, record latency/usage/quality evidence, and configure only a route
+  that passes every gate.
+- Email delivery and malware scanning remain separate blockers for deploying
+  the full worker service. Public services, load balancing, managed TLS, and
+  DNS must remain undeployed until their required provider configuration is
+  non-placeholder and passes production admission.
