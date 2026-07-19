@@ -7,7 +7,9 @@
 **/node_modules
 node_modules
 infra
-docs
+docs/**
+!docs/product/djay-bots-v1-market-release-prd.md
+!docs/implementation/djay-bots-v1-detailed-implementation-plan.md
 *.log
 .env
 .env.*
