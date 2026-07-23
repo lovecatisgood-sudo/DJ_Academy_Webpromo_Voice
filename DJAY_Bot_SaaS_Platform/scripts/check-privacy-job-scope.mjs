@@ -16,7 +16,9 @@ for (const marker of [
 ]) if (!shared.includes(marker)) failures.push(`Shared privacy job authority is missing ${marker}`);
 
 const api = read("apps/api/app/tenant/privacy-jobs/route.ts");
-if (!api.includes("privacyJobRequestSchema.parse")) failures.push("Privacy API does not use the shared discriminated scope contract");
+if (!api.includes("privacyJobRequestSchema.parse") && !api.includes("bodySchema: privacyJobRequestSchema")) {
+  failures.push("Privacy API does not use the shared discriminated scope contract");
+}
 if (api.includes("contactId: z.uuid().optional()")) failures.push("Privacy API still permits unscoped erasure");
 
 const store = read("packages/db/src/shared-domain-store.ts");

@@ -1,8 +1,48 @@
 # DJAY Bot SaaS Platform State
 
-Last updated: 2026-07-16
+Last updated: 2026-07-23
 
-## Completed phases
+## Active implementation program (SKU1)
+
+Execution authority: `docs/plans/2026-07-22-FULL-IMPLEMENTATION-PLAN.md`  
+Supporting: ULTRA fix plan, path-to-10-all-roles, Plan v2  
+
+- **First SKU:** `flowbot_basic` (paid-first)
+- **Decision:** `SKU1-DEC-001` accepted in `requirements/market-release-decisions.yaml`
+- **Scoreboard:** `docs/plans/scoreboard.md`
+- **Release dashboard:** `docs/plans/release-dashboard.md`
+- **Rule:** Local P0–P9 engineering complete ≠ customer can buy. No `sellable: true` before Phases 9–11.
+
+### SKU1 execution progress (2026-07-22)
+
+| Gate | Status |
+|------|--------|
+| G0 Program lock | complete |
+| RV-G1 Root Voice safety | complete |
+| G1b Abuse floor | complete |
+| Phase 3 Purchase intents | complete |
+| G2 Paid path | wiring complete (Stripe dry-run evidence open until test mapping) |
+| Phase 5 Actionable Overview | **complete** (server `nextHref` + settings + Operations link cleanup) |
+| Phase 6 Setup wizard (G3) | **complete** (wizard shell + FlowBot steps + en/th chrome; ONB-012 meter tag open) |
+| Phase 7 Operate UX (G4) | **complete** (grouped nav, role homes, drawer, inbox search, MFA QR, FlowBot tabs) |
+| Phase 8 Hardening (G5) | **complete** (`withTenantMutation`, allowlist migrate, ADR 014, commerce-off boot) |
+| Phase 9 E2E + pen-test (G6+G6b) | **scaffolds complete** (`qa:merchant-first-sku`, smoke negatives, abuse floor, evidence templates); staging green + Crit/High disposition **open** |
+| Phase 10 Privacy (G6c) | **engineering complete** (PII registry, DSAR runbook, legal hold + erasure/export extensions in `0080`); counsel notice/residual sign-off **open** |
+| Phase 11 Commercial (G6e) | **decisions + EXP-008 complete** (`SKU1-DEC-002/003`, portal/invoice signal, mapping runbook); Stripe `live_ready` seed evidence **open** |
+| Phase 12 Reliability (G6d) | **scaffolds complete** (Cloud Run ready probes, worker backlog ready, commerce metrics/alerts, kill-switch runbook); staging apply + drill evidence **open** |
+| Phase 13 Sellable (G7) | **ready-to-flip package** (playbooks, worksheet, acceptance list, `pnpm gate:sellable-flip`); **`sellable` remains false** until prerequisite PASS markers |
+| Phase 14 Certify ≥9.5 (G8) | **evidence scaffold** (`docs/validation/score-evidence-9.5.md`); certification **BLOCKED** until Must-Pass Pass + G7 |
+| Phase 15 Post-GA | **backlog published** (`docs/plans/phase15-post-ga-backlog.md`); workstreams not started |
+| Phase 16–17 Soak / 10 | **checklists only** (`phase16-soak-g9.md`, `phase17-true-10-g10.md`); clocks not started |
+
+Program scaffold summary: `docs/validation/sku1-program-scaffold-complete.md`  
+Evidence execution: `docs/validation/sku1-evidence-execution.md` (Wave 0 local verification Pass 2026-07-23)
+
+### Owners
+
+Commerce · Onboarding · Inbox · Security · Privacy · SRE · RevOps · Support · SQA · Root Voice
+
+## Completed phases (historical engineering gates)
 
 - P0: baseline audit, boundaries, and accepted architecture decisions.
 - P1: public self-registration, tenant provisioning, exactly one Tenant Master

@@ -49,6 +49,17 @@ Before checkout implementation is finalized:
 
 Legal/accounting review is required for Thai tax invoices, VAT, consumer/business terms, privacy, refunds, and cross-border processors. Engineering documentation is not legal or tax advice.
 
+## SKU1 deferral (2026-07-23)
+
+For **`flowbot_basic` only**, finance accepted an explicit deferral via `SKU1-DEC-002`:
+
+- Catalogue THB prices are treated as the checkout amount due (inclusive presentation for SKU1 display); no in-product VAT line-item engine.
+- No automated dunning / grace suspension schedule is activated for SKU1.
+- Thai tax-invoice / FlowAccount authority remains blocked under `FIN-DEC-001`.
+- Full multi-SKU Stripe lifecycle policy remains blocked under `STRIPE-DEC-001`.
+
+Pilot vs paid recognition is recorded in `SKU1-DEC-003`. This ADR item list above stays open for GA beyond SKU1.
+
 ## Implementation constraint
 
 Public prices may be displayed from the immutable catalogue, but no real

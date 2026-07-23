@@ -1,8 +1,60 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-07-18",
+  "updated_at": "2026-07-23",
   "allowed_statuses": ["accepted", "blocked"],
   "decisions": [
+    {
+      "id": "SKU1-DEC-001",
+      "title": "First self-serve sellable SKU program (FlowBot Basic paid-first)",
+      "status": "accepted",
+      "owner": "Product Owner",
+      "supporting_owners": ["Billing Engineering", "Security", "Privacy Owner", "Customer Success", "Platform Owner"],
+      "deadline_gate": "Before any catalogue sellable=true flip for flowbot_basic",
+      "required_evidence": [
+        "FULL-IMPLEMENTATION-PLAN phases 0-14",
+        "Unmocked merchant E2E",
+        "Pen-test lite closed",
+        "Privacy G6c (PII registry / DSAR / notice)",
+        "Commercial G6e (Stripe mapping + tax decision or signed deferral)",
+        "Kill-switch drill",
+        "Named merchant worksheet"
+      ],
+      "fallback": "Keep flowbot_basic sellable=false; continue Platform pilot activation for named comps only.",
+      "blocker_scope": [],
+      "notes": "Authorizes engineering to build the paid self-serve path for flowbot_basic only. Does NOT authorize sellable=true until Phase 13 evidence (see docs/validation/phase13-sellable-g7.md PASS markers + pnpm gate:sellable-flip). All other packages remain non-sellable. Platform activatePilot remains for comps. Calendar P50 16-18 weeks. Ready-to-flip package drafted 2026-07-23."
+    },
+    {
+      "id": "SKU1-DEC-002",
+      "title": "SKU1 tax presentation and dunning deferral (flowbot_basic)",
+      "status": "accepted",
+      "owner": "Finance Owner",
+      "supporting_owners": ["Product Owner", "Billing Engineering", "Legal"],
+      "deadline_gate": "Before G6e Commercial close for flowbot_basic",
+      "required_evidence": [
+        "docs/compliance/sku1-tax-dunning-deferral.md",
+        "ADR-008 SKU1 deferral note",
+        "No active tenancy dunning policy seeded for SKU1"
+      ],
+      "fallback": "Keep checkout unavailable and sellable=false until finance accepts an alternate tax/dunning policy.",
+      "blocker_scope": [],
+      "notes": "SKU1 ships with THB catalogue prices treated as inclusive of applicable tax for display; Thai tax invoices / FlowAccount remain under FIN-DEC-001. No automated dunning, grace suspension, or retry schedule is activated for SKU1 — failed payment leaves Stripe/local subscription state for Support + Portal recovery. STRIPE-DEC-001 stays blocked for full six-SKU GA."
+    },
+    {
+      "id": "SKU1-DEC-003",
+      "title": "Pilot comps vs paid recognition (no double-count)",
+      "status": "accepted",
+      "owner": "Finance Owner",
+      "supporting_owners": ["Product Owner", "Billing Engineering", "Platform Owner"],
+      "deadline_gate": "Before G6e Commercial close for flowbot_basic",
+      "required_evidence": [
+        "docs/compliance/sku1-pilot-vs-paid.md",
+        "Platform activatePilot audit action subscription.pilot_activated",
+        "Paid activation only via Stripe webhook entitlement path"
+      ],
+      "fallback": "Disable Platform pilot activation if finance cannot separate comps from paid MRR.",
+      "blocker_scope": [],
+      "notes": "Platform activatePilot is complimentary access only and must not be booked as paid revenue. Paid SKU1 recognition starts only after verified Stripe invoice/payment webhooks activate entitlement. A tenant must not hold both an active paid FlowBot subscription and a pilot grant counted as revenue for the same period."
+    },
     {
       "id": "TEL-DEC-001", "title": "Thai telephony and SIP carrier", "status": "blocked",
       "owner": "Product Owner", "supporting_owners": ["Voice Engineering", "Finance", "Security"],

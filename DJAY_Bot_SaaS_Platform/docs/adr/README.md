@@ -15,5 +15,6 @@
 | 011 | Release-readiness SLO and public-status policy | Accepted |
 | 012 | Reviewed queue-specific dead-letter recovery | Accepted locally; production exercise pending |
 | 013 | Production infrastructure, payment, AI, email, accounting, and channel providers | Proposed; Stripe direction selected, remaining acceptance pending |
+| 014 | Narrow Tenant Conversation Manager publish/deploy | Accepted |
 
 Accepted ADRs may be superseded only by a later ADR that includes migration, compatibility, security, and rollback impact.

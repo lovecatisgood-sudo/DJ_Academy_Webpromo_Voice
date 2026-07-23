@@ -5941,16 +5941,31 @@
         "CORE-02",
         "CORE-03"
       ],
-      "implementation_paths": [],
+      "implementation_paths": [
+        "apps/tenant-web/lib/checkout-return-state.ts",
+        "apps/tenant-web/app/workspace/usage/page.tsx",
+        "apps/tenant-web/lib/i18n/setup-chrome.ts"
+      ],
       "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "api_contracts": [
+        "GET /tenant/usage",
+        "GET /public/catalog"
+      ],
+      "ui_routes": [
+        "/workspace/usage?checkout=return"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "test_ids": [
+        "apps/tenant-web/lib/checkout-return-state.test.ts"
+      ],
+      "runbooks": [
+        "docs/runbooks/customer-support-sku1.md"
+      ],
+      "evidence": [
+        "docs/validation/phase11-commercial-g6e.md"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {
