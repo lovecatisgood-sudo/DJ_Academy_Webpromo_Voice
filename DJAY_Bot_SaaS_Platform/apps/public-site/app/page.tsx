@@ -34,7 +34,7 @@ const productPillars = [
   },
   {
     title: "VoiceBot",
-    copy: "An AI voice bot for call intake, spoken lead qualification, callback requests, transcripts, summaries, and future telephone workflows.",
+    copy: "A website voice widget for spoken lead qualification, callback requests, transcripts, summaries, and faster handoff from your site.",
   },
   {
     title: "Unified Workspace",
@@ -189,7 +189,7 @@ export default function RegistrationPage() {
           <p className="eyebrow">AI sales automation for modern merchants</p>
           <h1 id="brand-title">Convert more leads before they go cold.</h1>
           <p className="supporting-copy">
-            DJBOT gives your business three conversion bots in one SaaS workspace: FlowBot for guided automation, TextBot for AI messaging, and VoiceBot for spoken conversations.
+            DJBOT gives your business three conversion bots in one SaaS workspace: FlowBot for guided automation, TextBot for AI messaging, and VoiceBot for website voice conversations.
           </p>
           <div className="hero-actions">
             <a className="primary-link" href="#start">Create workspace</a>
@@ -204,7 +204,7 @@ export default function RegistrationPage() {
           <div className="conversation-card priority">
             <small>WhatsApp lead</small>
             <strong>New lead reached the right bot instantly</strong>
-            <p>FlowBot captured intent, TextBot qualified the buyer, and VoiceBot can handle calls when the customer wants to speak.</p>
+            <p>FlowBot captured intent, TextBot qualified the buyer, and VoiceBot can continue the conversation from the website when the customer wants to speak.</p>
           </div>
           <div className="conversation-grid">
             <div><span>Response time</span><strong>Instant</strong></div>
