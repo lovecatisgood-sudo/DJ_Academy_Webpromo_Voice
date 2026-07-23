@@ -23,6 +23,32 @@ type LegalMetadata = {
   privacy: { version: string; title: string; effectiveDate: string };
 };
 
+const productPillars = [
+  {
+    title: "AI Chat",
+    copy: "Answers buyer questions instantly, captures intent, qualifies leads, and keeps every conversation moving while your team is busy.",
+  },
+  {
+    title: "FlowBot",
+    copy: "Turns repeatable sales and support playbooks into automated message flows for follow-up, booking, FAQs, reminders, and handoff.",
+  },
+  {
+    title: "Voice",
+    copy: "Gives businesses an always-on voice layer for call intake, lead capture, routing, and post-call summaries.",
+  },
+  {
+    title: "Social Inbox",
+    copy: "Connects Messenger, WhatsApp, LINE, and website chat into one workspace so no lead disappears between platforms.",
+  },
+];
+
+const outcomes = [
+  "Increase lead conversion by up to 50%",
+  "Stop hot leads from going cold overnight",
+  "Reply instantly across chat, social, and voice",
+  "Save hours every week for owners and sales teams",
+];
+
 export default function RegistrationPage() {
   const idempotencyKey = useRef<string | null>(null);
   const [status, setStatus] = useState<"idle" | "submitting" | "accepted" | "error">("idle");
@@ -144,21 +170,88 @@ export default function RegistrationPage() {
   }
 
   return (
-    <main className="auth-layout">
-      <section className="brand-panel" aria-labelledby="brand-title">
-        <div className="brand-lockup">
+    <main className="landing-page">
+      <header className="landing-nav" aria-label="Main navigation">
+        <a className="brand-lockup public-brand" href="/">
           <span className="brand-mark" aria-hidden="true">D</span>
-          <span>DJAY BOT</span>
+          <span>DJBOT</span>
+        </a>
+        <nav>
+          <a href="#features">Features</a>
+          <a href="#benefits">Benefits</a>
+          <a href="/login">Sign in</a>
+          <a className="nav-cta" href="#start">Start</a>
+        </nav>
+      </header>
+
+      <section className="landing-hero" aria-labelledby="brand-title">
+        <div className="hero-copy">
+          <p className="eyebrow">AI sales automation for modern merchants</p>
+          <h1 id="brand-title">Convert more leads before they go cold.</h1>
+          <p className="supporting-copy">
+            DJBOT combines AI chat, FlowBot automation, social messaging, and voice into one SaaS workspace built to answer faster, follow up harder, and turn more conversations into customers.
+          </p>
+          <div className="hero-actions">
+            <a className="primary-link" href="#start">Create workspace</a>
+            <a className="secondary-link" href="#features">See features</a>
+          </div>
         </div>
-        <div>
-          <p className="eyebrow">Business workspace</p>
-          <h1 id="brand-title">Run every customer conversation from one account.</h1>
-          <p className="supporting-copy">Set up the owner account for your company. Team access is invited after verification.</p>
+        <div className="hero-product" aria-label="DJBOT lead conversion workspace preview">
+          <div className="product-topbar">
+            <span>Lead command center</span>
+            <strong>Live</strong>
+          </div>
+          <div className="conversation-card priority">
+            <small>WhatsApp lead</small>
+            <strong>Interested in the annual FlowBot plan</strong>
+            <p>AI qualified budget, timeline, and product fit in 38 seconds.</p>
+          </div>
+          <div className="conversation-grid">
+            <div><span>Response time</span><strong>Instant</strong></div>
+            <div><span>Warm leads</span><strong>+50%</strong></div>
+            <div><span>Manual follow-up</span><strong>-70%</strong></div>
+            <div><span>Channels</span><strong>4</strong></div>
+          </div>
+          <div className="flow-preview">
+            <span>New lead</span>
+            <span>Qualify</span>
+            <span>Book</span>
+            <span>Close</span>
+          </div>
         </div>
-        <p className="legal-note">One verified owner account is created for each new workspace. <a href="/status">Service status</a></p>
       </section>
 
-      <section className="form-panel" aria-labelledby="register-title">
+      <section className="outcome-band" id="benefits" aria-label="Business outcomes">
+        {outcomes.map((outcome) => <div key={outcome}>{outcome}</div>)}
+      </section>
+
+      <section className="feature-section" id="features" aria-labelledby="features-title">
+        <div className="section-heading">
+          <p className="step-label">What merchants get</p>
+          <h2 id="features-title">One platform for chat, flows, voice, and sales follow-up.</h2>
+        </div>
+        <div className="feature-grid">
+          {productPillars.map((feature) => (
+            <article className="feature-card" key={feature.title}>
+              <h3>{feature.title}</h3>
+              <p>{feature.copy}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="conversion-section" aria-labelledby="conversion-title">
+        <div>
+          <p className="step-label">Why it works</p>
+          <h2 id="conversion-title">Speed closes the gap between interest and purchase.</h2>
+        </div>
+        <div className="conversion-copy">
+          <p>Most leads do not disappear because they were bad. They disappear because nobody replied fast enough, followed up clearly enough, or remembered the context when the buyer came back.</p>
+          <p>DJBOT keeps the conversation alive from first message to handoff: instant replies, structured qualification, automated reminders, human takeover, and a unified customer timeline.</p>
+        </div>
+      </section>
+
+      <section className="signup-section" id="start" aria-labelledby="register-title">
         <div className="form-wrap">
           <p className="step-label">Workspace registration</p>
           <h2 id="register-title">{status === "accepted" ? "Check your email" : "Create your account"}</h2>

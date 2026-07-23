@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./styles.css";
 
 export const metadata: Metadata = {
-  title: "Create workspace | DJAY Bot",
-  description: "Create and secure your DJAY Bot business workspace.",
+  title: "DJBOT | AI chat, flow automation, and voice for sales teams",
+  description: "DJBOT helps businesses respond faster, qualify leads, automate follow-up, and keep conversations warm across chat, social messaging, and voice.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -13,4 +13,3 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     </html>
   );
 }
-
