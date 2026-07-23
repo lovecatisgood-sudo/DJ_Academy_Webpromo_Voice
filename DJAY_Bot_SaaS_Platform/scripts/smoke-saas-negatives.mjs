@@ -27,9 +27,9 @@ async function probe(name, path, init, assert) {
   }
 }
 
-const health = await fetch(`${apiUrl}/health/live`).catch(() => null);
+const health = await fetch(`${apiUrl}/api/health/live`).catch(() => null);
 if (!health?.ok) {
-  console.error(`API not reachable at ${apiUrl}/health/live — start the API or set API_APP_URL`);
+  console.error(`API not reachable at ${apiUrl}/api/health/live — start the API or set API_APP_URL`);
   process.exit(1);
 }
 
