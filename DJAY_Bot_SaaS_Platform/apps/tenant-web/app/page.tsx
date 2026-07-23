@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { emailFieldConstraints, safeMutationFetch, safeSameOriginPath } from "@djay/shared";
 import { tenantApplicationEnvironment } from "../lib/application-environment";
 import { defaultWorkspaceHome } from "../lib/workspace-labels";
@@ -9,15 +9,17 @@ export default function TenantLoginPage() {
   const [status, setStatus] = useState<"idle" | "working" | "mfa_required" | "authenticated" | "error">("idle");
   const [mfaStage, setMfaStage] = useState(false);
   const [message, setMessage] = useState("");
-
-  function continuationDestination(result?: Readonly<{
+  const authenticatedResult = useRef<Readonly<{
     selectedTenantId?: string | null;
     workspaces?: ReadonlyArray<{ tenantId: string; role: string }>;
-  }>) {
+  }> | null>(null);
+
+  function continuationDestination() {
     const rawNext = new URLSearchParams(window.location.search).get("next");
     const explicitNext = rawNext
       ? safeSameOriginPath(rawNext, "")
       : "";
+    const result = authenticatedResult.current;
     const selected = result?.workspaces?.find((workspace) => workspace.tenantId === result.selectedTenantId)
       ?? result?.workspaces?.[0];
     return defaultWorkspaceHome({
@@ -44,9 +46,10 @@ export default function TenantLoginPage() {
         return;
       }
       if (!response.ok || result.status !== "authenticated") throw new Error(response.status >= 500 ? "Sign in is temporarily unavailable. Try again." : "Email or password is incorrect.");
+      authenticatedResult.current = result;
       setStatus("authenticated");
       setMessage(result.selectedTenantId ? "Signed in. Opening your workspace..." : "Signed in. Choose a workspace to continue.");
-      window.setTimeout(() => window.location.replace(continuationDestination(result)), 350);
+      window.setTimeout(() => window.location.replace(continuationDestination()), 350);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Sign in is unavailable.");
@@ -69,8 +72,9 @@ export default function TenantLoginPage() {
       setMessage(response.status >= 500 ? "Identity verification is temporarily unavailable. Try again." : "The verification code is invalid or expired.");
       return;
     }
+    authenticatedResult.current = result;
     setStatus("authenticated");
-    window.location.replace(continuationDestination(result));
+    window.location.replace(continuationDestination());
   }
 
   return (

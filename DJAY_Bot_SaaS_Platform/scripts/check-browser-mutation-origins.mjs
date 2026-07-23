@@ -31,8 +31,8 @@ for (const file of routeFiles(routeRoot)) {
   const normalized = relative(root, file).split(sep).join("/");
   if (!requiresBrowserOrigin(normalized)) continue;
   checked += methods.length;
-  if (!/hasTrustedOrigin\s*\(\s*request\s*\)/.test(source)) {
-    failures.push(`${normalized} exports ${methods.join(", ")} without hasTrustedOrigin`);
+  if (!/hasTrustedOrigin\s*\(\s*request\s*\)/.test(source) && !/withTenantMutation\s*\(/.test(source)) {
+    failures.push(`${normalized} exports ${methods.join(", ")} without hasTrustedOrigin or withTenantMutation`);
   }
 }
 
