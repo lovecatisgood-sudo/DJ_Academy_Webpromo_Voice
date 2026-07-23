@@ -62,7 +62,7 @@ The separate multi-tenant implementation is under:
 
 ## Runtime Status
 
-- Deployed app: `https://voice.djai.academy`
+- Deployed app: `https://djbot.djai.academy`
 - Current local source build marker: `agent-widget-v2-openai-text-chat-2026-07-13`
 - Production should be redeployed from the latest ZIP before running live V2 acceptance for the dual-mode widget, text chatbot, voicebot, and shared booking flow.
 
@@ -349,7 +349,7 @@ Before deploying or after deploying V1.5, run a fresh acceptance pass and confir
 - `npm run package:source`
 - `npm run verify:archive`
 - `npm run acceptance:phase11` exists for production API acceptance after deployment. It checks build marker, `/api/chat/session`, `/api/session`, CORS rejection, and cleans temporary rows when `DATABASE_URL` is available.
-- `BASE_URL=https://voice.djai.academy npm run acceptance:phase11`
+- `BASE_URL=https://djbot.djai.academy npm run acceptance:phase11`
 - Production `/api/chat/session`, `/api/chat/message`, and `/api/chat/end` smoke passed with the current `gpt-5-mini` text-chat setting; temporary production audit rows were deleted.
 - Local built text-chat behavior smoke passed for an e-commerce/high-ad-cost objection: response acknowledged the objection, explained business impact, sold outcomes, and asked next discovery questions. Temporary audit rows were deleted.
 - Standalone server started locally on `127.0.0.1:3022`.
@@ -494,7 +494,7 @@ Runtime env must include:
 - `ADMIN_PASSWORD`
 - `SESSION_PASSWORD`
 - `SESSION_SIGNING_SECRET`
-- `WIDGET_ALLOWED_ORIGINS=https://djai.academy,https://www.djai.academy,https://voice.djai.academy,https://dev.djai.academy`
+- `WIDGET_ALLOWED_ORIGINS=https://djai.academy,https://www.djai.academy,https://djbot.djai.academy,https://dev.djai.academy`
 
 If `POST /api/session` returns OpenAI `upstreamStatus:401`, Hostinger is using an invalid or unapplied OpenAI key.
 
@@ -514,7 +514,7 @@ Local `main` is ahead of `origin/main` and has uncommitted implementation/doc ch
 - Live check command:
 
 ```bash
-curl -sS https://voice.djai.academy/api/session
+curl -sS https://djbot.djai.academy/api/session
 ```
 
 - Latest live response still showed:

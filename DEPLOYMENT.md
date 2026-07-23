@@ -12,7 +12,7 @@ ADMIN_USERNAME="admin"
 ADMIN_PASSWORD="change-me"
 SESSION_PASSWORD="at-least-32-random-characters"
 SESSION_SIGNING_SECRET="another-32-random-character-secret"
-WIDGET_ALLOWED_ORIGINS="https://djai.academy,https://www.djai.academy,https://voice.djai.academy,https://dev.djai.academy"
+WIDGET_ALLOWED_ORIGINS="https://djai.academy,https://www.djai.academy,https://djbot.djai.academy,https://dev.djai.academy"
 ```
 
 In Hostinger's environment-variable form, paste only each value. **Do not include the surrounding
@@ -109,19 +109,19 @@ expected: production values come from Hostinger's environment manager.
 After the Hostinger app starts, run from a shell that can reach the deployed URL:
 
 ```bash
-BASE_URL=https://voice.djai.academy pnpm smoke:public
+BASE_URL=https://djbot.djai.academy pnpm smoke:public
 ```
 
 Do not run `smoke:no-secrets` against production after env vars are configured; it is only for local no-secret routing checks.
 
 ## WordPress Embed Snippet
 
-Replace `https://voice.djai.academy` with the deployed Node app origin:
+Replace `https://djbot.djai.academy` with the deployed Node app origin:
 
 ```html
 <script
-  src="https://voice.djai.academy/djai-voice-widget.js"
-  data-api-base="https://voice.djai.academy"
+  src="https://djbot.djai.academy/djai-voice-widget.js"
+  data-api-base="https://djbot.djai.academy"
   defer
 ></script>
 ```

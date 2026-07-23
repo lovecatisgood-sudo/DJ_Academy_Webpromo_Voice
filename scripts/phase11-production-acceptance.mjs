@@ -1,9 +1,9 @@
 import { neon } from "@neondatabase/serverless";
 import { readEnv } from "./env-utils.mjs";
 
-const baseUrl = (process.env.BASE_URL || "https://voice.djai.academy").replace(/\/$/, "");
+const baseUrl = (process.env.BASE_URL || "https://djbot.djai.academy").replace(/\/$/, "");
 const expectedBuild = process.env.EXPECTED_BUILD || "agent-widget-v2-openai-text-chat-2026-07-13";
-const allowedOrigin = process.env.SMOKE_ORIGIN || "https://voice.djai.academy";
+const allowedOrigin = process.env.SMOKE_ORIGIN || "https://djbot.djai.academy";
 const blockedOrigin = process.env.BLOCKED_ORIGIN || "https://blocked.example";
 const databaseUrl = readEnv("DATABASE_URL");
 const temporaryConversationIds = new Set();
