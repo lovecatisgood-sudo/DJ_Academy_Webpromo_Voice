@@ -10,6 +10,7 @@ import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceA
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { WebsiteDeploymentForm } from "../WebsiteDeploymentForm";
 import { useWorkspaceSession } from "../useWorkspaceSession";
+import { humanizeAccessMode, humanizePlanKey } from "../../../lib/workspace-labels";
 import { AiPlaybookEditor } from "./AiPlaybookEditor";
 
 type Agent = { id: string; name: string; status: string; defaultLanguage: "th" | "en"; currentPublishedPlaybookVersionId: string | null; draftRevision: number; deploymentCount: number };
@@ -280,7 +281,7 @@ export default function AiChatPage() {
   if (loadError) return <WorkspacePageLoadError active="ai_chat" title="AI Chat" resource="AI Chat Studio" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} onRetry={() => window.location.reload()} />;
   return <main className="workspace-shell"><WorkspaceSidebar active="ai_chat" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} />
     <section className="workspace-main"><WorkspaceSupportBanner tenantId={session.selectedTenantId} />
-      <header className="workspace-header"><div><p>Grounded sales conversations</p><h1>AI Chat</h1></div><span className="role-label">{capabilities?.planKey.replace("ai_chat_", "") || "unavailable"} / {capabilities?.accessMode || "none"}</span></header>
+      <header className="workspace-header"><div><p>Grounded sales conversations</p><h1>AI Chat</h1></div><span className="role-label">{humanizePlanKey(capabilities?.planKey)} · {humanizeAccessMode(capabilities?.accessMode)}</span></header>
       <section className="tool-band flowbot-control-band"><div className="band-heading"><div><p>Agents</p><h2>Sales assistants</h2></div><span>{agents.length}</span></div>
         {canAuthor ? <form className="ai-agent-create" onSubmit={createAgent}><label>Agent name<input name="name" minLength={2} maxLength={100} required /></label><label>Business name<input name="businessName" minLength={2} maxLength={200} required /></label><label>Language<select name="defaultLanguage" defaultValue="en"><option value="en">English</option><option value="th">Thai</option></select></label><button disabled={working}>Create agent</button></form> : null}
         <div className="flowbot-tabs">{agents.map((agent) => <button type="button" className={agent.id === selectedAgentId ? "selected" : ""} key={agent.id} onClick={() => selectAgent(agent.id)}><strong>{agent.name}</strong><span>{agent.status} / {agent.deploymentCount} deployments</span></button>)}</div>

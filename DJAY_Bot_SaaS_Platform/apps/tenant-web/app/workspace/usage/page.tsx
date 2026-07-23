@@ -1,11 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { useWorkspaceSession } from "../useWorkspaceSession";
+import { resolveCheckoutReturnState, type CheckoutReturnState } from "../../../lib/checkout-return-state";
+import { resolveChromeLocale, setupChrome } from "../../../lib/i18n/setup-chrome";
+import { humanizePlanKey, humanizeToken } from "../../../lib/workspace-labels";
 
 type CustomerUnit = "flow_execution" | "ai_response" | "voice_minute";
+type CatalogPlan = {
+  planKey: string;
+  productKey: "flowbot" | "ai_chat" | "voice";
+  publicName: string;
+  tierName: string;
+  summary: string;
+  sellable: boolean;
+  firstTermAmountMinor: number;
+  renewalAmountMinor: number;
+  publicHighlights: string[];
+};
 type UsageSubscription = {
   subscriptionId: string;
   productKey: "flowbot" | "ai_chat" | "voice";
@@ -130,6 +145,13 @@ export default function UsagePage() {
   const [capStatus, setCapStatus] = useState<Record<string, string>>({});
   const [alertDrafts, setAlertDrafts] = useState<Record<string, AlertDraft>>({});
   const [alertStatus, setAlertStatus] = useState<Record<string, string>>({});
+  const [catalogPlans, setCatalogPlans] = useState<CatalogPlan[]>([]);
+  const [catalogStage, setCatalogStage] = useState<"loading" | "ready" | "error">("loading");
+  const [selectedPlanKey, setSelectedPlanKey] = useState("flowbot_basic");
+  const [planActionStatus, setPlanActionStatus] = useState("");
+  const [checkoutStatus, setCheckoutStatus] = useState<Record<string, string>>({});
+  const [checkoutReturnState, setCheckoutReturnState] = useState<CheckoutReturnState | null>(null);
+  const [checkoutReturnLocale, setCheckoutReturnLocale] = useState<"en" | "th">("en");
   const activeWorkspace = useMemo(
     () => session.workspaces.find((workspace) => workspace.tenantId === session.selectedTenantId),
     [session.workspaces, session.selectedTenantId],
@@ -159,9 +181,76 @@ export default function UsagePage() {
     setLoadingUsage(false);
   }, []);
 
+  const loadCatalog = useCallback(async () => {
+    setCatalogStage("loading");
+    const response = await fetch("/public/catalog", { cache: "no-store" }).catch(() => null);
+    if (!response?.ok) {
+      setCatalogPlans([]);
+      setCatalogStage("error");
+      return;
+    }
+    const result = await response.json().catch(() => null);
+    const plans = Array.isArray(result?.plans) ? result.plans as CatalogPlan[] : [];
+    setCatalogPlans(plans);
+    setCatalogStage("ready");
+    if (plans.some((plan) => plan.planKey === "flowbot_basic")) {
+      setSelectedPlanKey("flowbot_basic");
+    } else if (plans[0]?.planKey) {
+      setSelectedPlanKey(plans[0].planKey);
+    }
+  }, []);
+
   useEffect(() => {
-    if (session.selectedTenantId) void loadUsage();
-  }, [loadUsage, session.selectedTenantId]);
+    if (session.selectedTenantId) {
+      void loadUsage();
+      void loadCatalog();
+    }
+  }, [loadCatalog, loadUsage, session.selectedTenantId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") !== "return") return;
+    let cancelled = false;
+    let attempts = 0;
+    params.delete("checkout");
+    const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", next);
+
+    const refreshReturnState = async () => {
+      const [profileResponse, usageResponse, catalogResponse] = await Promise.all([
+        fetch("/tenant/profile", { cache: "no-store" }).catch(() => null),
+        fetch("/tenant/usage", { cache: "no-store" }).catch(() => null),
+        fetch("/public/catalog", { cache: "no-store" }).catch(() => null),
+      ]);
+      if (cancelled) return null;
+      const profile = profileResponse?.ok ? await profileResponse.json().catch(() => null) : null;
+      const locale = resolveChromeLocale(profile?.profile?.locale);
+      setCheckoutReturnLocale(locale);
+      const usageJson = usageResponse?.ok ? await usageResponse.json().catch(() => null) : null;
+      const catalogJson = catalogResponse?.ok ? await catalogResponse.json().catch(() => null) : null;
+      const state = resolveCheckoutReturnState({
+        subscriptions: Array.isArray(usageJson?.usage?.subscriptions) ? usageJson.usage.subscriptions : [],
+        catalogPlans: Array.isArray(catalogJson?.plans) ? catalogJson.plans : [],
+        focusPlanKey: "flowbot_basic",
+      });
+      setCheckoutReturnState(state);
+      await loadUsage();
+      return state;
+    };
+
+    void (async () => {
+      let state = await refreshReturnState();
+      while (!cancelled && state === "processing" && attempts < 5) {
+        attempts += 1;
+        await new Promise((resolve) => window.setTimeout(resolve, Math.min(2000 * attempts, 8000)));
+        if (cancelled) return;
+        state = await refreshReturnState();
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [loadUsage]);
 
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading usage...</main>;
@@ -248,6 +337,83 @@ export default function UsagePage() {
     setPortalStatus(result?.status === "reauthentication_required" ? "Sign in again with MFA"
       : result?.status === "portal_unavailable" ? "Billing Portal is not configured" : "Billing Portal could not be opened");
   };
+
+  const checkoutFailureCopy = (status: string | undefined) => {
+    if (status === "reauthentication_required") return "Sign in again with MFA to continue";
+    if (status === "rate_limited") return "Too many checkout attempts. Wait and try again";
+    if (status === "checkout_unavailable") return "Checkout is not open for this plan yet. Your preference stays saved";
+    if (status === "temporarily_unavailable") return "Checkout is temporarily unavailable";
+    return "Could not start checkout";
+  };
+
+  const startCheckout = async (subscription: UsageSubscription) => {
+    setCheckoutStatus((current) => ({ ...current, [subscription.subscriptionId]: "Preparing secure checkout…" }));
+    const contractResponse = await safeMutationFetch(`/tenant/subscriptions/${subscription.subscriptionId}/contract`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ accepted: true }),
+    });
+    const contractResult = await contractResponse.json().catch(() => null);
+    if (!contractResponse.ok || typeof contractResult?.contractId !== "string") {
+      setCheckoutStatus((current) => ({
+        ...current,
+        [subscription.subscriptionId]: checkoutFailureCopy(contractResult?.status),
+      }));
+      return;
+    }
+    const checkoutResponse = await safeMutationFetch("/tenant/billing/checkout", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "").slice(0, 8),
+      },
+      body: JSON.stringify({
+        subscriptionId: subscription.subscriptionId,
+        contractSnapshotId: contractResult.contractId,
+      }),
+    });
+    const checkoutResult = await checkoutResponse.json().catch(() => null);
+    if (checkoutResponse.ok && typeof checkoutResult?.checkoutUrl === "string") {
+      window.location.assign(checkoutResult.checkoutUrl);
+      return;
+    }
+    setCheckoutStatus((current) => ({
+      ...current,
+      [subscription.subscriptionId]: checkoutFailureCopy(checkoutResult?.status),
+    }));
+  };
+
+  const selectPlan = async () => {
+    if (!selectedPlanKey) {
+      setPlanActionStatus("Choose a product first");
+      return;
+    }
+    setPlanActionStatus("Saving plan preference…");
+    const response = await safeMutationFetch("/tenant/subscriptions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ planKey: selectedPlanKey }),
+    });
+    const result = await response.json().catch(() => null);
+    if (response.ok && result?.status === "created") {
+      setPlanActionStatus("Preference saved. Continue to payment when checkout is available.");
+      await loadUsage();
+      return;
+    }
+    if (result?.status === "product_already_subscribed") {
+      setPlanActionStatus("This product is already on the workspace");
+      return;
+    }
+    if (result?.status === "reauthentication_required") {
+      setPlanActionStatus("Sign in again with MFA to choose a product");
+      return;
+    }
+    if (result?.status === "rate_limited") {
+      setPlanActionStatus("Too many attempts. Wait and try again");
+      return;
+    }
+    setPlanActionStatus(result?.status === "plan_unavailable" ? "That plan is unavailable" : "Could not save plan preference");
+  };
   const changeCancellation = async (subscription: UsageSubscription, action: "schedule" | "revoke") => {
     if (action === "schedule" && !window.confirm(
       `Cancel ${subscription.publicName} at the end of the current annual term? Access remains available until then.`,
@@ -324,6 +490,34 @@ export default function UsagePage() {
           <span className="role-label">{activeWorkspace?.businessName}</span>
         </header>
 
+        {checkoutReturnState ? (() => {
+          const copy = setupChrome(checkoutReturnLocale);
+          const title = checkoutReturnState === "active" ? copy.checkoutReturnActiveTitle
+            : checkoutReturnState === "action_required" ? copy.checkoutReturnActionTitle
+              : checkoutReturnState === "expired" ? copy.checkoutReturnExpiredTitle
+                : checkoutReturnState === "unavailable" ? copy.checkoutReturnUnavailableTitle
+                  : copy.checkoutReturnProcessingTitle;
+          const body = checkoutReturnState === "active" ? copy.checkoutReturnActive
+            : checkoutReturnState === "action_required" ? copy.checkoutReturnAction
+              : checkoutReturnState === "expired" ? copy.checkoutReturnExpired
+                : checkoutReturnState === "unavailable" ? copy.checkoutReturnUnavailable
+                  : copy.checkoutReturnProcessing;
+          return (
+            <section className="usage-state" role="status" aria-live="polite" data-checkout-return={checkoutReturnState}>
+              <div>
+                <strong>{title}</strong>
+                <span>{body}</span>
+              </div>
+              <div className="usage-state-actions">
+                {checkoutReturnState === "action_required" || checkoutReturnState === "active" ? (
+                  <button className="secondary-command" type="button" onClick={() => void openBillingPortal()}>Manage billing</button>
+                ) : null}
+                <button className="secondary-command" type="button" onClick={() => setCheckoutReturnState(null)}>Dismiss</button>
+              </div>
+            </section>
+          );
+        })() : null}
+
         <section className="usage-intro" aria-labelledby="usage-summary-title">
           <div>
             <p>Account overview</p>
@@ -336,6 +530,66 @@ export default function UsagePage() {
             <div><dt>Billing status</dt><dd>{usage?.billingMode === "configured" ? "Configured" : "Pilot metering"}</dd></div>
           </dl>
         </section>
+
+        {canManageUsage && !loadingUsage && !loadError ? (
+          <section className="tool-band usage-plan-picker" aria-labelledby="usage-plan-picker-title">
+            <div className="band-heading">
+              <div>
+                <p>Self-serve</p>
+                <h2 id="usage-plan-picker-title">Choose a product</h2>
+              </div>
+              <span>Prices come from the server catalog</span>
+            </div>
+            <p className="control-copy">
+              Selecting a plan saves a server-side preference. Access activates after successful payment — not from email verification or this browser alone.
+            </p>
+            {catalogStage === "loading" ? <p className="usage-plan-status" aria-live="polite">Loading products…</p> : null}
+            {catalogStage === "error" ? (
+              <div className="usage-state usage-state-error" role="alert">
+                <div><strong>Products could not be loaded</strong><span>Try again before choosing a plan.</span></div>
+                <button className="secondary-command" type="button" onClick={() => void loadCatalog()}>Try again</button>
+              </div>
+            ) : null}
+            {catalogStage === "ready" ? (
+              <fieldset className="usage-plan-options">
+                <legend className="sr-only">Available products</legend>
+                {catalogPlans.length ? catalogPlans.map((plan) => {
+                  const alreadyHeld = subscriptions.some((subscription) => subscription.productKey === plan.productKey
+                    && subscription.status !== "cancelled");
+                  return (
+                    <label
+                      className={`usage-plan-option${selectedPlanKey === plan.planKey ? " selected" : ""}${alreadyHeld ? " held" : ""}`}
+                      key={plan.planKey}
+                    >
+                      <input
+                        type="radio"
+                        name="workspacePlanKey"
+                        value={plan.planKey}
+                        checked={selectedPlanKey === plan.planKey}
+                        disabled={alreadyHeld}
+                        onChange={() => setSelectedPlanKey(plan.planKey)}
+                      />
+                      <span>
+                        <strong>{plan.publicName}</strong>
+                        <small>{plan.summary}</small>
+                        <small>
+                          First year {formatMoney(plan.firstTermAmountMinor)}
+                          {plan.sellable ? "" : " · checkout opens when this SKU is sellable"}
+                        </small>
+                      </span>
+                    </label>
+                  );
+                }) : <p className="usage-plan-status">No products are available to select right now.</p>}
+              </fieldset>
+            ) : null}
+            {canManageUsage && catalogStage === "ready" && catalogPlans.some((plan) => !subscriptions.some((subscription) => subscription.productKey === plan.productKey && subscription.status !== "cancelled")) ? (
+              <div className="usage-plan-actions">
+                <button type="button" onClick={() => void selectPlan()}>Save plan preference</button>
+                <span className="usage-plan-status" aria-live="polite">{planActionStatus}</span>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
         {loadingUsage ? (
           <section className="usage-state" aria-live="polite"><span className="usage-state-dot" /><strong>Loading current usage…</strong></section>
@@ -397,6 +651,15 @@ export default function UsagePage() {
                       <div><dt>Renewal</dt><dd>{subscription.cancelAt
                         ? `Ends ${formatDate(subscription.cancelAt)}` : "Renews automatically"}</dd></div>
                     </dl>
+                    {canManageUsage && (subscription.accessMode === "none" || subscription.status === "pending") ? (
+                      <div className="usage-cap-control usage-checkout-control">
+                        <span>Payment activates access for this product.</span>
+                        <button type="button" onClick={() => void startCheckout(subscription)}>
+                          Continue to payment
+                        </button>
+                        <span aria-live="polite">{checkoutStatus[subscription.subscriptionId] ?? ""}</span>
+                      </div>
+                    ) : null}
                     {canManageUsage && ["trialing", "active", "past_due", "grace_period", "restricted", "paused"].includes(subscription.status) ? (
                       <div className="usage-cap-control">
                         <span>{subscription.cancelAt ? "Cancellation scheduled" : "Annual renewal"}</span>
@@ -428,7 +691,10 @@ export default function UsagePage() {
           </section>
         ) : (
           <section className="usage-state">
-            <div><strong>No product plan yet</strong><span>Choose a product during workspace onboarding to start tracking usage.</span></div>
+            <div>
+              <strong>No active product yet</strong>
+              <span>Choose a product above to save your setup preference, then continue to payment when checkout is available. Pilot activation remains for named comps only.</span>
+            </div>
           </section>
         )}
 
@@ -491,7 +757,7 @@ export default function UsagePage() {
             <div className="data-table">
               {resourceBoundaries.products.flatMap((product) => product.boundaries.map((boundary) => (
                 <div className="data-row" key={`${product.subscriptionId}-${boundary.key}`}>
-                  <div><strong>{product.productKey.replaceAll("_", " ")} · {boundary.key.replaceAll("_", " ")}</strong><span>{product.planKey.replaceAll("_", " ")}</span></div>
+                  <div><strong>{humanizeToken(product.productKey)} · {humanizeToken(boundary.key)}</strong><span>{humanizePlanKey(product.planKey)}</span></div>
                   <span>{boundary.used} used</span>
                   <span>{boundary.limit === null ? "Unlimited" : `${boundary.limit} included${boundary.excess ? ` · ${boundary.excess} excess` : ""}`}</span>
                 </div>

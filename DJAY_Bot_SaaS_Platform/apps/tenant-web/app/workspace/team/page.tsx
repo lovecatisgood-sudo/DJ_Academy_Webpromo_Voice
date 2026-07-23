@@ -5,6 +5,7 @@ import { emailFieldConstraints, safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspaceAccessDenied, WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { useWorkspaceSession } from "../useWorkspaceSession";
+import { humanizeTenantRole, humanizeToken } from "../../../lib/workspace-labels";
 
 type Member = {
   membership_id: string;
@@ -158,7 +159,7 @@ export default function TeamPage() {
             {team?.members.map((member) => (
               <div className="data-row" role="row" key={member.membership_id}>
                 <div><strong>{member.display_name}</strong><span>{member.email_normalized}</span></div>
-                <span className="role-label">{member.membership_role.replaceAll("_", " ")}</span>
+                <span className="role-label">{humanizeTenantRole(member.membership_role)} · {humanizeToken(member.membership_status)}</span>
                 {isOwner && member.membership_role !== "tenant_master_admin" ? (
                   <div className="member-actions">
                     <label className="visually-hidden" htmlFor={`role-${member.membership_id}`}>Role for {member.display_name}</label>
@@ -174,7 +175,7 @@ export default function TeamPage() {
           </div>
         </section>
         {team?.invitations.length ? (
-          <section className="tool-band muted-band"><div className="band-heading"><div><p>Pending</p><h2>Invitations</h2></div></div>{team.invitations.map((invitation) => <div className="pending-line" key={invitation.id}><strong>{invitation.email_normalized}</strong><span>{invitation.role.replaceAll("_", " ")}</span></div>)}</section>
+          <section className="tool-band muted-band"><div className="band-heading"><div><p>Pending</p><h2>Invitations</h2></div></div>{team.invitations.map((invitation) => <div className="pending-line" key={invitation.id}><strong>{invitation.email_normalized}</strong><span>{humanizeTenantRole(invitation.role)}</span></div>)}</section>
         ) : null}
       </section>
     </main>

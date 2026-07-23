@@ -3,14 +3,27 @@
 import { useState, type FormEvent } from "react";
 import { emailFieldConstraints, safeMutationFetch, safeSameOriginPath } from "@djay/shared";
 import { tenantApplicationEnvironment } from "../lib/application-environment";
+import { defaultWorkspaceHome } from "../lib/workspace-labels";
 
 export default function TenantLoginPage() {
   const [status, setStatus] = useState<"idle" | "working" | "mfa_required" | "authenticated" | "error">("idle");
   const [mfaStage, setMfaStage] = useState(false);
   const [message, setMessage] = useState("");
 
-  function continuationDestination() {
-    return safeSameOriginPath(new URLSearchParams(window.location.search).get("next"), "/workspace");
+  function continuationDestination(result?: Readonly<{
+    selectedTenantId?: string | null;
+    workspaces?: ReadonlyArray<{ tenantId: string; role: string }>;
+  }>) {
+    const rawNext = new URLSearchParams(window.location.search).get("next");
+    const explicitNext = rawNext
+      ? safeSameOriginPath(rawNext, "")
+      : "";
+    const selected = result?.workspaces?.find((workspace) => workspace.tenantId === result.selectedTenantId)
+      ?? result?.workspaces?.[0];
+    return defaultWorkspaceHome({
+      role: selected?.role,
+      explicitNext: explicitNext || null,
+    });
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -33,7 +46,7 @@ export default function TenantLoginPage() {
       if (!response.ok || result.status !== "authenticated") throw new Error(response.status >= 500 ? "Sign in is temporarily unavailable. Try again." : "Email or password is incorrect.");
       setStatus("authenticated");
       setMessage(result.selectedTenantId ? "Signed in. Opening your workspace..." : "Signed in. Choose a workspace to continue.");
-      window.setTimeout(() => window.location.replace(continuationDestination()), 350);
+      window.setTimeout(() => window.location.replace(continuationDestination(result)), 350);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Sign in is unavailable.");
@@ -57,7 +70,7 @@ export default function TenantLoginPage() {
       return;
     }
     setStatus("authenticated");
-    window.location.replace(continuationDestination());
+    window.location.replace(continuationDestination(result));
   }
 
   return (

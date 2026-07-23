@@ -5,6 +5,13 @@ import { tenantRoleAllows, type TenantRole } from "@djay/authorization";
 import { safeMutationFetch } from "@djay/shared";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "./WorkspaceAccess";
 import { WorkspaceSidebar, type WorkspaceSummary } from "./WorkspaceSidebar";
+import {
+  defaultWorkspaceHome,
+  humanizeOnboardingStage,
+  humanizeTenantRole,
+  humanizeToken,
+  inboxHomeRoles,
+} from "../../lib/workspace-labels";
 
 type Workspace = WorkspaceSummary;
 
@@ -25,6 +32,15 @@ type Onboarding = {
     launchReadyProducts: Subscription["productKey"][];
     productStates: { productKey: Subscription["productKey"]; activeAccess: boolean; configured: boolean; tested: boolean; deployed: boolean; launchReady: boolean; nextAction: "activate" | "configure" | "deploy" | "test" | "operate" }[];
   };
+  checklist: {
+    key: string;
+    label: string;
+    detail: string;
+    complete: boolean;
+    nextHref?: string;
+    nextLabel?: string;
+  }[];
+  primaryAction: { href: string; label: string } | null;
 };
 type Subscription = {
   id: string; productKey: "flowbot" | "ai_chat" | "voice"; publicName: string;
@@ -75,6 +91,14 @@ export default function WorkspacePage() {
   }
 
   useEffect(() => { void load(); }, []);
+
+  useEffect(() => {
+    if (!activeWorkspace) return;
+    const role = activeWorkspace.role as TenantRole;
+    if (!inboxHomeRoles.has(role)) return;
+    if (new URLSearchParams(window.location.search).get("stay") === "1") return;
+    window.location.replace(defaultWorkspaceHome({ role }));
+  }, [activeWorkspace]);
 
   async function selectWorkspace(tenantId: string) {
     setMutationMessage("");
@@ -140,7 +164,7 @@ export default function WorkspacePage() {
           <div className="workspace-list">
             {workspaces.map((workspace) => (
               <button key={workspace.tenantId} type="button" onClick={() => selectWorkspace(workspace.tenantId)}>
-                <strong>{workspace.businessName}</strong><span>{workspace.role.replaceAll("_", " ")}</span>
+                <strong>{workspace.businessName}</strong><span>{humanizeTenantRole(workspace.role)}</span>
               </button>
             ))}
           </div>
@@ -154,12 +178,8 @@ export default function WorkspacePage() {
   if (loadError) return <WorkspacePageLoadError active="overview" title={activeWorkspace?.businessName || "Workspace"} resource="workspace setup" workspaces={workspaces} selectedTenantId={selectedTenantId} onSelect={(tenantId) => void selectWorkspace(tenantId)} onLogout={() => void logout()} onRetry={() => void load()} />;
 
   const readiness = onboarding?.readiness;
-  const checklist: { key: string; label: string; detail: string; complete: boolean; href?: string }[] = [
-    { key: "account", label: "Account secured", detail: "Email verification and workspace ownership are complete.", complete: true },
-    { key: "business", label: "Business profile", detail: readiness?.businessProfile ? "Business name, language, and timezone are available." : "Complete the required business details.", complete: readiness?.businessProfile ?? false },
-    { key: "product", label: "Product access", detail: readiness?.productSelected ? readiness.activeAccess ? "A selected product has active access." : "Product selected; reviewed activation is still pending." : "No product has been selected for this workspace.", complete: readiness?.activeAccess ?? false },
-    { key: "technical", label: "Technical launch readiness", detail: readiness?.launchReadyProducts.length ? "At least one product has current configuration, deployment, and successful test evidence." : "Configure, deploy, and test a product before public rollout.", complete: Boolean(readiness?.launchReadyProducts.length) },
-  ];
+  const checklist = onboarding?.checklist ?? [];
+  const primaryAction = onboarding?.primaryAction ?? null;
 
   return (
     <main className="workspace-shell">
@@ -170,20 +190,25 @@ export default function WorkspacePage() {
         onSelect={(tenantId) => void selectWorkspace(tenantId)}
         onLogout={() => void logout()}
       />
-      <section className="workspace-main">
+      <section id="workspace-main" className="workspace-main" tabIndex={-1}>
         <header className="workspace-header">
           <div><p>Workspace</p><h1>{activeWorkspace?.businessName || onboarding?.business_name}</h1></div>
-          <span className="role-label">{activeWorkspace?.role.replaceAll("_", " ")}</span>
+          <span className="role-label">{activeWorkspace ? humanizeTenantRole(activeWorkspace.role) : ""}</span>
         </header>
         {mutationMessage ? <p className={`inline-message dashboard-inline-message ${mutationTone || "error"}`} role={mutationTone === "success" ? "status" : "alert"}>{mutationMessage}</p> : null}
         {!canUpdateOnboarding ? <WorkspaceViewOnly>You can review launch progress. A workspace administrator can refresh the evidence after setup or testing.</WorkspaceViewOnly> : null}
         <section className="onboarding-band" aria-labelledby="onboarding-title">
-          <div className="band-heading"><div><p>Guided setup</p><h2 id="onboarding-title">Launch checklist</h2></div><span>{onboarding?.stage.replaceAll("_", " ") || "account created"}</span></div>
+          <div className="band-heading"><div><p>Guided setup</p><h2 id="onboarding-title">Launch checklist</h2></div><span>{onboarding ? humanizeOnboardingStage(onboarding.stage) : "Account created"}</span></div>
           <p className="control-copy">Progress comes from server-verified workspace and product evidence. A browser cannot mark setup ready by choosing a stage.</p>
+          {primaryAction ? (
+            <p className="onboarding-primary-action">
+              <a className="primary-command" href={primaryAction.href}>{primaryAction.label}</a>
+            </p>
+          ) : null}
           <ol className="onboarding-checklist">
             {checklist.map((step, index) => <li className={step.complete ? "complete" : "pending"} key={step.key}>
               <span className="onboarding-step-number" aria-hidden="true">{step.complete ? "✓" : index + 1}</span>
-              <div><strong>{step.label}</strong><p>{step.detail}</p>{step.href && !step.complete ? <a href={step.href}>Continue setup</a> : null}</div>
+              <div><strong>{step.label}</strong><p>{step.detail}</p>{step.nextHref && !step.complete ? <a href={step.nextHref}>{step.nextLabel || "Continue setup"}</a> : null}</div>
               <small>{step.complete ? "Complete" : "Action needed"}</small>
             </li>)}
           </ol>
@@ -192,9 +217,19 @@ export default function WorkspacePage() {
             const labels = [
               ["Access", product.activeAccess], ["Configured", product.configured], ["Deployed", product.deployed], ["Tested", product.tested], ["Ready", product.launchReady],
             ] as const;
+            const actionHref = product.nextAction === "activate" ? "/workspace/usage"
+              : product.nextAction === "operate" ? "/workspace/operations"
+                : product.productKey === "flowbot"
+                  ? "/workspace/setup"
+                  : productRoutes[product.productKey];
+            const actionLabel = product.nextAction === "operate"
+              ? "Open operations"
+              : product.nextAction === "activate"
+                ? "Continue to payment"
+                : `Continue ${humanizeToken(product.nextAction)}`;
             return <article key={product.productKey}><div><span>{product.launchReady ? "Live operations" : "Setup in progress"}</span><h3>{title}</h3></div>
               <ol>{labels.map(([label, complete]) => <li className={complete ? "complete" : "pending"} key={label}><span aria-hidden="true">{complete ? "✓" : "·"}</span>{label}</li>)}</ol>
-              <a href={productRoutes[product.productKey]}>{product.nextAction === "operate" ? "Open operations" : product.nextAction === "activate" ? "Review access" : `Continue ${product.nextAction}`}</a>
+              <a href={actionHref}>{actionLabel}</a>
             </article>;
           })}</div> : null}
           <div className="onboarding-refresh">
@@ -206,7 +241,7 @@ export default function WorkspacePage() {
           <p>Products</p>
           <h2>{subscriptions.length ? `${subscriptions.length} product${subscriptions.length === 1 ? "" : "s"} configured` : "No products are configured yet"}</h2>
           {subscriptions.length ? <div className="product-overview-grid">{subscriptions.map((subscription) => <a href={`/workspace/${subscription.productKey === "ai_chat" ? "ai-chat" : subscription.productKey}`} key={subscription.id}>
-            <span>{subscription.tierName}</span><strong>{subscription.publicName}</strong><small>{subscription.status.replaceAll("_", " ")} · {subscription.accessMode.replaceAll("_", " ")} access</small>
+            <span>{subscription.tierName}</span><strong>{subscription.publicName}</strong><small>{humanizeToken(subscription.status)} · {humanizeToken(subscription.accessMode)} access</small>
           </a>)}</div> : <p className="field-help">A product appears here after its subscription request is created. Public charging remains disabled until the commercial release gate is approved.</p>}
         </section>
       </section>

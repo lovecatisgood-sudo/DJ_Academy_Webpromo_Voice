@@ -209,7 +209,7 @@ export default function RegistrationPage() {
                 {catalogStage === "ready" && !plans.length ? <div className="plan-load-state" role="status">New product selection is temporarily closed. You can still create your owner account.</div> : null}
                 {catalogStage === "error" ? <div className="plan-load-state error" role="alert"><span>Products could not be loaded. You can continue without selecting one.</span><button type="button" onClick={() => void loadCatalog()}>Try again</button></div> : null}
               </div>
-              <p>Your selected plan is confirmed after email verification.</p>
+              <p>Saved as your setup preference. We’ll activate this plan after payment.</p>
             </fieldset>
             {legalStage === "loading" ? <div className="legal-load-state" role="status" aria-live="polite">Loading current service terms and privacy notice…</div> : null}
             {legalStage === "error" ? <div className="legal-load-state error" role="alert"><span>Registration is paused because the approved service terms or privacy notice could not be loaded.</span><button type="button" onClick={() => void loadLegal()}>Try again</button></div> : null}

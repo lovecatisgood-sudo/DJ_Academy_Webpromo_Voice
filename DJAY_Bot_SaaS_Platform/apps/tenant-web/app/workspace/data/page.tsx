@@ -10,9 +10,11 @@ import { useWorkspaceSession } from "../useWorkspaceSession";
 type Contact = { id: string; displayName: string };
 type PrivacyJob = { id: string; contactId: string | null; contactName: string | null; jobType: string; status: string; requestedAt: string; completedAt: string | null };
 type RetentionPolicy = { transcriptDays: number; recordingDays: number; voicePlanMaximumDays: number | null; updatedAt: string };
+type LegalHold = { id: string; contactId: string; contactName: string; reason: string; setAt: string };
 
 export default function DataControlsPage() {
   const session = useWorkspaceSession(); const [contacts, setContacts] = useState<Contact[]>([]); const [jobs, setJobs] = useState<PrivacyJob[]>([]);
+  const [holds, setHolds] = useState<LegalHold[]>([]);
   const [retention, setRetention] = useState<RetentionPolicy | null>(null);
   const [jobType, setJobType] = useState<PrivacyJobType>("export"); const [contactId, setContactId] = useState("");
   const [privacyError, setPrivacyError] = useState("");
@@ -25,15 +27,17 @@ export default function DataControlsPage() {
   async function load() {
     if (canManage) {
       try {
-        const [contactResponse, jobsResponse, retentionResponse] = await Promise.all([
+        const [contactResponse, jobsResponse, retentionResponse, holdsResponse] = await Promise.all([
           fetch("/tenant/contacts", { cache: "no-store" }),
           fetch("/tenant/privacy-jobs", { cache: "no-store" }),
           fetch("/tenant/retention-policy", { cache: "no-store" }),
+          fetch("/tenant/legal-holds", { cache: "no-store" }),
         ]);
-        if (!contactResponse.ok || !jobsResponse.ok || !retentionResponse.ok) throw new Error("privacy_unavailable");
+        if (!contactResponse.ok || !jobsResponse.ok || !retentionResponse.ok || !holdsResponse.ok) throw new Error("privacy_unavailable");
         setContacts((await contactResponse.json()).contacts || []);
         setJobs((await jobsResponse.json()).jobs || []);
         setRetention((await retentionResponse.json()).policy || null);
+        setHolds((await holdsResponse.json()).holds || []);
         setLoadError(false);
       } catch { setLoadError(true); }
     }
@@ -80,6 +84,13 @@ export default function DataControlsPage() {
           <form className="record-form privacy-form" onSubmit={requestJob} noValidate><label>Request<select name="jobType" value={jobType} onChange={(event) => { setJobType(event.target.value as PrivacyJobType); setPrivacyError(""); setPrivacyMessage(""); }}><option value="export">Data export</option><option value="erasure">Data erasure</option></select></label><label>Contact<select id="privacy-contact" name="contactId" value={contactId} aria-invalid={Boolean(privacyError) || undefined} aria-describedby="privacy-scope-help" onChange={(event) => { setContactId(event.target.value); setPrivacyError(""); setPrivacyMessage(""); }}><option value="">{jobType === "export" ? "Entire workspace export" : "Select a contact to erase"}</option>{contacts.map((contact) => <option key={contact.id} value={contact.id}>{contact.displayName}</option>)}</select><span className="field-help" id="privacy-scope-help">{jobType === "export" ? "Choose a contact or export the entire workspace." : "Erasure always requires one specific contact and cannot target the entire workspace."}</span></label><button type="submit" disabled={working}>{working ? "Requesting..." : "Submit request"}</button></form>
           {privacyError ? <p className="inline-message error" role="alert">{privacyError}</p> : null}
           {privacyMessage ? <p className={`inline-message${privacyMessageKind === "error" ? " error" : ""}`} role={privacyMessageKind === "error" ? "alert" : "status"}>{privacyMessage}</p> : null}
+        </section>
+        <section className="tool-band"><div className="band-heading"><div><p>Legal hold</p><h2>Conversations retained under hold</h2></div><span>{holds.length}</span></div>
+          <p className="control-copy">Erasure anonymizes the contact but skips transcript redaction for held conversations. Set or clear holds with recent authentication via <code>POST /tenant/conversations/&#123;id&#125;/legal-hold</code> (reason required when enabling).</p>
+          <div className="data-table">
+            {holds.map((hold) => <div className="data-row" key={hold.id}><div><strong>{hold.contactName}</strong><span>{hold.reason}</span></div><span>{new Date(hold.setAt).toLocaleString()}</span></div>)}
+            {!holds.length ? <div className="pending-line"><strong>No legal holds</strong><span>Active holds appear here before erasure.</span></div> : null}
+          </div>
         </section>
         <section className="tool-band muted-band"><div className="band-heading"><div><p>Processing</p><h2>Request history</h2></div><span>{jobs.length}</span></div><div className="data-table">
           {jobs.map((job) => <div className="data-row" key={job.id}><div><strong>{job.jobType === "export" ? "Data export" : "Data erasure"}</strong><span>{job.contactName || "Entire workspace"}</span></div><span>{job.status}</span>{job.jobType === "export" && job.status === "completed" ? <a className="secondary-link" href={`/tenant/privacy-jobs/${job.id}/download`}>Download</a> : <span>{new Date(job.requestedAt).toLocaleString()}</span>}</div>)}
