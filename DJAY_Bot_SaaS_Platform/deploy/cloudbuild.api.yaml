@@ -1,0 +1,23 @@
+substitutions:
+  _IMAGE: asia-southeast3-docker.pkg.dev/master-deck-476811-a8/djbot-runtime/api
+  _TAG: manual
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    env:
+      - DOCKER_BUILDKIT=1
+    args:
+      - build
+      - -f
+      - deploy/docker/Dockerfile.next
+      - --build-arg
+      - APP=api
+      - -t
+      - ${_IMAGE}:${_TAG}
+      - -t
+      - ${_IMAGE}:latest
+      - .
+
+images:
+  - ${_IMAGE}:${_TAG}
+  - ${_IMAGE}:latest
