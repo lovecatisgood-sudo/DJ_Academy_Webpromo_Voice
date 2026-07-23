@@ -25,20 +25,20 @@ type LegalMetadata = {
 
 const productPillars = [
   {
-    title: "AI Chat",
-    copy: "Answers buyer questions instantly, captures intent, qualifies leads, and keeps every conversation moving while your team is busy.",
-  },
-  {
     title: "FlowBot",
-    copy: "Turns repeatable sales and support playbooks into automated message flows for follow-up, booking, FAQs, reminders, and handoff.",
+    copy: "A structured automation bot for guided journeys, FAQs, booking flows, forms, lead capture, routing, and repeatable follow-up.",
   },
   {
-    title: "Voice",
-    copy: "Gives businesses an always-on voice layer for call intake, lead capture, routing, and post-call summaries.",
+    title: "TextBot",
+    copy: "An AI sales chat bot that answers buyer questions, uses approved business knowledge, qualifies intent, and keeps leads warm across web and social channels.",
   },
   {
-    title: "Social Inbox",
-    copy: "Connects Messenger, WhatsApp, LINE, and website chat into one workspace so no lead disappears between platforms.",
+    title: "VoiceBot",
+    copy: "An AI voice bot for call intake, spoken lead qualification, callback requests, transcripts, summaries, and future telephone workflows.",
+  },
+  {
+    title: "Unified Workspace",
+    copy: "Connects the three bots with contacts, leads, inbox, knowledge, analytics, billing, team access, and merchant setup tools.",
   },
 ];
 
@@ -189,7 +189,7 @@ export default function RegistrationPage() {
           <p className="eyebrow">AI sales automation for modern merchants</p>
           <h1 id="brand-title">Convert more leads before they go cold.</h1>
           <p className="supporting-copy">
-            DJBOT combines AI chat, FlowBot automation, social messaging, and voice into one SaaS workspace built to answer faster, follow up harder, and turn more conversations into customers.
+            DJBOT gives your business three conversion bots in one SaaS workspace: FlowBot for guided automation, TextBot for AI messaging, and VoiceBot for spoken conversations.
           </p>
           <div className="hero-actions">
             <a className="primary-link" href="#start">Create workspace</a>
@@ -203,8 +203,8 @@ export default function RegistrationPage() {
           </div>
           <div className="conversation-card priority">
             <small>WhatsApp lead</small>
-            <strong>Interested in the annual FlowBot plan</strong>
-            <p>AI qualified budget, timeline, and product fit in 38 seconds.</p>
+            <strong>New lead reached the right bot instantly</strong>
+            <p>FlowBot captured intent, TextBot qualified the buyer, and VoiceBot can handle calls when the customer wants to speak.</p>
           </div>
           <div className="conversation-grid">
             <div><span>Response time</span><strong>Instant</strong></div>
@@ -227,8 +227,8 @@ export default function RegistrationPage() {
 
       <section className="feature-section" id="features" aria-labelledby="features-title">
         <div className="section-heading">
-          <p className="step-label">What merchants get</p>
-          <h2 id="features-title">One platform for chat, flows, voice, and sales follow-up.</h2>
+          <p className="step-label">Three bot products</p>
+          <h2 id="features-title">FlowBot, TextBot, and VoiceBot work together to convert leads faster.</h2>
         </div>
         <div className="feature-grid">
           {productPillars.map((feature) => (
@@ -247,7 +247,7 @@ export default function RegistrationPage() {
         </div>
         <div className="conversion-copy">
           <p>Most leads do not disappear because they were bad. They disappear because nobody replied fast enough, followed up clearly enough, or remembered the context when the buyer came back.</p>
-          <p>DJBOT keeps the conversation alive from first message to handoff: instant replies, structured qualification, automated reminders, human takeover, and a unified customer timeline.</p>
+          <p>DJBOT keeps the conversation alive from first message to handoff: structured FlowBot journeys, intelligent TextBot replies, VoiceBot call handling, automated reminders, human takeover, and a unified customer timeline.</p>
         </div>
       </section>
 

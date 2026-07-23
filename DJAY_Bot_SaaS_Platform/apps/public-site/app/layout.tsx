@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./styles.css";
 
 export const metadata: Metadata = {
-  title: "DJBOT | AI chat, flow automation, and voice for sales teams",
-  description: "DJBOT helps businesses respond faster, qualify leads, automate follow-up, and keep conversations warm across chat, social messaging, and voice.",
+  title: "DJBOT | FlowBot, TextBot, and VoiceBot for sales teams",
+  description: "DJBOT gives businesses three AI bot products: FlowBot automation, TextBot conversations, and VoiceBot call handling to convert more leads before they go cold.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
