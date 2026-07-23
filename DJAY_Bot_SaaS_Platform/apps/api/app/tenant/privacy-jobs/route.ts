@@ -1,10 +1,9 @@
 import { tenantRoleAllows } from "@djay/authorization";
 import { privacyJobRequestSchema } from "@djay/shared";
 import type { NextRequest } from "next/server";
-import { ZodError } from "zod";
-import { hasTrustedOrigin, readJson, safeJson } from "../../../lib/http";
+import { safeJson } from "../../../lib/http";
 import { resolveTenantRequest } from "../../../lib/tenant-context";
-import { hasSensitiveTenantAssurance } from "../../../lib/tenant-assurance";
+import { withTenantMutation } from "../../../lib/tenant-mutation";
 
 export async function GET(request: NextRequest) {
   const resolved = await resolveTenantRequest(request);
@@ -13,19 +12,24 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const resolved = await resolveTenantRequest(request);
-  if (!resolved || !tenantRoleAllows(resolved.context.role, "privacy.manage") || !(await hasTrustedOrigin(request))) {
-    return safeJson({ status: "not_found" }, 404);
-  }
-  if (!hasSensitiveTenantAssurance(resolved.session)) return safeJson({ status: "reauthentication_required" }, 403);
-  try {
-    const result = await resolved.services.sharedDomain.requestPrivacyJob(
-      resolved.context,
-      privacyJobRequestSchema.parse(await readJson(request)),
-    );
-    return safeJson(result, result.status === "accepted" ? 202 : result.status === "conflict" ? 409 : 404);
-  } catch (error) {
-    return error instanceof ZodError || error instanceof SyntaxError
-      ? safeJson({ status: "validation_failed" }, 400) : safeJson({ status: "temporarily_unavailable" }, 503);
-  }
+  return withTenantMutation(
+    request,
+    {
+      permission: "privacy.manage",
+      assurance: "recent_auth",
+      rateLimit: { scope: "tenant-privacy-job", limit: 20, windowMs: 15 * 60 * 1000 },
+      bodySchema: privacyJobRequestSchema,
+    },
+    async (resolved) => {
+      try {
+        const result = await resolved.services.sharedDomain.requestPrivacyJob(
+          resolved.context,
+          resolved.body,
+        );
+        return safeJson(result, result.status === "accepted" ? 202 : result.status === "conflict" ? 409 : 404);
+      } catch {
+        return safeJson({ status: "temporarily_unavailable" }, 503);
+      }
+    },
+  );
 }

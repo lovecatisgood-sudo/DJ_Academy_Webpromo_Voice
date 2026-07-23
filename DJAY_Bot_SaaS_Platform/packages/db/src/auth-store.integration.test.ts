@@ -126,6 +126,24 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
       password_cleared: true,
     });
 
+    const purchaseIntents = await adminClient!<{
+      status: string;
+      plan_key: string;
+      tenant_id: string | null;
+    }[]>`
+      SELECT status, plan_key, tenant_id::text
+      FROM billing.purchase_intents
+      WHERE registration_id = (
+        SELECT id FROM identity.signup_intents WHERE idempotency_key = ${idempotencyKey}::uuid
+      )
+    `;
+    expect(purchaseIntents).toHaveLength(1);
+    expect(purchaseIntents[0]).toMatchObject({
+      status: "open",
+      plan_key: "ai_chat_basic",
+      tenant_id: verified.tenantId,
+    });
+
     const tenantVisibility = await authClient!.begin(async (sql) => {
       await sql`SELECT set_config('app.tenant_id', ${verified.tenantId}, true)`;
       return sql<{ count: number }[]>`SELECT count(*)::int AS count FROM tenancy.tenants`;

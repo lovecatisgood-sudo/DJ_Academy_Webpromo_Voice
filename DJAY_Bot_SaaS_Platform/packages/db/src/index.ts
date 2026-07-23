@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0078_service_engagement_lifecycle";
+export const currentSchemaVersion = "0079_purchase_intents";
 
 export { PostgresAuthStore } from "./auth-store";
 export { AccountingReconciliationWorkerStore, AccountingSyncWorkerStore, BillingWebhookRecoveryWorkerStore, BillingWebhookStore, FinancialEventReconciliationWorkerStore, FinancialReconciliationWorkerStore, SubscriptionLifecycleWorkerStore } from "./billing-webhook-store";
@@ -7,6 +7,7 @@ export {
   ProviderUsageReconciliationWorkerStore, UsageAlertNotificationWorkerStore,
   UsageAlertWorkerStore, UsagePeriodWorkerStore,
 } from "./commerce-store";
+export { PurchaseIntentStore } from "./purchase-intent-store";
 export { SharedDomainStore } from "./shared-domain-store";
 export { FlowBotStore } from "./flowbot-store";
 export { AiChatStore } from "./ai-chat-store";
@@ -49,7 +50,7 @@ export {
   type OperationalServiceKey,
   type OperationsEnvironment,
 } from "./platform-operations-store";
-export { TenantWorkspaceStore, type OnboardingStage } from "./tenant-workspace-store";
+export { TenantWorkspaceStore, type OnboardingStage, type OnboardingChecklistStep, type OnboardingPrimaryAction } from "./tenant-workspace-store";
 export { KnowledgeIngestionWorkerStore, TenantKnowledgeIngestionStore, type KnowledgeIngestionClaim, type KnowledgeMediaType } from "./knowledge-ingestion-store";
 export { AiIntegrationWorkerStore, TenantAiOperationsStore, type AiIntegrationClaim, type AiIntegrationEvent, type AiIntegrationKind } from "./ai-operations-store";
 export { PlatformVoiceCarrierStore, TenantVoiceTelephonyStore } from "./voice-telephony-store";

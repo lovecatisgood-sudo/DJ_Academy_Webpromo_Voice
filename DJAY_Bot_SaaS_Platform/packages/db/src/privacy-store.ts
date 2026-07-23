@@ -197,6 +197,37 @@ export class PrivacyStore {
             AND lead.contact_id = ${contactId}::uuid AND lead.id::text = request.input_json->>'leadId')
         ) ORDER BY request.id
       `;
+      data.actionResults = await sql<ExportRow[]>`
+        SELECT result.* FROM tenancy.action_results result
+        JOIN tenancy.action_requests request
+          ON request.tenant_id = result.tenant_id AND request.id = result.action_request_id
+        LEFT JOIN tenancy.conversations conversation
+          ON conversation.tenant_id = request.tenant_id AND conversation.id = request.conversation_id
+        WHERE result.tenant_id = ${job.tenantId}::uuid AND (
+          ${contactId}::uuid IS NULL OR conversation.contact_id = ${contactId}::uuid
+          OR request.input_json->>'contactId' = ${contactId}
+          OR EXISTS (SELECT 1 FROM tenancy.leads lead WHERE lead.tenant_id = request.tenant_id
+            AND lead.contact_id = ${contactId}::uuid AND lead.id::text = request.input_json->>'leadId')
+        ) ORDER BY result.id
+      `;
+      data.aiSocialSubjects = await sql<ExportRow[]>`
+        SELECT subject.id, subject.connection_id AS "connectionId", subject.contact_id AS "contactId",
+               subject.conversation_id AS "conversationId", subject.status,
+               subject.first_seen_at AS "firstSeenAt", subject.last_seen_at AS "lastSeenAt"
+        FROM tenancy.ai_social_subjects subject
+        WHERE subject.tenant_id = ${job.tenantId}::uuid
+          AND (${contactId}::uuid IS NULL OR subject.contact_id = ${contactId}::uuid)
+        ORDER BY subject.id
+      `;
+      data.flowSocialSubjects = await sql<ExportRow[]>`
+        SELECT subject.id, subject.connection_id AS "connectionId", subject.contact_id AS "contactId",
+               subject.conversation_id AS "conversationId", subject.status,
+               subject.first_seen_at AS "firstSeenAt", subject.last_seen_at AS "lastSeenAt"
+        FROM tenancy.flow_social_subjects subject
+        WHERE subject.tenant_id = ${job.tenantId}::uuid
+          AND (${contactId}::uuid IS NULL OR subject.contact_id = ${contactId}::uuid)
+        ORDER BY subject.id
+      `;
       data.voiceSessions = await sql<ExportRow[]>`
         SELECT session.id, session.deployment_id AS "deploymentId",
           session.contact_id AS "contactId", session.conversation_id AS "conversationId",

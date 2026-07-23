@@ -118,6 +118,40 @@ export class PostgresAuthStore implements AuthStore {
           ${command.outboxPayloadCiphertext}, ${`verify:${command.intentId}`}
         )
       `;
+
+      if (command.selectedPlanKey) {
+        const planRows = await sql<{ plan_version_id: string }[]>`
+          SELECT version.id AS plan_version_id
+          FROM catalog.catalog_versions catalog_version
+          JOIN catalog.plan_commercial_terms terms ON terms.catalog_version_id = catalog_version.id
+          JOIN catalog.plan_versions version ON version.id = terms.plan_version_id
+          JOIN catalog.plans plan ON plan.id = version.plan_id
+          WHERE plan.plan_key = ${command.selectedPlanKey}
+            AND plan.status = 'active'
+            AND catalog_version.status = 'active'
+            AND catalog_version.effective_from <= ${command.tokenExpiresAt}
+            AND (catalog_version.effective_to IS NULL OR catalog_version.effective_to > ${command.tokenExpiresAt})
+            AND version.status = 'published'
+            AND version.effective_from <= ${command.tokenExpiresAt}
+            AND (version.effective_to IS NULL OR version.effective_to > ${command.tokenExpiresAt})
+          ORDER BY version.version DESC
+          LIMIT 1
+        `;
+        const planVersionId = planRows[0]?.plan_version_id;
+        if (!planVersionId) throw new Error("selected_plan_version_unavailable");
+        const purchaseExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+        await sql`
+          INSERT INTO billing.purchase_intents (
+            id, registration_id, tenant_id, plan_key, plan_version_id,
+            status, created_at, expires_at
+          ) VALUES (
+            gen_random_uuid(), ${command.intentId}::uuid, NULL,
+            ${command.selectedPlanKey}, ${planVersionId}::uuid,
+            'open', now(), ${purchaseExpiresAt}
+          )
+        `;
+      }
+
       return { status: "created" as const, intentId: command.intentId };
     });
   }
@@ -310,6 +344,14 @@ export class PostgresAuthStore implements AuthStore {
           ${sql.json({ tenantId: command.tenantId, userId: command.userId })},
           ${`tenant-provisioned:${signup.intent_id}`}
         )
+      `;
+      await sql`
+        UPDATE billing.purchase_intents
+        SET tenant_id = ${command.tenantId}::uuid
+        WHERE registration_id = ${signup.intent_id}::uuid
+          AND status = 'open'
+          AND tenant_id IS NULL
+          AND expires_at > ${command.now}
       `;
       await sql`
         UPDATE identity.signup_intents

@@ -162,7 +162,7 @@ type SubscriptionSummary = Readonly<{
 type TenantUsageOverview = Readonly<{
   asOf: Date;
   billingMode: "pre_release" | "configured";
-  invoicesAvailable: false;
+  invoicesAvailable: boolean;
   subscriptions: ReadonlyArray<Readonly<{
     subscriptionId: string;
     productKey: ProductKey;
@@ -512,11 +512,14 @@ export class TenantCommerceStore {
           forecast,
         });
       });
+      const documentCount = await sql<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM billing.list_tenant_financial_documents()
+      `;
       return Object.freeze({
         asOf: now,
         billingMode: subscriptions.length > 0 && subscriptions.every((item) => item.pricingConfigured)
           ? "configured" as const : "pre_release" as const,
-        invoicesAvailable: false as const,
+        invoicesAvailable: (documentCount[0]?.count ?? 0) > 0,
         subscriptions: Object.freeze(subscriptions),
       });
     });

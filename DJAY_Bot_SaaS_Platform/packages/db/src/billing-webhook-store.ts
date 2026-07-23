@@ -4,6 +4,18 @@ import type { DatabaseClient } from "./client";
 export class BillingWebhookStore {
   constructor(private readonly client: DatabaseClient) {}
 
+  /** Readiness helper: pending/stale/failed Stripe webhook pressure (no claim). */
+  async backlogStats(staleAfterSeconds = 5 * 60) {
+    return this.client.begin(async (sql) => {
+      const rows = await sql<{
+        received_count: number; processing_stale_count: number; failed_recent_count: number;
+      }[]>`
+        SELECT * FROM billing.webhook_backlog_stats(make_interval(secs => ${staleAfterSeconds}))
+      `;
+      return rows[0] ?? { received_count: 0, processing_stale_count: 0, failed_recent_count: 0 };
+    });
+  }
+
   async inbox(input: Readonly<{
     providerKey: string;
     event: VerifiedWebhook;

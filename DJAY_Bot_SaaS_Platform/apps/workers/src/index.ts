@@ -199,8 +199,38 @@ const healthServer = createServer(async (request, response) => {
   }
   if (request.method === "GET" && request.url === "/health/ready") {
     const database = stopping ? { status: "unavailable" as const, reason: "stopping" as const } : await databaseReadiness.check();
-    const ready = database.status === "ready";
-    response.writeHead(ready ? 200 : 503).end(JSON.stringify({ status: ready ? "ready" : "not_ready", database }));
+    let backlog: {
+      received_count: number; processing_stale_count: number; failed_recent_count: number;
+    } | { status: "skipped" } | { status: "error"; reason: string } = { status: "skipped" };
+    const backlogLimit = Number(process.env.WORKER_WEBHOOK_BACKLOG_READY_LIMIT || "200");
+    if (database.status === "ready" && env.BILLING_WEBHOOK_WORKER_ENABLED === "true") {
+      try {
+        backlog = await billingWebhookWorker.backlogStats();
+      } catch (error) {
+        backlog = {
+          status: "error",
+          reason: error instanceof Error ? error.message.slice(0, 80) : "backlog_unavailable",
+        };
+      }
+    }
+    const backlogPressure = backlog && "received_count" in backlog
+      ? backlog.received_count + backlog.processing_stale_count
+      : 0;
+    // Missing migration / query errors warn but do not fail readiness (deploy order).
+    // Extreme pending backlog fails ready so Cloud Run stops sending work to a stuck worker.
+    const backlogOk = !("received_count" in backlog) || backlogPressure <= backlogLimit;
+    const ready = database.status === "ready" && backlogOk;
+    if ("status" in backlog && backlog.status === "error") {
+      console.warn("worker_ready_backlog_unavailable", backlog);
+    } else if (!backlogOk && "received_count" in backlog) {
+      console.warn("worker_ready_backlog_pressure", backlog);
+    }
+    response.writeHead(ready ? 200 : 503).end(JSON.stringify({
+      status: ready ? "ready" : "not_ready",
+      database,
+      webhookBacklog: backlog,
+      webhookBacklogLimit: backlogLimit,
+    }));
     return;
   }
   response.writeHead(404).end(JSON.stringify({ status: "not_found" }));
@@ -304,10 +334,16 @@ do {
           .parse(JSON.parse(envelope.rawBody));
         const applied = await billingWebhookWorker.apply(claimed.webhookEventId, parsed.data.object);
         console.info("billing_webhook_result", { webhookEventId: claimed.webhookEventId, status: applied.status });
+        console.info(JSON.stringify({
+          severity: "INFO", message: "commerce_metric", metric: "webhook_result", outcome: applied.status,
+        }));
       } catch (error) {
         const errorCode = error instanceof Error ? error.message.slice(0, 100) : "billing_webhook_processing_failed";
         await billingWebhookWorker.fail(claimed.webhookEventId, errorCode, claimed.attemptCount >= 12);
         console.warn("billing_webhook_failed", { webhookEventId: claimed.webhookEventId, errorCode });
+        console.info(JSON.stringify({
+          severity: "INFO", message: "commerce_metric", metric: "webhook_result", outcome: "failed", errorCode,
+        }));
       }
     }
   }

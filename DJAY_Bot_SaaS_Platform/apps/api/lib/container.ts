@@ -43,6 +43,7 @@ import {
   TenantKnowledgeIngestionStore,
   TenantWorkspaceStore,
   TenantResourceBoundaryStore,
+  PurchaseIntentStore,
   VoiceRuntimeStore,
   VoiceDeploymentStore,
   TenantVoiceTelephonyStore,
@@ -56,6 +57,7 @@ import { createStripePaymentProvider } from "@djay/usage-billing";
 import { z } from "zod";
 import { assertApiProductionUrlPolicy } from "./environment-policy";
 import { loadLegalDocuments } from "./legal-documents";
+import { assertCommerceCapabilityProfile } from "./commerce-capability-profile";
 
 const envSchema = z.object({
   AUTH_DATABASE_URL: z.string().url(),
@@ -146,10 +148,7 @@ async function buildServices() {
   if (env.NODE_ENV === "production" && !env.OPERATIONS_INGEST_TOKEN) {
     throw new Error("OPERATIONS_INGEST_TOKEN is required in production.");
   }
-  if (env.BILLING_DATABASE_URL && (!env.STRIPE_SECRET_KEY || !env.BILLING_CHECKOUT_ENVELOPE_KEY
-    || !env.STRIPE_WEBHOOK_SECRET || !env.BILLING_WEBHOOK_ENVELOPE_KEY)) {
-    throw new Error("Stripe billing configuration is incomplete.");
-  }
+  assertCommerceCapabilityProfile(env);
   const store = new PostgresAuthStore(client);
   const platformStore = new PostgresPlatformAuthStore(platformClient);
   const emailEnvelopeKey = parse32ByteSecret(env.AUTH_EMAIL_ENVELOPE_KEY, "AUTH_EMAIL_ENVELOPE_KEY");
@@ -177,6 +176,8 @@ async function buildServices() {
     tenantWorkspace: new TenantWorkspaceStore(tenantClient),
     tenantResourceBoundaries: new TenantResourceBoundaryStore(tenantClient),
     tenantCommerce: new TenantCommerceStore(tenantClient),
+    purchaseIntents: new PurchaseIntentStore(tenantClient),
+    authPurchaseIntents: new PurchaseIntentStore(client),
     tenantBillingNotifications: new TenantBillingNotificationStore(tenantClient),
     billingNotificationEnvelopeKey: env.BILLING_NOTIFICATION_ENVELOPE_KEY
       ? parse32ByteSecret(env.BILLING_NOTIFICATION_ENVELOPE_KEY, "BILLING_NOTIFICATION_ENVELOPE_KEY") : null,

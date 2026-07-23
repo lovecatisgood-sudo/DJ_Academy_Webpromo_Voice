@@ -2,10 +2,10 @@ import { randomUUID } from "node:crypto";
 import { tenantRoleAllows } from "@djay/authorization";
 import { publicPlanKeySchema } from "@djay/shared";
 import type { NextRequest } from "next/server";
-import { ZodError, z } from "zod";
-import { hasTrustedOrigin, readJson, safeJson } from "../../../lib/http";
+import { z } from "zod";
+import { safeJson } from "../../../lib/http";
 import { resolveTenantRequest } from "../../../lib/tenant-context";
-import { hasSensitiveTenantAssurance } from "../../../lib/tenant-assurance";
+import { withTenantMutation } from "../../../lib/tenant-mutation";
 
 const selectionSchema = z.object({ planKey: publicPlanKeySchema }).strict();
 
@@ -18,27 +18,37 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const resolved = await resolveTenantRequest(request);
-  if (!resolved || !tenantRoleAllows(resolved.context.role, "billing.checkout")) {
-    return safeJson({ status: "not_found" }, 404);
-  }
-  if (!(await hasTrustedOrigin(request))) return safeJson({ status: "not_found" }, 404);
-  if (!hasSensitiveTenantAssurance(resolved.session)) {
-    return safeJson({ status: "reauthentication_required" }, 403);
-  }
-  try {
-    const { planKey } = selectionSchema.parse(await readJson(request));
-    const result = await resolved.services.tenantCommerce.createPendingSubscription(resolved.context, {
-      planKey,
-      subscriptionId: randomUUID(),
-      snapshotId: randomUUID(),
-      quotaAccountId: randomUUID(),
-      now: new Date(),
-    });
-    return safeJson(result, result.status === "created" ? 201 : 409);
-  } catch (error) {
-    if (error instanceof ZodError || error instanceof SyntaxError) return safeJson({ status: "validation_failed" }, 400);
-    console.error("subscription_selection_failed", { requestId: resolved.context.requestId, error: error instanceof Error ? error.name : "unknown" });
-    return safeJson({ status: "temporarily_unavailable" }, 503);
-  }
+  return withTenantMutation(
+    request,
+    {
+      permission: "billing.checkout",
+      assurance: "recent_auth",
+      rateLimit: { scope: "tenant-subscription-select", limit: 20, windowMs: 15 * 60 * 1000 },
+      bodySchema: selectionSchema,
+    },
+    async (resolved) => {
+      try {
+        const result = await resolved.services.tenantCommerce.createPendingSubscription(resolved.context, {
+          planKey: resolved.body.planKey,
+          subscriptionId: randomUUID(),
+          snapshotId: randomUUID(),
+          quotaAccountId: randomUUID(),
+          now: new Date(),
+        });
+        if (result.status === "created") {
+          await resolved.services.purchaseIntents.createPurchaseIntent({
+            planKey: resolved.body.planKey,
+            tenantId: resolved.context.tenantId,
+          });
+        }
+        return safeJson(result, result.status === "created" ? 201 : 409);
+      } catch (error) {
+        console.error("subscription_selection_failed", {
+          requestId: resolved.context.requestId,
+          error: error instanceof Error ? error.name : "unknown",
+        });
+        return safeJson({ status: "temporarily_unavailable" }, 503);
+      }
+    },
+  );
 }

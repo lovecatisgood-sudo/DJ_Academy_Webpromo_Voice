@@ -37,7 +37,12 @@ describe("authorization policy", () => {
   it("separates billing, conversation design, human-agent, analyst, and support jobs", () => {
     expect(tenantRoleAllows("tenant_billing_manager", "billing.checkout")).toBe(true);
     expect(tenantRoleAllows("tenant_billing_manager", "flowbot.author")).toBe(false);
-    expect(tenantRoleAllows("tenant_conversation_manager", "flowbot.publish")).toBe(true);
+    expect(tenantRoleAllows("tenant_conversation_manager", "flowbot.author")).toBe(true);
+    expect(tenantRoleAllows("tenant_conversation_manager", "flowbot.publish")).toBe(false);
+    expect(tenantRoleAllows("tenant_conversation_manager", "flowbot.deploy")).toBe(false);
+    expect(tenantRoleAllows("tenant_conversation_manager", "ai_chat.publish")).toBe(false);
+    expect(tenantRoleAllows("tenant_conversation_manager", "voice.deploy")).toBe(false);
+    expect(tenantRoleAllows("tenant_conversation_manager", "integrations.manage")).toBe(false);
     expect(tenantRoleAllows("tenant_conversation_manager", "billing.cancel")).toBe(false);
     expect(tenantRoleAllows("tenant_human_agent", "conversations.reply")).toBe(true);
     expect(tenantRoleAllows("tenant_human_agent", "ai_chat.publish")).toBe(false);

@@ -106,8 +106,9 @@ variable "database_disk_size_gb" {
 }
 
 variable "alarm_email" {
-  type      = string
-  default   = null
-  nullable  = true
-  sensitive = true
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+  description = "Named SRE/on-call inbox for database CPU, webhook failure, and checkout 5xx alerts (Phase 12 / G6d)."
 }

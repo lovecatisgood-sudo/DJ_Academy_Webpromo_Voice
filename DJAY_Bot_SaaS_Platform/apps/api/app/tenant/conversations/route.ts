@@ -8,7 +8,13 @@ import { resolveTenantRequest } from "../../../lib/tenant-context";
 export async function GET(request: NextRequest) {
   const resolved = await resolveTenantRequest(request);
   if (!resolved || !tenantRoleAllows(resolved.context.role, "conversations.read")) return safeJson({ status: "not_found" }, 404);
-  return safeJson({ conversations: await resolved.services.sharedDomain.listInbox(resolved.context) });
+  const q = request.nextUrl.searchParams.get("q")?.trim().slice(0, 120);
+  return safeJson({
+    conversations: await resolved.services.sharedDomain.listInbox(
+      resolved.context,
+      q ? { q } : {},
+    ),
+  });
 }
 
 export async function POST(request: NextRequest) {

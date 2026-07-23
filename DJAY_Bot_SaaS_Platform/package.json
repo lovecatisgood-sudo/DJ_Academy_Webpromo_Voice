@@ -57,6 +57,13 @@
     "qa:p9-dependency-outage": "pnpm --filter @djay/provider-gateway exec vitest run src/index.test.ts && pnpm --filter @djay/ai-chat-runtime exec vitest run src/index.test.ts && pnpm --filter @djay/voice-gateway exec vitest run src/media.test.ts && pnpm --filter @djay/notifications exec vitest run src/notifications.test.ts && pnpm --filter @djay/channel-adapters exec vitest run src/index.test.ts",
     "qa:p9-restore": "scripts/test-p9-backup-restore.sh",
     "qa:release-artifacts": "pnpm run lint:market-release-requirements && pnpm run lint:market-release-decisions && node scripts/qa-release-artifacts.mjs",
+    "qa:merchant-first-sku": "node scripts/qa-merchant-first-sku.mjs",
+    "qa:smoke-negatives": "node scripts/smoke-saas-negatives.mjs",
+    "qa:abuse-floor": "node scripts/qa-abuse-floor.mjs",
+    "ops:stripe-mapping": "node scripts/seed-stripe-price-mapping.mjs",
+    "gate:sellable-flip": "node scripts/check-sellable-flip-ready.mjs",
+    "gate:evidence-wave0": "node scripts/check-sellable-flip-ready.mjs && node scripts/check-market-release-decisions.mjs && node scripts/qa-merchant-first-sku.mjs",
+    "gate:evidence-wave1": "node scripts/check-evidence-wave1-prereqs.mjs",
     "verify": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
   },
   "devDependencies": {

@@ -1,15 +1,16 @@
 locals {
   name = "djay-${var.environment}"
 
+  # Phase 12 / G6d: startup uses live (process up); liveness uses ready (deps).
   services = {
-    public-site     = { public = true, health = "/api/health/live", timeout = "300s", concurrency = 80 }
-    tenant-web      = { public = true, health = "/api/health/live", timeout = "300s", concurrency = 80 }
-    platform-master = { public = true, health = "/api/health/live", timeout = "300s", concurrency = 40 }
-    api             = { public = true, health = "/api/health/live", timeout = "300s", concurrency = 80 }
-    ai-gateway      = { public = true, health = "/health/live", timeout = "300s", concurrency = 80 }
-    voice-gateway   = { public = true, health = "/health/live", timeout = "3600s", concurrency = 100 }
-    widget-cdn      = { public = true, health = "/health/live", timeout = "60s", concurrency = 200 }
-    workers         = { public = false, health = "/health/live", timeout = "300s", concurrency = 1 }
+    public-site     = { public = true, health_live = "/api/health/live", health_ready = "/api/health/ready", timeout = "300s", concurrency = 80 }
+    tenant-web      = { public = true, health_live = "/api/health/live", health_ready = "/api/health/ready", timeout = "300s", concurrency = 80 }
+    platform-master = { public = true, health_live = "/api/health/live", health_ready = "/api/health/ready", timeout = "300s", concurrency = 40 }
+    api             = { public = true, health_live = "/api/health/live", health_ready = "/api/health/ready", timeout = "300s", concurrency = 80 }
+    ai-gateway      = { public = true, health_live = "/health/live", health_ready = "/health/ready", timeout = "300s", concurrency = 80 }
+    voice-gateway   = { public = true, health_live = "/health/live", health_ready = "/health/ready", timeout = "3600s", concurrency = 100 }
+    widget-cdn      = { public = true, health_live = "/health/live", health_ready = "/health/ready", timeout = "60s", concurrency = 200 }
+    workers         = { public = false, health_live = "/health/live", health_ready = "/health/ready", timeout = "300s", concurrency = 1 }
   }
 
   routed_services = {
@@ -417,17 +418,17 @@ resource "google_cloud_run_v2_service" "runtime" {
         period_seconds        = 5
         failure_threshold     = 24
         http_get {
-          path = each.value.health
+          path = each.value.health_live
           port = 8080
         }
       }
 
       liveness_probe {
-        timeout_seconds   = 2
+        timeout_seconds   = 3
         period_seconds    = 10
         failure_threshold = 3
         http_get {
-          path = each.value.health
+          path = each.value.health_ready
           port = 8080
         }
       }

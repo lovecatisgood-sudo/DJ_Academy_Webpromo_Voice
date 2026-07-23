@@ -122,6 +122,9 @@ run_sql /workspace/packages/db/migrations/0075_branding_add_on_runtime.sql
 run_sql /workspace/packages/db/migrations/0076_workspace_add_on_provisioning.sql
 run_sql /workspace/packages/db/migrations/0077_shared_operations_commercial_authority.sql
 run_sql /workspace/packages/db/migrations/0078_service_engagement_lifecycle.sql
+run_sql /workspace/packages/db/migrations/0079_purchase_intents.sql
+run_sql /workspace/packages/db/migrations/0080_privacy_g6c_erasure_hold.sql
+run_sql /workspace/packages/db/migrations/0081_worker_readiness_backlog.sql
 MIGRATION_RUNNER_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
 MIGRATION_RUNNER_ROLE_URL="postgresql://djay_migrator:djay_migrator_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/migration-runner.integration.test.ts
@@ -150,6 +153,24 @@ if [[ "${BILLING_ONLY:-false}" == "true" ]]; then
   ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
     "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/stripe-billing.integration.test.ts
   echo "Focused Stripe billing lifecycle passed."
+  exit 0
+fi
+
+if [[ "${PURCHASE_INTENT_ONLY:-false}" == "true" ]]; then
+  echo "Preparing seed for purchase intent focused test."
+  run_sql /workspace/packages/db/tests/seed.sql
+  echo "Running focused purchase intent integration test."
+  TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  AUTH_DATABASE_URL="postgresql://djay_auth_runtime:djay_auth_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+    "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/purchase-intent-store.integration.test.ts
+  echo "Focused purchase intent passed."
+  echo "Running auth registration purchase-intent attach integration test."
+  DATABASE_URL="postgresql://djay_auth_runtime:djay_auth_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+    "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/auth-store.integration.test.ts
+  echo "Focused auth + purchase intent passed."
   exit 0
 fi
 
@@ -226,6 +247,12 @@ PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:$
 WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/commerce-store.integration.test.ts
+
+echo "Running purchase intent create/attach/resolve/consume integration test."
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+AUTH_DATABASE_URL="postgresql://djay_auth_runtime:djay_auth_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/purchase-intent-store.integration.test.ts
 
 echo "Running usage anomaly, cooldown, and alert-delivery integration test."
 WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_DB_PORT}/postgres" \

@@ -68,6 +68,7 @@ const flowbotSocialTransportMigration = readFileSync(resolve(import.meta.dirname
 const flowbotSocialWorkersMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0068_flowbot_social_workers.sql"), "utf8");
 const flowbotSocialDeliveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0069_flowbot_social_delivery.sql"), "utf8");
 const flowbotSocialFundingMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0070_flowbot_social_usage_funding.sql"), "utf8");
+const purchaseIntentsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0079_purchase_intents.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -86,6 +87,14 @@ describe("BILL-01 Stripe billing foundation invariants", () => {
     expect(stripeBillingFoundationMigration).toContain("mapping.verified_amount_minor = terms.first_term_amount_minor");
     expect(stripeBillingFoundationMigration).toContain("mapping.verified_currency = version.currency");
     expect(stripeBillingFoundationMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+checkout_intents TO djay_runtime/i);
+  });
+
+  it("forces RLS on purchase intents with auth pre-tenant and tenant post-attach policies", () => {
+    expect(purchaseIntentsMigration).toContain("CREATE TABLE billing.purchase_intents");
+    expect(purchaseIntentsMigration).toContain("FORCE ROW LEVEL SECURITY");
+    expect(purchaseIntentsMigration).toContain("djay_auth_runtime");
+    expect(purchaseIntentsMigration).toContain("tenant_id = tenancy.current_tenant_id()");
+    expect(purchaseIntentsMigration).toContain("REFERENCES identity.signup_intents(id)");
   });
 
   it("keeps financial documents append-only and outside tenant runtime table access", () => {

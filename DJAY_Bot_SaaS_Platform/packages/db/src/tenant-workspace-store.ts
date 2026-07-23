@@ -6,6 +6,20 @@ export type OnboardingStage = "account_created" | "business_profile" | "product_
 export type ManagedTenantRole = Exclude<TenantRole, "tenant_master_admin" | "tenant_readonly_support">;
 type OnboardingProductKey = "flowbot" | "ai_chat" | "voice";
 
+export type OnboardingChecklistStep = Readonly<{
+  key: string;
+  label: string;
+  detail: string;
+  complete: boolean;
+  nextHref?: string;
+  nextLabel?: string;
+}>;
+
+export type OnboardingPrimaryAction = Readonly<{
+  href: string;
+  label: string;
+}>;
+
 type OnboardingRecord = Readonly<{
   tenant_id: string;
   business_name: string;
@@ -27,6 +41,8 @@ type OnboardingRecord = Readonly<{
       nextAction: "activate" | "configure" | "deploy" | "test" | "operate";
     }>[];
   }>;
+  checklist: readonly OnboardingChecklistStep[];
+  primaryAction: OnboardingPrimaryAction | null;
 }>;
 
 export function deriveOnboardingStage(readiness: Readonly<{
@@ -35,6 +51,121 @@ export function deriveOnboardingStage(readiness: Readonly<{
   return readiness.launchReady ? "ready"
     : readiness.productSelected ? "product_selection"
       : readiness.businessProfile ? "business_profile" : "account_created";
+}
+
+function productStudioHref(
+  productKey: OnboardingProductKey,
+  nextAction: "activate" | "configure" | "deploy" | "test" | "operate",
+): string {
+  if (productKey === "flowbot" && (nextAction === "configure" || nextAction === "deploy" || nextAction === "test")) {
+    return "/workspace/setup";
+  }
+  return productKey === "ai_chat" ? "/workspace/ai-chat"
+    : productKey === "voice" ? "/workspace/voice"
+      : "/workspace/flowbot";
+}
+
+function productTitle(productKey: OnboardingProductKey): string {
+  return productKey === "ai_chat" ? "AI Text Bot"
+    : productKey === "voice" ? "AI Voice Bot"
+      : "Flow Bot";
+}
+
+export function buildOnboardingChecklist(input: Readonly<{
+  businessProfile: boolean;
+  productSelected: boolean;
+  activeAccess: boolean;
+  launchReadyProducts: readonly OnboardingProductKey[];
+  productStates: readonly Readonly<{
+    productKey: OnboardingProductKey;
+    nextAction: "activate" | "configure" | "deploy" | "test" | "operate";
+  }>[];
+}>): Readonly<{
+  checklist: readonly OnboardingChecklistStep[];
+  primaryAction: OnboardingPrimaryAction | null;
+}> {
+  const focus = input.productStates.find((state) => state.nextAction !== "operate")
+    ?? input.productStates[0];
+  const technicalComplete = input.launchReadyProducts.length > 0;
+  let technicalHref: string | undefined;
+  let technicalLabel: string | undefined;
+  let technicalDetail = "Configure, deploy, and test a product before public rollout.";
+  if (!technicalComplete && focus) {
+    const studio = productStudioHref(focus.productKey, focus.nextAction);
+    const title = productTitle(focus.productKey);
+    if (focus.nextAction === "activate") {
+      technicalHref = "/workspace/usage";
+      technicalLabel = "Continue to payment";
+      technicalDetail = `${title} is selected; complete payment or activation before technical launch.`;
+    } else if (focus.nextAction === "configure") {
+      technicalHref = studio;
+      technicalLabel = `Configure ${title}`;
+      technicalDetail = `${title} needs a current published configuration.`;
+    } else if (focus.nextAction === "deploy") {
+      technicalHref = studio;
+      technicalLabel = `Deploy ${title}`;
+      technicalDetail = `${title} needs an active deployment for the current published version.`;
+    } else if (focus.nextAction === "test") {
+      technicalHref = studio;
+      technicalLabel = `Test ${title}`;
+      technicalDetail = `${title} needs a successful current-version customer journey test.`;
+    }
+  } else if (!technicalComplete && !input.productSelected) {
+    technicalHref = "/workspace/usage";
+    technicalLabel = "Choose product";
+  } else if (technicalComplete) {
+    technicalDetail = "At least one product has current configuration, deployment, and successful test evidence.";
+  }
+
+  const checklist: OnboardingChecklistStep[] = [
+    {
+      key: "account",
+      label: "Account secured",
+      detail: "Email verification and workspace ownership are complete.",
+      complete: true,
+    },
+    {
+      key: "business",
+      label: "Business profile",
+      detail: input.businessProfile
+        ? "Business name, language, and timezone are available."
+        : "Complete the required business details.",
+      complete: input.businessProfile,
+      ...(input.businessProfile ? {} : { nextHref: "/workspace/setup", nextLabel: "Complete profile" }),
+    },
+    {
+      key: "product",
+      label: "Product access",
+      detail: input.productSelected
+        ? input.activeAccess
+          ? "A selected product has active access."
+          : "Product preference saved. Complete payment to activate access (pilot comps use Platform activation)."
+        : "No product has been selected for this workspace.",
+      complete: input.activeAccess,
+      ...(input.activeAccess ? {} : {
+        nextHref: "/workspace/usage",
+        nextLabel: input.productSelected ? "Continue to payment" : "Choose product",
+      }),
+    },
+    {
+      key: "technical",
+      label: "Technical launch readiness",
+      detail: technicalDetail,
+      complete: technicalComplete,
+      ...(technicalComplete || !technicalHref ? {} : {
+        nextHref: technicalHref,
+        nextLabel: technicalLabel ?? "Continue setup",
+      }),
+    },
+  ];
+
+  const primary = checklist.find((step) => !step.complete && step.nextHref);
+  return {
+    checklist,
+    primaryAction: primary?.nextHref
+      ? { href: primary.nextHref, label: primary.nextLabel ?? "Continue setup" }
+      : null,
+  };
 }
 
 async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Promise<OnboardingRecord | null> {
@@ -168,19 +299,23 @@ async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Pro
     businessProfile, productSelected: selectedProducts.length > 0,
     launchReady: launchReadyProducts.length > 0,
   });
+  const readiness = {
+    businessProfile,
+    productSelected: selectedProducts.length > 0,
+    activeAccess: activeProducts.size > 0,
+    selectedProducts,
+    configuredProducts,
+    testedProducts,
+    launchReadyProducts,
+    productStates,
+  };
+  const { checklist, primaryAction } = buildOnboardingChecklist(readiness);
   return {
     ...tenant,
     stage,
-    readiness: {
-      businessProfile,
-      productSelected: selectedProducts.length > 0,
-      activeAccess: activeProducts.size > 0,
-      selectedProducts,
-      configuredProducts,
-      testedProducts,
-      launchReadyProducts,
-      productStates,
-    },
+    readiness,
+    checklist,
+    primaryAction,
   };
 }
 
@@ -219,6 +354,57 @@ export class TenantWorkspaceStore {
         WHERE tenant_id = ${context.tenantId}::uuid
       `;
       return record;
+    });
+  }
+
+  async updateBusinessProfile(context: TenantContext, input: Readonly<{
+    businessName: string;
+    locale: "en" | "th";
+    timezone: string;
+  }>) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: input.timezone }).format(new Date());
+      } catch {
+        return { status: "invalid_timezone" as const };
+      }
+      const businessName = input.businessName.trim();
+      if (businessName.length < 2 || businessName.length > 200) {
+        return { status: "validation_failed" as const };
+      }
+      await sql`
+        UPDATE tenancy.tenants
+        SET business_name = ${businessName},
+            locale = ${input.locale},
+            timezone = ${input.timezone},
+            updated_at = now()
+        WHERE id = ${context.tenantId}::uuid
+      `;
+      await sql`
+        INSERT INTO tenancy.audit_logs (
+          tenant_id, actor_user_id, actor_membership_id, action, target_type,
+          target_id, request_id, result, metadata
+        ) VALUES (
+          ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+          'tenant.profile_updated', 'tenant', ${context.tenantId},
+          ${context.requestId}, 'succeeded',
+          ${sql.json({ locale: input.locale, timezone: input.timezone })}
+        )
+      `;
+      const record = await onboardingRecord(sql, context.tenantId);
+      if (!record) return { status: "not_found" as const };
+      await sql`
+        UPDATE tenancy.tenant_onboarding
+        SET stage = ${record.stage},
+            profile_completed_at = CASE
+              WHEN ${record.readiness.businessProfile}
+                THEN COALESCE(profile_completed_at, now())
+              ELSE NULL
+            END,
+            updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid
+      `;
+      return { status: "updated" as const, onboarding: record };
     });
   }
 

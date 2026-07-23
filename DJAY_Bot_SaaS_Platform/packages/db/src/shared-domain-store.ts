@@ -236,11 +236,14 @@ export class SharedDomainStore {
     `);
   }
 
-  async listInbox(context: TenantContext) {
+  async listInbox(context: TenantContext, input: Readonly<{ q?: string }> = {}) {
+    const query = input.q?.trim() ?? "";
+    const like = query ? `%${query.replace(/[%_\\]/g, "\\$&")}%` : null;
     return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
       id: string; contactId: string; contactName: string; leadId: string | null;
       productKey: string; publicPlanKey: string; channelKind: string; automationMode: string;
-      status: string; assignedMembershipId: string | null; lastMessage: string | null;
+      status: string; assignedMembershipId: string | null; legalHold: boolean;
+      lastMessage: string | null;
       lastMessageAt: Date | null; updatedAt: Date; voiceStatus: string | null;
       voiceTerminalReason: string | null; voiceMinutes: number | null;
       voiceDurationSeconds: number | null; voiceOutcome: string | null;
@@ -251,6 +254,7 @@ export class SharedDomainStore {
              conversation.product_key AS "productKey", conversation.public_plan_key AS "publicPlanKey",
              conversation.channel_kind AS "channelKind", conversation.automation_mode AS "automationMode",
              conversation.status, conversation.assigned_membership_id AS "assignedMembershipId",
+             conversation.legal_hold AS "legalHold",
              COALESCE(last_message.content_json->>'text', last_message.content_json->'content'->>'text') AS "lastMessage",
              last_message.created_at AS "lastMessageAt", conversation.updated_at AS "updatedAt",
              voice.status AS "voiceStatus", voice.terminal_reason AS "voiceTerminalReason",
@@ -281,6 +285,16 @@ export class SharedDomainStore {
        AND legacy_import.conversation_id = conversation.id
       WHERE conversation.tenant_id = ${context.tenantId}::uuid
         AND COALESCE(legacy_import.cutover_state, 'imported') = 'imported'
+        AND (
+          ${like}::text IS NULL
+          OR contact.display_name ILIKE ${like} ESCAPE '\\'
+          OR EXISTS (
+            SELECT 1 FROM tenancy.contact_identities identity
+            WHERE identity.tenant_id = conversation.tenant_id
+              AND identity.contact_id = contact.id
+              AND identity.normalized_value ILIKE ${like} ESCAPE '\\'
+          )
+        )
       ORDER BY COALESCE(last_message.created_at, conversation.started_at) DESC
       LIMIT 500
     `);
@@ -557,6 +571,81 @@ export class SharedDomainStore {
       ) revision ON true
       WHERE source.tenant_id = ${context.tenantId}::uuid
       ORDER BY source.updated_at DESC
+    `);
+  }
+
+  async setConversationLegalHold(
+    context: TenantContext,
+    conversationId: string,
+    input: Readonly<{ legalHold: boolean; reason?: string }>,
+  ) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      if (input.legalHold) {
+        const reason = input.reason?.trim() ?? "";
+        if (reason.length < 8 || reason.length > 500) {
+          return { status: "validation_failed" as const };
+        }
+        const rows = await sql<{ id: string }[]>`
+          UPDATE tenancy.conversations SET
+            legal_hold = true,
+            legal_hold_reason = ${reason},
+            legal_hold_set_at = now(),
+            legal_hold_set_by_membership_id = ${context.membershipId}::uuid,
+            updated_at = now()
+          WHERE tenant_id = ${context.tenantId}::uuid AND id = ${conversationId}::uuid
+          RETURNING id
+        `;
+        if (!rows[0]) return { status: "not_found" as const };
+        await sql`
+          INSERT INTO tenancy.audit_logs (
+            tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id, request_id, result, metadata
+          ) VALUES (
+            ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+            'privacy.legal_hold.set', 'conversation', ${conversationId},
+            ${context.requestId}, 'succeeded', ${sql.json({ reason })}
+          )
+        `;
+        return { status: "accepted" as const, legalHold: true as const };
+      }
+      const rows = await sql<{ id: string }[]>`
+        UPDATE tenancy.conversations SET
+          legal_hold = false,
+          legal_hold_reason = NULL,
+          legal_hold_set_at = NULL,
+          legal_hold_set_by_membership_id = NULL,
+          updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${conversationId}::uuid
+        RETURNING id
+      `;
+      if (!rows[0]) return { status: "not_found" as const };
+      await sql`
+        INSERT INTO tenancy.audit_logs (
+          tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id, request_id, result, metadata
+        ) VALUES (
+          ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+          'privacy.legal_hold.clear', 'conversation', ${conversationId},
+          ${context.requestId}, 'succeeded', '{}'::jsonb
+        )
+      `;
+      return { status: "accepted" as const, legalHold: false as const };
+    });
+  }
+
+  async listLegalHolds(context: TenantContext) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
+      id: string; contactId: string; contactName: string; reason: string; setAt: Date;
+    }[]>`
+      SELECT conversation.id, conversation.contact_id AS "contactId",
+             contact.display_name AS "contactName",
+             conversation.legal_hold_reason AS reason,
+             conversation.legal_hold_set_at AS "setAt"
+      FROM tenancy.conversations conversation
+      JOIN tenancy.contacts contact
+        ON contact.tenant_id = conversation.tenant_id AND contact.id = conversation.contact_id
+      WHERE conversation.tenant_id = ${context.tenantId}::uuid
+        AND conversation.legal_hold = true
+      ORDER BY conversation.legal_hold_set_at DESC NULLS LAST
+      LIMIT 200
     `);
   }
 
