@@ -5,6 +5,7 @@ dist/
 coverage/
 .env
 .env.local
+.secrets/
 playwright-report/
 test-results/
 .terraform/
