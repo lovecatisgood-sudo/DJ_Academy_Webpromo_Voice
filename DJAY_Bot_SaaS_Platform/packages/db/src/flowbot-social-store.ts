@@ -44,9 +44,14 @@ export class FlowSocialConnectionStore {
         JOIN tenancy.product_subscriptions subscription ON subscription.tenant_id = snapshot.tenant_id
           AND subscription.id = snapshot.subscription_id AND subscription.status IN ('active', 'trialing', 'scheduled_change')
         JOIN catalog.plan_versions version ON version.id = snapshot.plan_version_id
-        JOIN catalog.plans plan ON plan.id = version.plan_id AND plan.plan_key = 'flowbot_premium'
+        JOIN catalog.plans plan ON plan.id = version.plan_id AND plan.product_key = 'flowbot'
         WHERE snapshot.tenant_id = ${context.tenantId}::uuid AND snapshot.product_key = 'flowbot'
-          AND snapshot.access_mode = 'active' AND snapshot.resolved_json->'entitlements'->>'channel.social' = 'true'
+          AND snapshot.access_mode = 'active'
+          AND (snapshot.resolved_json->'entitlements'->>'channel.social' = 'true'
+            OR EXISTS (SELECT 1 FROM tenancy.subscription_add_ons social_add_on
+              WHERE social_add_on.tenant_id = snapshot.tenant_id AND social_add_on.subscription_id = snapshot.subscription_id
+                AND social_add_on.add_on_key = 'additional_social_channel' AND social_add_on.status IN ('active', 'scheduled_end')
+                AND social_add_on.effective_from <= now() AND (social_add_on.effective_until IS NULL OR social_add_on.effective_until > now())))
         ORDER BY snapshot.created_at DESC, snapshot.id DESC LIMIT 1
       `;
       if (!authority[0]) return { status: "not_entitled" as const };
@@ -140,7 +145,7 @@ const inboundClaimSchema = z.object({
 const preparedTurnSchema = z.object({
   tenant_id: z.uuid(), deployment_id: z.uuid(), execution_id: z.uuid(), flow_version_id: z.uuid(),
   snapshot_json: flowSnapshotSchema, state_json: flowExecutionStateSchema,
-  authority_json: z.object({ planKey: z.literal("flowbot_premium"), accessMode: z.literal("active"),
+  authority_json: z.object({ planKey: z.enum(["flowbot_basic", "flowbot_premium"]), accessMode: z.literal("active"),
     entitlements: z.record(z.string(), z.union([z.boolean(), z.string(), z.number(), z.null()])),
     limits: z.record(z.string(), z.number().nullable()) }).strict(),
   next_input_sequence: z.number().int().positive(), session_token_hash: z.instanceof(Buffer), is_new: z.boolean(),

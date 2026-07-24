@@ -166,7 +166,7 @@ Expected: the "authorizes a Basic tenant…" case **FAILS** (`connected.status` 
 ### Task 2: Relax the gate (TS create query, worker schema, SQL functions) to green
 
 **Files:**
-- Create: `packages/db/migrations/0080_flowbot_social_gate_relaxation.sql`
+- Create: `packages/db/migrations/0082_flowbot_social_gate_relaxation.sql`
 - Modify: `packages/db/src/flowbot-social-store.ts:34-51` (create query) and `:143` (`preparedTurnSchema.planKey`)
 
 **Interfaces:**
@@ -206,7 +206,7 @@ to:
 
 - [ ] **Step 3: Create the SQL relaxation migration**
 
-Create `packages/db/migrations/0080_flowbot_social_gate_relaxation.sql`. It `CREATE OR REPLACE`s the three functions verbatim from `0067`/`0068` with ONLY the plan-join and channel.social predicate relaxed (bodies preserved otherwise), then re-applies REVOKE/GRANT.
+Create `packages/db/migrations/0082_flowbot_social_gate_relaxation.sql`. It `CREATE OR REPLACE`s the three functions verbatim from `0067`/`0068` with ONLY the plan-join and channel.social predicate relaxed (bodies preserved otherwise), then re-applies REVOKE/GRANT.
 
 ```sql
 -- Relax FlowBot social authorization from flowbot_premium-only to
@@ -407,7 +407,7 @@ $$;
 REVOKE ALL ON FUNCTION tenancy.flow_social_runtime_connection(bytea, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION tenancy.claim_flow_social_inbound(timestamptz, timestamptz) FROM PUBLIC;
 REVOKE ALL ON FUNCTION tenancy.prepare_flow_social_turn(uuid, uuid, uuid, uuid, uuid, bytea, text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION tenancy.flow_social_runtime_connection(bytea, text) TO djay_runtime, djay_worker;
+GRANT EXECUTE ON FUNCTION tenancy.flow_social_runtime_connection(bytea, text) TO djay_flowbot_runtime;
 GRANT EXECUTE ON FUNCTION tenancy.claim_flow_social_inbound(timestamptz, timestamptz) TO djay_worker;
 GRANT EXECUTE ON FUNCTION tenancy.prepare_flow_social_turn(uuid, uuid, uuid, uuid, uuid, bytea, text) TO djay_worker;
 ```
@@ -435,7 +435,7 @@ Expected: typecheck passes; migration-invariants passes (we added a new migratio
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/db/migrations/0080_flowbot_social_gate_relaxation.sql \
+git add packages/db/migrations/0082_flowbot_social_gate_relaxation.sql \
         packages/db/src/flowbot-social-store.ts \
         packages/db/src/flowbot-social-store.integration.test.ts
 git commit -m "feat(flowbot-social): authorize Basic+social-add-on tenants, not premium-only

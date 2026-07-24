@@ -57,6 +57,57 @@ async function provisionCurrentAdvancedAuthority(tenantId: string) {
   `;
 }
 
+async function provisionBasicWithSocialAddOn(tenantId: string, options: { withAddOn: boolean }) {
+  const subscriptionId = randomUUID();
+  const snapshotId = randomUUID();
+  const planVersionId = "62000000-0000-4000-8000-000000000101"; // flowbot_basic
+  const resolved = {
+    tenantId, subscriptionId, productKey: "flowbot", publicPlanKey: "flowbot_basic", planVersionId,
+    accessMode: "active",
+    entitlements: {
+      "channel.web": true, "channel.social": false, "ai.enabled": false,
+      "flow.nodes.core": true, "flow.nodes.advanced": false, "flow.forms": true,
+      "flow.versioning": true, "flow.lead_capture": true, "flow.email_notification": true,
+      "flow.team_routing": "limited", "flow.webhook": false, "branding.remove": false,
+      "analytics.level": "basic", "support.level": "standard",
+    },
+    allowances: { flow_execution: 100_000 }, overageRatesMinor: { flow_execution: null },
+    limits: { active_bots: 1, workspaces: 1, topics: 150, seats: 1, social_channels: 0 },
+    resolvedAt: new Date().toISOString(),
+  };
+  await adminClient!`
+    UPDATE tenancy.product_subscriptions SET status = 'cancelled', cancelled_at = now()
+    WHERE tenant_id = ${tenantId}::uuid AND product_key = 'flowbot' AND status <> 'cancelled'
+  `;
+  await adminClient!`
+    INSERT INTO tenancy.product_subscriptions
+      (id, tenant_id, product_key, plan_version_id, status, period_start, period_end)
+    VALUES (${subscriptionId}::uuid, ${tenantId}::uuid, 'flowbot', ${planVersionId}::uuid,
+      'active', now(), now() + interval '1 year')
+  `;
+  await adminClient!`
+    INSERT INTO tenancy.entitlement_snapshots
+      (id, tenant_id, subscription_id, product_key, plan_version_id, subscription_status,
+       access_mode, resolved_json, resolution_hash)
+    VALUES (${snapshotId}::uuid, ${tenantId}::uuid, ${subscriptionId}::uuid, 'flowbot',
+      ${planVersionId}::uuid, 'active', 'active', ${adminClient!.json(resolved)}, digest(${snapshotId}, 'sha256'))
+  `;
+  await adminClient!`
+    INSERT INTO tenancy.quota_accounts
+      (tenant_id, subscription_id, product_key, customer_unit, period_start, period_end,
+       included_quantity, safety_cap_quantity)
+    VALUES (${tenantId}::uuid, ${subscriptionId}::uuid, 'flowbot', 'flow_execution',
+      now() - interval '1 minute', now() + interval '1 year', 100000, 100000)
+  `;
+  if (options.withAddOn) {
+    await adminClient!`
+      INSERT INTO tenancy.subscription_add_ons
+        (tenant_id, subscription_id, add_on_key, quantity, status, effective_from)
+      VALUES (${tenantId}::uuid, ${subscriptionId}::uuid, 'additional_social_channel', 1, 'active', now() - interval '1 minute')
+    `;
+  }
+}
+
 beforeAll(() => {
   if (!enabled) return;
   tenantClient = createDatabaseClient(process.env.TENANT_DATABASE_URL!);
@@ -120,5 +171,53 @@ describe.runIf(enabled)("FlowBot Premium deterministic social runtime", () => {
       externalMessageIds: ["line-outbound-1"], completedPartCount: 1, safeErrorCode: null })).resolves.toBe(true);
     const own = await connections.list(context);
     expect(own).toContainEqual(expect.objectContaining({ id: connected.connectionId, channel: "line", status: "active" }));
+  });
+
+  it("authorizes a Basic tenant holding an active additional_social_channel add-on", async () => {
+    const context = createTenantContext({ tenantId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb20",
+      userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2", membershipId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb21",
+      sessionId: randomUUID(), role: "tenant_master_admin", requestId: `flow-social-basic-${randomUUID()}` });
+    await provisionBasicWithSocialAddOn(context.tenantId, { withAddOn: true });
+    await adminClient!`UPDATE tenancy.flow_bots SET status = 'archived', updated_at = now()
+      WHERE tenant_id = ${context.tenantId}::uuid AND status <> 'archived'`;
+    const flow = new FlowBotStore(tenantClient!);
+    const created = await flow.createBot(context, { name: "Basic LINE assistant", defaultLanguage: "en" });
+    if (created.status !== "created") throw new Error("Expected Flow bot.");
+    const draft = await flow.getDraft(context, created.botId); const root = randomUUID(); const end = randomUUID(); const option = randomUUID();
+    await flow.updateDraft(context, created.botId, { revision: draft!.revision, definition: {
+      schemaVersion: 1, flowVersionId: randomUUID(), rootNodeId: root, keywords: [], nodes: {
+        [root]: { id: root, type: "options", title: "Department", prompt: { th: "เลือกทีม", en: "Choose a team" },
+          options: [{ id: option, label: { th: "ฝ่ายขาย", en: "Sales" }, targetNodeId: end }] },
+        [end]: { id: end, type: "end", title: "Done", message: { th: "ทีมงานจะติดต่อกลับ", en: "The team will follow up." } },
+      } } });
+    await flow.publish(context, created.botId);
+    const connections = new FlowSocialConnectionStore(tenantClient!);
+    const connected = await connections.create(context, { botId: created.botId, channel: "line", name: "Basic LINE OA",
+      externalAccountRef: `line-${randomUUID()}`,
+      credentials: { channel: "line", channelAccessToken: "line-access-token-value", channelSecret: "line-channel-secret-value" }, envelopeKey });
+    expect(connected.status).toBe("created");
+  });
+
+  it("rejects a Basic tenant with no social add-on", async () => {
+    const context = createTenantContext({ tenantId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb30",
+      userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3", membershipId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb31",
+      sessionId: randomUUID(), role: "tenant_master_admin", requestId: `flow-social-basic-none-${randomUUID()}` });
+    await provisionBasicWithSocialAddOn(context.tenantId, { withAddOn: false });
+    await adminClient!`UPDATE tenancy.flow_bots SET status = 'archived', updated_at = now()
+      WHERE tenant_id = ${context.tenantId}::uuid AND status <> 'archived'`;
+    const flow = new FlowBotStore(tenantClient!);
+    const created = await flow.createBot(context, { name: "Basic no-addon", defaultLanguage: "en" });
+    if (created.status !== "created") throw new Error("Expected Flow bot.");
+    const draft = await flow.getDraft(context, created.botId); const root = randomUUID(); const end = randomUUID();
+    await flow.updateDraft(context, created.botId, { revision: draft!.revision, definition: {
+      schemaVersion: 1, flowVersionId: randomUUID(), rootNodeId: root, keywords: [], nodes: {
+        [root]: { id: root, type: "end", title: "Done", message: { th: "ปิด", en: "Closed" } },
+      } } });
+    await flow.publish(context, created.botId);
+    const connections = new FlowSocialConnectionStore(tenantClient!);
+    const rejected = await connections.create(context, { botId: created.botId, channel: "line", name: "Blocked LINE OA",
+      externalAccountRef: `line-${randomUUID()}`,
+      credentials: { channel: "line", channelAccessToken: "line-access-token-value", channelSecret: "line-channel-secret-value" }, envelopeKey });
+    expect(rejected.status).toBe("not_entitled");
   });
 });
