@@ -681,6 +681,19 @@ importers:
         specifier: 3.2.6
         version: 3.2.6(@types/node@22.20.1)
 
+  packages/meta-connect:
+    dependencies:
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.6
+        version: 3.2.6(@types/node@22.20.1)
+
   packages/notifications:
     dependencies:
       '@djay/auth':
