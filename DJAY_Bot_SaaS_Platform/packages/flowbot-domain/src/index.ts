@@ -125,7 +125,15 @@ export type FlowEntitlements = Readonly<{
   limits: Readonly<Record<string, number | null>>;
 }>;
 
-export type FlowValidationIssue = Readonly<{ code: string; nodeId?: string; detail?: string }>;
+/**
+ * `severity` is optional and absent means "error". Every current caller of
+ * `validateFlowForPublish` (packages/db/src/flowbot-store.ts updateDraft/publish/rollback and
+ * apps/workers/src/migrate-flowbot-v1.ts) treats any non-empty issue list as a hard block, so an
+ * issue returned from that function is by definition a blocker. Advisory graph findings are
+ * therefore returned separately by `flowGraphAdvisories` and carry `severity: "warning"`.
+ */
+export type FlowValidationSeverity = "error" | "warning";
+export type FlowValidationIssue = Readonly<{ code: string; nodeId?: string; detail?: string; severity?: FlowValidationSeverity }>;
 
 export function countFlowTopics(snapshot: Pick<FlowSnapshot, "rootNodeId" | "keywords">) {
   return new Set([snapshot.rootNodeId, ...snapshot.keywords.map((keyword) => keyword.nodeId)]).size;
@@ -188,17 +196,134 @@ export function flowNodeEntitlementIssue(node: FlowNode, authority: FlowEntitlem
     : { code: "node_entitlement_missing", nodeId: node.id, detail: `${node.type}:${key}` };
 }
 
-function references(node: FlowNode): readonly string[] {
+export type FlowLocalizedText = z.infer<typeof localizedTextSchema>;
+export type FlowEdgeKind = "next" | "option" | "true" | "false" | "open" | "closed" | "failure" | "jump" | "subflow_return";
+export type FlowNodeEdge = Readonly<{ targetNodeId: string; kind: FlowEdgeKind; label?: FlowLocalizedText }>;
+
+const edge = (targetNodeId: string | null | undefined, kind: FlowEdgeKind, label?: FlowLocalizedText): readonly FlowNodeEdge[] =>
+  typeof targetNodeId === "string" && targetNodeId ? [{ targetNodeId, kind, ...(label ? { label } : {}) }] : [];
+
+/**
+ * The single source of truth for a node's outgoing transitions: every consumer (publish
+ * validation, graph analysis, the authoring canvas) reads edges from here so an edge can never be
+ * known to one consumer and unknown to another. Defensive against malformed nodes because graph
+ * analysis runs on unpublished drafts.
+ */
+export function flowNodeEdges(node: FlowNode): readonly FlowNodeEdge[] {
   switch (node.type) {
-    case "message": case "media_reference": case "product_card": case "carousel": case "actions": case "form": return node.nextNodeId ? [node.nextNodeId] : [];
-    case "input_capture": case "variable_set": case "delay": return [node.nextNodeId];
-    case "options": return node.options.map((option) => option.targetNodeId);
-    case "condition": case "advanced_condition": return [node.trueNodeId, node.falseNodeId];
-    case "jump": return [node.targetNodeId];
-    case "business_hours": return [node.openNodeId, node.closedNodeId];
-    case "webhook": return [node.nextNodeId, node.failureNodeId];
-    default: return [];
+    case "message": case "media_reference": case "product_card": case "carousel": case "actions": case "form":
+    case "input_capture": case "variable_set": case "delay": return edge(node.nextNodeId, "next");
+    case "options": return Array.isArray(node.options) ? node.options.flatMap((option) => edge(option?.targetNodeId, "option", option?.label)) : [];
+    case "condition": case "advanced_condition": return [...edge(node.trueNodeId, "true"), ...edge(node.falseNodeId, "false")];
+    case "jump": return edge(node.targetNodeId, "jump");
+    case "business_hours": return [...edge(node.openNodeId, "open"), ...edge(node.closedNodeId, "closed")];
+    case "webhook": return [...edge(node.nextNodeId, "next"), ...edge(node.failureNodeId, "failure")];
+    // The engine resumes at `returnNodeId` when the embedded subflow ends (flowbot-engine/src/index.ts:137),
+    // so it is a real outgoing edge and must be validated like any other target.
+    case "subflow": return edge(node.returnNodeId, "subflow_return");
+    case "end": case "team_route": return [];
+    default: { const exhaustive: never = node; void exhaustive; return []; }
   }
+}
+
+function references(node: FlowNode): readonly string[] {
+  return flowNodeEdges(node).map((item) => item.targetNodeId);
+}
+
+/**
+ * Conversion nodes for the `path_without_cta` lint. `end` is deliberately excluded: a path that
+ * simply ends without asking the customer for anything is exactly what the lint is meant to catch.
+ * `input_capture` is also excluded: it is a generic mid-flow variable capture (a name, an order
+ * number) and does not by itself ask for a call, a booking, a checkout, a lead or a human.
+ */
+export const flowCtaNodeTypes = ["actions", "form", "team_route"] as const;
+export type FlowCtaNodeType = (typeof flowCtaNodeTypes)[number];
+const isCtaNode = (node: FlowNode) => (flowCtaNodeTypes as readonly string[]).includes(node.type);
+
+export type FlowGraphInput = Readonly<{
+  rootNodeId?: string | null;
+  nodes?: Readonly<Record<string, FlowNode>> | null;
+  keywords?: readonly Readonly<{ nodeId: string }>[] | null;
+}>;
+
+/**
+ * Advisory (non-blocking) graph findings: `unreachable_node`, `cycle_detected` and
+ * `path_without_cta`. Kept out of `validateFlowForPublish` on purpose — see FlowValidationIssue:
+ * anything that function returns blocks draft saves, publish AND rollback of already-published
+ * versions, so none of these authoring smells may be emitted from it.
+ *
+ * Entry points are the root plus every keyword target, because the engine starts a traversal at a
+ * matched keyword's node (flowbot-engine/src/index.ts:86); treating only the root as an entry would
+ * flag every legitimate keyword topic as unreachable. Linear in nodes + edges (each node is
+ * expanded once per pass and each edge inspected once) and it never throws on a malformed graph,
+ * which is the normal case here: validation runs before publish, so it sees broken input by design.
+ */
+export function flowGraphAdvisories(graph: FlowGraphInput): readonly FlowValidationIssue[] {
+  const nodes: Record<string, FlowNode> = {};
+  const rawNodes = graph?.nodes;
+  if (rawNodes && typeof rawNodes === "object") {
+    for (const [id, node] of Object.entries(rawNodes)) {
+      if (node && typeof node === "object" && typeof (node as FlowNode).type === "string") nodes[id] = node;
+    }
+  }
+  const entries: string[] = []; const entrySeen = new Set<string>();
+  const addEntry = (id: unknown) => {
+    if (typeof id !== "string" || !nodes[id] || entrySeen.has(id)) return;
+    entrySeen.add(id); entries.push(id);
+  };
+  addEntry(graph?.rootNodeId);
+  if (Array.isArray(graph?.keywords)) for (const keyword of graph.keywords) addEntry((keyword as { nodeId?: unknown } | null)?.nodeId);
+
+  const issues: FlowValidationIssue[] = [];
+  const warning = (code: string, nodeId: string, detail: string): FlowValidationIssue => ({ code, nodeId, detail, severity: "warning" });
+
+  const reachable = new Set(entries); const queue = [...entries];
+  for (let head = 0; head < queue.length; head += 1) {
+    const node = nodes[queue[head]!];
+    if (!node) continue;
+    for (const item of flowNodeEdges(node)) {
+      if (!nodes[item.targetNodeId] || reachable.has(item.targetNodeId)) continue;
+      reachable.add(item.targetNodeId); queue.push(item.targetNodeId);
+    }
+  }
+  for (const [id, node] of Object.entries(nodes)) if (!reachable.has(id)) issues.push(warning("unreachable_node", id, node.type));
+
+  // Iterative colouring DFS (1 = on the current path, 2 = finished). A target that is still on the
+  // current path is the entry of a cycle; report that node once and keep walking.
+  const visitState = new Map<string, 1 | 2>(); const cycleEntries = new Set<string>();
+  for (const entryId of entries) {
+    if (visitState.has(entryId)) continue;
+    const entryNode = nodes[entryId]; if (!entryNode) continue;
+    visitState.set(entryId, 1);
+    const stack: { id: string; edges: readonly FlowNodeEdge[]; index: number }[] = [{ id: entryId, edges: flowNodeEdges(entryNode), index: 0 }];
+    while (stack.length) {
+      const frame = stack[stack.length - 1]!;
+      if (frame.index >= frame.edges.length) { visitState.set(frame.id, 2); stack.pop(); continue; }
+      const nextId = frame.edges[frame.index]!.targetNodeId; frame.index += 1;
+      const nextNode = nodes[nextId]; if (!nextNode) continue;
+      const seen = visitState.get(nextId);
+      if (seen === 1) { cycleEntries.add(nextId); continue; }
+      if (seen === 2) continue;
+      visitState.set(nextId, 1); stack.push({ id: nextId, edges: flowNodeEdges(nextNode), index: 0 });
+    }
+  }
+  for (const id of cycleEntries) { const node = nodes[id]; if (node) issues.push(warning("cycle_detected", id, node.type)); }
+
+  // BFS that never traverses *through* a CTA node: any terminal node still reached this way sits on
+  // at least one CTA-less path. Nodes whose only edges dangle are not terminal — a broken edge is
+  // already reported as `target_node_missing` and is not a missing-CTA problem.
+  const ctaSeen = new Set(entries); const ctaQueue = [...entries];
+  for (let head = 0; head < ctaQueue.length; head += 1) {
+    const id = ctaQueue[head]!; const node = nodes[id];
+    if (!node || isCtaNode(node)) continue;
+    const edges = flowNodeEdges(node);
+    if (!edges.length) { issues.push(warning("path_without_cta", id, node.type)); continue; }
+    for (const item of edges) {
+      if (!nodes[item.targetNodeId] || ctaSeen.has(item.targetNodeId)) continue;
+      ctaSeen.add(item.targetNodeId); ctaQueue.push(item.targetNodeId);
+    }
+  }
+  return issues;
 }
 
 export function validateFlowForPublish(snapshotInput: unknown, authority: FlowEntitlements): readonly FlowValidationIssue[] {
