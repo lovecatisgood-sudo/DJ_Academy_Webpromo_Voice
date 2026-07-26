@@ -31,7 +31,7 @@ describe.runIf(enabled)("purchase intents (Phase 3)", () => {
       INSERT INTO identity.signup_intents (
         id, idempotency_key, request_hash, email_normalized, display_name,
         business_name, password_hash, locale, timezone, terms_version,
-        privacy_version, selected_plan_key, status, expires_at
+        privacy_version, selected_plan_key, status, requested_at, expires_at
       ) VALUES (
         ${registrationId}::uuid,
         ${randomUUID()}::uuid,
@@ -46,6 +46,11 @@ describe.runIf(enabled)("purchase intents (Phase 3)", () => {
         '2026-01',
         'flowbot_basic',
         'verification_pending',
+        -- requested_at is pinned to the same fixed clock as expires_at. It defaults
+        -- to now(), so relying on that default made this a time bomb: the constraint
+        -- CHECK (expires_at > requested_at) began failing once the wall clock passed
+        -- the hardcoded test date, which happened the day after this was written.
+        ${now},
         ${new Date(now.getTime() + 24 * 60 * 60 * 1000)}
       )
     `;
