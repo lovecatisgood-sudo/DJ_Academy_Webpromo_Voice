@@ -16,6 +16,7 @@
     "@djay/auth": "workspace:*",
     "@djay/authorization": "workspace:*",
     "@djay/channel-adapters": "workspace:*",
+    "@djay/channel-onboarding": "workspace:*",
     "@djay/db": "workspace:*",
     "@djay/domain": "workspace:*",
     "@djay/flowbot-domain": "workspace:*",

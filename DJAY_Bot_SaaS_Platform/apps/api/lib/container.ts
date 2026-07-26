@@ -10,7 +10,7 @@ import {
   parse32ByteSecret,
 } from "@djay/auth";
 import { AiTextRuntime } from "@djay/ai-chat-runtime";
-import { createSocialDeliveryClient } from "@djay/channel-adapters";
+import { createLineChannelClient, createSocialDeliveryClient } from "@djay/channel-adapters";
 import {
   AiChatRuntimeStore,
   AiChatStore,
@@ -203,6 +203,16 @@ async function buildServices() {
       ? new FlowSocialRuntimeStore(createDatabaseClient(env.FLOWBOT_DATABASE_URL), flowSocialCredentialKey) : null,
     flowSocialCredentialKey,
     flowSocialSubjectHashKey,
+    // Same gateways as AI Chat social; the AI_SOCIAL_* names predate FlowBot social and
+    // are already reused for FlowBot delivery by apps/workers.
+    flowSocialDelivery: createSocialDeliveryClient({
+      lineApiBaseUrl: env.AI_SOCIAL_LINE_API_BASE_URL,
+      metaGraphBaseUrl: env.AI_SOCIAL_META_GRAPH_BASE_URL,
+    }),
+    lineChannel: createLineChannelClient({ apiBaseUrl: env.AI_SOCIAL_LINE_API_BASE_URL }),
+    // Our own public origin, used to build per-connection webhook URLs handed to LINE.
+    // Never derived from the request Host header.
+    apiAppUrl: env.API_APP_URL ?? null,
     aiChatRuntimeStore: aiRuntimeStore,
     aiSocialRuntime: env.AI_DATABASE_URL && aiSocialCredentialKey
       ? new AiSocialRuntimeStore(createDatabaseClient(env.AI_DATABASE_URL), aiSocialCredentialKey)

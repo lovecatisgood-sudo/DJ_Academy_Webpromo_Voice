@@ -6,6 +6,7 @@ import type { TenantContext } from "@djay/tenancy";
 import { z } from "zod";
 import type { DatabaseClient } from "./client";
 import { withTenantTransaction } from "./scoped-transaction";
+import { checkSocialChannelAdmission, claimIncludedSocialChannel } from "./social-channel-admission";
 
 export type SocialChannel = "line" | "whatsapp" | "messenger";
 type SocialConnectionInput = Readonly<{
@@ -129,6 +130,11 @@ export class AiSocialConnectionStore {
       if (typeof limit === "number" && (counts[0]?.count ?? 0) >= limit) {
         return { status: "limit_reached" as const };
       }
+      // CHN-004 parity with FlowBot: the included slot covers one channel.
+      const admission = await checkSocialChannelAdmission(sql, context.tenantId, "ai_chat", channel);
+      if (admission.status === "refused") {
+        return { status: "channel_not_admitted" as const, decision: admission.decision };
+      }
 
       const deploymentId = randomUUID();
       const connectionId = randomUUID();
@@ -162,6 +168,23 @@ export class AiSocialConnectionStore {
           ${context.requestId}, 'succeeded', ${sql.json({ channel })}
         )
       `;
+      // An add-on channel is a paid EXTRA and must not take over the included slot.
+      const slot = admission.status === "admitted" && admission.decision === "add_on"
+        ? "unchanged" as const
+        : await claimIncludedSocialChannel(sql, context.tenantId, "ai_chat", channel, context.membershipId);
+      if (slot === "moved") {
+        await sql`
+          INSERT INTO tenancy.audit_logs (
+            tenant_id, actor_user_id, actor_membership_id, action, target_type,
+            target_id, request_id, result, metadata
+          ) VALUES (
+            ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+            'ai_chat.included_social_channel_moved', 'ai_social_connection', ${connectionId},
+            ${context.requestId}, 'succeeded',
+            ${sql.json({ channel, admission: admission.status === "admitted" ? admission.decision : "unenforced" })}
+          )
+        `;
+      }
       return { status: "created" as const, connectionId, webhookKey };
     });
   }
@@ -374,6 +397,9 @@ const socialDeliveryClaimSchema = z.object({
   credential_ciphertext: z.string().nullable(), credential_key_version: z.number().int().positive(),
   attempt_count: z.number().int().positive(), delivered_part_count: z.number().int().nonnegative(),
   service_window_open: z.boolean(), delivery_allowed: z.boolean(),
+  // Added by migration 0084 (see the FlowBot claim schema for the rationale). Optional
+  // so the worker keeps running before the migration is applied.
+  inbound_occurred_at: z.coerce.date().nullish(),
 }).strict();
 
 export class AiSocialWorkerStore {
@@ -534,6 +560,7 @@ export class AiSocialWorkerStore {
         attemptCount: row.attempt_count, deliveredPartCount: row.delivered_part_count,
         serviceWindowOpen: row.service_window_open,
         deliveryAllowed: row.delivery_allowed,
+        inboundOccurredAt: row.inbound_occurred_at ?? null,
       } as const;
     });
   }

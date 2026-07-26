@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { getServices } from "./container";
 import { clientAddress, enforceRateLimit, safeJson } from "./http";
+import { withWebhookAck } from "./webhook-ack";
 
 const webhookKeySchema = z.string().regex(/^djay_flow_social_[A-Za-z0-9_-]{32,}$/).max(200);
 const maximumBodyBytes = 1024 * 1024;
@@ -25,7 +26,11 @@ export async function flowSocialChallenge(request: NextRequest, webhookKeyValue:
   } catch { return safeJson({ status: "not_found" }, 404); }
 }
 
-export async function receiveFlowSocialWebhook(request: NextRequest, webhookKeyValue: string, channel: FlowChannel) {
+export function receiveFlowSocialWebhook(request: NextRequest, webhookKeyValue: string, channel: FlowChannel) {
+  return withWebhookAck("flowbot", channel, () => handleFlowSocialWebhook(request, webhookKeyValue, channel));
+}
+
+async function handleFlowSocialWebhook(request: NextRequest, webhookKeyValue: string, channel: FlowChannel) {
   const webhookKey = webhookKeySchema.safeParse(webhookKeyValue);
   if (!webhookKey.success) return safeJson({ status: "not_found" }, 404);
   const services = await getServices();

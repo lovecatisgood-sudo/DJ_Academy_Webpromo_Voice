@@ -69,6 +69,9 @@ importers:
       '@djay/channel-adapters':
         specifier: workspace:*
         version: link:../../packages/channel-adapters
+      '@djay/channel-onboarding':
+        specifier: workspace:*
+        version: link:../../packages/channel-onboarding
       '@djay/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -210,6 +213,9 @@ importers:
       '@djay/authorization':
         specifier: workspace:*
         version: link:../../packages/authorization
+      '@djay/channel-onboarding':
+        specifier: workspace:*
+        version: link:../../packages/channel-onboarding
       '@djay/flowbot-domain':
         specifier: workspace:*
         version: link:../../packages/flowbot-domain
@@ -501,6 +507,22 @@ importers:
 
   packages/channel-adapters:
     dependencies:
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.6
+        version: 3.2.6(@types/node@22.20.1)
+
+  packages/channel-onboarding:
+    dependencies:
+      '@djay/channel-adapters':
+        specifier: workspace:*
+        version: link:../channel-adapters
       zod:
         specifier: 4.4.3
         version: 4.4.3

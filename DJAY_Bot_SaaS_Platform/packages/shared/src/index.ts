@@ -16,3 +16,4 @@ export * from "./website-deployment-fields";
 export * from "./flowbot-operations-fields";
 export * from "./flowbot-editor-fields";
 export * from "./api-proxy";
+export * from "./channel-metrics";

@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { DatabaseClient } from "./client";
 import { flowbotEnvironment, flowBusinessSchedulesSchema } from "./flowbot-environment";
 import { withTenantTransaction } from "./scoped-transaction";
+import { checkSocialChannelAdmission, claimIncludedSocialChannel } from "./social-channel-admission";
 
 export type FlowSocialChannel = "line" | "messenger";
 
@@ -73,6 +74,13 @@ export class FlowSocialConnectionStore {
             AND external_account_ref = ${input.externalAccountRef}) AS exists
       `;
       if (conflict[0]?.exists) return { status: "conflict" as const };
+      // CHN-004: the included slot covers one channel; a different channel needs an
+      // add-on, an elapsed cooldown, or operator approval. Asked here so the merchant
+      // gets a named reason; migration 0084's trigger is the unbypassable guarantee.
+      const admission = await checkSocialChannelAdmission(sql, context.tenantId, "flowbot", input.channel);
+      if (admission.status === "refused") {
+        return { status: "channel_not_admitted" as const, decision: admission.decision };
+      }
       const deploymentId = randomUUID(); const connectionId = randomUUID();
       const deploymentKey = `djay_flow_social_deployment_${createOpaqueToken()}`;
       const webhookKey = `djay_flow_social_${createOpaqueToken()}`;
@@ -88,7 +96,112 @@ export class FlowSocialConnectionStore {
         target_id, request_id, result, metadata) VALUES (${context.tenantId}::uuid, ${context.userId}::uuid,
           ${context.membershipId}::uuid, 'flowbot.social_connection_created', 'flow_social_connection',
           ${connectionId}, ${context.requestId}, 'succeeded', ${sql.json({ channel: input.channel })})`;
+      // Claimed only after the row exists, so a failed create never burns the slot. An
+      // add-on channel is a paid EXTRA, so it must not take over the included slot.
+      const slot = admission.status === "admitted" && admission.decision === "add_on"
+        ? "unchanged" as const
+        : await claimIncludedSocialChannel(sql, context.tenantId, "flowbot", input.channel, context.membershipId);
+      if (slot === "moved") {
+        await sql`INSERT INTO tenancy.audit_logs (tenant_id, actor_user_id, actor_membership_id, action, target_type,
+          target_id, request_id, result, metadata) VALUES (${context.tenantId}::uuid, ${context.userId}::uuid,
+            ${context.membershipId}::uuid, 'flowbot.included_social_channel_moved', 'flow_social_connection',
+            ${connectionId}, ${context.requestId}, 'succeeded',
+            ${sql.json({ channel: input.channel, admission: admission.status === "admitted" ? admission.decision : "unenforced" })})`;
+      }
       return { status: "created" as const, connectionId, webhookKey };
+    });
+  }
+
+  /**
+   * Undo a connection created moments ago by guided onboarding when a later
+   * verification step failed.
+   *
+   * Deletes rather than revokes on purpose: `UNIQUE (tenant_id, channel,
+   * external_account_ref)` ignores status, so a revoked row would permanently block the
+   * merchant from retrying the same Official Account. If a real inbound event already
+   * referenced the connection the delete is refused by foreign keys, in which case the
+   * connection genuinely works and revoking is the correct, auditable fallback.
+   */
+  async discardUnverified(context: TenantContext, connectionId: string) {
+    try {
+      return await withTenantTransaction(this.client, context, async ({ sql }) => {
+        const rows = await sql<{ deploymentId: string; channel: FlowSocialChannel }[]>`
+          DELETE FROM tenancy.flow_social_connections
+          WHERE tenant_id = ${context.tenantId}::uuid AND id = ${connectionId}::uuid AND status <> 'revoked'
+          RETURNING deployment_id AS "deploymentId", channel
+        `;
+        if (!rows[0]) return { status: "not_found" as const };
+        await sql`
+          DELETE FROM tenancy.flow_deployments
+          WHERE tenant_id = ${context.tenantId}::uuid AND id = ${rows[0].deploymentId}::uuid
+        `;
+        await sql`
+          INSERT INTO tenancy.audit_logs (tenant_id, actor_user_id, actor_membership_id, action,
+            target_type, target_id, request_id, result, metadata)
+          VALUES (${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+            'flowbot.social_connection_discarded', 'flow_social_connection', ${connectionId},
+            ${context.requestId}, 'succeeded', ${sql.json({ channel: rows[0].channel })})
+        `;
+        return { status: "discarded" as const };
+      });
+    } catch {
+      return this.revoke(context, connectionId);
+    }
+  }
+
+  async runtimeCredentials(context: TenantContext, connectionId: string, envelopeKey: Buffer) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{
+        channel: FlowSocialChannel;
+        credentialCiphertext: string;
+        credentialKeyVersion: number;
+      }[]>`
+        SELECT channel, credential_ciphertext AS "credentialCiphertext",
+               credential_key_version AS "credentialKeyVersion"
+        FROM tenancy.flow_social_connections
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${connectionId}::uuid
+          AND status IN ('active', 'reauthorization_required')
+      `;
+      const row = rows[0];
+      return row ? {
+        channel: row.channel,
+        credentialKeyVersion: row.credentialKeyVersion,
+        credentials: openJson<unknown>(row.credentialCiphertext, envelopeKey),
+      } : null;
+    });
+  }
+
+  async recordHealth(context: TenantContext, input: Readonly<{
+    connectionId: string;
+    healthy: boolean;
+    reauthorizationRequired: boolean;
+    safeErrorCode: string | null;
+  }>) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ status: string; healthStatus: string; lastHealthAt: Date }[]>`
+        UPDATE tenancy.flow_social_connections
+        SET status = CASE WHEN ${input.reauthorizationRequired} THEN 'reauthorization_required' ELSE status END,
+            health_status = CASE WHEN ${input.healthy} THEN 'healthy'
+                                 WHEN ${input.reauthorizationRequired} THEN 'failed' ELSE 'degraded' END,
+            safe_error_code = ${input.safeErrorCode}, last_health_at = now(), updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${input.connectionId}::uuid
+          AND status <> 'revoked'
+        RETURNING status, health_status AS "healthStatus", last_health_at AS "lastHealthAt"
+      `;
+      if (!rows[0]) return { status: "not_found" as const };
+      await sql`
+        INSERT INTO tenancy.audit_logs (
+          tenant_id, actor_user_id, actor_membership_id, action, target_type,
+          target_id, request_id, result, metadata
+        ) VALUES (
+          ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+          'flowbot.social_health_checked', 'flow_social_connection', ${input.connectionId},
+          ${context.requestId}, ${input.healthy ? "succeeded" : "failed"},
+          ${sql.json({ healthStatus: rows[0].healthStatus, safeErrorCode: input.safeErrorCode })}
+        )
+      `;
+      return { status: "checked" as const, connectionStatus: rows[0].status,
+        healthStatus: rows[0].healthStatus, lastHealthAt: rows[0].lastHealthAt };
     });
   }
 
@@ -155,6 +268,10 @@ const deliveryClaimSchema = z.object({
   response_json: z.object({ messages: z.array(z.object({ type: z.string(), nodeId: z.uuid(), content: z.record(z.string(), z.unknown()) }).passthrough()), status: z.string() }).passthrough(),
   recipient_ciphertext: z.string(), reply_token_ciphertext: z.string().nullable(), credential_ciphertext: z.string(),
   delivered_part_count: z.number().int().nonnegative(), attempt_count: z.number().int().positive(), delivery_allowed: z.boolean(),
+  // Added by migration 0084 so the worker can measure the LINE reply window against the
+  // real inbound event time. Optional so the worker keeps running before it is applied
+  // (it then simply emits no reply-window metric rather than approximating one).
+  inbound_occurred_at: z.coerce.date().nullish(),
 }).strict();
 
 export type FlowSocialInboundClaim = z.infer<typeof inboundClaimSchema>;

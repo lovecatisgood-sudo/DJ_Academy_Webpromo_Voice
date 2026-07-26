@@ -87,6 +87,20 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
         now() - interval '1 minute', now() + interval '30 days', 100, 120
       )
     `;
+    // CHN-004: the subscription includes ONE social channel; every additional channel
+    // needs a paid `additional_social_channel` add-on. This merchant has bought one
+    // extra slot, so alongside the included LINE channel they may run one more at a
+    // time -- WhatsApp below, then Messenger once WhatsApp is revoked. Quantity 1 rather
+    // than 2 deliberately: it proves the allowance is counted against currently-active
+    // channels rather than merely present.
+    await adminClient!`
+      INSERT INTO tenancy.subscription_add_ons (
+        tenant_id, subscription_id, add_on_key, quantity, status, effective_from
+      ) VALUES (
+        ${tenantId}::uuid, ${premiumSubscriptionId}::uuid, 'additional_social_channel',
+        1, 'active', now() - interval '1 minute'
+      )
+    `;
     const existingContactId = randomUUID();
     await adminClient!`
       INSERT INTO tenancy.contacts (id, tenant_id, display_name, locale, consent_status)

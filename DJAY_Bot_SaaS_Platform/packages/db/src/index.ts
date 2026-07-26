@@ -15,6 +15,7 @@ export { AiChatRuntimeStore } from "./ai-chat-runtime-store";
 export { AiSocialConnectionStore, AiSocialRuntimeStore, AiSocialWorkerStore, type SocialChannel } from "./ai-social-store";
 export { FlowbotWorkerStore } from "./flowbot-worker-store";
 export { FlowSocialConnectionStore, FlowSocialRuntimeStore, FlowSocialWorkerStore } from "./flowbot-social-store";
+export { isAdmitted, socialChannelAdmissions, type SocialChannelAdmission } from "./social-channel-admission";
 export {
   TenantFlowbotNotificationStore,
   TenantAiNotificationStore,

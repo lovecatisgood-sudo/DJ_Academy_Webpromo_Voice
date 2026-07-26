@@ -21,6 +21,7 @@ import { createHttpTextProviderGateway, ProviderGatewayError } from "@djay/provi
 import { assertNoProductionPlaceholders } from "@djay/shared/production-config";
 import { createStripePaymentProvider } from "@djay/usage-billing";
 import { createSocialDeliveryClient, flowMessagesToSocialReplyInput, renderSocialReply, resumeSocialReply, SocialDeliveryError, socialCredentialSchema, type StructuredFlowMessage } from "@djay/channel-adapters";
+import { deliveryErrorClass, emitChannelDeliveryResult, emitConversationFirstResponse, emitLineReplyWindowHit } from "@djay/shared";
 import { z } from "zod";
 import { deliverFlowbotIntegration } from "./flowbot-integration";
 import { runKnowledgeIngestionBatch } from "./knowledge-ingestion";
@@ -180,6 +181,26 @@ const aiTextGateway = env.AI_TEXT_GATEWAY_ENDPOINT && env.AI_TEXT_GATEWAY_SERVIC
   ? createHttpTextProviderGateway({
     endpoint: env.AI_TEXT_GATEWAY_ENDPOINT, serviceToken: env.AI_TEXT_GATEWAY_SERVICE_TOKEN,
   }) : null;
+/**
+ * Emit response-latency and LINE reply-window metrics for one delivered turn.
+ *
+ * `inboundOccurredAt` is the provider's own timestamp for the inbound event, which is
+ * also the moment LINE issued the `replyToken`. It only reaches the worker once
+ * migration 0084 is applied; until then this emits nothing at all rather than
+ * substituting a proxy such as claim time, which would silently misreport a hard SLO.
+ */
+function recordSocialResponseLatency(
+  product: "flowbot" | "ai_chat",
+  channel: "line" | "messenger" | "whatsapp",
+  inboundOccurredAt: Date | null | undefined,
+  usedReplyToken: boolean,
+) {
+  if (!inboundOccurredAt) return;
+  const elapsedMs = Date.now() - inboundOccurredAt.getTime();
+  emitConversationFirstResponse({ product, channel, elapsedMs });
+  if (channel === "line") emitLineReplyWindowHit({ product, elapsedMs, usedReplyToken });
+}
+
 const aiSocialDelivery = createSocialDeliveryClient({
   lineApiBaseUrl: env.AI_SOCIAL_LINE_API_BASE_URL,
   metaGraphBaseUrl: env.AI_SOCIAL_META_GRAPH_BASE_URL,
@@ -482,6 +503,9 @@ do {
         const delivered = await aiSocialDelivery.deliver(deliveryClaim.channel, credentials, rendered);
         await flowSocialWorker.finishDelivery({ deliveryId: deliveryClaim.delivery_id, delivered: true,
           externalMessageIds: delivered.externalMessageIds, completedPartCount: delivered.deliveredCount, safeErrorCode: null });
+        emitChannelDeliveryResult({ product: "flowbot", channel: deliveryClaim.channel, outcome: "succeeded",
+          attemptCount: deliveryClaim.attempt_count });
+        recordSocialResponseLatency("flowbot", deliveryClaim.channel, deliveryClaim.inbound_occurred_at, replyToken !== null);
         console.info("flow_social_delivery_succeeded", { deliveryId: deliveryClaim.delivery_id, channel: deliveryClaim.channel });
       } catch (error) {
         const partial = error instanceof SocialDeliveryError ? error : null;
@@ -490,6 +514,8 @@ do {
         await flowSocialWorker.finishDelivery({ deliveryId: deliveryClaim.delivery_id, delivered: false,
           externalMessageIds: partial?.externalMessageIds ?? [], completedPartCount: partial?.deliveredCount ?? 0,
           safeErrorCode: code, deadLetter }).catch(() => undefined);
+        emitChannelDeliveryResult({ product: "flowbot", channel: deliveryClaim.channel, outcome: "failed",
+          errorClass: deliveryErrorClass(code), deadLetter, attemptCount: deliveryClaim.attempt_count });
         console.warn("flow_social_delivery_failed", { deliveryId: deliveryClaim.delivery_id, channel: deliveryClaim.channel, code, attemptedCount, deadLetter });
       }
     }
@@ -593,6 +619,10 @@ do {
             feeClassification, attemptedQuantity,
             completedPartCount: result.deliveredCount, safeErrorCode: null,
           });
+          emitChannelDeliveryResult({ product: "ai_chat", channel: deliveryClaim.channel, outcome: "succeeded",
+            attemptCount: deliveryClaim.attemptCount });
+          recordSocialResponseLatency("ai_chat", deliveryClaim.channel, deliveryClaim.inboundOccurredAt,
+            deliveryClaim.replyToken !== null);
           console.info("ai_social_delivery_succeeded", {
             deliveryId: deliveryClaim.deliveryId, channel: deliveryClaim.channel,
           });
@@ -611,6 +641,8 @@ do {
           completedPartCount: partial?.deliveredCount ?? 0,
           safeErrorCode: code, deadLetter,
         }).catch(() => undefined);
+        emitChannelDeliveryResult({ product: "ai_chat", channel: deliveryClaim.channel, outcome: "failed",
+          errorClass: deliveryErrorClass(code), deadLetter, attemptCount: deliveryClaim.attemptCount });
         console.warn("ai_social_delivery_failed", {
           deliveryId: deliveryClaim.deliveryId, channel: deliveryClaim.channel, code, deadLetter,
         });

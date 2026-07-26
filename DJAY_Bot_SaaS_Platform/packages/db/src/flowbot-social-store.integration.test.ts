@@ -174,8 +174,10 @@ describe.runIf(enabled)("FlowBot Premium deterministic social runtime", () => {
   });
 
   it("authorizes a Basic tenant holding an active additional_social_channel add-on", async () => {
-    const context = createTenantContext({ tenantId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb20",
-      userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2", membershipId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb21",
+    // Seeded tenant A: the only tenants that exist are those in packages/db/tests/seed.sql,
+    // and p9-restore-assert.sql pins the count at 2, so extra tenants cannot be seeded.
+    const context = createTenantContext({ tenantId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10",
+      userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", membershipId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa11",
       sessionId: randomUUID(), role: "tenant_master_admin", requestId: `flow-social-basic-${randomUUID()}` });
     await provisionBasicWithSocialAddOn(context.tenantId, { withAddOn: true });
     await adminClient!`UPDATE tenancy.flow_bots SET status = 'archived', updated_at = now()
@@ -199,8 +201,10 @@ describe.runIf(enabled)("FlowBot Premium deterministic social runtime", () => {
   });
 
   it("rejects a Basic tenant with no social add-on", async () => {
-    const context = createTenantContext({ tenantId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb30",
-      userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3", membershipId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb31",
+    // Seeded tenant B. The entitlement check precedes the connection count, so prior
+    // connections on this tenant cannot mask the rejection under test.
+    const context = createTenantContext({ tenantId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb10",
+      userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1", membershipId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb11",
       sessionId: randomUUID(), role: "tenant_master_admin", requestId: `flow-social-basic-none-${randomUUID()}` });
     await provisionBasicWithSocialAddOn(context.tenantId, { withAddOn: false });
     await adminClient!`UPDATE tenancy.flow_bots SET status = 'archived', updated_at = now()

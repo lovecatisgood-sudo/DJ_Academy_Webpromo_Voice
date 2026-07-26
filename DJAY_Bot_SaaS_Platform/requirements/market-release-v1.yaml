@@ -3,7 +3,7 @@
   "schema_version": "1.0.0",
   "prd": {
     "path": "docs/product/djay-bots-v1-market-release-prd.md",
-    "expected_requirement_count": 291
+    "expected_requirement_count": 297
   },
   "packages": [
     {
@@ -4088,6 +4088,144 @@
     {
       "id": "CHN-008",
       "title": "Channel-specific charges, outbound broadcast limits, and platform policy constraints MUST be disclosed and must not be represented as included usage.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "CHAN-01",
+      "supporting_work_packages": [
+        "WEB-01",
+        "OPS-01"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "CHN-009",
+      "title": "**Instagram Direct** MUST be supported as a social channel for Flow Bot and AI Text Bot, using the same Meta app, consent flow, and shared webhook as Messenger, routed by Instagram account ID.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "CHAN-01",
+      "supporting_work_packages": [
+        "WEB-01",
+        "OPS-01"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "CHN-010",
+      "title": "**WhatsApp Business** MUST be supported as a social channel, onboarded via Embedded Signup, routed by phone-number ID. Per-message service charges MUST be disclosed under `CHN-008` and MUST NOT be presented as included usage.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "CHAN-01",
+      "supporting_work_packages": [
+        "WEB-01",
+        "OPS-01"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "CHN-011",
+      "title": "Channel onboarding MUST verify provider **prerequisites before requesting credentials**, and MUST name the specific unmet condition and its fix. Minimum set: LINE Messaging API enabled (with the permanent-Provider warning) and chat/auto-reply disabled; Messenger Page-admin role; Instagram Business account linked to the granted Page with message access allowed; WhatsApp number not already registered on the WhatsApp Business App. An empty asset picker MUST NOT be shown in place of an explanation.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "CHAN-01",
+      "supporting_work_packages": [
+        "WEB-01",
+        "OPS-01"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "CHN-012",
+      "title": "Channel onboarding MUST NOT require the merchant to visit a provider developer console where the platform can obtain equivalent authority itself. For LINE the platform MUST mint channel access tokens server-side from Channel ID + Channel Secret (`client_credentials`) and MUST set and verify the webhook via API; long-lived token entry is permitted only as an advanced fallback.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "CHAN-01",
+      "supporting_work_packages": [
+        "WEB-01",
+        "OPS-01"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "CHN-013",
+      "title": "A channel connection MUST NOT be reported as working until end-to-end reachability has been **proven** by a provider round-trip (LINE webhook test, Meta subscription confirmation) — configuration alone is insufficient.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "CHAN-01",
+      "supporting_work_packages": [
+        "WEB-01",
+        "OPS-01"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "CHN-014",
+      "title": "**Voice is not a social-messaging channel.** AI Voice Bot MUST be offered on the website widget and telephony only; LINE, Messenger, Instagram, and WhatsApp MUST NOT be advertised or scoped as voice channels.",
       "packages": [
         "shared"
       ],

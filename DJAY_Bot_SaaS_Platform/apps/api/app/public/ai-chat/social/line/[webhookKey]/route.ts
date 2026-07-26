@@ -4,11 +4,16 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { getServices } from "../../../../../../lib/container";
 import { clientAddress, enforceRateLimit, safeJson } from "../../../../../../lib/http";
+import { withWebhookAck } from "../../../../../../lib/webhook-ack";
 
 const webhookKeySchema = z.string().regex(/^djay_social_[A-Za-z0-9_-]{32,}$/).max(200);
 const maximumBodyBytes = 1024 * 1024;
 
-export async function POST(request: NextRequest, route: { params: Promise<{ webhookKey: string }> }) {
+export function POST(request: NextRequest, route: { params: Promise<{ webhookKey: string }> }) {
+  return withWebhookAck("ai_chat", "line", () => handleWebhook(request, route));
+}
+
+async function handleWebhook(request: NextRequest, route: { params: Promise<{ webhookKey: string }> }) {
   const webhookKey = webhookKeySchema.safeParse((await route.params).webhookKey);
   if (!webhookKey.success) return safeJson({ status: "not_found" }, 404);
   const services = await getServices();

@@ -43,88 +43,32 @@ expect_failure() {
   tail -n 2 /tmp/djay-db-expected-failure.log
 }
 
-run_sql /workspace/packages/db/migrations/0000_roles.sql
-run_sql /workspace/packages/db/migrations/0001_identity_tenancy.sql
-run_sql /workspace/packages/db/migrations/0002_identity_hardening.sql
-run_sql /workspace/packages/db/migrations/0003_tenant_team_queries.sql
-run_sql /workspace/packages/db/migrations/0004_platform_identity.sql
-run_sql /workspace/packages/db/migrations/0005_tenant_mfa.sql
-run_sql /workspace/packages/db/migrations/0006_catalog_entitlements_usage.sql
-run_sql /workspace/packages/db/migrations/0007_shared_domain.sql
-run_sql /workspace/packages/db/migrations/0008_privacy_support_hardening.sql
-run_sql /workspace/packages/db/migrations/0009_flowbot_saas.sql
-run_sql /workspace/packages/db/migrations/0010_flowbot_public_runtime.sql
-run_sql /workspace/packages/db/migrations/0011_flowbot_premium_workers.sql
-run_sql /workspace/packages/db/migrations/0012_flowbot_integration_dispatch.sql
-run_sql /workspace/packages/db/migrations/0013_flowbot_session_sync.sql
-run_sql /workspace/packages/db/migrations/0014_flowbot_operations.sql
-run_sql /workspace/packages/db/migrations/0015_flowbot_release_operations.sql
-run_sql /workspace/packages/db/migrations/0016_flowbot_lead_notifications.sql
-run_sql /workspace/packages/db/migrations/0017_ai_chat_saas.sql
-run_sql /workspace/packages/db/migrations/0018_ai_chat_public_runtime.sql
-run_sql /workspace/packages/db/migrations/0019_ai_chat_notifications.sql
-run_sql /workspace/packages/db/migrations/0020_ai_chat_social_line.sql
-run_sql /workspace/packages/db/migrations/0021_ai_chat_social_workers.sql
-run_sql /workspace/packages/db/migrations/0022_ai_chat_social_sessions.sql
-run_sql /workspace/packages/db/migrations/0023_ai_chat_social_commit.sql
-run_sql /workspace/packages/db/migrations/0024_ai_chat_social_delivery.sql
-run_sql /workspace/packages/db/migrations/0025_contact_identity_review_candidates.sql
-run_sql /workspace/packages/db/migrations/0026_ai_chat_social_service_window.sql
-run_sql /workspace/packages/db/migrations/0027_ai_chat_social_delivery_progress.sql
-run_sql /workspace/packages/db/migrations/0028_ai_chat_social_operations.sql
-run_sql /workspace/packages/db/migrations/0029_voice_basic_authority.sql
-run_sql /workspace/packages/db/migrations/0030_voice_runtime_recovery.sql
-run_sql /workspace/packages/db/migrations/0031_voice_sales_core.sql
-run_sql /workspace/packages/db/migrations/0032_voice_outcomes_retention.sql
-run_sql /workspace/packages/db/migrations/0033_voice_text_legacy_migration.sql
-run_sql /workspace/packages/db/migrations/0034_voice_advanced_routing.sql
-run_sql /workspace/packages/db/migrations/0035_voice_advanced_deployments.sql
-run_sql /workspace/packages/db/migrations/0036_voice_advanced_runtime.sql
-run_sql /workspace/packages/db/migrations/0037_voice_analytics_indexes.sql
-run_sql /workspace/packages/db/migrations/0038_release_readiness.sql
-run_sql /workspace/packages/db/migrations/0039_resilience_drills.sql
-run_sql /workspace/packages/db/migrations/0040_dead_letter_recovery.sql
-run_sql /workspace/packages/db/migrations/0041_dependency_outage_attestation.sql
-run_sql /workspace/packages/db/migrations/0042_privacy_job_scope.sql
-run_sql /workspace/packages/db/migrations/0043_market_release_catalog.sql
-run_sql /workspace/packages/db/migrations/0044_tenant_roles_security_policy.sql
-run_sql /workspace/packages/db/migrations/0045_entitlement_resource_boundaries.sql
-run_sql /workspace/packages/db/migrations/0046_scheduled_entitlement_changes.sql
-run_sql /workspace/packages/db/migrations/0047_usage_funding_forecasts_alerts.sql
-run_sql /workspace/packages/db/migrations/0048_usage_funding_authority.sql
-run_sql /workspace/packages/db/migrations/0049_usage_period_rollover.sql
-run_sql /workspace/packages/db/migrations/0050_runtime_usage_funding_bridge.sql
-run_sql /workspace/packages/db/migrations/0051_usage_alert_delivery_anomalies.sql
-run_sql /workspace/packages/db/migrations/0052_provider_usage_reconciliation.sql
-run_sql /workspace/packages/db/migrations/0053_stripe_billing_foundation.sql
-run_sql /workspace/packages/db/migrations/0054_stripe_webhook_lifecycle.sql
-run_sql /workspace/packages/db/migrations/0055_stripe_customer_portal.sql
-run_sql /workspace/packages/db/migrations/0056_tenant_financial_documents.sql
-run_sql /workspace/packages/db/migrations/0057_stripe_financial_reconciliation.sql
-run_sql /workspace/packages/db/migrations/0058_accounting_sync_outbox.sql
-run_sql /workspace/packages/db/migrations/0059_accounting_daily_reconciliation.sql
-run_sql /workspace/packages/db/migrations/0060_stripe_financial_event_reconciliation.sql
-run_sql /workspace/packages/db/migrations/0061_subscription_lifecycle_controls.sql
-run_sql /workspace/packages/db/migrations/0062_stripe_webhook_recovery.sql
-run_sql /workspace/packages/db/migrations/0063_customer_billing_notifications.sql
-run_sql /workspace/packages/db/migrations/0064_flowbot_rich_message_sync.sql
-run_sql /workspace/packages/db/migrations/0065_customer_tags_attributes.sql
-run_sql /workspace/packages/db/migrations/0066_flowbot_connector_kinds.sql
-run_sql /workspace/packages/db/migrations/0067_flowbot_social_transport.sql
-run_sql /workspace/packages/db/migrations/0068_flowbot_social_workers.sql
-run_sql /workspace/packages/db/migrations/0069_flowbot_social_delivery.sql
-run_sql /workspace/packages/db/migrations/0070_flowbot_social_usage_funding.sql
-run_sql /workspace/packages/db/migrations/0071_ai_knowledge_ingestion.sql
-run_sql /workspace/packages/db/migrations/0072_ai_customer_intelligence.sql
-run_sql /workspace/packages/db/migrations/0073_voice_telephony_operations.sql
-run_sql /workspace/packages/db/migrations/0074_shared_saas_operations.sql
-run_sql /workspace/packages/db/migrations/0075_branding_add_on_runtime.sql
-run_sql /workspace/packages/db/migrations/0076_workspace_add_on_provisioning.sql
-run_sql /workspace/packages/db/migrations/0077_shared_operations_commercial_authority.sql
-run_sql /workspace/packages/db/migrations/0078_service_engagement_lifecycle.sql
-run_sql /workspace/packages/db/migrations/0079_purchase_intents.sql
-run_sql /workspace/packages/db/migrations/0080_privacy_g6c_erasure_hold.sql
-run_sql /workspace/packages/db/migrations/0081_worker_readiness_backlog.sql
+# Every migration, in numeric order, discovered from disk.
+#
+# This was previously a hardcoded list that silently stopped at 0081, so 0082, 0083 and
+# 0084 were never integration-tested -- and 0084 in fact did not apply at all. A glob
+# cannot go stale: adding a migration file is enough to have it exercised here.
+MIGRATION_DIR="$ROOT_DIR/packages/db/migrations"
+MIGRATION_COUNT=0
+while IFS= read -r migration_path; do
+  migration_name="$(basename "$migration_path")"
+  # Zero-padded NNNN_ prefixes make a lexicographic sort a numeric sort. Refuse anything
+  # that would break that assumption rather than apply migrations out of order.
+  if [[ ! "$migration_name" =~ ^[0-9]{4}_[a-z0-9_]+\.sql$ ]]; then
+    echo "Migration filename does not match NNNN_name.sql, ordering is unsafe: $migration_name" >&2
+    exit 1
+  fi
+  run_sql "/workspace/packages/db/migrations/$migration_name"
+  MIGRATION_COUNT=$((MIGRATION_COUNT + 1))
+done < <(find "$MIGRATION_DIR" -maxdepth 1 -type f -name '*.sql' | sort)
+
+# An empty or truncated glob must fail loudly rather than pass vacuously.
+if (( MIGRATION_COUNT < 80 )); then
+  echo "Only applied $MIGRATION_COUNT migrations; the migration glob looks broken." >&2
+  exit 1
+fi
+echo "Applied $MIGRATION_COUNT migrations in numeric order."
+
 MIGRATION_RUNNER_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
 MIGRATION_RUNNER_ROLE_URL="postgresql://djay_migrator:djay_migrator_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/migration-runner.integration.test.ts
@@ -344,6 +288,13 @@ WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_
 TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/flowbot-social-store.integration.test.ts
+
+echo "Running CHN-004 included-social-channel entitlement integration test."
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+FLOWBOT_DATABASE_URL="postgresql://djay_flowbot_runtime:djay_flowbot_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/social-channel-admission.integration.test.ts
 
 echo "Running AI Chat Premium LINE connection and webhook receipt integration test."
 AI_DATABASE_URL="postgresql://djay_ai_runtime:djay_ai_test@127.0.0.1:${TEST_DB_PORT}/postgres" \

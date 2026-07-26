@@ -152,3 +152,70 @@ export function createMetaConnectClient(configValue: MetaConnectConfig, deps?: {
     },
   };
 }
+
+// ---- App-level webhook verification (Plan 3) ----
+
+/**
+ * Verify Meta's `x-hub-signature-256` header against the untouched raw body,
+ * keyed by the single app-level App Secret. Timing-safe; false on any mismatch.
+ */
+export function verifyAppSignature(rawBody: Uint8Array, signatureHeader: string | null, appSecret: string): boolean {
+  if (!signatureHeader || !signatureHeader.startsWith("sha256=")) return false;
+  const expected = createHmac("sha256", appSecret).update(rawBody).digest();
+  let received: Buffer;
+  try {
+    received = Buffer.from(signatureHeader.slice(7), "hex");
+  } catch {
+    return false;
+  }
+  return expected.length === received.length && timingSafeEqual(expected, received);
+}
+
+/**
+ * Verify the app-level webhook GET handshake. Returns the challenge to echo when
+ * mode is `subscribe` and the presented verify token matches (timing-safe), else null.
+ */
+export function verifyWebhookChallenge(
+  mode: string | null,
+  verifyToken: string | null,
+  challenge: string | null,
+  expectedVerifyToken: string,
+): string | null {
+  if (mode !== "subscribe" || !verifyToken || !challenge) return null;
+  const presented = Buffer.from(verifyToken);
+  const expected = Buffer.from(expectedVerifyToken);
+  return presented.length === expected.length && timingSafeEqual(presented, expected) ? challenge : null;
+}
+
+// ---- signed_request (Plan 4: deauthorize / data-deletion) ----
+
+/**
+ * Parse and verify a Meta `signed_request` (`<base64url sig>.<base64url payload>`),
+ * HMAC-SHA256 over the encoded payload keyed by the App Secret. Returns the decoded
+ * payload (e.g. `{ user_id, algorithm, issued_at }`) or null if malformed / tampered
+ * / wrong algorithm.
+ */
+export function parseSignedRequest(signedRequest: string, appSecret: string): Record<string, unknown> | null {
+  const parts = signedRequest.split(".");
+  if (parts.length !== 2) return null;
+  const [encodedSignature, encodedPayload] = parts;
+  if (encodedSignature === undefined || encodedPayload === undefined) return null;
+  let received: Buffer;
+  try {
+    received = Buffer.from(encodedSignature, "base64url");
+  } catch {
+    return null;
+  }
+  const expected = createHmac("sha256", appSecret).update(encodedPayload).digest();
+  if (expected.length !== received.length || !timingSafeEqual(expected, received)) return null;
+  let payload: unknown;
+  try {
+    payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+  if (typeof payload !== "object" || payload === null) return null;
+  const record = payload as Record<string, unknown>;
+  if (typeof record.algorithm === "string" && record.algorithm.toUpperCase() !== "HMAC-SHA256") return null;
+  return record;
+}

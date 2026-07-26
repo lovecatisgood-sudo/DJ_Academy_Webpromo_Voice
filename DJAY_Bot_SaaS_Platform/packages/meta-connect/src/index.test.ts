@@ -1,6 +1,9 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { createMetaConnectClient, signOAuthState, verifyOAuthState, type MetaConnectConfig } from "./index";
+import {
+  createMetaConnectClient, parseSignedRequest, signOAuthState, verifyAppSignature,
+  verifyOAuthState, verifyWebhookChallenge, type MetaConnectConfig,
+} from "./index";
 
 const config: MetaConnectConfig = {
   appId: "1234567890",
@@ -138,5 +141,53 @@ describe("subscribePage / unsubscribePage", () => {
     const client = createMetaConnectClient(config, { fetchImpl: stubFetch((_url, init) => { method = init.method; return { body: { success: true } }; }) });
     await client.unsubscribePage("PAGE123", "PT1");
     expect(method).toBe("DELETE");
+  });
+});
+
+describe("verifyAppSignature", () => {
+  const body = new TextEncoder().encode(JSON.stringify({ object: "page", entry: [{ id: "PAGE123" }] }));
+  const validSig = `sha256=${createHmac("sha256", "the-app-secret").update(body).digest("hex")}`;
+
+  it("accepts a correct x-hub-signature-256", () => {
+    expect(verifyAppSignature(body, validSig, "the-app-secret")).toBe(true);
+  });
+  it("rejects a wrong secret, tampered body, and malformed header", () => {
+    expect(verifyAppSignature(body, validSig, "other-secret")).toBe(false);
+    expect(verifyAppSignature(new TextEncoder().encode("{}"), validSig, "the-app-secret")).toBe(false);
+    expect(verifyAppSignature(body, "md5=abc", "the-app-secret")).toBe(false);
+    expect(verifyAppSignature(body, null, "the-app-secret")).toBe(false);
+    expect(verifyAppSignature(body, "sha256=zzzz", "the-app-secret")).toBe(false);
+  });
+});
+
+describe("verifyWebhookChallenge", () => {
+  it("echoes the challenge when subscribe + verify token matches", () => {
+    expect(verifyWebhookChallenge("subscribe", "vt-123", "challenge-xyz", "vt-123")).toBe("challenge-xyz");
+  });
+  it("returns null on wrong token, wrong mode, or missing parts", () => {
+    expect(verifyWebhookChallenge("subscribe", "wrong", "challenge-xyz", "vt-123")).toBeNull();
+    expect(verifyWebhookChallenge("unsubscribe", "vt-123", "challenge-xyz", "vt-123")).toBeNull();
+    expect(verifyWebhookChallenge("subscribe", null, "challenge-xyz", "vt-123")).toBeNull();
+    expect(verifyWebhookChallenge("subscribe", "vt-123", null, "vt-123")).toBeNull();
+  });
+});
+
+describe("parseSignedRequest", () => {
+  function makeSignedRequest(payload: object, secret: string): string {
+    const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
+    const signature = createHmac("sha256", secret).update(encodedPayload).digest("base64url");
+    return `${signature}.${encodedPayload}`;
+  }
+
+  it("returns the payload for a correctly signed request", () => {
+    const signed = makeSignedRequest({ algorithm: "HMAC-SHA256", user_id: "USER123", issued_at: 1 }, "the-app-secret");
+    expect(parseSignedRequest(signed, "the-app-secret")).toMatchObject({ user_id: "USER123" });
+  });
+  it("rejects a wrong secret, tampered payload, malformed input, and wrong algorithm", () => {
+    const signed = makeSignedRequest({ algorithm: "HMAC-SHA256", user_id: "USER123" }, "the-app-secret");
+    expect(parseSignedRequest(signed, "other-secret")).toBeNull();
+    expect(parseSignedRequest(`${signed}x`, "the-app-secret")).toBeNull();
+    expect(parseSignedRequest("not-a-signed-request", "the-app-secret")).toBeNull();
+    expect(parseSignedRequest(makeSignedRequest({ algorithm: "RSA", user_id: "U" }, "the-app-secret"), "the-app-secret")).toBeNull();
   });
 });

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@djay/authorization": "workspace:*",
+    "@djay/channel-onboarding": "workspace:*",
     "@djay/flowbot-domain": "workspace:*",
     "@djay/sales-core": "workspace:*",
     "@djay/shared": "workspace:*",

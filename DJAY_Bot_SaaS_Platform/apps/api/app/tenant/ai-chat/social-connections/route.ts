@@ -72,7 +72,8 @@ export async function POST(request: NextRequest) {
     const status = result.status === "created" ? 201
       : result.status === "not_entitled" ? 403
       : result.status === "not_found" ? 404
-      : result.status === "limit_reached" || result.status === "conflict" ? 409 : 422;
+      : result.status === "limit_reached" || result.status === "conflict"
+        || result.status === "channel_not_admitted" ? 409 : 422;
     return safeJson(result, status);
   } catch (error) {
     return error instanceof ZodError || error instanceof SyntaxError
