@@ -998,3 +998,88 @@ a { color: var(--djay-green-700); text-underline-offset: 3px; }
   .deploy-command-row { display: grid; }
   .deploy-command-row button { width: 100%; }
 }
+
+/* FlowBot read-only conversation map (W1 Stage 2).
+   Every colour is a brand token from packages/shared/brand.css; the React Flow theme variables are
+   remapped onto those tokens so the library ships no palette of its own into the workspace. */
+.flow-canvas-shell { display: grid; gap: 14px; margin-top: 18px; }
+.flow-canvas {
+  height: min(72vh, 700px); overflow: hidden;
+  border: 1px solid var(--djay-border); border-radius: var(--djay-radius-control); background: var(--djay-canvas);
+  --xy-background-pattern-dots-color-default: var(--djay-border);
+  --xy-edge-stroke-default: var(--djay-muted);
+  --xy-edge-stroke-selected-default: var(--djay-accent);
+  --xy-edge-label-background-color-default: var(--djay-surface);
+  --xy-edge-label-color-default: var(--djay-ink);
+  --xy-handle-background-color-default: var(--djay-surface);
+  --xy-handle-border-color-default: var(--djay-muted);
+  --xy-node-border-radius-default: var(--djay-radius-control);
+  --xy-controls-button-background-color-default: var(--djay-surface);
+  --xy-controls-button-background-color-hover-default: var(--djay-canvas);
+  --xy-controls-button-color-default: var(--djay-ink);
+  --xy-controls-button-color-hover-default: var(--djay-ink);
+  --xy-controls-button-border-color-default: var(--djay-border);
+  --xy-controls-box-shadow-default: none;
+  --xy-minimap-background-color-default: var(--djay-surface);
+  --xy-minimap-mask-background-color-default: color-mix(in srgb, var(--djay-canvas) 62%, transparent);
+  --xy-minimap-mask-stroke-color-default: var(--djay-border);
+  --xy-attribution-background-color-default: var(--djay-surface);
+}
+.flow-canvas .react-flow__minimap, .flow-canvas .react-flow__controls { border: 1px solid var(--djay-border); border-radius: var(--djay-radius-control); }
+.flow-canvas-placeholder { display: grid; place-items: center; height: 100%; margin: 0; color: var(--djay-muted); font-size: 12px; }
+
+/* Node cards. CTA nodes carry the accent rail plus a badge, so a merchant can see at a glance
+   whether a terminating path asks the customer for anything. */
+.flow-canvas-card {
+  width: 264px; height: 108px; display: grid; align-content: start; gap: 4px; padding: 11px 13px;
+  border: 1px solid var(--djay-border); border-radius: var(--djay-radius-control);
+  background: var(--djay-surface); color: var(--djay-ink); font-family: var(--djay-font-sans); text-align: left;
+}
+.flow-canvas-card-type { margin: 0; color: var(--djay-muted); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.flow-canvas-card-title { display: block; overflow: hidden; font-size: 13px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.flow-canvas-card-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.flow-canvas-card[data-root] { box-shadow: inset 4px 0 0 var(--djay-green-700); }
+.flow-canvas-card[data-cta] { border-color: var(--djay-accent); box-shadow: inset 4px 0 0 var(--djay-accent); }
+.flow-canvas-card[data-terminal]:not([data-cta]) { border-style: dashed; }
+.flow-canvas-card[data-warned] { border-color: var(--djay-warning); background: var(--djay-warning-soft); }
+.flow-canvas-badge {
+  display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px;
+  border: 1px solid var(--djay-border); border-radius: var(--djay-radius-control);
+  background: var(--djay-canvas); color: var(--djay-muted); font-size: 9px; font-weight: 800; text-transform: uppercase;
+}
+.flow-canvas-badge.is-root { border-color: var(--djay-green-700); background: var(--djay-green-100); color: var(--djay-green-800); }
+.flow-canvas-badge.is-cta { border-color: var(--djay-accent); background: var(--djay-accent); color: var(--djay-ink); }
+.flow-canvas-badge.is-warning { border-color: var(--djay-warning); background: var(--djay-warning-soft); color: var(--djay-warning); }
+
+/* Labelled edges. An unlabelled branch is a comprehension failure, so labels are always drawn and
+   the kinds a merchant must distinguish also differ in colour and dash pattern. */
+.flow-canvas .react-flow__edge-text { fill: var(--djay-ink); font-size: 10px; font-weight: 700; }
+.flow-canvas .react-flow__edge-textbg { fill: var(--djay-surface); stroke: var(--djay-border); }
+.flow-canvas .react-flow__edge.is-true .react-flow__edge-path, .flow-canvas .react-flow__edge.is-open .react-flow__edge-path { stroke: var(--djay-green-700); }
+.flow-canvas .react-flow__edge.is-false .react-flow__edge-path, .flow-canvas .react-flow__edge.is-closed .react-flow__edge-path { stroke: var(--djay-warning); }
+.flow-canvas .react-flow__edge.is-failure .react-flow__edge-path { stroke: var(--djay-danger); }
+.flow-canvas .react-flow__edge.is-jump .react-flow__edge-path, .flow-canvas .react-flow__edge.is-subflow_return .react-flow__edge-path { stroke-dasharray: 6 4; }
+.flow-canvas .react-flow__minimap .flow-canvas-mini-node { fill: var(--djay-border); }
+.flow-canvas .react-flow__minimap .flow-canvas-mini-node.is-root { fill: var(--djay-green-700); }
+.flow-canvas .react-flow__minimap .flow-canvas-mini-node.is-cta { fill: var(--djay-accent); }
+.flow-canvas .react-flow__minimap .flow-canvas-mini-node.is-warning { fill: var(--djay-warning); }
+
+.flow-canvas-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 0; }
+.flow-canvas-legend > div { display: flex; align-items: center; gap: 6px; }
+.flow-canvas-legend dd { margin: 0; color: var(--djay-muted); font-size: 11px; font-weight: 700; }
+.flow-canvas-swatch { width: 13px; height: 13px; border: 1px solid var(--djay-border); border-radius: 3px; background: var(--djay-surface); }
+.flow-canvas-swatch.is-root { border-color: var(--djay-green-700); background: var(--djay-green-100); }
+.flow-canvas-swatch.is-cta { border-color: var(--djay-accent); background: var(--djay-accent); }
+.flow-canvas-swatch.is-terminal { border-style: dashed; }
+.flow-canvas-swatch.is-warning { border-color: var(--djay-warning); background: var(--djay-warning-soft); }
+/* The global `section` rule narrows and centres standalone auth pages; a nested band inside the
+   workspace shell must span its parent instead. */
+.flow-canvas-warnings { width: auto; margin: 0; }
+.flow-canvas-warnings .band-heading span { color: var(--djay-muted); font-size: 11px; font-weight: 500; text-align: right; }
+.flow-canvas-warnings .data-row .flow-canvas-badge { justify-self: start; }
+.flow-canvas-warnings .data-row button { width: auto; min-width: 118px; }
+
+@media (max-width: 720px) {
+  .flow-canvas { height: min(60vh, 460px); }
+  .flow-canvas-legend { gap: 8px; }
+}

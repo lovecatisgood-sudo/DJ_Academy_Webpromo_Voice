@@ -197,7 +197,8 @@ export function flowNodeEntitlementIssue(node: FlowNode, authority: FlowEntitlem
 }
 
 export type FlowLocalizedText = z.infer<typeof localizedTextSchema>;
-export type FlowEdgeKind = "next" | "option" | "true" | "false" | "open" | "closed" | "failure" | "jump" | "subflow_return";
+export const flowEdgeKinds = ["next", "option", "true", "false", "open", "closed", "failure", "jump", "subflow_return"] as const;
+export type FlowEdgeKind = (typeof flowEdgeKinds)[number];
 export type FlowNodeEdge = Readonly<{ targetNodeId: string; kind: FlowEdgeKind; label?: FlowLocalizedText }>;
 
 const edge = (targetNodeId: string | null | undefined, kind: FlowEdgeKind, label?: FlowLocalizedText): readonly FlowNodeEdge[] =>

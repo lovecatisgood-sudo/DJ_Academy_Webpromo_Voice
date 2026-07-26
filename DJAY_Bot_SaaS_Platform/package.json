@@ -39,6 +39,7 @@
     "lint:platform-incident-resolution": "node scripts/check-platform-incident-resolution.mjs",
     "lint:platform-voice-actions": "node scripts/check-platform-voice-action-fields.mjs",
     "test:db": "scripts/test-db-integration.sh",
+    "test:a11y": "vitest run tests/a11y",
     "test": "turbo run test && pnpm run test:market-release-requirements",
     "test:market-release-requirements": "node --test scripts/check-market-release-requirements.test.mjs",
     "typecheck": "turbo run typecheck",
