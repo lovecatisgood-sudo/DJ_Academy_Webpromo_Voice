@@ -734,3 +734,36 @@ export const buildVersion = "voice-behavior-restore-2026-07-14";
   managed exercises, and external acceptance remain next work.
 - No provider account, credential, production deployment, charge, or customer
   activation was created or authorized while recording this memory.
+
+## Claude (Opus 4.8) Review & Product Plan Checkpoint - 2026-07-24
+
+- Reviewed the full project (all three systems: root single-tenant app, FlowBot
+  V1, and the DJAY Bot SaaS Platform) plus the prior Fable 5 audit, and produced
+  an independent assessment and final product plan.
+- Key finding: the first sellable SKU (`flowbot_basic`) is "ready-to-flip"; the
+  remaining G7 blockers are commercial/legal/deploy (Stripe price seed, Privacy
+  Notice/DPA, kill-switch drill, deploy, axe green, one named pilot merchant),
+  NOT engineering. First revenue is weeks, not months, away.
+- Locked product decisions (owner-facing plan): ship FlowBot Basic first; move
+  LINE into the paid FlowBot tier (amends "social = AI Chat Premium only");
+  build the FlowBot visual canvas (React Flow over the existing graph model) for
+  the public launch; keep the root app live as interim showcase; validate the AI
+  sales behavior before marketing it; start Meta verification/App Review
+  paperwork immediately (3-6 wk lead time).
+- Phase order: P0 FlowBot Basic sellable -> P1 LINE + visual canvas (SKU1.1
+  public launch) -> P2 Thai-first landing + real ROI -> P3 AI Chat program
+  (validate -> Meta OAuth -> AI Basic -> Premium -> booking loop + notifications)
+  -> P4 analytics + codebase consolidation.
+- Verified facts: no social OAuth route exists yet (env vars only); FlowBot
+  LINE/Messenger routes DO exist (packaging flip, not new code); no charting in
+  source; Sales Conversation Core is strong but behaviorally unvalidated;
+  neither system sends booking notifications; public-site is English-only.
+- Deliverable docs written to repo root:
+  - `Fable5_review_24JUL.md`, `Fables5_proposal_24JUL.md` (prior audit)
+  - `Opus_final_plan_24JUL.md` (independent re-evaluation)
+  - `PRD_CLAUDE_26JUL.md` (authoritative final product plan)
+  - `Implementation_Plan_CLAUDE_26JUL.md` (detailed build plan)
+- Open owner decisions: LINE in FlowBot Basic vs Premium + THB prices; launch
+  web-only quietly vs. hold for SKU1.1; whether to pull AI Chat Basic forward.
+- This checkpoint is planning/documentation only. No code, schema, deployment,
+  charge, or customer activation was created or authorized.
