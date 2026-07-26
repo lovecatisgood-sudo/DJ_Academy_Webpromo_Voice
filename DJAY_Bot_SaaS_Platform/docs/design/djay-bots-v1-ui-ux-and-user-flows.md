@@ -664,6 +664,46 @@ The channel wizard:
 
 Credentials are never displayed after connection. Disconnect shows effects on active conversations and preserves history.
 
+Step 3 ("the provider-approved flow") resolves to one of three acquisition modes. Full design: `docs/superpowers/specs/2026-07-26-omnichannel-onboarding-design.md`.
+
+#### 16.1.1 Meta — Messenger, Instagram, WhatsApp (`oauth_provider`)
+
+Merchant actions: **two clicks and a picker. No credentials handled.**
+
+1. **Connect channel** → choose Facebook, Instagram, or WhatsApp.
+2. Facebook Login for Business consent — **one dialog covering all requested asset types**.
+3. Asset picker lists Pages, Instagram Business accounts, and WhatsApp numbers with name and avatar. Tokens are staged encrypted server-side and never reach the browser.
+4. Select → subscribe → connected, with health shown.
+
+**Instagram empty-state is a designed screen, not an empty list.** When no Instagram assets are returned, show: *"No Instagram accounts found — your Instagram must be a Business account linked to this Page,"* with a link to the fix. This is the most common Instagram onboarding failure.
+
+#### 16.1.2 LINE — assisted handoff (`assisted_handoff`, available today)
+
+Two entry points render the **same wizard component**:
+- `/workspace/{product}/connect/line` — authenticated, for self-serve merchants
+- `/public/line-setup/{token}` — single-use, expiring, **no login**, so an operator can send it to whoever actually holds console access (often an agency or IT contact with no workspace account)
+
+Merchant journey — **two copied values, ~2 minutes, no developer console**:
+
+1. Wizard states the prerequisite up front: **Messaging API must be enabled on the OA**, and enabling it requires choosing a **Provider — a permanent, irreversible choice.** Warn before the merchant commits.
+2. Thai step-by-step with screenshots: OA Manager → **Settings → Messaging API** → copy **Channel ID** and **Channel Secret**. This is the interface the merchant already uses; they never open `developers.line.biz` and never issue a token.
+3. Paste the two fields. The platform then mints a token server-side (`client_credentials`), validates, creates the connection, sets the webhook, confirms it is enabled, and proves reachability with LINE's webhook test — all server-side.
+4. Confirmation screen names the connected account (`displayName`, `basicId`, avatar) so the merchant can verify it is the right OA **before** committing.
+
+An "advanced: paste a long-lived token" path stays available behind a link, for merchants whose situation requires it.
+
+Every failure names the specific condition to change — invalid token, auto-reply still on, webhook disabled, LINE could not reach us (with HTTP status). Nothing is marked working until end-to-end reachability is proven.
+
+#### 16.1.3 LINE — module attach (`partner_attach`, post-approval)
+
+Identical in shape to 16.1.1: consent → OA picker → attached. The 16.1.2 wizard remains as fallback.
+
+### 16.1A Operator connection surfaces
+
+- **Connection health dashboard** (all tenants × channels): status, health, last inbound, last delivery, last error; default filter "needs attention" — reauthorization required, webhook inactive, `chatMode = chat`, or no inbound in N days.
+- **Issue setup link**: tenant + bot + channel → single-use 72h link, with `pending` / `consumed` / `expired` state and revocation.
+- **Support session**: time-boxed, reason-required, audited "act as tenant" grant that lands the operator in the *normal* studio using the *existing* UI — deliberately not a parallel operator-only write path.
+
 ### 16.2 Flow Bot in social chat
 
 - Provider event maps to the deterministic Flow session and pinned revision.
@@ -690,6 +730,21 @@ Inbox receives channel, contact identity, transcript, bot/agent, collected field
 Reauthorization, provider outage, rate limit, invalid content, closed reply window, and delivery rejection have distinct internal states. Merchant alerts identify affected bot/channel and corrective action. The end customer receives only a safe channel-appropriate fallback when delivery is still possible.
 
 ## 17. Telephone Voice experience
+
+### 17.0 Voice onboarding for the merchant
+
+Voice is **website widget + telephony only** — never a social-messaging channel (`CHN-014`). The two setups differ sharply and must not share a wizard.
+
+**Website voice** — the frictionless case. The merchant toggles voice on for an existing website deployment; the widget already carries the origin and deploy key. Prerequisites surfaced before enabling: HTTPS origin (microphone access requires it), an approved recording/transcription disclosure, and language/routing defaults. No credentials, no external console.
+
+**Telephony** — the number is provisioned *by the operator*, never by the merchant. Merchant-facing steps are limited to what only they can decide:
+
+1. Choose or confirm the assigned number (operator-provisioned; merchant sees inventory, not carrier APIs).
+2. Confirm the recording/transcription disclosure text and consent policy for their jurisdiction.
+3. Set business hours, language/routing policy, and human-transfer destinations with a fallback when transfer fails.
+4. Place a **test call** and hear the opening disclosure — the voice equivalent of the green check; the connection is not "live" until this passes.
+
+Number provisioning, carrier configuration, SIP/media bridging, and cost reconciliation are entirely operator-side and must never appear in merchant UI. Where a jurisdiction requires merchant-supplied documentation for number assignment, the wizard collects it as an upload with an explicit status ("submitted / approved / rejected + reason"), never as a silent block.
 
 ### 17.1 Inbound call flow
 

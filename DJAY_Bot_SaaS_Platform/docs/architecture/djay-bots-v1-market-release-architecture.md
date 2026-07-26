@@ -959,7 +959,58 @@ A requirement or phase is not complete until all applicable items are true:
 | `SOC-*`, `TEL-*` | Channel adapters, Inbox/handover, Voice/telephony gateways | Real social reply-window and telephone disclosure/action/transfer/fallback evidence |
 | `PLT-*` | Platform application services, queues, Tenant 360, notification/recovery workers | Role-restricted exception recovery, sensitive-read audit and no-direct-edit evidence |
 
-## 31. Authoritative technical references
+## 31. Channel Connection Framework (merchant onboarding)
+
+Full design: `docs/superpowers/specs/2026-07-26-omnichannel-onboarding-design.md`.
+
+Connecting a merchant-owned external account (Facebook Page, Instagram, WhatsApp number, LINE Official Account) to a bot is **one problem with three acquisition modes**. Only the acquisition layer varies; the connection store, webhook routing, runtime, delivery, inbox, usage, and billing are indifferent to how a credential was obtained.
+
+| Mode | Channels | Merchant experience | Availability gate |
+| --- | --- | --- | --- |
+| `oauth_provider` | Messenger, Instagram, WhatsApp | Consent dialog → asset picker | Meta App Review (open rail; queue) |
+| `partner_attach` | LINE | Consent → OA picker | LINE module channel (closed rail; corporate application) |
+| `assisted_handoff` | any | Copy two values the merchant already has; platform does the rest | none — available today |
+
+`assisted_handoff` is a permanent component, not a stopgap: it is the fallback for agency-controlled accounts, merchants unable to complete a consent flow, and any channel whose rail is unavailable or revoked.
+
+**LINE credential model (decisive).** The merchant supplies **Channel ID + Channel Secret only** — both visible in LINE OA Manager, the interface they already use. The platform mints channel access tokens server-side via `POST /oauth2/v3/token` (`client_credentials`, 15-minute stateless, unlimited issuance; `POST /v2/oauth/accessToken` as a 30-day fallback), then sets the webhook with `PUT /v2/bot/channel/webhook/endpoint` and proves reachability with `POST /v2/bot/channel/webhook/test`. **The merchant never opens the LINE Developers Console** and never needs a Developers Console Admin role (`CHN-012`). Minted tokens are never persisted; only the Channel Secret — already required for `x-line-signature` verification — is sealed at rest.
+
+### 31.0 Product × channel matrix (normative)
+
+Voice is **not** a social-messaging channel: LINE, Messenger, Instagram, and WhatsApp Messaging APIs carry text and media, not real-time voice (`CHN-014`).
+
+| | Website | LINE | Messenger | Instagram | WhatsApp | Telephony |
+| --- | --- | --- | --- | --- | --- | --- |
+| Flow Bot | yes | yes | yes | planned | planned | n/a |
+| AI Text Bot | yes | yes | yes | planned | yes | n/a |
+| AI Voice Bot | yes | n/a | n/a | n/a | n/a | planned |
+
+### 31.1 Component boundaries
+
+- `packages/meta-connect` — Meta OAuth, signed state, token exchange, asset enumeration (Pages, Instagram, WhatsApp numbers), `subscribed_apps`, webhook signature and `signed_request` verification. Pure, DB-free, fetch-injectable.
+- `packages/line-connect` — LINE module attach (PKCE authorization, `POST /module/auth/v1/token`, `GET /v2/bot/list`, detach). Deferred until LINE approval; same house style.
+- `packages/channel-onboarding` — mode-agnostic orchestration shared by FlowBot and AI Chat: acquisition-session issuance/consumption, credential verification, connection creation, post-connect health verification, merchant-facing status vocabulary.
+
+### 31.2 Routing
+
+| Mode | Webhook URL | Routing key |
+| --- | --- | --- |
+| `assisted_handoff` | per-connection `/public/{product}/social/{channel}/{webhookKey}` | URL path |
+| `oauth_provider` | shared `/public/meta/webhook` | Page / Instagram / phone-number ID from `entry[].id` |
+| `partner_attach` | shared `/public/line/webhook` | `destination` (bot userId) in payload |
+
+Shared-webhook modes resolve routing key → tenant + connection from an unauthenticated endpoint via SECURITY-DEFINER functions (`flow_social_connection_by_routing_key`, `ai_social_connection_by_routing_key`), mirroring the existing `flow_social_runtime_connection` pattern. Connection tables gain `acquisition_mode` and a nullable `routing_key` unique per `(channel, routing_key)`.
+
+`tenancy.channel_acquisition_sessions` generalises `meta_oauth_sessions`: encrypted staged assets, single-use nonce consumed via `DELETE … RETURNING`, forced RLS, TTL of 10 minutes (OAuth) or 72 hours (assisted links).
+
+### 31.3 Invariants
+
+- Provider credentials never reach the browser in any mode; only display metadata is returned to the asset/OA picker.
+- Assisted setup links are capability URLs: single-use, TTL-bound, scoped to one tenant+bot+channel, operator-revocable, fully audited, and authorised **only** to attach a connection — never to read tenant data.
+- Meta webhook signature verification reads the untouched raw body (`request.arrayBuffer()`); any re-serialisation silently breaks the HMAC.
+- Every onboarding failure names the specific condition the merchant must change; a connection becomes `active` only after end-to-end reachability has been proven, not merely configured.
+
+## 32. Authoritative technical references
 
 - OpenAI Structured Outputs: <https://developers.openai.com/api/docs/guides/structured-outputs>
 - OpenAI Realtime API: <https://developers.openai.com/api/docs/guides/realtime>
@@ -972,5 +1023,8 @@ A requirement or phase is not complete until all applicable items are true:
 - Cloud Tasks with private Cloud Run services: <https://cloud.google.com/run/docs/triggering/using-tasks>
 - Cloud SQL private IP: <https://cloud.google.com/sql/docs/postgres/configure-private-ip>
 - Cloud SQL backup and recovery: <https://cloud.google.com/sql/docs/postgres/backup-recovery/backups>
+- LINE OpenAPI specifications (authoritative field/enum reference): <https://github.com/line/line-openapi>
+- LINE module channel (attach flow, partner-gated): <https://developers.line.biz/en/docs/partner-docs/module/>
+- Facebook Login for Business: <https://developers.facebook.com/docs/facebook-login/facebook-login-for-business>
 
 Provider-specific implementation must be revalidated against current official documentation and contracted account capabilities at implementation time. FlowAccount and the selected telephony/CRM providers require official sandbox/API validation before their adapter contracts are finalized.

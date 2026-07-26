@@ -14,6 +14,12 @@
 
 ## 1. Purpose and authority
 
+> **Document authority (resolved 2026-07-26).** Two PRDs existed and disagreed on pricing and channel packaging. Resolution:
+> - **This document is authoritative** for commercial catalogue, prices, billing period, meters, and all normative `XXX-nnn` requirements.
+> - `PRD_CLAUDE_26JUL.md` (repo root) is authoritative for **product strategy and SKU release sequencing** only. Where it states prices or packaging, this document wins.
+> - `docs/superpowers/specs/2026-07-26-omnichannel-onboarding-design.md` is authoritative for **onboarding mechanics**.
+> - Billing is **annual only** (§6.1). Social packaging is **one included channel + paid extras** (`CHN-004`, `CHN-005`).
+
 This PRD converts the complete DJay Bots commercial offer into testable product requirements. Every capability advertised in the offer is committed V1 scope unless this document explicitly labels it as an optional paid service, add-on, third-party dependency, or Enterprise capability. The implementation must satisfy the offer; the offer must not be reduced to fit the current implementation.
 
 The requirement keywords **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are normative. Requirement identifiers are stable and must be referenced by designs, database migrations, tickets, tests, release evidence, and operational runbooks.
@@ -312,6 +318,12 @@ The displayed first-year price is authoritative. Each subscription is paid annua
 - `CHN-006` Channel credentials and tokens MUST be encrypted, rotated, access-controlled, and never returned to browsers after entry.
 - `CHN-007` Every channel MUST have a self-test, health state, last successful event, last error, and reconnect/re-authorize flow.
 - `CHN-008` Channel-specific charges, outbound broadcast limits, and platform policy constraints MUST be disclosed and must not be represented as included usage.
+- `CHN-009` **Instagram Direct** MUST be supported as a social channel for Flow Bot and AI Text Bot, using the same Meta app, consent flow, and shared webhook as Messenger, routed by Instagram account ID.
+- `CHN-010` **WhatsApp Business** MUST be supported as a social channel, onboarded via Embedded Signup, routed by phone-number ID. Per-message service charges MUST be disclosed under `CHN-008` and MUST NOT be presented as included usage.
+- `CHN-011` Channel onboarding MUST verify provider **prerequisites before requesting credentials**, and MUST name the specific unmet condition and its fix. Minimum set: LINE Messaging API enabled (with the permanent-Provider warning) and chat/auto-reply disabled; Messenger Page-admin role; Instagram Business account linked to the granted Page with message access allowed; WhatsApp number not already registered on the WhatsApp Business App. An empty asset picker MUST NOT be shown in place of an explanation.
+- `CHN-012` Channel onboarding MUST NOT require the merchant to visit a provider developer console where the platform can obtain equivalent authority itself. For LINE the platform MUST mint channel access tokens server-side from Channel ID + Channel Secret (`client_credentials`) and MUST set and verify the webhook via API; long-lived token entry is permitted only as an advanced fallback.
+- `CHN-013` A channel connection MUST NOT be reported as working until end-to-end reachability has been **proven** by a provider round-trip (LINE webhook test, Meta subscription confirmation) — configuration alone is insufficient.
+- `CHN-014` **Voice is not a social-messaging channel.** AI Voice Bot MUST be offered on the website widget and telephony only; LINE, Messenger, Instagram, and WhatsApp MUST NOT be advertised or scoped as voice channels.
 
 ## 13. Integrations and actions
 
