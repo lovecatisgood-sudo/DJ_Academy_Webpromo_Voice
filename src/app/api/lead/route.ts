@@ -1,7 +1,7 @@
 import { getSql } from "@/lib/db";
 import { parseLeadPayload } from "@/lib/lead-validation";
 import { verifySessionContext } from "@/lib/session-context";
-import { corsJson, corsNoContent } from "@/lib/cors";
+import { corsJson, corsNoContent, isAllowedCorsRequest } from "@/lib/cors";
 import { readJsonBody } from "@/lib/http-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createBookingContext } from "@/lib/booking-context";
@@ -16,6 +16,10 @@ export function OPTIONS(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    if (!isAllowedCorsRequest(request)) {
+      return corsJson(request, { error: "Origin is not allowed." }, { status: 403 });
+    }
+
     const body = (await readJsonBody(request, 20000)) as { sessionContext?: unknown; lead?: unknown };
     const session = verifySessionContext(body.sessionContext);
     const rateLimit = checkRateLimit(`lead:${session.conversationId}`, 5, 60 * 60 * 1000);

@@ -697,6 +697,13 @@ async function migrate() {
       where deleted_at is null
     `,
     tx`
+      create unique index if not exists appointments_active_slot_uidx
+      on appointments (booking_link_id, start_at)
+      where deleted_at is null
+        and booking_link_id is not null
+        and status in ('pending_confirmation', 'confirmed')
+    `,
+    tx`
       create index if not exists conversation_messages_conversation_time_idx
       on conversation_messages (conversation_id, created_at asc)
     `,

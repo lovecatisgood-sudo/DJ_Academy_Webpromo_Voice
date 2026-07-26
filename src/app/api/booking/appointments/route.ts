@@ -103,55 +103,66 @@ export async function POST(request: Request) {
     : context?.leadId || context?.conversationId
       ? "voice_agent"
       : "public_booking";
-  const rows = (await sql`
-    insert into appointments (
-      lead_id,
-      conversation_id,
-      assigned_admin_id,
-      assigned_admin_name_snapshot,
-      meeting_type_id,
-      booking_link_id,
-      status,
-      source,
-      start_at,
-      end_at,
-      timezone,
-      duration_minutes,
-      client_name,
-      company_name,
-      email,
-      phone,
-      line_id,
-      whatsapp,
-      note,
-      meeting_location,
-      confirmed_at
-    )
-    values (
-      ${context?.leadId || null},
-      ${context?.conversationId || null},
-      ${bookingLink.owner_admin_id},
-      ${bookingLink.owner_name},
-      ${meetingType?.id || null},
-      ${bookingLink.id},
-      ${bookingLink.require_confirmation ? "pending_confirmation" : "confirmed"},
-      ${appointmentSource},
-      ${slot.start_at},
-      ${slot.end_at},
-      ${bookingLink.timezone},
-      ${bookingLink.duration_minutes},
-      ${clientName},
-      ${companyName},
-      ${email},
-      ${phone},
-      ${lineId},
-      ${whatsapp},
-      ${note},
-      ${bookingLink.meeting_location},
-      ${bookingLink.require_confirmation ? null : new Date().toISOString()}
-    )
-    returning id
-  `) as { id: string }[];
+
+  let rows: { id: string }[];
+
+  try {
+    rows = (await sql`
+      insert into appointments (
+        lead_id,
+        conversation_id,
+        assigned_admin_id,
+        assigned_admin_name_snapshot,
+        meeting_type_id,
+        booking_link_id,
+        status,
+        source,
+        start_at,
+        end_at,
+        timezone,
+        duration_minutes,
+        client_name,
+        company_name,
+        email,
+        phone,
+        line_id,
+        whatsapp,
+        note,
+        meeting_location,
+        confirmed_at
+      )
+      values (
+        ${context?.leadId || null},
+        ${context?.conversationId || null},
+        ${bookingLink.owner_admin_id},
+        ${bookingLink.owner_name},
+        ${meetingType?.id || null},
+        ${bookingLink.id},
+        ${bookingLink.require_confirmation ? "pending_confirmation" : "confirmed"},
+        ${appointmentSource},
+        ${slot.start_at},
+        ${slot.end_at},
+        ${bookingLink.timezone},
+        ${bookingLink.duration_minutes},
+        ${clientName},
+        ${companyName},
+        ${email},
+        ${phone},
+        ${lineId},
+        ${whatsapp},
+        ${note},
+        ${bookingLink.meeting_location},
+        ${bookingLink.require_confirmation ? null : new Date().toISOString()}
+      )
+      returning id
+    `) as { id: string }[];
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/appointments_active_slot_uidx|duplicate key|unique constraint/i.test(message)) {
+      return fail("That time is no longer available.");
+    }
+    throw error;
+  }
 
   if (context?.leadId) {
     await sql`

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireMasterAdmin } from "@/lib/admin-auth";
+import { isAdminApiFailure, requireMasterAdminApi } from "@/lib/admin-auth";
 import { getSql } from "@/lib/db";
 import { invalidateSettingsCache } from "@/lib/settings-cache";
 import { readJsonBody } from "@/lib/http-guards";
@@ -9,14 +9,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  await requireMasterAdmin();
+  const admin = await requireMasterAdminApi();
+  if (isAdminApiFailure(admin)) return admin;
   const sql = getSql();
   const rows = (await sql`select * from settings where id = 1 limit 1`) as Record<string, unknown>[];
   return NextResponse.json(rows[0] || null);
 }
 
 export async function PATCH(request: Request) {
-  await requireMasterAdmin();
+  const admin = await requireMasterAdminApi();
+  if (isAdminApiFailure(admin)) return admin;
   const body = (await readJsonBody(request, 70000)) as Record<string, unknown>;
   const settings = normalizeSettingsInput(body, "patch");
   const sql = getSql();

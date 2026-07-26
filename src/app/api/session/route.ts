@@ -3,7 +3,7 @@ import { getCachedSettings } from "@/lib/settings-cache";
 import { requireEnv } from "@/lib/env";
 import { buildVoiceAgentSystemPrompt, captureLeadTool } from "@/lib/prompt";
 import { createSessionContext } from "@/lib/session-context";
-import { corsJson, corsNoContent } from "@/lib/cors";
+import { corsJson, corsNoContent, isAllowedCorsRequest } from "@/lib/cors";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { buildVersion } from "@/lib/build-info";
 import { readJsonBody } from "@/lib/http-guards";
@@ -96,10 +96,11 @@ async function reserveConversation(conversationId: string, pageUrl: string, dail
       select count(*)::int as count
       from conversations, locked
       where started_at >= date_trunc('day', now() at time zone 'Asia/Bangkok') at time zone 'Asia/Bangkok'
+        and channel = 'voice_widget'
     ),
     inserted as (
-      insert into conversations (id, started_at, page_url, transcript, had_lead)
-      select ${conversationId}, now(), ${pageUrl || null}, '[]'::jsonb, false
+      insert into conversations (id, started_at, page_url, transcript, had_lead, channel)
+      select ${conversationId}, now(), ${pageUrl || null}, '[]'::jsonb, false, 'voice_widget'
       from quota
       where count < ${dailySessionCap}
       on conflict (id) do nothing
@@ -126,6 +127,10 @@ export async function POST(request: Request) {
   let reservedConversationId: string | null = null;
 
   try {
+    if (!isAllowedCorsRequest(request)) {
+      return corsJson(request, { error: "Origin is not allowed." }, { status: 403 });
+    }
+
     let body: { pageUrl?: string; preferredLanguage?: string };
 
     try {

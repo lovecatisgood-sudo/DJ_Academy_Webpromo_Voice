@@ -189,6 +189,39 @@ export async function requireAdmin() {
   return admin;
 }
 
+/** Use from API routes — returns null instead of redirecting to HTML login. */
+export async function getAdminForApi(): Promise<AdminSession | null> {
+  return getCurrentAdmin();
+}
+
+export async function requireAdminApi(): Promise<AdminSession | Response> {
+  const admin = await getCurrentAdmin();
+
+  if (!admin) {
+    return Response.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  return admin;
+}
+
+export async function requireMasterAdminApi(): Promise<AdminSession | Response> {
+  const admin = await requireAdminApi();
+
+  if (admin instanceof Response) {
+    return admin;
+  }
+
+  if (admin.role !== "master_admin") {
+    return Response.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  return admin;
+}
+
+export function isAdminApiFailure(value: AdminSession | Response): value is Response {
+  return value instanceof Response;
+}
+
 export async function requireMasterAdmin() {
   const admin = await requireAdmin();
 

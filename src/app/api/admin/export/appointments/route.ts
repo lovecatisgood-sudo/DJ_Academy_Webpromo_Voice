@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/admin-auth";
+import { isAdminApiFailure, requireAdminApi } from "@/lib/admin-auth";
 import { toCsv } from "@/lib/csv";
 import { getSql } from "@/lib/db";
 
@@ -16,7 +16,8 @@ function statusValue(value: string | null) {
 }
 
 export async function GET(request: Request) {
-  const admin = await requireAdmin();
+  const admin = await requireAdminApi();
+  if (isAdminApiFailure(admin)) return admin;
   const params = new URL(request.url).searchParams;
   const status = statusValue(params.get("status"));
   const q = (params.get("q") || "").trim().slice(0, 120);

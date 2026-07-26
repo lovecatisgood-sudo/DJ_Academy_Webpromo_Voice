@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/admin-auth";
+import { isAdminApiFailure, requireAdminApi } from "@/lib/admin-auth";
 import { getSql } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -13,7 +13,9 @@ export async function PATCH(
     params: Promise<{ id: string }>;
   },
 ) {
-  const admin = await requireAdmin();
+  const admin = await requireAdminApi();
+  if (isAdminApiFailure(admin)) return admin;
+
   const { id } = await params;
   const body = (await request.json()) as { status?: string };
 
@@ -22,7 +24,7 @@ export async function PATCH(
   }
 
   const sql = getSql();
-  await sql`
+  const rows = (await sql`
     update leads
     set status = ${body.status}, updated_at = now()
     where id = ${id}
@@ -30,6 +32,12 @@ export async function PATCH(
         ${admin.role === "master_admin"}::boolean
         or assigned_admin_id = ${admin.id}
       )
-  `;
+    returning id
+  `) as { id: string }[];
+
+  if (!rows[0]?.id) {
+    return NextResponse.json({ error: "Not found." }, { status: 404 });
+  }
+
   return NextResponse.json({ ok: true });
 }

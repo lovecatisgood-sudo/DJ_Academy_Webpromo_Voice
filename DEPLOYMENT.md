@@ -144,3 +144,9 @@ Also verify:
 - Audio connection is browser-to-OpenAI WebRTC.
 - Settings save increments `knowledge_version` and affects only new calls.
 - Agent kill switch blocks `/api/session` immediately.
+
+## Ops constraint: rate limits (Phase 1 / SRE)
+
+In-process rate limits (`src/lib/rate-limit.ts`) are **single-instance**. Multi-instance Hostinger deployments must either run one Node process for the voice app or replace that module with a durable store before scale-out.
+
+**G6d decision (2026-07-23):** Root Voice keeps this signed single-instance ops constraint rather than deploying a durable shared rate-limit store. Do not scale the Root Voice Node process horizontally until that store exists. SaaS platform Voice controls (`emergency_stop`) are separate — see `DJAY_Bot_SaaS_Platform/docs/runbooks/sre-slos.md`.

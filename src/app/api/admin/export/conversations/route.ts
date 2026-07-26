@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/admin-auth";
+import { isAdminApiFailure, requireAdminApi } from "@/lib/admin-auth";
 import { toCsv } from "@/lib/csv";
 import { getSql } from "@/lib/db";
 
@@ -13,7 +13,8 @@ function channelValue(value: string | null) {
 }
 
 export async function GET(request: Request) {
-  const admin = await requireAdmin();
+  const admin = await requireAdminApi();
+  if (isAdminApiFailure(admin)) return admin;
   const params = new URL(request.url).searchParams;
   const filter = filterValue(params.get("filter"));
   const channel = channelValue(params.get("channel"));
