@@ -99,7 +99,12 @@ export class AiSocialConnectionStore {
           AND subscription.status IN ('active', 'trialing', 'scheduled_change')
         JOIN catalog.plan_versions version ON version.id = snapshot.plan_version_id
         JOIN catalog.plans plan ON plan.id = version.plan_id
-          AND plan.product_key = 'ai_chat' AND plan.plan_key = 'ai_chat_premium'
+          AND plan.product_key = 'ai_chat'
+          -- Migration 0086: parity with FlowBot's 0082 relaxation. Previously this required
+          -- plan_key = 'ai_chat_premium', so a Starter tenant who bought the
+          -- additional_social_channel add-on was charged and then refused.
+          AND tenancy.ai_social_channel_entitled(
+                snapshot.tenant_id, snapshot.subscription_id, snapshot.resolved_json)
         WHERE snapshot.tenant_id = ${context.tenantId}::uuid
           AND snapshot.product_key = 'ai_chat' AND snapshot.access_mode = 'active'
           AND snapshot.resolved_json->'entitlements'->>(${`channel.${channel}`}::text) = 'true'

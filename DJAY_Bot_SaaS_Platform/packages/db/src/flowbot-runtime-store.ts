@@ -136,7 +136,7 @@ export class FlowbotRuntimeStore {
         SELECT * FROM tenancy.start_flowbot_execution(
           ${deploymentKeyHash}, ${hashOpaqueToken(sessionToken)}, ${input.origin},
           ${executionId}::uuid, ${randomUUID()}::uuid, ${randomUUID()}::uuid, ${randomUUID()}::uuid,
-          ${new Date(now.getTime() + 24 * 60 * 60 * 1000)}, ${input.language ?? "en"}
+          ${new Date(now.getTime() + 24 * 60 * 60 * 1000)}, ${input.language ?? "th"}
         )
       `;
       const row = runtimeRowSchema.parse(rows[0]);

@@ -23,7 +23,10 @@ describe("migration function lineage", () => {
     }
     const lineage = buildFunctionLineage(sources);
     expect(lineage.size).toBeGreaterThan(100);
-    expect(lineage.get("tenancy.claim_ai_social_delivery")?.map((item) => item.migration)).toEqual([24, 26, 27]);
+    // 0086 recreated this function to relax the AI Chat social gate; its body was taken from
+    // 0027, the latest prior definition, so the Meta 24-hour window and delivered_part_count
+    // survive. The "no stale base" case below is what actually proves that.
+    expect(lineage.get("tenancy.claim_ai_social_delivery")?.map((item) => item.migration)).toEqual([24, 26, 27, 86]);
   });
 
   it("has no function recreated from a stale base in the current tree", () => {
@@ -74,8 +77,13 @@ describe("staleness guard against the real 0084 defect", () => {
   const withStale = [...sources, reconstructStaleMigration()];
 
   it("fails, naming the function and the migration it was staled from", () => {
+    // Scoped to findings ABOUT the injected migration. Injecting a synthetic 0084 into a tree
+    // that already contains a real 0086 definition of this function necessarily produces a
+    // second, cascading finding (84 -> 86): the fixture invents an `inbound_occurred_at`
+    // column that the genuine 0086 — correctly derived from 0027 — does not carry. That
+    // cascade is the guard working, not a defect in 0086, so it is not asserted here.
     const findings = findStaleRedefinitions(withStale)
-      .filter((item) => item.name === "tenancy.claim_ai_social_delivery");
+      .filter((item) => item.name === "tenancy.claim_ai_social_delivery" && item.toMigration === 84);
     expect(findings.length).toBeGreaterThan(0);
     for (const finding of findings) {
       expect(finding.toMigration).toBe(84);
