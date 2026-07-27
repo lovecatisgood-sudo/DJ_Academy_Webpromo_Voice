@@ -2,6 +2,50 @@
 
 Last updated: 2026-07-27
 
+## Session checkpoint — 2026-07-27 (Thai-first localization + gates)
+
+Branch `agent/recovery-p6-start`, 29 commits ahead of origin, working tree clean.
+
+Committed this session:
+
+- `f895c7a` — Thai-first localization across all three applications. Public and
+  unauthenticated surfaces render Thai from source; the authenticated workspaces
+  use a scoped DOM localizer with `data-no-localize` protection on every
+  customer-data region. Migration `0087` defaults `locale` to `'th'`.
+  See `docs/THAI_LOCALIZATION.md`.
+- `e8ce815` — migrations `0085` (NULL `included_quantity` read as zero, so
+  unlimited plans refused every reservation) and `0086` (AI Chat social gate
+  still hard-coded `ai_chat_premium`, silently refusing a paid add-on).
+  `0086` is additive; the five SECURITY DEFINER functions were not recreated.
+- `bdaeff3` — `check-public-claims.mjs`, `check-node-version.mjs`, a11y
+  `AXE_REQUIRE` release mode, the 47-document counsel legal package, and
+  `docs/plans/2026-07-27-launch-critical-path.md`.
+
+Verified: 148 shared tests pass; `lint:thai-first-locale`,
+`check-public-site-thai-source`, `check-public-claims`,
+`check-production-configuration` and `gate:sellable-flip` all exit 0;
+`AXE_REQUIRE=true` a11y exits 1 with no servers, dev mode exits 0. The Thai
+source gate was proven by injecting English copy and watching it fail, not
+only by watching it pass.
+
+**Caveat on all of the above:** every command ran on Node v22.23.1 while the
+platform declares `>=24.0.0` and `.nvmrc` pins `22`. All three must be
+reconciled before the staging deploy.
+
+### Immediate next steps
+
+1. Resolve the Node engine mismatch (`package.json` vs `.nvmrc` vs machine).
+2. Build `release:gate` (plan §C2) — it does not exist; `verify` is still
+   lint + typecheck + unit + build only, and is not a release decision.
+3. Write `scripts/check-a11y-gate.test.mjs`, which the a11y suite's header
+   already cites as "the test of this test" but which is absent.
+4. Staging deploy — it is the only thing that unblocks three of the four open
+   evidence files in `gate:sellable-flip`.
+
+Do not point `LEGAL_DOCUMENTS_FILE` at
+`docs/compliance/djay-legal-documents.user-approved.th.json` in production: it
+carries `approvalStatus: "approved"` on a translation counsel has not reviewed.
+
 ## DJAY Bot SaaS Platform State
 
 The separate multi-tenant implementation is under:
