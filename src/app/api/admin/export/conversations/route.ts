@@ -1,6 +1,7 @@
 import { isAdminApiFailure, requireAdminApi } from "@/lib/admin-auth";
 import { toCsv } from "@/lib/csv";
 import { getSql } from "@/lib/db";
+import { localeFromRequest } from "@/lib/request-locale";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +74,7 @@ export async function GET(request: Request) {
       )
     order by started_at desc
   `) as Record<string, unknown>[];
-  const csv = toCsv(rows, [
+  const headers = [
     "id",
     "channel",
     "interaction_mode",
@@ -95,7 +96,15 @@ export async function GET(request: Request) {
     "recommended_service",
     "next_action",
     "summary",
-  ]);
+  ];
+  const csv = toCsv(rows, headers, localeFromRequest(request) === "th" ? {
+    id: "รหัสการสนทนา", channel: "ช่องทาง", interaction_mode: "รูปแบบการสนทนา", provider: "ผู้ให้บริการ",
+    model_id: "รหัสโมเดล", started_at: "เริ่มเมื่อ", ended_at: "สิ้นสุดเมื่อ", duration_seconds: "ระยะเวลา (วินาที)",
+    language: "ภาษา", page_url: "หน้าเว็บ", had_lead: "เก็บข้อมูลผู้สนใจได้", starred: "ติดดาว",
+    analysis_status: "สถานะการวิเคราะห์", interest_level: "ระดับความสนใจ", business_type: "ประเภทธุรกิจ",
+    main_problem: "ปัญหาหลัก", business_goal: "เป้าหมายธุรกิจ", concern_or_objection: "ข้อกังวลหรือข้อโต้แย้ง",
+    recommended_service: "บริการที่แนะนำ", next_action: "ขั้นตอนถัดไป", summary: "สรุป",
+  } : {});
 
   return new Response(csv, {
     headers: {

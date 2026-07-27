@@ -15,7 +15,7 @@ export default function RecoveryRequestPage() {
       const response = await safeMutationFetch("/public/auth/recovery/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: data.get("email") }),
+        body: JSON.stringify({ email: data.get("email"), locale: /(?:^|;\s*)djay-locale=en(?:;|$)/.test(document.cookie) ? "en" : "th" }),
       });
       const result = await response.json().catch(() => ({}));
       setMessage(response.ok ? result.message || "If the account exists, a recovery email has been sent." : response.status >= 500 ? "Recovery is temporarily unavailable. Try again shortly." : result.message || "The recovery request could not be submitted.");

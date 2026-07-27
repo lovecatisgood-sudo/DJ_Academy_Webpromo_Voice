@@ -26,7 +26,7 @@ export function VerifyEmailClient({ token: initialToken, tenantLoginUrl }: Reado
     const response = await safeMutationFetch("/public/auth/verify-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({ token, locale: /(?:^|;\s*)djay-locale=en(?:;|$)/.test(document.cookie) ? "en" : "th" }),
     });
     const result = await response.json().catch(() => ({}));
     if (response.ok && ["verified", "already_verified"].includes(result.status)) {
@@ -41,7 +41,7 @@ export function VerifyEmailClient({ token: initialToken, tenantLoginUrl }: Reado
         clearBrowserOneTimeValues(verificationStorage, ["token"]);
         setToken("");
       }
-      setErrorMessage(response.status >= 500 ? "Email verification is temporarily unavailable. Try again." : "This link is invalid or expired.");
+      setErrorMessage(response.status >= 500 ? "การยืนยันอีเมลไม่พร้อมใช้งานชั่วคราว โปรดลองอีกครั้ง" : "ลิงก์นี้ไม่ถูกต้องหรือหมดอายุแล้ว");
     }
   }
 
@@ -51,24 +51,24 @@ export function VerifyEmailClient({ token: initialToken, tenantLoginUrl }: Reado
   return (
     <section className="verification-panel" aria-labelledby="verification-title">
       <div className="brand-lockup verification-brand"><span className="brand-mark">D</span><span>DJAY BOT</span></div>
-      <p className="step-label">Email verification</p>
-      <h1 id="verification-title">Confirm your owner account</h1>
+      <p className="step-label">ยืนยันอีเมล</p>
+      <h1 id="verification-title">ยืนยันบัญชีเจ้าของของคุณ</h1>
       {status === "verified" ? (
         <>
-          <p className="verification-copy">Your workspace is ready. Sign in with the password you created.</p>
-          <a className="primary-link" href={tenantLoginUrl}>Continue to sign in</a>
+          <p className="verification-copy">พื้นที่ทำงานของคุณพร้อมแล้ว เข้าสู่ระบบด้วยรหัสผ่านที่คุณสร้างไว้</p>
+          <a className="primary-link" href={tenantLoginUrl}>ไปหน้าเข้าสู่ระบบ</a>
         </>
       ) : (
         <>
           <p className="verification-copy">{showResend && !retryable
-            ? "Request a new verification link below to continue creating the business workspace."
+            ? "ขอลิงก์ยืนยันใหม่ด้านล่างเพื่อดำเนินการสร้างพื้นที่ทำงานธุรกิจต่อ"
             : retryable
-            ? "The verification service could not be reached. Try this link again or request a new one."
-            : "Confirm this email to create the business workspace and its Tenant Master Admin account."}</p>
+            ? "ติดต่อบริการยืนยันไม่ได้ โปรดลองลิงก์นี้อีกครั้งหรือขอลิงก์ใหม่"
+            : "ยืนยันอีเมลนี้เพื่อสร้างพื้นที่ทำงานธุรกิจและบัญชี Tenant Master Admin"}</p>
           {showConfirm ? <button type="button" onClick={verify} disabled={status === "working"}>
-            {status === "working" ? "Confirming..." : "Confirm email"}
+            {status === "working" ? "กำลังยืนยัน..." : "ยืนยันอีเมล"}
           </button> : null}
-          {showResend ? <p className="form-message error" role="alert">{errorMessage || "This link is invalid or expired."}</p> : null}
+          {showResend ? <p className="form-message error" role="alert">{errorMessage || "ลิงก์นี้ไม่ถูกต้องหรือหมดอายุแล้ว"}</p> : null}
           {showResend ? <VerificationResendForm /> : null}
         </>
       )}

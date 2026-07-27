@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   conversationMessageFieldConstraints,
+  currentIntlLocale,
   conversationMessageTextError,
   normalizeConversationMessageText,
   safeMutationFetch,
@@ -153,7 +154,7 @@ export default function InboxPage() {
         <WorkspaceSupportBanner tenantId={session.selectedTenantId} />
         <header className="workspace-header">
           <div><p>Conversations</p><h1>Inbox</h1></div>
-          <span className="role-label">{workspace?.businessName}</span>
+          <span data-no-localize className="role-label">{workspace?.businessName}</span>
         </header>
         {!canReply && !canAssign ? (
           <WorkspaceViewOnly>You can review conversations and outcomes. An operator or administrator can take over and reply.</WorkspaceViewOnly>
@@ -186,10 +187,10 @@ export default function InboxPage() {
                 onClick={() => setSelectedId(conversation.id)}
               >
                 <span>
-                  <strong>{conversation.contactName}{conversation.legalHold ? " · legal hold" : ""}</strong>
+                  <strong><span data-no-localize>{conversation.contactName}</span>{conversation.legalHold ? " · ระงับตามกฎหมาย" : ""}</strong>
                   <small>{humanizeToken(conversation.channelKind)} / {humanizeToken(conversation.productKey)}</small>
                 </span>
-                <span>{conversation.lastMessage || "Conversation started"}</span>
+                <span data-no-localize>{conversation.lastMessage || "เริ่มการสนทนาแล้ว"}</span>
               </button>
             ))}
             {!conversations.length ? (
@@ -204,7 +205,7 @@ export default function InboxPage() {
               <>
                 <header>
                   <div>
-                    <strong>{selected.contactName}</strong>
+                    <strong data-no-localize>{selected.contactName}</strong>
                     <span>{humanizeToken(selected.automationMode)} / {humanizeToken(selected.status)}</span>
                   </div>
                   <div>
@@ -238,19 +239,19 @@ export default function InboxPage() {
                       <span>Callback</span>
                       <strong>
                         {selected.callbackStatus
-                          ? `${humanizeToken(selected.callbackStatus)}${selected.callbackDueAt ? ` · ${new Date(selected.callbackDueAt).toLocaleString()}` : ""}`
+                          ? `${humanizeToken(selected.callbackStatus)}${selected.callbackDueAt ? ` · ${new Date(selected.callbackDueAt).toLocaleString(currentIntlLocale())}` : ""}`
                           : "Not requested"}
                       </strong>
                     </div>
-                    <p>{selected.voiceSummary || "The durable call summary will appear after the first completed turn."}</p>
+                    <p data-no-localize>{selected.voiceSummary || "สรุปการโทรถาวรจะแสดงหลังจากจบเทิร์นแรก"}</p>
                   </section>
                 ) : null}
                 <div className="message-stream">
                   {messages.map((message) => (
                     <div className={`message-bubble ${message.direction}`} key={message.id}>
                       <span>{humanizeToken(message.actorType)}</span>
-                      <p>{message.text}</p>
-                      <time>{new Date(message.createdAt).toLocaleString()}</time>
+                      <p data-no-localize>{message.text}</p>
+                      <time>{new Date(message.createdAt).toLocaleString(currentIntlLocale())}</time>
                     </div>
                   ))}
                 </div>

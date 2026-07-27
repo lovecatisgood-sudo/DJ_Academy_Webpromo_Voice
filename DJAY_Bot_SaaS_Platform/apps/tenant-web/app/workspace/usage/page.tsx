@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import { currentIntlLocale, currentUiLocale, safeMutationFetch, uiCopy } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { useWorkspaceSession } from "../useWorkspaceSession";
@@ -109,16 +109,20 @@ const unitCopy: Record<CustomerUnit, { short: string; singular: string; plural: 
 };
 
 function formatQuantity(quantity: number, unit: CustomerUnit) {
-  const formatted = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(quantity);
+  const formatted = new Intl.NumberFormat(currentIntlLocale(), { maximumFractionDigits: 2 }).format(quantity);
+  if (currentUiLocale() === "th") {
+    const thaiUnit: Record<CustomerUnit, string> = { flow_execution: "ครั้งที่ Flow ทำงาน", ai_response: "คำตอบจาก AI", voice_minute: "นาทีเสียง" };
+    return `${formatted} ${thaiUnit[unit]}`;
+  }
   return `${formatted} ${quantity === 1 ? unitCopy[unit].singular : unitCopy[unit].plural}`;
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
+  return new Intl.DateTimeFormat(currentIntlLocale(), { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
 }
 
 function formatMoney(minor: number) {
-  return new Intl.NumberFormat("th-TH", { style: "currency", currency: "THB", maximumFractionDigits: 2 }).format(minor / 100);
+  return new Intl.NumberFormat(currentIntlLocale(), { style: "currency", currency: "THB", maximumFractionDigits: 2 }).format(minor / 100);
 }
 
 function statusCopy(status: string, accessMode: UsageSubscription["accessMode"]) {
@@ -151,7 +155,7 @@ export default function UsagePage() {
   const [planActionStatus, setPlanActionStatus] = useState("");
   const [checkoutStatus, setCheckoutStatus] = useState<Record<string, string>>({});
   const [checkoutReturnState, setCheckoutReturnState] = useState<CheckoutReturnState | null>(null);
-  const [checkoutReturnLocale, setCheckoutReturnLocale] = useState<"en" | "th">("en");
+  const [checkoutReturnLocale, setCheckoutReturnLocale] = useState<"en" | "th">("th");
   const activeWorkspace = useMemo(
     () => session.workspaces.find((workspace) => workspace.tenantId === session.selectedTenantId),
     [session.workspaces, session.selectedTenantId],
@@ -416,7 +420,7 @@ export default function UsagePage() {
   };
   const changeCancellation = async (subscription: UsageSubscription, action: "schedule" | "revoke") => {
     if (action === "schedule" && !window.confirm(
-      `Cancel ${subscription.publicName} at the end of the current annual term? Access remains available until then.`,
+      uiCopy(`ยกเลิก ${subscription.publicName} เมื่อสิ้นสุดรอบรายปีปัจจุบันหรือไม่? การเข้าถึงยังใช้ได้จนถึงวันนั้น`, `Cancel ${subscription.publicName} at the end of the current annual term? Access remains available until then.`),
     )) return;
     setCancellationStatus((current) => ({ ...current, [subscription.subscriptionId]: "Saving" }));
     const response = await fetch("/tenant/billing/cancellation", {
@@ -448,7 +452,7 @@ export default function UsagePage() {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: "configure", emailEnabled,
         recipientEmail: emailEnabled ? billingNotificationEmail.trim() : null,
-        locale: preference?.locale ?? "en", eventKeys: preference?.eventKeys ?? [...billingEventKeys] }),
+        locale: preference?.locale ?? "th", eventKeys: preference?.eventKeys ?? [...billingEventKeys] }),
     }).catch(() => null);
     const result = response ? await response.json().catch(() => null) : null;
     if (!response?.ok) {
@@ -602,7 +606,7 @@ export default function UsagePage() {
           <section className="tool-band usage-products" aria-labelledby="usage-products-title">
             <div className="band-heading">
               <div><p>Products</p><h2 id="usage-products-title">Current period</h2></div>
-              <span>Updated {usage ? new Date(usage.asOf).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "now"}</span>
+              <span>Updated {usage ? new Date(usage.asOf).toLocaleTimeString(currentIntlLocale(), { hour: "2-digit", minute: "2-digit" }) : "now"}</span>
             </div>
             <div className="usage-card-grid">
               {subscriptions.map((subscription) => {
@@ -777,7 +781,7 @@ export default function UsagePage() {
             <label><input type="checkbox" checked={billingNotifications?.preference?.emailEnabled ?? true}
               onChange={(event) => updateBillingPreference({ emailEnabled: event.target.checked })} /> Email billing events</label>
             <label className="usage-alert-cooldown">Language
-              <select value={billingNotifications?.preference?.locale ?? "en"}
+              <select value={billingNotifications?.preference?.locale ?? "th"}
                 onChange={(event) => updateBillingPreference({ locale: event.target.value as "en" | "th" })}>
                 <option value="en">English</option><option value="th">Thai</option>
               </select>

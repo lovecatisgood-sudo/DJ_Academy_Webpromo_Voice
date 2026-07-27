@@ -368,9 +368,9 @@ export default async function CalendarPage({
                         }}
                         className={`absolute overflow-hidden rounded-md border px-2 py-1 text-[11px] shadow-sm transition hover:shadow-md ${statusClass(appointment.status)}`}
                       >
-                        <div className="truncate font-semibold">{timeLabel(appointment.start_at)} · {appointment.client_name}</div>
-                        <div className="truncate">{appointment.company_name || appointment.main_problem || appointment.email}</div>
-                        <div className="truncate">{appointment.assigned_admin_name || appointment.assigned_admin_name_snapshot || "Unassigned"}</div>
+                        <div data-no-localize className="truncate font-semibold">{timeLabel(appointment.start_at)} · {appointment.client_name}</div>
+                        <div data-no-localize className="truncate">{appointment.company_name || appointment.main_problem || appointment.email}</div>
+                        <div className="truncate">{appointment.assigned_admin_name || appointment.assigned_admin_name_snapshot ? <span data-no-localize>{appointment.assigned_admin_name || appointment.assigned_admin_name_snapshot}</span> : "ยังไม่ได้มอบหมาย"}</div>
                       </Link>
                     ))}
                   </div>
@@ -389,30 +389,30 @@ export default async function CalendarPage({
             <div className="space-y-4 p-5 text-sm">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h4 className="text-lg font-semibold text-slate-950">{selectedAppointment.client_name}</h4>
+                  <h4 data-no-localize className="text-lg font-semibold text-slate-950">{selectedAppointment.client_name}</h4>
                   <span className={`rounded-full border px-2 py-1 text-xs ${statusClass(selectedAppointment.status)}`}>
                     {selectedAppointment.status.replaceAll("_", " ")}
                   </span>
                 </div>
-                <div className="mt-1 text-slate-600">{selectedAppointment.company_name || "No company captured"}</div>
-                <div className="mt-2 text-slate-700">
+                <div className="mt-1 text-slate-600">{selectedAppointment.company_name ? <span data-no-localize>{selectedAppointment.company_name}</span> : "ไม่มีข้อมูลบริษัท"}</div>
+                <div data-no-localize className="mt-2 text-slate-700">
                   {timeLabel(selectedAppointment.start_at)} - {timeLabel(selectedAppointment.end_at)} · {selectedAppointment.duration_minutes} min
                 </div>
-                <div className="mt-2 text-slate-600">{appointmentContactLine(selectedAppointment)}</div>
+                <div data-no-localize className="mt-2 text-slate-600">{appointmentContactLine(selectedAppointment)}</div>
               </div>
 
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-	                <div>Assigned: {selectedAppointment.assigned_admin_name || selectedAppointment.assigned_admin_name_snapshot || "Unassigned"}</div>
-	                <div>Booking link: {selectedAppointment.booking_link_name || selectedAppointment.booking_link_slug || "Unknown"}</div>
+	                <div>Assigned: {selectedAppointment.assigned_admin_name || selectedAppointment.assigned_admin_name_snapshot ? <span data-no-localize>{selectedAppointment.assigned_admin_name || selectedAppointment.assigned_admin_name_snapshot}</span> : "ยังไม่ได้มอบหมาย"}</div>
+	                <div>Booking link: {selectedAppointment.booking_link_name || selectedAppointment.booking_link_slug ? <span data-no-localize>{selectedAppointment.booking_link_name || selectedAppointment.booking_link_slug}</span> : "ยังไม่ทราบ"}</div>
 	                <div>Source: {selectedAppointment.source.replaceAll("_", " ")}</div>
 	                <div>Interest: {selectedAppointment.interest_level || "unknown"}</div>
 	                <div>Lead status: {selectedAppointment.lead_status || "none"}</div>
 	              </div>
 
               <div className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">
-                <div><span className="font-semibold text-slate-700">Problem:</span> {selectedAppointment.main_problem || selectedAppointment.summary || "Not captured"}</div>
-                <div><span className="font-semibold text-slate-700">Service:</span> {selectedAppointment.recommended_service || "Not captured"}</div>
-                {selectedAppointment.note ? <div><span className="font-semibold text-slate-700">Client note:</span> {selectedAppointment.note}</div> : null}
+                <div><span className="font-semibold text-slate-700">Problem:</span> {selectedAppointment.main_problem || selectedAppointment.summary ? <span data-no-localize>{selectedAppointment.main_problem || selectedAppointment.summary}</span> : "ยังไม่มีข้อมูล"}</div>
+                <div><span className="font-semibold text-slate-700">Service:</span> {selectedAppointment.recommended_service ? <span data-no-localize>{selectedAppointment.recommended_service}</span> : "ยังไม่มีข้อมูล"}</div>
+                {selectedAppointment.note ? <div><span className="font-semibold text-slate-700">Client note:</span> <span data-no-localize>{selectedAppointment.note}</span></div> : null}
               </div>
 
               <div className="flex flex-wrap gap-2">

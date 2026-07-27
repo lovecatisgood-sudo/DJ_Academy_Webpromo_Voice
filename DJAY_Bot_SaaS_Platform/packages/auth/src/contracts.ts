@@ -9,7 +9,7 @@ export const registrationInputSchema = z.object({
   email: z.email().max(320),
   businessName: z.string().trim().min(2).max(200),
   password: z.string().min(12).max(128),
-  locale: z.enum(["en", "th"]).default("en"),
+  locale: z.enum(["en", "th"]).default("th"),
   timezone: z.string().trim().min(3).max(64).default("Asia/Bangkok"),
   selectedPlanKey: publicPlanKeySchema.optional(),
   termsVersion: legalDocumentVersionSchema,
@@ -22,6 +22,7 @@ export type RegistrationInput = z.input<typeof registrationInputSchema>;
 
 export const verificationInputSchema = z.object({
   token: z.string().min(32).max(256),
+  locale: z.enum(["th", "en"]).default("th"),
   requestId: z.string().trim().min(8).max(128),
 }).strict();
 
@@ -44,6 +45,7 @@ export type VerificationResponse =
 export const loginInputSchema = z.object({
   email: z.email().max(320),
   password: z.string().min(1).max(128),
+  locale: z.enum(["th", "en"]).default("th"),
   requestId: z.string().trim().min(8).max(128),
 }).strict();
 
@@ -75,11 +77,13 @@ export type WorkspaceSummary = Readonly<{
 
 export const recoveryRequestInputSchema = z.object({
   email: z.email().max(320),
+  locale: z.enum(["th", "en"]).default("th"),
   requestId: z.string().trim().min(8).max(128),
 }).strict();
 
 export const recoveryCompleteInputSchema = z.object({
   token: z.string().min(32).max(256),
   newPassword: z.string().min(12).max(128),
+  locale: z.enum(["th", "en"]).default("th"),
   requestId: z.string().trim().min(8).max(128),
 }).strict();

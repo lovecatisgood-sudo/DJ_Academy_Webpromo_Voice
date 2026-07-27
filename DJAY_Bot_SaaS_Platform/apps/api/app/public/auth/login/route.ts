@@ -7,8 +7,10 @@ import { clientAddress, enforceRateLimit, hasTrustedOrigin, readJson, requestId,
 export async function POST(request: Request) {
   const id = requestId();
   if (!(await hasTrustedOrigin(request))) return safeJson({ status: "invalid_credentials" }, 401);
+  let locale: "th" | "en" = "th";
   try {
     const raw = await readJson(request);
+    locale = typeof raw === "object" && raw !== null && "locale" in raw && raw.locale === "en" ? "en" : "th";
     const body = loginInputSchema.parse({
       ...(typeof raw === "object" && raw !== null ? raw : {}),
       requestId: id,
@@ -42,6 +44,6 @@ export async function POST(request: Request) {
       return safeJson({ status: "invalid_credentials" }, 401);
     }
     console.error("login_failed", { requestId: id, error: error instanceof Error ? error.name : "unknown" });
-    return safeJson({ code: "temporarily_unavailable", message: "Sign in is unavailable.", requestId: id }, 503);
+    return safeJson({ code: "temporarily_unavailable", message: locale === "en" ? "Sign in is unavailable." : "ระบบเข้าสู่ระบบไม่พร้อมใช้งานชั่วคราว", requestId: id }, 503);
   }
 }

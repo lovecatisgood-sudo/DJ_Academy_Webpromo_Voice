@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { normalizeExactWebsiteOrigin, safeMutationFetch, voiceDeploymentFieldConstraints, voiceDeploymentValidationError } from "@djay/shared";
+import { currentIntlLocale, currentUiLocale, normalizeExactWebsiteOrigin, safeMutationFetch, uiCopy, voiceDeploymentFieldConstraints, voiceDeploymentValidationError } from "@djay/shared";
 import { createWidgetInstallSnippet } from "@djay/shared/widget-install";
 import { tenantWidgetInstallEnvironment } from "../../../lib/widget-install-environment";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
@@ -79,16 +79,16 @@ const tabs: { id: Tab; label: string; hint: string }[] = [
 
 function lineList(value: string) { return value.split("\n").map((item) => item.trim()).filter(Boolean); }
 function listText(value: string[]) { return value.join("\n"); }
-function formatLimit(value: number | null, suffix = "") { return value === null ? "Not configured" : `${value}${suffix}`; }
+function formatLimit(value: number | null, suffix = "") { return value === null ? uiCopy("ยังไม่ได้ตั้งค่า", "Not configured") : `${value}${suffix}`; }
 function formatDuration(seconds: number | null) {
   if (seconds === null) return "—";
-  if (seconds < 60) return `${Math.round(seconds)} sec`;
+  if (seconds < 60) return currentUiLocale() === "th" ? `${Math.round(seconds)} วินาที` : `${Math.round(seconds)} sec`;
   const minutes = Math.floor(seconds / 60); const remainder = Math.round(seconds % 60);
-  return `${minutes}m ${remainder}s`;
+  return currentUiLocale() === "th" ? `${minutes} นาที ${remainder} วินาที` : `${minutes}m ${remainder}s`;
 }
 function formatLatency(milliseconds: number | null) {
   if (milliseconds === null) return "—";
-  return milliseconds < 1000 ? `${Math.round(milliseconds)} ms` : `${(milliseconds / 1000).toFixed(1)} sec`;
+  return milliseconds < 1000 ? `${Math.round(milliseconds)} ms` : currentUiLocale() === "th" ? `${(milliseconds / 1000).toFixed(1)} วินาที` : `${(milliseconds / 1000).toFixed(1)} sec`;
 }
 function percent(value: number, total: number) { return total ? `${Math.round((value / total) * 100)}%` : "—"; }
 function friendlyMetric(value: string) { return value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase()); }
@@ -219,7 +219,7 @@ export default function VoicePage() {
     setWorking(true); setMessage("");
     const response = await safeMutationFetch(`/tenant/voice/deployments/${studio.deployment.id}/studio`, { method: "POST" });
     const body = await response.json(); setWorking(false);
-    setMessage(response.ok ? `Published immutable Voice playbook version ${body.version}. New sessions will use it.`
+    setMessage(response.ok ? uiCopy(`เผยแพร่คู่มือ Voice เวอร์ชันถาวร ${body.version} แล้ว เซสชันใหม่จะใช้เวอร์ชันนี้`, `Published immutable Voice playbook version ${body.version}. New sessions will use it.`)
       : "The Voice playbook could not be published. Save and validate the draft first.");
     await load(studio.deployment.id);
   }
@@ -246,12 +246,12 @@ export default function VoicePage() {
   }
 
   async function changeStatus(deploymentId: string, action: "enable" | "disable" | "revoke") {
-    if (action === "revoke" && !window.confirm("Revoke this deployment permanently? This cannot be undone and the key will stop working immediately.")) return;
+    if (action === "revoke" && !window.confirm(uiCopy("เพิกถอนการติดตั้งนี้ถาวรหรือไม่? การกระทำนี้ย้อนกลับไม่ได้และคีย์จะหยุดทำงานทันที", "Revoke this deployment permanently? This cannot be undone and the key will stop working immediately."))) return;
     setWorking(true); setMessage("");
     const response = await safeMutationFetch(`/tenant/voice/deployments/${deploymentId}`, {
       method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action }),
     });
-    setWorking(false); setMessage(response.ok ? `Deployment ${action} request completed.` : "Deployment state could not be changed.");
+    setWorking(false); setMessage(response.ok ? uiCopy(`ดำเนินการ ${action === "enable" ? "เปิด" : action === "disable" ? "ปิด" : "เพิกถอน"}การติดตั้งแล้ว`, `Deployment ${action} request completed.`) : uiCopy("เปลี่ยนสถานะการติดตั้งไม่สำเร็จ", "Deployment state could not be changed."));
     await load(deploymentId);
   }
 
@@ -339,8 +339,8 @@ export default function VoicePage() {
             <section><h3>Terminal reasons</h3>{analytics.terminalReasons.length ? analytics.terminalReasons.map((item) => <div key={item.reason}><span>{friendlyMetric(item.reason)}</span><strong>{item.calls}</strong></div>) : <p>No terminal calls yet.</p>}</section>
             <section><h3>Turn failures</h3>{analytics.turnFailures.length ? analytics.turnFailures.map((item) => <div key={item.errorCode}><span>{friendlyMetric(item.errorCode)}</span><strong>{item.turns}</strong></div>) : <p>No failed turns.</p>}</section>
           </div> : null}
-          {analytics?.level === "advanced" ? <div className="voice-analytics-trend"><div className="analytics-subheading"><div><p>UTC calendar days</p><h3>Recent call trend</h3></div><span>Last 14 days shown · full period in CSV</span></div><div className="data-table"><div className="data-row voice-trend-heading"><strong>Date</strong><span>Sessions</span><span>Completed / failed</span><span>Leads</span></div>{analytics.daily.slice(-14).map((item) => <div className="data-row voice-trend-row" key={item.date}><strong>{new Date(`${item.date}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" })}</strong><span>{item.sessions}</span><span>{item.completedCalls} / {item.failedCalls}</span><span>{item.leads}</span></div>)}</div></div> : null}
-          <div className="policy-callout"><strong>Operational analytics do not replace the production quality gate.</strong><span>English and Thai recognition, latency, interruption, silence, noise, reconnect, callback, and handover still require restricted staging evaluation against approved thresholds.</span></div>{studio.quality.lastCallAt ? <p className="control-copy">Last session: {new Date(studio.quality.lastCallAt).toLocaleString()}</p> : null}</section> : null}
+          {analytics?.level === "advanced" ? <div className="voice-analytics-trend"><div className="analytics-subheading"><div><p>UTC calendar days</p><h3>Recent call trend</h3></div><span>Last 14 days shown · full period in CSV</span></div><div className="data-table"><div className="data-row voice-trend-heading"><strong>Date</strong><span>Sessions</span><span>Completed / failed</span><span>Leads</span></div>{analytics.daily.slice(-14).map((item) => <div className="data-row voice-trend-row" key={item.date}><strong>{new Date(`${item.date}T00:00:00Z`).toLocaleDateString(currentIntlLocale(), { month: "short", day: "numeric", timeZone: "UTC" })}</strong><span>{item.sessions}</span><span>{item.completedCalls} / {item.failedCalls}</span><span>{item.leads}</span></div>)}</div></div> : null}
+          <div className="policy-callout"><strong>Operational analytics do not replace the production quality gate.</strong><span>English and Thai recognition, latency, interruption, silence, noise, reconnect, callback, and handover still require restricted staging evaluation against approved thresholds.</span></div>{studio.quality.lastCallAt ? <p className="control-copy">Last session: {new Date(studio.quality.lastCallAt).toLocaleString(currentIntlLocale())}</p> : null}</section> : null}
 
         {activeTab === "deploy" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>Immutable release and browser install</p><h2>Deploy</h2></div><span>{studio.deployment.status}</span></div><div className="deploy-command-row"><button type="button" disabled={!canEdit || working} onClick={() => void publish()}>Publish immutable version</button>{canDeploy && studio.deployment.status !== "revoked" ? <><button type="button" className="secondary-command" disabled={working} onClick={() => void changeStatus(studio.deployment.id, studio.deployment.status === "active" ? "disable" : "enable")}>{studio.deployment.status === "active" ? "Disable deployment" : "Enable deployment"}</button><button type="button" className="secondary-command danger-command" disabled={working} onClick={() => void changeStatus(studio.deployment.id, "revoke")}>Revoke permanently</button></> : null}</div><div className="deployment-identity"><strong>Safe deployment key prefix</strong><code>{studio.deployment.keyPrefix}…</code><span>The full key is never stored or displayed again.</span></div>
           {deploymentKey ? <div className="deployment-secret"><strong>One-time Voice deployment key and install snippet</strong><code>{deploymentKey}</code><p className="field-help">Add this snippet only to the approved website origin.</p><pre>{installSnippet}</pre><button type="button" className="secondary-command" onClick={() => { if (!navigator.clipboard) { setMessage("Select the snippet and copy it manually."); return; } void navigator.clipboard.writeText(installSnippet).then(() => setMessage("Install snippet copied."), () => setMessage("Copy was blocked. Select the snippet and copy it manually.")); }}>Copy install snippet</button></div> : null}

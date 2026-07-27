@@ -159,7 +159,7 @@ export default async function AvailabilityPage({
           </label>
           <label className="block text-sm font-medium text-slate-700">
             Meeting title
-            <input name="meeting_title" defaultValue={profile?.meeting_title || "DJAI Consultation"} className={inputClass} />
+            <input name="meeting_title" defaultValue={profile?.meeting_title || "ปรึกษากับ DJAI"} className={inputClass} />
           </label>
           <label className="block text-sm font-medium text-slate-700">
             Meeting location/link

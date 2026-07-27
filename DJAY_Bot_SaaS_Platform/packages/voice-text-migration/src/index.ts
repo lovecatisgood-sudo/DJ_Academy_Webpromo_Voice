@@ -192,7 +192,7 @@ function convertLead(input: LegacyLead, defaultLocale: "en" | "th"): ConvertedLe
   };
 }
 
-export function convertLegacyLead(input: unknown, defaultLocale: "en" | "th" = "en"): Readonly<
+export function convertLegacyLead(input: unknown, defaultLocale: "en" | "th" = "th"): Readonly<
   | { status: "converted"; value: ConvertedLead }
   | { status: "quarantined"; reasonCode: string; detail: string }
 > {

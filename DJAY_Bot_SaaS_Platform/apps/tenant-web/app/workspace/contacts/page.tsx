@@ -8,6 +8,7 @@ import {
   emailFieldConstraints,
   normalizeContactText,
   safeMutationFetch,
+  uiCopy,
 } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "../WorkspaceAccess";
@@ -77,7 +78,7 @@ export default function ContactsPage() {
       body: JSON.stringify({ displayName, ...(email ? { email } : {}), ...(phone ? { phone } : {}), locale: data.get("locale"), consentStatus: data.get("consentStatus") }),
     });
     const result = await response.json(); setWorking(false);
-    if (response.status === 409) { setMessageTone("error"); setMessage(`Possible duplicate found. Review existing contact${result.candidateContactIds?.length === 1 ? "" : "s"} before merging.`); return; }
+    if (response.status === 409) { setMessageTone("error"); setMessage(uiCopy("อาจมีข้อมูลติดต่อซ้ำ โปรดตรวจข้อมูลเดิมก่อนรวมรายการ", `Possible duplicate found. Review existing contact${result.candidateContactIds?.length === 1 ? "" : "s"} before merging.`)); return; }
     if (!response.ok) { setMessageTone("error"); setMessage("Contact could not be created."); return; }
     form.reset(); setMessageTone("success"); setMessage("Contact created."); await load();
   }
@@ -113,7 +114,7 @@ export default function ContactsPage() {
       <WorkspaceSidebar active="contacts" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} />
       <section className="workspace-main">
         <WorkspaceSupportBanner tenantId={session.selectedTenantId} />
-        <header className="workspace-header"><div><p>Customers</p><h1>Contacts</h1></div><span className="role-label">{workspace?.businessName}</span></header>
+        <header className="workspace-header"><div><p>Customers</p><h1>Contacts</h1></div><span data-no-localize className="role-label">{workspace?.businessName}</span></header>
         {!canWrite ? <WorkspaceViewOnly>You can review customer records. An operator or administrator can create contacts.</WorkspaceViewOnly> : null}
         {canWrite ? <section className="tool-band">
           <div className="band-heading"><div><p>New record</p><h2>Create contact</h2></div></div>
@@ -122,7 +123,7 @@ export default function ContactsPage() {
             <label>Email<input name="email" type="email" aria-describedby="contact-identity-help" {...emailFieldConstraints} onInput={(event) => clearContactValidity(event.currentTarget.form)} /></label>
             <label>Phone<input name="phone" type="tel" aria-describedby="contact-identity-help" {...contactPhoneFieldConstraints} onInput={(event) => clearContactValidity(event.currentTarget.form)} /></label>
             <p className="field-help" id="contact-identity-help">Enter at least one customer contact method: email or phone.</p>
-            <label>Language<select name="locale" defaultValue="en"><option value="en">English</option><option value="th">Thai</option></select></label>
+            <label>Language<select name="locale" defaultValue="th"><option value="th">ไทย</option><option value="en">English</option></select></label>
             <label>Consent<select name="consentStatus" defaultValue="unknown"><option value="unknown">Unknown</option><option value="granted">Granted</option><option value="denied">Denied</option><option value="withdrawn">Withdrawn</option></select></label>
             <button type="submit" disabled={working}>{working ? "Creating..." : "Create contact"}</button>
           </form>
@@ -133,8 +134,8 @@ export default function ContactsPage() {
           <p className="field-help">Matching email or phone values never merge customer records automatically. Review these records before any future audited merge workflow.</p>
           <div className="data-table">
             {identityReviews.map((review) => <div className="data-row contact-row" key={review.id}>
-              <div><strong>{review.sourceContactName}</strong><span>may match {review.candidateContactName}</span></div>
-              <span>{review.identityKind}</span><span>{review.matchValue}</span>
+              <div><strong data-no-localize>{review.sourceContactName}</strong><span>may match <span data-no-localize>{review.candidateContactName}</span></span></div>
+              <span>{review.identityKind}</span><span data-no-localize>{review.matchValue}</span>
             </div>)}
             {!identityReviews.length ? <div className="pending-line"><strong>No possible matches</strong><span>New shared email or phone values appear here for review.</span></div> : null}
           </div>
@@ -143,7 +144,7 @@ export default function ContactsPage() {
           <div className="band-heading"><div><p>Directory</p><h2>Customer records</h2></div><span>{contacts.length}</span></div>
           <div className="data-table">
             {contacts.map((contact) => <div className="data-row contact-row" key={contact.id}>
-              <div><strong>{contact.displayName}</strong><span>{contact.identities.map((identity) => identity.value).join(" / ") || "No active identity"}</span>
+              <div data-no-localize><strong>{contact.displayName}</strong><span>{contact.identities.map((identity) => identity.value).join(" / ") || "ไม่มีข้อมูลติดต่อที่ใช้งานอยู่"}</span>
                 {contact.tags.length ? <span>{contact.tags.map((tag) => tag.label).join(" · ")}</span> : null}
                 {contact.attributes.length ? <span>{contact.attributes.map((attribute) => `${attribute.label}: ${attribute.value}`).join(" · ")}</span> : null}
               </div>

@@ -368,8 +368,10 @@ export async function POST(request: Request) {
           return slots;
         })()
       : [];
+    // createBookingContext now persists the details server-side and returns an opaque token,
+    // so it is async. The URL below carries only that token — never the customer's PII.
     const bookingContext = leadId && bookingLink && bookingSlots.length > 0
-      ? createBookingContext({
+      ? await createBookingContext({
           leadId,
           conversationId: session.conversationId,
           clientName: clientName || null,

@@ -52,7 +52,9 @@ class AiChatWidget {
 
   constructor(private readonly options: AiChatWidgetOptions) {
     this.apiBaseUrl = normalizeAiApiBaseUrl(options.apiBaseUrl);
-    this.language = options.language ?? "en";
+    // Thai first: see the FlowBot widget for the same rule. The deployment's defaultLanguage
+    // (already 'th' by schema default) governs once the session config arrives.
+    this.language = options.language ?? "th";
     this.opened = Boolean(options.openOnLoad);
     this.storage = options.storage ?? safeStorage();
     this.host.dataset.djayAiChat = options.deploymentKey.slice(0, 16);

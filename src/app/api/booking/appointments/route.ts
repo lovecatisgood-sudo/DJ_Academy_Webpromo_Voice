@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { findAvailableSlot, getBookingLinkBySlug } from "@/lib/availability";
-import { verifyBookingContext } from "@/lib/booking-context";
+import { consumeBookingContext } from "@/lib/booking-context";
 import { getSql } from "@/lib/db";
 import { readJsonBody } from "@/lib/http-guards";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -41,6 +41,7 @@ export async function POST(request: Request) {
 
   const body = await readPayload(request);
   const slug = clean(body.slug, 80);
+  const locale = clean(body.lang, 2) === "en" ? "en" : "th";
   const startAt = clean(body.start_at, 80);
   const clientName = clean(body.client_name, 160);
   const email = clean(body.email, 240).toLowerCase();
@@ -49,19 +50,23 @@ export async function POST(request: Request) {
   const lineId = clean(body.line_id, 120) || null;
   const whatsapp = clean(body.whatsapp, 120) || null;
   const note = clean(body.note, 1000) || null;
-  const context = verifyBookingContext(clean(body.context, 4000));
+  // Single-use claim: this is the mutation, so the token is consumed here. A forwarded booking
+  // link therefore cannot be replayed into duplicate appointments against the same lead.
+  // The token is opaque and short (32 random bytes, base64url) — 4000 was sized for the old
+  // PII-bearing payload and is no longer needed.
+  const context = await consumeBookingContext(clean(body.context, 200));
   const wantsHtml = !((request.headers.get("accept") || "").includes("application/json"));
 
   function fail(message: string, status = 400) {
     if (wantsHtml) {
-      return NextResponse.redirect(new URL(`/book/${slug}?error=${encodeURIComponent(message)}`, request.url), 303);
+      return NextResponse.redirect(new URL(`/book/${slug}?lang=${locale}&error=${encodeURIComponent(message)}`, request.url), 303);
     }
 
     return NextResponse.json({ error: message }, { status });
   }
 
   if (!slug || !startAt || !clientName || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return fail("Invalid booking details.");
+    return fail(locale === "en" ? "Invalid booking details." : "ข้อมูลการนัดหมายไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง");
   }
 
   const sql = getSql();
@@ -70,13 +75,13 @@ export async function POST(request: Request) {
   `) as { booking_enabled: boolean }[];
 
   if (!settings?.booking_enabled) {
-    return fail("Booking is currently disabled.", 503);
+    return fail(locale === "en" ? "Booking is currently disabled." : "ขณะนี้ยังไม่เปิดให้จองนัดหมาย", 503);
   }
 
   const bookingLink = await getBookingLinkBySlug(sql, slug);
 
   if (!bookingLink || !bookingLink.is_active || !bookingLink.calendar_active) {
-    return fail("Booking page is unavailable.", 404);
+    return fail(locale === "en" ? "Booking page is unavailable." : "หน้าจองนัดหมายนี้ไม่พร้อมใช้งาน", 404);
   }
 
   const [meetingType] = (await sql`
@@ -89,13 +94,13 @@ export async function POST(request: Request) {
 
   const start = new Date(startAt);
   if (!Number.isFinite(start.getTime())) {
-    return fail("Invalid appointment time.");
+    return fail(locale === "en" ? "Invalid appointment time." : "เวลานัดหมายไม่ถูกต้อง");
   }
 
   const slot = await findAvailableSlot(sql, slug, start);
 
   if (!slot) {
-    return fail("That time is no longer available.");
+    return fail(locale === "en" ? "That time is no longer available." : "เวลานี้มีผู้จองแล้ว กรุณาเลือกเวลาอื่น");
   }
 
   const appointmentSource = context?.sourceChannel === "text_widget"
@@ -159,7 +164,7 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/appointments_active_slot_uidx|duplicate key|unique constraint/i.test(message)) {
-      return fail("That time is no longer available.");
+      return fail(locale === "en" ? "That time is no longer available." : "เวลานี้มีผู้จองแล้ว กรุณาเลือกเวลาอื่น");
     }
     throw error;
   }
@@ -182,7 +187,7 @@ export async function POST(request: Request) {
   }
 
   if (wantsHtml) {
-    return NextResponse.redirect(new URL(`/book/${slug}?booked=${bookingLink.require_confirmation ? "requested" : "confirmed"}`, request.url), 303);
+    return NextResponse.redirect(new URL(`/book/${slug}?lang=${locale}&booked=${bookingLink.require_confirmation ? "requested" : "confirmed"}`, request.url), 303);
   }
 
   return NextResponse.json({ ok: true, appointmentId: rows[0]?.id ?? null, status: bookingLink.require_confirmation ? "pending_confirmation" : "confirmed" });

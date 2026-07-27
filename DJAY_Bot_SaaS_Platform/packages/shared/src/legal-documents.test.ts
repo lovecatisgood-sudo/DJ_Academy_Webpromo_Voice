@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { legalDocumentsBundleSchema } from "./legal-documents";
+import { legalDocumentsBundleSchema, localizeLegalDocument } from "./legal-documents";
 
 const validBundle = {
   schema: "djay.legal-documents.v1",
@@ -36,5 +36,38 @@ describe("public legal document contract", () => {
     { ...validBundle, privacy: { ...validBundle.privacy, version: validBundle.terms.version } },
   ])("rejects an unapproved or malformed bundle", (value) => {
     expect(() => legalDocumentsBundleSchema.parse(value)).toThrow();
+  });
+
+  it("serves the approved English source only after explicit English selection", () => {
+    const document = legalDocumentsBundleSchema.parse(validBundle).terms;
+
+    expect(localizeLegalDocument(document, "en")).toEqual(document);
+  });
+
+  it("fails closed when an approved Thai translation is unavailable", () => {
+    const document = legalDocumentsBundleSchema.parse(validBundle).terms;
+
+    expect(localizeLegalDocument(document, "th")).toBeNull();
+  });
+
+  it("serves only the approved Thai translation while preserving version metadata", () => {
+    const thai = {
+      title: "ข้อกำหนดการใช้บริการ",
+      summary: "สรุปข้อกำหนดการใช้บริการฉบับภาษาไทยที่ได้รับอนุมัติแล้ว",
+      sections: [{
+        heading: "การใช้บริการ",
+        paragraphs: ["เนื้อหาข้อกำหนดฉบับภาษาไทยที่ได้รับอนุมัติแล้ว"],
+      }],
+    };
+    const parsed = legalDocumentsBundleSchema.parse({
+      ...validBundle,
+      terms: { ...validBundle.terms, translations: { th: thai } },
+    });
+
+    expect(localizeLegalDocument(parsed.terms, "th")).toMatchObject({
+      version: validBundle.terms.version,
+      effectiveDate: validBundle.terms.effectiveDate,
+      ...thai,
+    });
   });
 });

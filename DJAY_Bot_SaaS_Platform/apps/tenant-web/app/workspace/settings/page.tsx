@@ -63,7 +63,7 @@ export default function SettingsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         businessName: String(form.get("businessName") || "").trim(),
-        locale: String(form.get("locale") || "en"),
+        locale: String(form.get("locale") || "th"),
         timezone: String(form.get("timezone") || "Asia/Bangkok"),
       }),
     });
@@ -140,7 +140,7 @@ export default function SettingsPage() {
               </label>
               <label>
                 Language
-                <select name="locale" defaultValue={profile.locale === "th" ? "th" : "en"} disabled={!canUpdate}>
+                <select name="locale" defaultValue={profile.locale === "en" ? "en" : "th"} disabled={!canUpdate}>
                   <option value="en">English</option>
                   <option value="th">Thai</option>
                 </select>

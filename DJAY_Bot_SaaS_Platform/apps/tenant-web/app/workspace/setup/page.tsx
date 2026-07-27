@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { tenantRoleAllows, type TenantRole } from "@djay/authorization";
-import { safeMutationFetch } from "@djay/shared";
+import { safeMutationFetch, uiCopy } from "@djay/shared";
 import { createWidgetInstallSnippet } from "@djay/shared/widget-install";
 import { WebsiteDeploymentForm } from "../WebsiteDeploymentForm";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "../WorkspaceAccess";
@@ -91,7 +91,7 @@ export default function SetupWizardPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [newDeploymentKey, setNewDeploymentKey] = useState("");
-  const [chromeLocale, setChromeLocale] = useState<ChromeLocale>("en");
+  const [chromeLocale, setChromeLocale] = useState<ChromeLocale>("th");
   const [loadError, setLoadError] = useState(false);
   const [working, setWorking] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -225,7 +225,7 @@ export default function SetupWizardPage() {
     setWorking(true);
     setMessage("");
     setTone(null);
-    const locale = String(form.get("locale") || "en");
+    const locale = String(form.get("locale") || "th");
     const timezone = String(form.get("timezone") || "Asia/Bangkok");
     const businessName = String(form.get("businessName") || "").trim();
     const response = await safeMutationFetch("/tenant/profile", {
@@ -332,7 +332,7 @@ export default function SetupWizardPage() {
       return;
     }
     setTone("success");
-    setMessage(`Version ${publishResult.version} published.`);
+    setMessage(uiCopy(`เผยแพร่เวอร์ชัน ${publishResult.version} แล้ว`, `Version ${publishResult.version} published.`));
     await loadEvidence().catch(() => undefined);
     await loadBotDetail(selectedBotId).catch(() => undefined);
   }
@@ -353,7 +353,7 @@ export default function SetupWizardPage() {
       return;
     }
     setTone("success");
-    setMessage(`Version ${result.version} published.`);
+    setMessage(uiCopy(`เผยแพร่เวอร์ชัน ${result.version} แล้ว`, `Version ${result.version} published.`));
     await loadEvidence().catch(() => undefined);
     await loadBotDetail(selectedBotId).catch(() => undefined);
   }
@@ -497,7 +497,7 @@ export default function SetupWizardPage() {
                 </label>
                 <label>
                   Language
-                  <select name="locale" defaultValue={profile.locale === "th" ? "th" : "en"} disabled={!canUpdateProfile}>
+                  <select name="locale" defaultValue={profile.locale === "en" ? "en" : "th"} disabled={!canUpdateProfile}>
                     <option value="en">English</option>
                     <option value="th">Thai</option>
                   </select>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { currentIntlLocale, uiCopy } from "@djay/shared";
 
 type SupportGrant = { id: string; reason: string; expiresAt: string };
 
@@ -21,7 +22,7 @@ export function WorkspaceSupportBanner({ tenantId }: Readonly<{ tenantId: string
   return (
     <div className="support-access-banner" role="status">
       <strong>Platform support access is active</strong>
-      <span>{grants[0]!.reason} Access expires {new Date(grants[0]!.expiresAt).toLocaleString()}.</span>
+      <span>{grants[0]!.reason} {uiCopy("สิทธิ์จะหมดอายุ", "Access expires")} {new Date(grants[0]!.expiresAt).toLocaleString(currentIntlLocale())}</span>
     </div>
   );
 }

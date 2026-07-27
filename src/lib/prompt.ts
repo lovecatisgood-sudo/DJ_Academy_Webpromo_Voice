@@ -15,8 +15,8 @@ export type TextPromptInput = {
   now: Date;
 };
 
-function formatBangkokTime(now: Date) {
-  return new Intl.DateTimeFormat("en-GB", {
+function formatBangkokTime(now: Date, preferredLanguage: PromptInput["preferredLanguage"] = "th") {
+  return new Intl.DateTimeFormat(preferredLanguage === "en" ? "en-GB" : "th-TH", {
     timeZone: "Asia/Bangkok",
     dateStyle: "full",
     timeStyle: "long",
@@ -611,10 +611,11 @@ export function buildVoiceAgentSystemPrompt({
   provider = "openai",
   now,
 }: PromptInput) {
+  if (settings.language_mode === "english_only") preferredLanguage = "en";
   const knowledge = settings.knowledge_md?.trim() || "# DJAI Academy Knowledge\n\nNo knowledge has been configured yet.";
   const greeting =
     settings.greeting?.trim() ||
-    "Greet the visitor warmly as DJ from DJAI Academy, then ask what kind of business they run.";
+    "ทักทายผู้เข้าชมอย่างเป็นมิตรในนาม DJ จาก DJAI Academy แล้วถามว่าทำธุรกิจประเภทใด";
 
   return [
     originalSalesBehaviorPrompt,
@@ -652,9 +653,11 @@ export function buildVoiceAgentSystemPrompt({
     knowledge,
     "",
     "# Dynamic Session Context",
-    `Visitor selected page language: ${preferredLanguage}. If this is th, start the first greeting in Thai unless the visitor speaks another language first. If this is en, start in English unless the visitor speaks another language first.`,
+    `Visitor selected page language: ${preferredLanguage}. Thai is the product default. If this is th or auto, speak natural contemporary Thai by default unless the visitor clearly asks for another language. If this is en, speak English unless the visitor asks to switch.`,
+    "When speaking Thai, use polite, concise, gender-neutral phrasing. Do not write paired particles such as ครับ/ค่ะ and do not refer to yourself as ผม/ฉัน. Prefer ทีมงาน, เรา, ระบบ, or omit the pronoun naturally. Keep established product terms such as DJAI, LINE, WhatsApp, SEO, AI, Landing Page, and FlowBot when translating them would make the meaning less clear.",
+    "Present Thai prices as a number followed by บาท (for example 5,000 บาท), dates in a natural Thai order, and times in the Asia/Bangkok time zone.",
     `Untrusted page URL metadata, origin and path only: ${pageUrl || "unknown"}`,
-    `Current date/time in Asia/Bangkok: ${formatBangkokTime(now)}`,
+    `Current date/time in Asia/Bangkok: ${formatBangkokTime(now, preferredLanguage)}`,
   ].join("\n");
 }
 
@@ -664,11 +667,12 @@ export function buildTextChatSystemPrompt({
   preferredLanguage = "auto",
   now,
 }: TextPromptInput) {
+  if (settings.language_mode === "english_only") preferredLanguage = "en";
   const knowledge = settings.knowledge_md?.trim() || "# DJAI Academy Knowledge\n\nNo knowledge has been configured yet.";
   const greeting =
     settings.text_chat_greeting?.trim() ||
     settings.greeting?.trim() ||
-    "Hi, I am DJ from DJAI Academy. What kind of business are you running, and what are you trying to improve right now?";
+    "สวัสดี เราคือ DJ ผู้ช่วยด้านการเติบโตทางธุรกิจจาก DJAI Academy ตอนนี้คุณทำธุรกิจอะไร และอยากพัฒนาเรื่องใดมากที่สุด";
 
   return [
     originalSalesBehaviorPrompt,
@@ -711,9 +715,11 @@ export function buildTextChatSystemPrompt({
     "Leave unknown lead_candidate fields as empty strings. Do not invent contact details.",
     "",
     "# Dynamic Session Context",
-    `Visitor selected page language: ${preferredLanguage}. If this is th, start in Thai unless the visitor uses another language. If this is en, start in English unless the visitor uses another language.`,
+    `Visitor selected page language: ${preferredLanguage}. Thai is the product default. If this is th or auto, reply in natural contemporary Thai unless the visitor clearly asks for another language. If this is en, reply in English unless the visitor asks to switch.`,
+    "When writing Thai, use polite, concise, gender-neutral phrasing. Do not write paired particles such as ครับ/ค่ะ and do not refer to yourself as ผม/ฉัน. Prefer ทีมงาน, เรา, ระบบ, or omit the pronoun naturally. Keep established product terms such as DJAI, LINE, WhatsApp, SEO, AI, Landing Page, and FlowBot when translating them would make the meaning less clear.",
+    "Present Thai prices as a number followed by บาท (for example 5,000 บาท), dates in a natural Thai order, and times in the Asia/Bangkok time zone.",
     `Untrusted page URL metadata, origin and path only: ${pageUrl || "unknown"}`,
-    `Current date/time in Asia/Bangkok: ${formatBangkokTime(now)}`,
+    `Current date/time in Asia/Bangkok: ${formatBangkokTime(now, preferredLanguage)}`,
   ].join("\n");
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { currentIntlLocale, uiCopy } from "../lib/thai-ui";
 
 type Admin = { name: string; email: string; role: string };
 type ConversationSummary = {
@@ -315,9 +316,9 @@ export function AdminDashboard(props: {
                   className={selected?.conversation.id === conversation.id ? "conversation-row active" : "conversation-row"}
                   onClick={() => void loadConversation(conversation.id)}
                 >
-                  <span className="row-title">{conversation.customerName || conversation.customerPhone || conversation.customerEmail || "Website visitor"}</span>
+                  <span data-no-localize className="row-title">{conversation.customerName || conversation.customerPhone || conversation.customerEmail || "ผู้เยี่ยมชมเว็บไซต์"}</span>
                   <span className="row-meta">{conversationStatusLabel(conversation.status)} · {statusLabel(conversation.crmStatus)}</span>
-                  <span className="row-preview">{conversation.lastMessageText || "No message yet"}</span>
+                  <span data-no-localize className="row-preview">{conversation.lastMessageText || "ยังไม่มีข้อความ"}</span>
                   {conversation.unreadAdmin ? <strong>{conversation.unreadAdmin}</strong> : null}
                 </button>
               ))}
@@ -328,7 +329,7 @@ export function AdminDashboard(props: {
                 <>
                   <div className="thread-header">
                     <div>
-                      <h2>{selected.customer?.name || selected.conversation.customerName || "Website visitor"}</h2>
+                      <h2 data-no-localize>{selected.customer?.name || selected.conversation.customerName || "ผู้เยี่ยมชมเว็บไซต์"}</h2>
                       <p>{conversationStatusLabel(selected.conversation.status)} · version {selected.conversation.flowVersionNo}</p>
                     </div>
                     <div className="thread-actions">
@@ -348,7 +349,7 @@ export function AdminDashboard(props: {
                     {selected.messages.map((message) => (
                       <div key={message.id} className={`message ${message.sender}`}>
                         <span>{message.sender}</span>
-                        <p>{messageText(message)}</p>
+                        <p data-no-localize>{messageText(message)}</p>
                       </div>
                     ))}
                   </div>
@@ -388,9 +389,9 @@ export function AdminDashboard(props: {
                   </section>
                   <section className="compact-card">
                     <h3>Customer</h3>
-                    <p>{selected.customer?.name || "No linked profile"}</p>
-                    <p>{selected.customer?.phone || selected.leads[0]?.phone || "No phone"}</p>
-                    <p>{selected.customer?.email || selected.leads[0]?.email || "No email"}</p>
+                    <p data-no-localize>{selected.customer?.name || "ยังไม่มีโปรไฟล์ที่เชื่อมโยง"}</p>
+                    <p data-no-localize>{selected.customer?.phone || selected.leads[0]?.phone || "ยังไม่มีเบอร์โทร"}</p>
+                    <p data-no-localize>{selected.customer?.email || selected.leads[0]?.email || "ยังไม่มีอีเมล"}</p>
                     {selected.matchSuggestions.length ? <p className="hint">{selected.matchSuggestions.length} possible duplicate profile</p> : null}
                   </section>
                   <section className="compact-card">
@@ -399,8 +400,8 @@ export function AdminDashboard(props: {
                     <button onClick={() => void addNote()}>Save note</button>
                     {selected.notes.map((item) => (
                       <article key={item.id} className="note">
-                        <p>{item.note}</p>
-                        <span>{item.userName}</span>
+                        <p data-no-localize>{item.note}</p>
+                        <span data-no-localize>{item.userName}</span>
                       </article>
                     ))}
                   </section>
@@ -530,7 +531,7 @@ function CustomersPanel(props: {
   }
 
   async function softDeleteCustomer(customer: Customer) {
-    if (!window.confirm("Soft delete this customer profile? Conversations remain available for audit.")) return;
+    if (!window.confirm(uiCopy("ลบโปรไฟล์ลูกค้านี้แบบกู้คืนได้หรือไม่? ประวัติการสนทนาจะยังคงอยู่เพื่อการตรวจสอบ", "Soft delete this customer profile? Conversations remain available for audit."))) return;
     const response = await fetch(`/api/admin/customers/${customer.id}`, { method: "DELETE" });
     if (!response.ok) {
       setStatus("Delete failed.");
@@ -543,7 +544,7 @@ function CustomersPanel(props: {
 
   async function eraseCustomer(customer: Customer) {
     const confirmed = window.prompt(
-      "Erase personal data for this customer? This redacts customer PII across linked records and cannot be undone. Type ERASE to continue."
+      uiCopy("ลบข้อมูลส่วนบุคคลของลูกค้านี้หรือไม่? ระบบจะปกปิดข้อมูลระบุตัวบุคคลในรายการที่เชื่อมโยงทั้งหมดและไม่สามารถย้อนกลับได้ พิมพ์ ERASE เพื่อดำเนินการต่อ", "Erase personal data for this customer? This redacts customer PII across linked records and cannot be undone. Type ERASE to continue.")
     );
     if (confirmed !== "ERASE") return;
     const response = await fetch(`/api/admin/customers/${customer.id}/erase`, { method: "POST" });
@@ -603,10 +604,10 @@ function CustomersPanel(props: {
               key={customer.id}
               onClick={() => setSelectedId(customer.id)}
             >
-              <span>{customer.name || "Unnamed customer"}</span>
-              <span>{customer.phone || "-"}</span>
-              <span>{customer.email || "-"}</span>
-              <span>{customer.line_id || customer.whatsapp || "-"}</span>
+              <span data-no-localize>{customer.name || "ลูกค้ายังไม่มีชื่อ"}</span>
+              <span data-no-localize>{customer.phone || "-"}</span>
+              <span data-no-localize>{customer.email || "-"}</span>
+              <span data-no-localize>{customer.line_id || customer.whatsapp || "-"}</span>
               <strong>{customer.conversation_count ?? 0}</strong>
             </button>
           ))}
@@ -618,8 +619,8 @@ function CustomersPanel(props: {
           <>
             <div className="section-header">
               <div>
-                <h2>{selected.name || selected.phone || selected.email || "Customer profile"}</h2>
-                <p className="muted">Last contact: {selected.last_contact_at ? new Date(selected.last_contact_at).toLocaleString() : "No conversation yet"}</p>
+                <h2 data-no-localize>{selected.name || selected.phone || selected.email || "โปรไฟล์ลูกค้า"}</h2>
+                <p className="muted">Last contact: {selected.last_contact_at ? new Date(selected.last_contact_at).toLocaleString(currentIntlLocale()) : "No conversation yet"}</p>
               </div>
               <strong>{statusLabel(selected.latest_crm_status ?? "new")}</strong>
             </div>
@@ -659,9 +660,9 @@ function CustomersPanel(props: {
             {selectedLeads.length ? (
               selectedLeads.map((lead) => (
                 <article className="lead-card" key={lead.id}>
-                  <strong>{lead.name || lead.phone || lead.email || "Lead"}</strong>
-                  <span>{new Date(lead.created_at).toLocaleString()}</span>
-                  <p>{lead.phone || "-"} · {lead.email || "-"}</p>
+                  <strong data-no-localize>{lead.name || lead.phone || lead.email || "ลีด"}</strong>
+                  <span>{new Date(lead.created_at).toLocaleString(currentIntlLocale())}</span>
+                  <p data-no-localize>{lead.phone || "-"} · {lead.email || "-"}</p>
                 </article>
               ))
             ) : (
@@ -936,8 +937,8 @@ function TeamSettings({ currentAdmin }: { currentAdmin: Admin }) {
       </div>
       {users.map((user) => (
         <div className="table-row" key={user.id}>
-          <span>{user.name}</span>
-          <span>{user.email}</span>
+          <span data-no-localize>{user.name}</span>
+          <span data-no-localize>{user.email}</span>
           <span>{user.role}</span>
           <button disabled={user.email === currentAdmin.email} onClick={() => void remove(user.id)}>
             Delete
@@ -1101,11 +1102,9 @@ function FlowBuilder({ botId }: { botId: string }) {
       return;
     }
     const incoming = (references?.options.length ?? 0) + (references?.nextNodes.length ?? 0);
-    const confirmed = window.confirm(
-      incoming
-        ? `This node has ${incoming} incoming reference(s). Delete will be blocked unless they are inside the owned subtree. Continue?`
-        : "Delete this node and its owned descendants?"
-    );
+    const confirmed = window.confirm(incoming
+      ? uiCopy(`โนดนี้มีการอ้างอิงขาเข้า ${incoming} รายการ ระบบจะไม่อนุญาตให้ลบหากรายการเหล่านั้นไม่ได้อยู่ในโครงสร้างย่อยที่โนดนี้เป็นเจ้าของ ดำเนินการต่อหรือไม่?`, `This node has ${incoming} incoming reference(s). Delete will be blocked unless they are inside the owned subtree. Continue?`)
+      : uiCopy("ลบโนดนี้และโนดย่อยที่เป็นเจ้าของทั้งหมดหรือไม่?", "Delete this node and its owned descendants?"));
     if (!confirmed) return;
     const response = await fetch(`/api/admin/nodes/${node.id}?mode=cascade`, { method: "DELETE" });
     const data = await response.json().catch(() => ({}));
@@ -1143,8 +1142,8 @@ function FlowBuilder({ botId }: { botId: string }) {
       .map((line) => line.trim())
       .filter(Boolean)
       .map((line, index) => {
-        const parts = line.includes(":") ? line.split(":") : ["en", line];
-        const lang = parts[0] ?? "en";
+        const parts = line.includes(":") ? line.split(":") : ["th", line];
+        const lang = parts[0] ?? "th";
         const rest = parts.slice(1);
         return {
           lang: lang.trim() === "th" ? "th" : "en",
@@ -1175,8 +1174,8 @@ function FlowBuilder({ botId }: { botId: string }) {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        state: { currentNodeId: nodeId, status: "bot", lang: "en" },
-        input: { type: "text", payload: { text: simInput || "hello" } }
+        state: { currentNodeId: nodeId, status: "bot", lang: "th" },
+        input: { type: "text", payload: { text: simInput || "สวัสดี" } }
       })
     });
     const data = await response.json().catch(() => ({}));

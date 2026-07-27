@@ -11,6 +11,12 @@ const legalSectionSchema = z.object({
   paragraphs: z.array(z.string().trim().min(1).max(4_000)).min(1).max(20),
 }).strict();
 
+const localizedLegalContentSchema = z.object({
+  title: z.string().trim().min(3).max(160),
+  summary: z.string().trim().min(10).max(1_000),
+  sections: z.array(legalSectionSchema).min(1).max(40),
+}).strict();
+
 export const legalDocumentSchema = z.object({
   version: legalDocumentVersionSchema,
   title: z.string().trim().min(3).max(160),
@@ -20,6 +26,9 @@ export const legalDocumentSchema = z.object({
   }, "legal_effective_date_invalid"),
   summary: z.string().trim().min(10).max(1_000),
   sections: z.array(legalSectionSchema).min(1).max(40),
+  translations: z.object({
+    th: localizedLegalContentSchema,
+  }).strict().optional(),
 }).strict();
 
 export const legalDocumentsBundleSchema = z.object({
@@ -36,3 +45,11 @@ export const legalDocumentsBundleSchema = z.object({
 
 export type LegalDocument = z.infer<typeof legalDocumentSchema>;
 export type LegalDocumentsBundle = z.infer<typeof legalDocumentsBundleSchema>;
+
+/** Legal translations must come from the approved deployment bundle. The UI
+ * deliberately fails closed instead of presenting an improvised translation. */
+export function localizeLegalDocument(document: LegalDocument, locale: "th" | "en"): LegalDocument | null {
+  if (locale === "en") return document;
+  const localized = document.translations?.th;
+  return localized ? { ...document, ...localized } : null;
+}

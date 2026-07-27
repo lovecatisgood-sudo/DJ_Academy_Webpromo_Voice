@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { privacyJobSelectionError, safeMutationFetch, type PrivacyJobType } from "@djay/shared";
+import { currentIntlLocale, privacyJobSelectionError, safeMutationFetch, uiCopy, type PrivacyJobType } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
@@ -47,7 +47,7 @@ export default function DataControlsPage() {
     event.preventDefault(); setPrivacyMessage(""); const error = privacyJobSelectionError({ jobType, contactId });
     if (error) { setPrivacyError(error); requestAnimationFrame(() => document.querySelector<HTMLSelectElement>("#privacy-contact")?.focus()); return; }
     const contact = contacts.find((item) => item.id === contactId);
-    if (jobType === "erasure" && (!contact || !window.confirm(`Permanently erase personal data for ${contact.displayName}? This cannot be undone. Audit lineage and legally retained records remain.`))) return;
+    if (jobType === "erasure" && (!contact || !window.confirm(uiCopy(`ลบข้อมูลส่วนบุคคลของ ${contact.displayName} ถาวรหรือไม่? การกระทำนี้ย้อนกลับไม่ได้ ข้อมูลตรวจสอบและข้อมูลที่กฎหมายกำหนดให้เก็บยังคงอยู่`, `Permanently erase personal data for ${contact.displayName}? This cannot be undone. Audit lineage and legally retained records remain.`)))) return;
     setPrivacyError(""); setWorking(true);
     const response = await safeMutationFetch("/tenant/privacy-jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobType, ...(contactId ? { contactId } : {}), idempotencyKey: crypto.randomUUID() }) });
     setWorking(false); if (!response.ok) { setPrivacyMessageKind("error"); setPrivacyMessage("Privacy request could not be accepted. No data was exported or erased."); return; }
@@ -88,12 +88,12 @@ export default function DataControlsPage() {
         <section className="tool-band"><div className="band-heading"><div><p>Legal hold</p><h2>Conversations retained under hold</h2></div><span>{holds.length}</span></div>
           <p className="control-copy">Erasure anonymizes the contact but skips transcript redaction for held conversations. Set or clear holds with recent authentication via <code>POST /tenant/conversations/&#123;id&#125;/legal-hold</code> (reason required when enabling).</p>
           <div className="data-table">
-            {holds.map((hold) => <div className="data-row" key={hold.id}><div><strong>{hold.contactName}</strong><span>{hold.reason}</span></div><span>{new Date(hold.setAt).toLocaleString()}</span></div>)}
+            {holds.map((hold) => <div className="data-row" key={hold.id}><div><strong>{hold.contactName}</strong><span>{hold.reason}</span></div><span>{new Date(hold.setAt).toLocaleString(currentIntlLocale())}</span></div>)}
             {!holds.length ? <div className="pending-line"><strong>No legal holds</strong><span>Active holds appear here before erasure.</span></div> : null}
           </div>
         </section>
         <section className="tool-band muted-band"><div className="band-heading"><div><p>Processing</p><h2>Request history</h2></div><span>{jobs.length}</span></div><div className="data-table">
-          {jobs.map((job) => <div className="data-row" key={job.id}><div><strong>{job.jobType === "export" ? "Data export" : "Data erasure"}</strong><span>{job.contactName || "Entire workspace"}</span></div><span>{job.status}</span>{job.jobType === "export" && job.status === "completed" ? <a className="secondary-link" href={`/tenant/privacy-jobs/${job.id}/download`}>Download</a> : <span>{new Date(job.requestedAt).toLocaleString()}</span>}</div>)}
+          {jobs.map((job) => <div className="data-row" key={job.id}><div><strong>{job.jobType === "export" ? "Data export" : "Data erasure"}</strong><span>{job.contactName || "Entire workspace"}</span></div><span>{job.status}</span>{job.jobType === "export" && job.status === "completed" ? <a className="secondary-link" href={`/tenant/privacy-jobs/${job.id}/download`}>Download</a> : <span>{new Date(job.requestedAt).toLocaleString(currentIntlLocale())}</span>}</div>)}
           {!jobs.length ? <div className="pending-line"><strong>No privacy requests</strong><span>Submitted jobs appear here.</span></div> : null}
         </div></section>
       </>}

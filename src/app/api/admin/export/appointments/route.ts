@@ -1,6 +1,7 @@
 import { isAdminApiFailure, requireAdminApi } from "@/lib/admin-auth";
 import { toCsv } from "@/lib/csv";
 import { getSql } from "@/lib/db";
+import { localeFromRequest } from "@/lib/request-locale";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
       )
     order by a.start_at desc
   `) as Record<string, unknown>[];
-  const csv = toCsv(rows, [
+  const headers = [
     "id",
     "created_at",
     "updated_at",
@@ -83,7 +84,14 @@ export async function GET(request: Request) {
     "assigned_admin",
     "lead_id",
     "conversation_id",
-  ]);
+  ];
+  const csv = toCsv(rows, headers, localeFromRequest(request) === "th" ? {
+    id: "รหัสนัดหมาย", created_at: "สร้างเมื่อ", updated_at: "อัปเดตเมื่อ", status: "สถานะ", source: "ช่องทางต้นทาง",
+    start_at: "เริ่มเมื่อ", end_at: "สิ้นสุดเมื่อ", timezone: "เขตเวลา", duration_minutes: "ระยะเวลา (นาที)",
+    client_name: "ชื่อลูกค้า", company_name: "บริษัท", email: "อีเมล", phone: "โทรศัพท์", line_id: "LINE ID",
+    whatsapp: "WhatsApp", note: "บันทึกจากลูกค้า", admin_notes: "บันทึกภายใน", assigned_admin: "ผู้ดูแลที่รับผิดชอบ",
+    lead_id: "รหัสผู้สนใจ", conversation_id: "รหัสการสนทนา",
+  } : {});
 
   return new Response(csv, {
     headers: {

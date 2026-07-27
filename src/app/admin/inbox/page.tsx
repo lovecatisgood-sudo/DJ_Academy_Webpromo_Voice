@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AdminShell } from "../AdminShell";
 import { requireAdmin } from "@/lib/admin-auth";
+import { currentIntlLocale } from "@/lib/browser-locale";
 import { getSql } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -90,7 +91,7 @@ export default async function InboxPage() {
             </div>
           </div>
           <div className="mt-4 text-sm text-slate-500">
-            Last activity: {voiceStats?.last_started_at ? new Date(voiceStats.last_started_at).toLocaleString() : "No conversations yet"}
+            Last activity: {voiceStats?.last_started_at ? new Date(voiceStats.last_started_at).toLocaleString(currentIntlLocale()) : "No conversations yet"}
           </div>
         </Link>
       </section>

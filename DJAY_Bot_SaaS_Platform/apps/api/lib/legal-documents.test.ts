@@ -54,6 +54,22 @@ describe("legal document loader", () => {
     });
   });
 
+  it("loads the user-approved Thai legal bundle fixture", () => {
+    const loaded = loadLegalDocuments(resolve(process.cwd(), "../../docs/compliance/djay-legal-documents.user-approved.th.json"));
+    expect(loaded).toMatchObject({
+      approvalStatus: "approved",
+      approvalReference: "USER-APPROVED-OWN-RISK-TH-TRANSLATION-2026-07-27",
+      terms: {
+        version: "terms-2026-08-draft1",
+        translations: { th: { title: "ข้อกำหนดการใช้บริการหลักของ DJBOT" } },
+      },
+      privacy: {
+        version: "privacy-2026-08-draft1",
+        translations: { th: { title: "ประกาศความเป็นส่วนตัวของดีใจ แล็บ" } },
+      },
+    });
+  });
+
   it.each([
     ["relative path", () => loadLegalDocuments("legal.json")],
     ["unreadable path", () => loadLegalDocuments(resolve(tmpdir(), "djay-legal-file-does-not-exist.json"))],

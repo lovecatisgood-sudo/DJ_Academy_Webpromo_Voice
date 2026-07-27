@@ -5,6 +5,72 @@
   const realtimeUrl = "https://api.openai.com/v1/realtime/calls";
   const controllers = [];
 
+  const COPY = {
+    th: {
+      regionLabel: "ผู้ช่วยฝ่ายขายด้วยเสียงของ DJAI",
+      title: "คุยกับ DJAI",
+      readyVoice: "พร้อมเริ่มสนทนา",
+      readyChat: "พร้อมแชต",
+      start: "เริ่มคุยด้วยเสียง",
+      mute: "ปิดไมโครโฟน",
+      unmute: "เปิดไมโครโฟน",
+      end: "จบการสนทนา",
+      booking: "เลือกเวลานัดปรึกษา",
+      chatMode: "แชตบอต",
+      voiceMode: "บอตเสียง",
+      placeholder: "พิมพ์ข้อความ…",
+      send: "ส่ง",
+      connectingChat: "กำลังเชื่อมต่อแชตบอต…",
+      chatbotUnavailable: "ขณะนี้แชตบอตไม่พร้อมใช้งาน",
+      endVoiceBeforeChat: "กรุณาจบการสนทนาด้วยเสียงก่อนเปลี่ยนเป็นแชตบอต",
+      fallbackGreeting: "สวัสดี เราคือ DJ จาก DJAI Academy วันนี้อยากพัฒนาหรือแก้ปัญหาส่วนไหนของธุรกิจ",
+      fallbackReply: "ช่วยเล่ารายละเอียดเพิ่มเติมอีกนิดได้ไหม",
+      chatFailed: "ส่งข้อความไม่สำเร็จ กรุณาลองใหม่",
+      you: "คุณ",
+      tool: "ระบบบันทึกข้อมูล",
+      system: "ระบบ",
+      bookingReady: "ปุ่มเลือกเวลานัดปรึกษาพร้อมแล้ว",
+      callEnded: "จบการสนทนาแล้ว",
+      connecting: "กำลังเชื่อมต่อ",
+      listening: "กำลังฟัง",
+      speaking: "กำลังตอบ",
+      muted: "ปิดไมโครโฟนแล้ว",
+      callClosing: "การเชื่อมต่อกำลังจะปิด",
+      callClosed: "การเชื่อมต่อสิ้นสุดแล้ว",
+      callInterrupted: "การสนทนาขัดข้อง กรุณาลองใหม่",
+      connectionInterrupted: "การเชื่อมต่อขัดข้อง",
+      audioInterrupted: "การเชื่อมต่อเสียงขัดข้อง",
+      microphoneUnsupported: "เบราว์เซอร์นี้ไม่รองรับการรับเสียงจากไมโครโฟน",
+      microphoneBlocked: "ไม่สามารถใช้ไมโครโฟนได้ กรุณาอนุญาตการเข้าถึงไมโครโฟนในการตั้งค่าเบราว์เซอร์",
+      voiceUnavailable: "ขณะนี้บอตเสียงไม่พร้อมใช้งาน กรุณาลองใหม่อีกครั้ง",
+      voiceOffline: "ขณะนี้บอตเสียงปิดให้บริการ",
+      detailsSent: "ส่งข้อมูลให้ทีม DJAI เรียบร้อยแล้ว ทีมงานจะติดต่อกลับ",
+      detailsFailed: "ยังบันทึกข้อมูลไม่ได้ กรุณาแจ้งช่องทางติดต่ออีกครั้ง",
+      invalidDetails: "ระบบอ่านข้อมูลได้ไม่ครบ กรุณาแจ้งช่องทางติดต่ออีกครั้ง",
+      visitor: "ผู้สนใจ",
+      contactProvided: "มีช่องทางติดต่อ",
+      needCaptured: "บันทึกความต้องการแล้ว",
+    },
+    en: {
+      regionLabel: "DJAI voice sales agent", title: "Talk to DJAI", readyVoice: "Ready to talk", readyChat: "Ready to chat",
+      start: "Start voice call", mute: "Mute", unmute: "Unmute", end: "End", booking: "Book consultation",
+      chatMode: "Chatbot", voiceMode: "Voicebot", placeholder: "Type your message...", send: "Send",
+      connectingChat: "Connecting chatbot...", chatbotUnavailable: "Chatbot unavailable",
+      endVoiceBeforeChat: "Please end the voice call before switching back to chatbot.",
+      fallbackGreeting: "Hi, I am DJ from DJAI Academy. What kind of business are you running?",
+      fallbackReply: "Could you tell me a little more?", chatFailed: "Chat message failed.", you: "You", tool: "Tool", system: "System",
+      bookingReady: "A booking button is ready if you want to choose a consultation time.", callEnded: "Call ended",
+      connecting: "Connecting", listening: "Listening", speaking: "Speaking", muted: "Muted", callClosing: "Call connection closing",
+      callClosed: "Call connection closed", callInterrupted: "Call interrupted. Please try again.", connectionInterrupted: "Call connection interrupted",
+      audioInterrupted: "Audio connection interrupted", microphoneUnsupported: "Audio input is not supported in this browser.",
+      microphoneBlocked: "Microphone permission was blocked.", voiceUnavailable: "Voice agent is unavailable. Please try again shortly.",
+      voiceOffline: "Voice agent is offline", detailsSent: "Your details were sent to DJAI for follow-up.",
+      detailsFailed: "DJAI could not save those details yet. Please repeat the contact information.",
+      invalidDetails: "DJAI could not read those details clearly. Please repeat the contact information.",
+      visitor: "visitor", contactProvided: "contact provided", needCaptured: "need captured",
+    },
+  };
+
   function ensureDualModeStyles() {
     if (document.getElementById("djai-dual-mode-styles")) return;
     const style = document.createElement("style");
@@ -130,6 +196,7 @@
   }
 
   function createFloatingContainer() {
+    const copy = getCopy();
     const root = document.createElement("div");
     root.id = "djai-voice-agent";
     root.innerHTML = `
@@ -242,20 +309,20 @@
           display: none;
         }
       </style>
-      <div class="djai-floating-card" role="region" aria-label="DJAI voice sales agent">
+      <div class="djai-floating-card" role="region" aria-label="${copy.regionLabel}">
         <div class="djai-floating-top">
           <div class="djai-floating-mark" aria-hidden="true">DJ</div>
           <div>
-            <p class="djai-floating-title">Talk to DJAI</p>
-            <div class="djai-floating-status" data-djai-status>Ready to talk</div>
+            <p class="djai-floating-title">${copy.title}</p>
+            <div class="djai-floating-status" data-djai-status>${copy.readyVoice}</div>
           </div>
         </div>
         <div class="djai-floating-actions">
-          <button type="button" data-djai-start>Start voice call</button>
-          <button type="button" data-djai-mute hidden>Mute</button>
-          <button type="button" data-djai-end hidden>End</button>
+          <button type="button" data-djai-start>${copy.start}</button>
+          <button type="button" data-djai-mute hidden>${copy.mute}</button>
+          <button type="button" data-djai-end hidden>${copy.end}</button>
         </div>
-        <a class="djai-booking-cta" data-djai-booking hidden target="_blank" rel="noopener">Book consultation</a>
+        <a class="djai-booking-cta" data-djai-booking hidden target="_blank" rel="noopener">${copy.booking}</a>
         <div class="djai-floating-log" data-djai-transcript></div>
       </div>
     `;
@@ -297,10 +364,15 @@
     return documentLanguage === "en" ? "en" : "th";
   }
 
+  function getCopy() {
+    return COPY[getSelectedLanguage()] || COPY.th;
+  }
+
   class VoiceController {
     constructor(container) {
       ensureDualModeStyles();
       this.container = container;
+      this.copy = getCopy();
       this.card = container;
       this.installDualModeUi();
       this.statusEl = container.querySelector("[data-djai-status]");
@@ -340,7 +412,7 @@
 
       this.startButton?.addEventListener("click", () => this.startCall());
       this.muteButton?.addEventListener("click", () => this.toggleMute());
-      this.endButton?.addEventListener("click", () => this.endCall("Ended"));
+      this.endButton?.addEventListener("click", () => this.endCall(this.copy.callEnded));
       window.addEventListener("pagehide", () => {
         if (!this.closed && this.sessionContext) {
           this.saveConversation();
@@ -372,8 +444,8 @@
         toggle.className = "djai-mode-toggle";
         toggle.dataset.djaiModeToggle = "true";
         toggle.innerHTML = `
-          <button type="button" data-djai-mode="chat" aria-pressed="false">Chatbot</button>
-          <button type="button" data-djai-mode="voice" aria-pressed="true">Voicebot</button>
+          <button type="button" data-djai-mode="chat" aria-pressed="false">${this.copy.chatMode}</button>
+          <button type="button" data-djai-mode="voice" aria-pressed="true">${this.copy.voiceMode}</button>
         `;
         const header = this.card.querySelector(".voice-agent-header, .djai-floating-top, .ai-chat-header");
         if (header?.after) header.after(toggle);
@@ -387,8 +459,8 @@
         panel.innerHTML = `
           <div class="djai-chat-messages" data-djai-chat-messages></div>
           <form class="djai-chat-form" data-djai-chat-form>
-            <textarea data-djai-chat-input rows="1" placeholder="Type your message..."></textarea>
-            <button type="submit" data-djai-chat-send>Send</button>
+            <textarea data-djai-chat-input rows="1" placeholder="${this.copy.placeholder}"></textarea>
+            <button type="submit" data-djai-chat-send>${this.copy.send}</button>
           </form>
         `;
         const toggle = this.card.querySelector("[data-djai-mode-toggle]");
@@ -408,7 +480,7 @@
       const nextMode = mode === "voice" ? "voice" : "chat";
       if (nextMode === "chat" && !this.closed) {
         if (!options.silent) {
-          window.alert("Please end the voice call before switching back to chatbot.");
+          window.alert(this.copy.endVoiceBeforeChat);
         }
         return;
       }
@@ -421,10 +493,10 @@
       });
 
       if (nextMode === "chat") {
-        if (this.statusEl) this.statusEl.textContent = "Ready to chat";
+        if (this.statusEl) this.statusEl.textContent = this.copy.readyChat;
         this.startChatIfNeeded();
       } else if (this.statusEl && this.closed) {
-        this.statusEl.textContent = "Ready to talk";
+        this.statusEl.textContent = this.copy.readyVoice;
       }
     }
 
@@ -442,7 +514,7 @@
       this.chatBusy = busy;
       if (this.chatSend) {
         this.chatSend.disabled = busy;
-        this.chatSend.textContent = busy ? "..." : "Send";
+        this.chatSend.textContent = busy ? "…" : this.copy.send;
       }
     }
 
@@ -451,7 +523,7 @@
       if (this.chatStarting) return this.chatStarting;
       if (this.chatStarted) return;
       this.chatStarted = true;
-      if (this.mode === "chat" && this.statusEl) this.statusEl.textContent = "Connecting chatbot...";
+      if (this.mode === "chat" && this.statusEl) this.statusEl.textContent = this.copy.connectingChat;
       this.chatStarting = (async () => {
         const response = await fetch(`${apiBase}/api/chat/session`, {
           method: "POST",
@@ -459,12 +531,12 @@
           body: JSON.stringify({ pageUrl: window.location.href, preferredLanguage: getSelectedLanguage() }),
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "Chatbot is unavailable.");
+        if (!response.ok) throw new Error(this.copy.chatbotUnavailable);
         this.chatSessionContext = data.sessionContext;
         if (!this.chatHasUserMessages) {
-          this.addChatMessage("assistant", data.greeting || "Hi, I am DJ from DJAI Academy. What kind of business are you running?");
+          this.addChatMessage("assistant", data.greeting || this.copy.fallbackGreeting);
         }
-        if (this.mode === "chat" && this.statusEl) this.statusEl.textContent = "Ready to chat";
+        if (this.mode === "chat" && this.statusEl) this.statusEl.textContent = this.copy.readyChat;
       })();
 
       try {
@@ -472,8 +544,8 @@
       } catch (error) {
         this.chatStarted = false;
         this.chatSessionContext = null;
-        if (this.mode === "chat" && this.statusEl) this.statusEl.textContent = "Chatbot unavailable";
-        this.addChatMessage("system", error instanceof Error ? error.message : "Chatbot is unavailable.");
+        if (this.mode === "chat" && this.statusEl) this.statusEl.textContent = this.copy.chatbotUnavailable;
+        this.addChatMessage("system", this.copy.chatbotUnavailable);
       } finally {
         this.chatStarting = null;
       }
@@ -506,11 +578,11 @@
           }),
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "Chat message failed.");
-        this.addChatMessage("assistant", data.reply || "Could you tell me a little more?");
+        if (!response.ok) throw new Error(this.copy.chatFailed);
+        this.addChatMessage("assistant", data.reply || this.copy.fallbackReply);
         this.showBookingCta(data.booking);
       } catch (error) {
-        this.addChatMessage("system", error instanceof Error ? error.message : "Chat message failed.");
+        this.addChatMessage("system", this.copy.chatFailed);
       } finally {
         this.setChatBusy(false);
         this.chatInput?.focus();
@@ -547,7 +619,7 @@
       if (!this.transcriptEl) return;
       const row = document.createElement("div");
       row.className = "voice-agent-line";
-      const label = role === "user" ? "You" : role === "assistant" ? "DJAI" : role === "tool" ? "Tool" : "System";
+      const label = role === "user" ? this.copy.you : role === "assistant" ? "DJAI" : role === "tool" ? this.copy.tool : this.copy.system;
       row.innerHTML = `<strong>${label}</strong><br>${this.escape(clean)}`;
       this.transcriptEl.appendChild(row);
       this.transcriptEl.scrollTop = this.transcriptEl.scrollHeight;
@@ -571,12 +643,12 @@
 
     showBookingCta(booking) {
       if (!this.bookingLink || !booking || !booking.available || !booking.url) return;
-      this.bookingLink.href = booking.url;
+      const bookingUrl = new URL(booking.url, window.location.href);
+      bookingUrl.searchParams.set("lang", getSelectedLanguage());
+      this.bookingLink.href = bookingUrl.toString();
       this.bookingLink.hidden = false;
-      this.bookingLink.textContent = getSelectedLanguage() === "en" ? "Book consultation" : "เลือกเวลานัดปรึกษา";
-      this.addTranscript("system", getSelectedLanguage() === "en"
-        ? "A booking button is ready if you want to choose a consultation time."
-        : "ปุ่มเลือกเวลานัดปรึกษาพร้อมแล้ว");
+      this.bookingLink.textContent = this.copy.booking;
+      this.addTranscript("system", this.copy.bookingReady);
     }
 
     startTimer(maxSeconds) {
@@ -592,7 +664,7 @@
       render();
       this.timer = window.setInterval(render, 1000);
       if (maxSeconds > 0) {
-        this.maxCallTimer = window.setTimeout(() => this.endCall("Call ended"), maxSeconds * 1000);
+        this.maxCallTimer = window.setTimeout(() => this.endCall(this.copy.callEnded), maxSeconds * 1000);
       }
     }
 
@@ -644,7 +716,7 @@
     async postLead(callId, args) {
       this.addTranscript(
         "tool",
-        `capture_lead: ${args.name || "visitor"} | ${args.contact || "contact provided"} | ${args.need || "need captured"}`,
+        `capture_lead: ${args.name || this.copy.visitor} | ${args.contact || this.copy.contactProvided} | ${args.need || this.copy.needCaptured}`,
       );
 
       try {
@@ -664,21 +736,21 @@
 
         if (response.ok) {
           this.showBookingCta(result.booking);
-          this.addTranscript("system", "Your details were sent to DJAI for follow-up.");
+          this.addTranscript("system", this.copy.detailsSent);
           return;
         }
 
-        this.addTranscript("system", "DJAI could not save those details yet. Please repeat the contact information.");
+        this.addTranscript("system", this.copy.detailsFailed);
       } catch {
         this.sendToolOutput(callId, { ok: false, leadId: null, error: "Lead capture request failed." });
-        this.addTranscript("system", "DJAI could not save those details yet. Please repeat the contact information.");
+        this.addTranscript("system", this.copy.detailsFailed);
       }
     }
 
     async postGeminiLead(callId, name, args) {
       this.addTranscript(
         "tool",
-        `capture_lead: ${args.name || "visitor"} | ${args.contact || "contact provided"} | ${args.need || "need captured"}`,
+        `capture_lead: ${args.name || this.copy.visitor} | ${args.contact || this.copy.contactProvided} | ${args.need || this.copy.needCaptured}`,
       );
 
       let output = { ok: false, leadId: null, error: "Lead capture failed." };
@@ -699,13 +771,13 @@
 
         if (response.ok) {
           this.showBookingCta(result.booking);
-          this.addTranscript("system", "Your details were sent to DJAI for follow-up.");
+          this.addTranscript("system", this.copy.detailsSent);
         } else {
-          this.addTranscript("system", "DJAI could not save those details yet. Please repeat the contact information.");
+          this.addTranscript("system", this.copy.detailsFailed);
         }
       } catch {
         output = { ok: false, leadId: null, error: "Lead capture request failed." };
-        this.addTranscript("system", "DJAI could not save those details yet. Please repeat the contact information.");
+        this.addTranscript("system", this.copy.detailsFailed);
       }
 
       this.sendGeminiEvent({
@@ -733,7 +805,7 @@
         args = JSON.parse(argumentText || "{}");
       } catch {
         this.sendToolOutput(callId, { ok: false, leadId: null, error: "Invalid lead arguments." });
-        this.addTranscript("system", "DJAI could not read those details clearly. Please repeat the contact information.");
+        this.addTranscript("system", this.copy.invalidDetails);
         return;
       }
 
@@ -774,21 +846,21 @@
 
     handleServerEvent(event) {
       if (event.type === "error") {
-        this.addTranscript("system", "Call interrupted. Please try again.");
-        this.endCall("Call interrupted. Please try again.");
+        this.addTranscript("system", this.copy.callInterrupted);
+        this.endCall(this.copy.callInterrupted);
         return;
       }
 
       if (event.type === "input_audio_buffer.speech_started") {
-        this.setVisualState("listening", "Listening");
+        this.setVisualState("listening", this.copy.listening);
       }
 
       if (event.type === "response.output_audio.delta" || event.type === "response.audio.delta") {
-        this.setVisualState("speaking", "Speaking");
+        this.setVisualState("speaking", this.copy.speaking);
       }
 
       if (event.type === "response.done") {
-        this.setVisualState("listening", "Listening");
+        this.setVisualState("listening", this.copy.listening);
       }
 
       if (event.type === "conversation.item.input_audio_transcription.completed") {
@@ -911,7 +983,7 @@
 
     handleGeminiMessage(message) {
       if (message.setupComplete) {
-        this.setVisualState("listening", "Listening");
+        this.setVisualState("listening", this.copy.listening);
         this.setActiveControls(true);
         this.startGeminiAudioInput();
         this.sendGeminiEvent({
@@ -947,13 +1019,13 @@
         parts.forEach((part) => {
           const inlineData = part.inlineData || part.inline_data;
           if (inlineData?.data && String(inlineData.mimeType || inlineData.mime_type || "").includes("audio")) {
-            this.setVisualState("speaking", "Speaking");
+            this.setVisualState("speaking", this.copy.speaking);
             this.playGeminiAudio(inlineData.data);
           }
         });
 
         if (content.turnComplete) {
-          this.setVisualState("listening", "Listening");
+          this.setVisualState("listening", this.copy.listening);
         }
       }
 
@@ -962,8 +1034,8 @@
       }
 
       if (message.goAway) {
-        this.addTranscript("system", "Call connection is closing.");
-        this.endCall("Call connection closing");
+        this.addTranscript("system", this.copy.callClosing);
+        this.endCall(this.copy.callClosing);
       }
     }
 
@@ -972,7 +1044,7 @@
 
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) {
-        throw new Error("Audio input is not supported in this browser.");
+        throw new Error(this.copy.microphoneUnsupported);
       }
 
       this.inputAudioContext = new AudioContextClass();
@@ -1000,7 +1072,7 @@
 
     async startGeminiSession(tokenData) {
       if (!tokenData.gemini?.websocketUrl) {
-        throw new Error("Voice agent is unavailable.");
+        throw new Error(this.copy.voiceUnavailable);
       }
 
       await new Promise((resolve, reject) => {
@@ -1008,7 +1080,7 @@
         const timeout = window.setTimeout(() => {
           if (!settled) {
             settled = true;
-            reject(new Error("Voice agent is unavailable."));
+            reject(new Error(this.copy.voiceUnavailable));
           }
         }, 10000);
 
@@ -1029,27 +1101,27 @@
           try {
             this.handleGeminiMessage(await this.parseGeminiEventData(event.data));
           } catch {
-            this.addTranscript("system", "Call interrupted. Please try again.");
-            this.endCall("Call interrupted. Please try again.");
+            this.addTranscript("system", this.copy.callInterrupted);
+            this.endCall(this.copy.callInterrupted);
           }
         });
         this.ws.addEventListener("close", () => {
           if (!this.closed) {
-            this.addTranscript("system", "Call connection closed.");
-            this.endCall("Call connection closed");
+            this.addTranscript("system", this.copy.callClosed);
+            this.endCall(this.copy.callClosed);
           }
         });
         this.ws.addEventListener("error", () => {
           if (!settled) {
             settled = true;
             window.clearTimeout(timeout);
-            reject(new Error("Voice agent is unavailable."));
+            reject(new Error(this.copy.voiceUnavailable));
             return;
           }
 
           if (!this.closed) {
-            this.addTranscript("system", "Call connection interrupted.");
-            this.endCall("Call connection interrupted");
+            this.addTranscript("system", this.copy.connectionInterrupted);
+            this.endCall(this.copy.connectionInterrupted);
           }
         });
       });
@@ -1067,7 +1139,7 @@
         this.bookingLink.removeAttribute("href");
       }
       if (this.transcriptEl) this.transcriptEl.innerHTML = "";
-      this.setVisualState("connecting", "Connecting");
+      this.setVisualState("connecting", this.copy.connecting);
       this.startButton.disabled = true;
 
       try {
@@ -1081,7 +1153,7 @@
         const tokenData = await tokenResponse.json().catch(() => ({}));
 
         if (!tokenResponse.ok) {
-          throw new Error(tokenData.error || "Voice agent is unavailable.");
+          throw new Error(this.copy.voiceUnavailable);
         }
 
         this.sessionContext = tokenData.sessionContext;
@@ -1095,7 +1167,7 @@
 
         const token = getClientSecret(tokenData);
         if (!token) {
-          throw new Error("Voice agent is unavailable.");
+          throw new Error(this.copy.voiceUnavailable);
         }
 
         this.pc = new RTCPeerConnection();
@@ -1116,15 +1188,15 @@
         this.pc.addEventListener("connectionstatechange", () => {
           const state = this.pc?.connectionState;
           if (!this.closed && (state === "failed" || state === "disconnected" || state === "closed")) {
-            this.addTranscript("system", "Audio connection interrupted.");
-            this.endCall("Audio connection interrupted");
+            this.addTranscript("system", this.copy.audioInterrupted);
+            this.endCall(this.copy.audioInterrupted);
           }
         });
 
         this.pc.addTrack(this.localStream.getTracks()[0], this.localStream);
         this.dc = this.pc.createDataChannel("oai-events");
         this.dc.addEventListener("open", () => {
-          this.setVisualState("listening", "Listening");
+          this.setVisualState("listening", this.copy.listening);
           this.setActiveControls(true);
           this.sendEvent({ type: "response.create" });
         });
@@ -1132,20 +1204,20 @@
           try {
             this.handleServerEvent(JSON.parse(message.data));
           } catch {
-            this.addTranscript("system", "Call interrupted. Please try again.");
-            this.endCall("Call interrupted. Please try again.");
+            this.addTranscript("system", this.copy.callInterrupted);
+            this.endCall(this.copy.callInterrupted);
           }
         });
         this.dc.addEventListener("close", () => {
           if (!this.closed) {
-            this.addTranscript("system", "Call connection closed.");
-            this.endCall("Call connection closed");
+            this.addTranscript("system", this.copy.callClosed);
+            this.endCall(this.copy.callClosed);
           }
         });
         this.dc.addEventListener("error", () => {
           if (!this.closed) {
-            this.addTranscript("system", "Call connection interrupted.");
-            this.endCall("Call connection interrupted");
+            this.addTranscript("system", this.copy.connectionInterrupted);
+            this.endCall(this.copy.connectionInterrupted);
           }
         });
 
@@ -1162,7 +1234,7 @@
         });
 
         if (!sdpResponse.ok) {
-          throw new Error("Voice agent is unavailable.");
+          throw new Error(this.copy.voiceUnavailable);
         }
 
         await this.pc.setRemoteDescription({
@@ -1172,12 +1244,12 @@
         this.startTimer(Number(tokenData.maxCallSeconds || 0));
       } catch (error) {
         const message = error instanceof DOMException && error.name === "NotAllowedError"
-          ? "Microphone permission was blocked."
+          ? this.copy.microphoneBlocked
           : error instanceof Error
             ? error.message
-            : "Voice agent is unavailable.";
+            : this.copy.voiceUnavailable;
         this.addTranscript("system", message);
-        await this.endCall("Voice agent unavailable", { save: false });
+        await this.endCall(this.copy.voiceUnavailable, { save: false });
       } finally {
         if (this.startButton && !this.pc && !this.ws) {
           this.startButton.disabled = false;
@@ -1194,11 +1266,11 @@
         });
         const data = await response.json().catch(() => ({}));
         if (response.ok && data.agentEnabled === false) {
-          this.setVisualState("ended", "Voice agent is offline");
+          this.setVisualState("ended", this.copy.voiceOffline);
           if (this.startButton) this.startButton.disabled = true;
         }
       } catch {
-        this.setVisualState("idle", "Ready to talk");
+        this.setVisualState("idle", this.copy.readyVoice);
       }
     }
 
@@ -1208,8 +1280,8 @@
       this.localStream.getAudioTracks().forEach((track) => {
         track.enabled = !this.muted;
       });
-      if (this.muteButton) this.muteButton.textContent = this.muted ? "Unmute" : "Mute";
-      this.setVisualState(this.muted ? "listening" : "listening", this.muted ? "Muted" : "Listening");
+      if (this.muteButton) this.muteButton.textContent = this.muted ? this.copy.unmute : this.copy.mute;
+      this.setVisualState("listening", this.muted ? this.copy.muted : this.copy.listening);
     }
 
     async saveConversation() {
@@ -1233,12 +1305,12 @@
       }
     }
 
-    async endCall(label = "Ended", options = {}) {
+    async endCall(label = this.copy.callEnded, options = {}) {
       if (this.closed) return;
       this.closed = true;
       window.clearInterval(this.timer);
       window.clearTimeout(this.maxCallTimer);
-      this.setVisualState(label === "Voice agent unavailable" ? "error" : "ended", label);
+      this.setVisualState(label === this.copy.voiceUnavailable ? "error" : "ended", label);
       this.setActiveControls(false);
 
       if (this.localStream) {
@@ -1269,7 +1341,7 @@
       this.playbackCursor = 0;
       this.geminiAudioSources.clear();
       this.muted = false;
-      if (this.muteButton) this.muteButton.textContent = "Mute";
+      if (this.muteButton) this.muteButton.textContent = this.copy.mute;
       if (this.startButton) {
         this.startButton.disabled = false;
         this.startButton.hidden = false;

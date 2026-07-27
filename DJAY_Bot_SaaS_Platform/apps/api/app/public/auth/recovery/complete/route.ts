@@ -5,9 +5,11 @@ import { enforceRateLimit, hasTrustedOrigin, readJson, requestId, safeJson } fro
 
 export async function POST(request: Request) {
   const id = requestId();
+  let locale: "th" | "en" = "th";
   if (!(await hasTrustedOrigin(request))) return safeJson({ status: "invalid_or_expired" }, 400);
   try {
     const raw = await readJson(request);
+    locale = typeof raw === "object" && raw !== null && "locale" in raw && raw.locale === "en" ? "en" : "th";
     const body = recoveryCompleteInputSchema.parse({
       ...(typeof raw === "object" && raw !== null ? raw : {}),
       requestId: id,
@@ -22,6 +24,6 @@ export async function POST(request: Request) {
       return safeJson({ status: "invalid_or_expired" }, 400);
     }
     console.error("recovery_complete_failed", { requestId: id, error: error instanceof Error ? error.name : "unknown" });
-    return safeJson({ code: "temporarily_unavailable", message: "Recovery is unavailable.", requestId: id }, 503);
+    return safeJson({ code: "temporarily_unavailable", message: locale === "en" ? "Recovery is unavailable." : "ระบบกู้คืนบัญชีไม่พร้อมใช้งานชั่วคราว", requestId: id }, 503);
   }
 }

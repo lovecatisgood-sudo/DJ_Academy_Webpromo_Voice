@@ -22,12 +22,13 @@ function isLegalDocument(value: unknown): value is LegalDocument {
 export function LegalDocumentClient({ kind }: { kind: LegalKind }) {
   const [stage, setStage] = useState<"loading" | "ready" | "error">("loading");
   const [document, setDocument] = useState<LegalDocument | null>(null);
-  const other = kind === "terms" ? { href: "/privacy", label: "Privacy Notice" } : { href: "/terms", label: "Service Terms" };
+  const other = kind === "terms" ? { href: "/privacy", label: "ประกาศความเป็นส่วนตัว" } : { href: "/terms", label: "ข้อกำหนดบริการ" };
 
   async function load() {
     setStage("loading");
     try {
-      const response = await fetch("/public/legal/" + kind, { cache: "no-store" });
+      const locale = /(?:^|;\s*)djay-locale=en(?:;|$)/.test(globalThis.document.cookie) ? "en" : "th";
+      const response = await fetch(`/public/legal/${kind}?lang=${locale}`, { cache: "no-store" });
       const body = await response.json();
       if (!response.ok || body.status !== "available" || !isLegalDocument(body.document)) throw new Error("legal_unavailable");
       setDocument(body.document);
@@ -43,24 +44,24 @@ export function LegalDocumentClient({ kind }: { kind: LegalKind }) {
   return <main className="legal-page">
     <header className="legal-header">
       <a className="status-brand" href="/"><span className="brand-mark" aria-hidden="true">D</span><strong>DJAY BOT</strong></a>
-      <nav aria-label="Public navigation"><a href="/">Create workspace</a><a href="/status">Service status</a></nav>
+      <nav aria-label="เมนูสาธารณะ"><a href="/">สร้างพื้นที่ทำงาน</a><a href="/status">สถานะบริการ</a></nav>
     </header>
     <section className="legal-hero">
-      <p className="step-label">Approved customer document</p>
-      <h1 id="legal-title">{stage === "ready" ? document?.title : kind === "terms" ? "Service Terms" : "Privacy Notice"}</h1>
-      {document ? <p>{document.summary}</p> : <p>Review the current approved document before creating a workspace.</p>}
+      <p className="step-label">เอกสารลูกค้าที่อนุมัติแล้ว</p>
+      <h1 id="legal-title">{stage === "ready" ? document?.title : kind === "terms" ? "ข้อกำหนดบริการ" : "ประกาศความเป็นส่วนตัว"}</h1>
+      {document ? <p>{document.summary}</p> : <p>โปรดตรวจสอบเอกสารฉบับอนุมัติปัจจุบันก่อนสร้างพื้นที่ทำงาน</p>}
     </section>
     <section className="legal-content" aria-labelledby="legal-title" aria-busy={stage === "loading"}>
-      {stage === "loading" ? <div className="legal-state" role="status">Loading the current approved document…</div> : null}
-      {stage === "error" ? <div className="legal-state error" role="alert"><div><strong>This document is temporarily unavailable.</strong><span>Registration remains paused until the approved version can be reviewed.</span></div><button type="button" onClick={() => void load()}>Try again</button></div> : null}
+      {stage === "loading" ? <div className="legal-state" role="status">กำลังโหลดเอกสารฉบับอนุมัติปัจจุบัน...</div> : null}
+      {stage === "error" ? <div className="legal-state error" role="alert"><div><strong>เอกสารนี้ไม่พร้อมใช้งานชั่วคราว</strong><span>การสมัครจะหยุดไว้จนกว่าจะตรวจสอบเวอร์ชันที่อนุมัติได้</span></div><button type="button" onClick={() => void load()}>ลองอีกครั้ง</button></div> : null}
       {stage === "ready" && document ? <article className="legal-document">
-        <div className="legal-meta"><span>Version {document.version}</span><span>Effective {document.effectiveDate}</span></div>
+        <div className="legal-meta"><span>เวอร์ชัน {document.version}</span><span>มีผลวันที่ {document.effectiveDate}</span></div>
         {document.sections.map((section, index) => <section key={section.heading + index}>
           <h2>{section.heading}</h2>
           {section.paragraphs.map((paragraph, paragraphIndex) => <p key={paragraphIndex}>{paragraph}</p>)}
         </section>)}
       </article> : null}
     </section>
-    <footer className="status-footer"><span>DJAY Bot</span><a href={other.href}>{other.label}</a><a href="/">Create workspace</a></footer>
+    <footer className="status-footer"><span>DJAY Bot</span><a href={other.href}>{other.label}</a><a href="/">สร้างพื้นที่ทำงาน</a></footer>
   </main>;
 }

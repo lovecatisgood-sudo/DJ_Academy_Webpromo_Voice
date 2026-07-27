@@ -2,9 +2,9 @@ import "./styles.css";
 
 export const metadata = {
   title: "DJAY Bot API",
-  description: "DJAY Bot service endpoint and health surface.",
+  description: "จุดให้บริการ API และหน้าสถานะของ DJAY Bot",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+  return <html lang="th"><body>{children}</body></html>;
 }

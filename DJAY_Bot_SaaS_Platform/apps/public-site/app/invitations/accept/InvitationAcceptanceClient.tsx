@@ -69,7 +69,7 @@ export function InvitationAcceptanceClient({
       const result = await response.json().catch(() => ({}));
       if (result.status === "sign_in_required") {
         setStatus("sign_in");
-        setMessage("This email already has an account. Continue to the secure sign-in journey to accept it.");
+        setMessage("อีเมลนี้มีบัญชีอยู่แล้ว โปรดไปตามขั้นตอนเข้าสู่ระบบแบบปลอดภัยเพื่อยอมรับคำเชิญ");
         return;
       }
       if (!response.ok) {
@@ -77,46 +77,46 @@ export function InvitationAcceptanceClient({
           clearBrowserOneTimeValues(invitationStorage, ["token"]);
           setToken("");
         }
-        throw new Error(response.status >= 500 ? "Invitation acceptance is temporarily unavailable. Try again." : "This invitation is invalid or has expired.");
+        throw new Error(response.status >= 500 ? "การยอมรับคำเชิญไม่พร้อมใช้งานชั่วคราว โปรดลองอีกครั้ง" : "คำเชิญนี้ไม่ถูกต้องหรือหมดอายุแล้ว");
       }
       clearBrowserOneTimeValues(invitationStorage, ["token"]);
       setToken("");
       setStatus("accepted");
-      setMessage("Your team access is ready. Sign in to continue.");
+      setMessage("สิทธิ์เข้าถึงทีมของคุณพร้อมแล้ว เข้าสู่ระบบเพื่อดำเนินการต่อ");
     } catch (error) {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "This invitation could not be accepted.");
+      setMessage(error instanceof Error ? error.message : "ยอมรับคำเชิญนี้ไม่สำเร็จ");
     }
   }
 
   return (
     <section className="verification-panel" aria-labelledby="invitation-title">
       <div className="brand-lockup verification-brand"><span className="brand-mark">D</span><span>DJAY BOT</span></div>
-      <p className="step-label">Team invitation</p>
-      <h1 id="invitation-title">Join your workspace</h1>
+      <p className="step-label">คำเชิญเข้าร่วมทีม</p>
+      <h1 id="invitation-title">เข้าร่วมพื้นที่ทำงานของคุณ</h1>
       {status === "accepted" || status === "sign_in" ? (
         <>
           <p className="verification-copy" role="status">{message}</p>
           {status === "sign_in"
-            ? <a className="primary-link" href={existingAccountUrl} onClick={continueExistingAccount}>Continue to sign in</a>
-            : <a className="primary-link" href={tenantLoginUrl}>Sign in</a>}
+            ? <a className="primary-link" href={existingAccountUrl} onClick={continueExistingAccount}>ไปหน้าเข้าสู่ระบบ</a>
+            : <a className="primary-link" href={tenantLoginUrl}>เข้าสู่ระบบ</a>}
         </>
       ) : (
         <>
-          <p className="verification-copy">Set your account details to accept this invitation.</p>
+          <p className="verification-copy">ตั้งค่ารายละเอียดบัญชีเพื่อยอมรับคำเชิญนี้</p>
           <form onSubmit={submit}>
-            <label>Your name<input className="field" name="name" autoComplete="name" {...displayNameFieldConstraints} required onInput={(event) => event.currentTarget.setCustomValidity("")} /></label>
-            <label>Password<input className="field" type="password" name="password" autoComplete="new-password" aria-describedby="invitation-password-help" {...newPasswordConstraints} required /></label>
-            <label>Confirm password<input className="field" type="password" name="passwordConfirmation" autoComplete="new-password" aria-describedby="invitation-password-help" {...newPasswordConstraints} required onInput={(event) => event.currentTarget.setCustomValidity("")} /></label>
-            <p className="field-help" id="invitation-password-help">Use 12–128 characters. A long, unique passphrase is recommended.</p>
+            <label>ชื่อของคุณ<input className="field" name="name" autoComplete="name" {...displayNameFieldConstraints} required onInput={(event) => event.currentTarget.setCustomValidity("")} /></label>
+            <label>รหัสผ่าน<input className="field" type="password" name="password" autoComplete="new-password" aria-describedby="invitation-password-help" {...newPasswordConstraints} required /></label>
+            <label>ยืนยันรหัสผ่าน<input className="field" type="password" name="passwordConfirmation" autoComplete="new-password" aria-describedby="invitation-password-help" {...newPasswordConstraints} required onInput={(event) => event.currentTarget.setCustomValidity("")} /></label>
+            <p className="field-help" id="invitation-password-help">ใช้ 12-128 ตัวอักษร แนะนำให้ใช้วลีรหัสผ่านที่ยาวและไม่ซ้ำกับที่อื่น</p>
             <button type="submit" disabled={!token || status === "submitting"}>
-              {status === "submitting" ? "Joining..." : "Accept invitation"}
+              {status === "submitting" ? "กำลังเข้าร่วม..." : "ยอมรับคำเชิญ"}
             </button>
           </form>
           {message ? <p className="form-message error" role="alert">{message}</p> : null}
-          <p className="sign-in">Already registered? {token
-            ? <a href={existingAccountUrl} onClick={continueExistingAccount}>Sign in first</a>
-            : <span>Secure link loading...</span>}</p>
+          <p className="sign-in">มีบัญชีแล้ว? {token
+            ? <a href={existingAccountUrl} onClick={continueExistingAccount}>เข้าสู่ระบบก่อน</a>
+            : <span>กำลังโหลดลิงก์ปลอดภัย...</span>}</p>
         </>
       )}
     </section>

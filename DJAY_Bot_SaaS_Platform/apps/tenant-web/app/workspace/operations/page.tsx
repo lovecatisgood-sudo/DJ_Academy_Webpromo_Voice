@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import { currentIntlLocale, safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "../WorkspaceAccess";
 import { useWorkspaceSession } from "../useWorkspaceSession";
@@ -101,7 +101,7 @@ export default function OperationsPage() {
           <label>Product<select name="productKey" defaultValue=""><option value="">Workspace-wide / Enterprise</option><option value="flowbot">Flow Bot</option><option value="ai_chat">AI Text Bot</option><option value="voice">AI Voice Bot</option></select></label>
           <label className="wide-field">Business requirement<textarea name="brief" minLength={20} maxLength={10000} rows={4} required /></label><button disabled={working}>Request consultation</button></form> : null}
         <div className="operations-engagement-list">{operations?.engagements.map((item) => <article key={item.id}><header><div><strong>{item.title}</strong><span>{item.scopeText}</span></div><div><small>{humanizeToken(item.status)}</small><span>Next action: {humanizeToken(item.nextActionOwner)}</span></div></header>
-          <div className="engagement-timeline">{operations.engagementUpdates.filter((update) => update.engagementId === item.id).map((update) => <div key={update.id}><strong>{update.authorKind === "djai" ? "DJAI" : "Your team"}</strong><p>{update.body}</p><time dateTime={update.createdAt}>{new Date(update.createdAt).toLocaleString()}</time></div>)}</div>
+          <div className="engagement-timeline">{operations.engagementUpdates.filter((update) => update.engagementId === item.id).map((update) => <div key={update.id}><strong>{update.authorKind === "djai" ? "DJAI" : "Your team"}</strong><p>{update.body}</p><time dateTime={update.createdAt}>{new Date(update.createdAt).toLocaleString(currentIntlLocale())}</time></div>)}</div>
           {canManage && !["completed", "cancelled"].includes(item.status) ? <form onSubmit={(event) => void sendEngagementUpdate(event, item.id)}><label>Update for the delivery team<textarea name="body" minLength={2} maxLength={5000} rows={2} required /></label><button disabled={working}>Send update</button></form> : null}
         </article>)}{operations?.serviceRequests.filter((item) => !operations.engagements.some((engagement) => engagement.serviceRequestId === item.id)).map((item) => <article key={item.id}><header><div><strong>{serviceLabels[item.serviceKind] || humanizeToken(item.serviceKind)}</strong><span>{item.productKey === "ai_chat" ? "AI Chat Bot" : item.productKey === "flowbot" ? "Flow Bot" : item.productKey === "voice" ? "AI Voice Bot" : "Workspace"}</span></div><small>{humanizeToken(item.status)}</small></header></article>)}</div>
       </section>

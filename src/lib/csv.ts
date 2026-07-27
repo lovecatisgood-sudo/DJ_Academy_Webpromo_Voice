@@ -16,9 +16,9 @@ function csvCell(value: unknown) {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
-export function toCsv(rows: CsvRow[], headers: string[]) {
-  return [
-    headers.map(csvCell).join(","),
+export function toCsv(rows: CsvRow[], headers: string[], labels: Record<string, string> = {}) {
+  return `\uFEFF${[
+    headers.map((header) => csvCell(labels[header] || header)).join(","),
     ...rows.map((row) => headers.map((header) => csvCell(row[header])).join(",")),
-  ].join("\n");
+  ].join("\n")}`;
 }

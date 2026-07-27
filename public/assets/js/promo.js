@@ -4,6 +4,9 @@ const basePromoData = {
   ui: {
     skipToPackages: "Skip to packages",
     languageLabel: "Language",
+    thaiLanguage: "ไทย",
+    englishLanguage: "English",
+    currencyLabel: "THB",
     countdownLabels: {
       days: "Days",
       hours: "Hours",
@@ -214,6 +217,9 @@ const thaiPromoOverrides = {
   ui: {
     skipToPackages: "ข้ามไปดูแพ็กเกจ",
     languageLabel: "ภาษา",
+    thaiLanguage: "ไทย",
+    englishLanguage: "English",
+    currencyLabel: "บาท",
     countdownLabels: {
       days: "วัน",
       hours: "ชั่วโมง",
@@ -221,7 +227,7 @@ const thaiPromoOverrides = {
       seconds: "วินาที",
     },
     includesTitle: "ทุกแพ็กเกจรวมสิ่งเหล่านี้ให้แล้ว",
-    includesSubtitle: "ไม่มีค่าธรรมเนียมแอบแฝง ไม่มีเซอร์ไพรส์ มีครบสำหรับการเริ่มออนไลน์",
+    includesSubtitle: "ไม่มีค่าธรรมเนียมแอบแฝง ไม่มีค่าใช้จ่ายที่ไม่แจ้งล่วงหน้า พร้อมทุกอย่างที่จำเป็นสำหรับเริ่มต้นออนไลน์",
     leadSummaryTitle: "สรุปคำขอโปรเจกต์",
     leadPackageInterest: "แพ็กเกจที่สนใจ",
     leadBusinessType: "ประเภทธุรกิจ",
@@ -238,32 +244,32 @@ const thaiPromoOverrides = {
     voiceMute: "ปิดไมค์",
     voiceEnd: "จบสาย",
     voicePrivacy:
-      "หลังจากกดเริ่ม ไมโครโฟนจะเชื่อมต่อกับ OpenAI Realtime และ DJAI จะบันทึก transcript กับรายละเอียด lead เพื่อให้ทีมติดต่อต่อ",
+      "เมื่อกดเริ่ม ระบบจะเชื่อมต่อไมโครโฟนและบันทึกข้อความการสนทนากับข้อมูลที่คุณแจ้ง เพื่อให้ทีม DJAI ติดต่อกลับ",
     aiDesktopHeading: "คุยกับ DJAI Voice Sales Agent",
     aiMobileHeading: "คุยกับ DJAI ก่อนเลือกแพ็กเกจ",
     aiDesktopIntro:
-      "ลองใช้งาน AI voice sales agent แบบเดียวกับที่ DJAI สร้างให้ธุรกิจ ระบบช่วยวิเคราะห์สิ่งที่คุณต้องการ แนะนำบริการที่เหมาะ และเก็บรายละเอียดโปรเจกต์ให้ทีมติดต่อกลับ",
+      "ลองคุยกับผู้ช่วยฝ่ายขาย AI แบบเดียวกับที่ DJAI พัฒนาให้ธุรกิจ ระบบจะช่วยทำความเข้าใจความต้องการ แนะนำบริการที่เหมาะสม และเก็บรายละเอียดเพื่อให้ทีมงานติดต่อกลับ",
     aiMobileIntro:
       "พูดได้ทั้งไทยและอังกฤษ เอเจนต์ช่วยเปรียบเทียบแพ็กเกจ เข้าใจโปรเจกต์ และเก็บข้อมูลเพื่อให้ทีมติดต่อกลับ",
     aiDesktopSupport:
-      "เอเจนต์จะบอกเฉพาะราคาและรายละเอียดบริการที่อยู่ในเอกสารความรู้ของ DJAI เท่านั้น งาน custom จะให้ทีมมนุษย์ยืนยันหลังดู scope",
+      "ผู้ช่วยจะให้ข้อมูลเฉพาะราคาและบริการที่ DJAI รับรองแล้ว งานที่พัฒนาตามความต้องการจะให้ทีมงานยืนยันหลังตรวจสอบขอบเขตงาน",
     progressLabel: "ความคืบหน้าสไลด์",
     progressGoto: "ไปที่สไลด์",
     aiTypingLabel: "DJAI AI Consultant กำลังพิมพ์",
     fallbackContact:
-      "ได้เลยครับ/ค่ะ กรุณาส่งชื่อและเบอร์โทร, WhatsApp หรือ LINE แล้วทีมงานจะติดต่อกลับ",
+      "ได้เลย กรุณาแจ้งชื่อพร้อมเบอร์โทร WhatsApp หรือ LINE แล้วทีมงานจะติดต่อกลับ",
     fallbackLanding:
-      "แพ็กเกจ Landing Page ตอนนี้ราคา 5,000 บาท จากปกติ 10,000 บาท เหมาะกับโปรโมชัน เมนู แคมเปญ พอร์ตโฟลิโอ หรือเริ่มธุรกิจแบบหน้าเดียว ต้องการให้เก็บข้อมูลติดต่อสำหรับแพ็กเกจนี้ไหมครับ/ค่ะ",
+      "แพ็กเกจ Landing Page ตอนนี้ราคา 5,000 บาท จากปกติ 10,000 บาท เหมาะกับโปรโมชัน เมนู แคมเปญ พอร์ตโฟลิโอ หรือการเริ่มธุรกิจด้วยเว็บหน้าเดียว ต้องการฝากข้อมูลให้ทีมงานติดต่อกลับเกี่ยวกับแพ็กเกจนี้ไหม",
     fallbackFull:
-      "แพ็กเกจ Complete Website ตอนนี้ราคา 10,000 บาท จากปกติ 20,000 บาท รวมเว็บไซต์ธุรกิจ 5 หน้า รองรับมือถือ SEO ทดลอง AI chatbot และโฮสติ้งปีแรก ต้องการให้ทีมทำใบเสนอราคาไหมครับ/ค่ะ",
+      "แพ็กเกจ Complete Website ตอนนี้ราคา 10,000 บาท จากปกติ 20,000 บาท รวมเว็บไซต์ธุรกิจ 5 หน้า รองรับมือถือ วางโครงสร้าง SEO ทดลองใช้แชตบอต AI และโฮสติ้งปีแรก ต้องการให้ทีมงานจัดทำใบเสนอราคาไหม",
     fallbackAdditional:
       "หน้าเพิ่มเติมราคา 3,000 บาทต่อหน้า จากปกติ 5,000 บาทต่อหน้า เหมาะกับธุรกิจที่มีเว็บไซต์แล้วและอยากเพิ่มหน้าใหม่",
     fallbackCustom:
-      "ได้เลยครับ/ค่ะ ผม/ฉันช่วยเก็บ requirement เบื้องต้นก่อนได้ เว็บไซต์นี้เป็นธุรกิจประเภทไหน และต้องการฟีเจอร์อะไรบ้าง",
+      "ได้เลย กรุณาเล่าประเภทธุรกิจและฟีเจอร์ที่ต้องการ ทีมงานจะนำข้อมูลไปประเมินขอบเขตงานเบื้องต้น",
     fallbackCompare:
       "Landing Page เหมาะกับข้อเสนอหลักหน้าเดียว Additional Page เหมาะกับการเพิ่มหน้าให้เว็บเดิม ส่วน Complete Website เหมาะเมื่อคุณต้องการเว็บไซต์ธุรกิจ 5 หน้าที่มีโครงสร้างครบและคุ้มกว่า",
     fallbackDefault:
-      "ขอบคุณครับ/ค่ะ DJAI ช่วยทำเว็บไซต์ดีไซน์มืออาชีพ รองรับมือถือ วางพื้นฐาน SEO มีตัวเลือก AI chatbot และโฮสติ้งปีแรก อยากสร้างเว็บไซต์แบบไหนครับ/ค่ะ",
+      "DJAI ให้บริการออกแบบเว็บไซต์ระดับมืออาชีพ รองรับมือถือ วางโครงสร้าง SEO พร้อมตัวเลือกแชตบอต AI และโฮสติ้งปีแรก อยากสร้างเว็บไซต์แบบไหน",
   },
   urgency: {
     label: "เวลาจำกัด",
@@ -272,7 +278,7 @@ const thaiPromoOverrides = {
   },
   header: {
     badge: "แพ็กเกจเว็บไซต์",
-    title: "เว็บไซต์ของคุณ พร้อมเปิดใช้งาน",
+    title: "เว็บไซต์พร้อมเปิดตัว เพื่อพาธุรกิจคุณไปต่อ",
     subtitle:
       "ดีไซน์มืออาชีพ, SEO พื้นฐาน, AI chatbot และโฮสติ้ง &mdash; รวมอยู่ในทุกแพ็กเกจ",
   },
@@ -290,11 +296,12 @@ const thaiPromoOverrides = {
         "AI Chat Bot (Auto CTA) &mdash; <span class=\"highlight-offer\">ทดลองใช้ฟรี 1 เดือน</span>",
         "โฮสติ้งฟรี &mdash; ปีแรก",
         "รองรับมือถือ",
-        "ทำงานรวดเร็ว",
+        "ส่งมอบงานรวดเร็ว",
       ],
     },
     {
       title: "หน้าเพิ่มเติม",
+      priceUnit: "/หน้า",
       description: "ขยายเว็บไซต์เดิมด้วยหน้าใหม่ที่ดีไซน์และคุณภาพสอดคล้องกับเว็บของคุณ",
       cta: "เพิ่มหน้าเว็บ",
       renewalNote: "รวมอยู่ในแผนดูแลเว็บไซต์ของคุณ",
@@ -303,7 +310,7 @@ const thaiPromoOverrides = {
         "ดีไซน์สอดคล้องกับเว็บเดิม",
         "ปรับแต่ง SEO",
         "AI Chat Bot &mdash; <span class=\"highlight-offer\">ทดลองใช้ฟรี 1 เดือน</span>",
-        "ทำงานรวดเร็ว",
+        "ส่งมอบงานรวดเร็ว",
         "รองรับมือถือ",
       ],
     },
@@ -326,21 +333,21 @@ const thaiPromoOverrides = {
         "ฟอร์มติดต่อ",
         "เชื่อมต่อโซเชียลมีเดีย",
         "รองรับมือถือ",
-        "Priority Support",
+        "สิทธิ์รับบริการก่อน",
       ],
     },
   ],
   chatbot: {
     title: "AI Chat Bot (Auto CTA)",
     description:
-      "ช่วยตอบลูกค้าและเก็บ lead ตลอด 24/7 &mdash; <span>เริ่มด้วยทดลองใช้ฟรี 1 เดือน</span>",
+      "ช่วยตอบลูกค้าและเก็บข้อมูลผู้สนใจตลอด 24 ชั่วโมง &mdash; <span>เริ่มด้วยทดลองใช้ฟรี 1 เดือน</span>",
     cta: "รับทดลองใช้ฟรี",
   },
   trustItems: ["ไม่มีค่าธรรมเนียมแอบแฝง", "รับประกันคืนเงิน", "แก้ไขงานฟรี"],
   includes: [
     {
       title: "ออกแบบเว็บไซต์เฉพาะธุรกิจ",
-      description: "ดีไซน์ให้เข้ากับแบรนด์ของคุณ &mdash; ไม่ใช่ template สำเร็จรูป",
+      description: "ดีไซน์ให้เข้ากับแบรนด์ของคุณ &mdash; ไม่ใช่เทมเพลตสำเร็จรูป",
     },
     {
       title: "ปรับแต่ง SEO",
@@ -349,7 +356,7 @@ const thaiPromoOverrides = {
     {
       title: "AI Chat Bot (Auto CTA)",
       description:
-        "ช่วยตอบลูกค้าและเก็บ lead ตลอด 24/7 &mdash; <span class=\"include-highlight\">ทดลองใช้ฟรี 1 เดือน</span>",
+        "ช่วยตอบลูกค้าและเก็บข้อมูลผู้สนใจตลอด 24 ชั่วโมง &mdash; <span class=\"include-highlight\">ทดลองใช้ฟรี 1 เดือน</span>",
     },
     {
       title: "โฮสติ้งฟรีปีแรก",
@@ -360,30 +367,30 @@ const thaiPromoOverrides = {
     badge: "AI Voice Sales Agent",
     desktopTitle: "คุยกับ DJAI AI Consultant",
     desktopSubtitle:
-      "ยังไม่แน่ใจว่าแพ็กเกจไหนเหมาะกับธุรกิจของคุณ? ถาม AI consultant เรื่องราคา แพ็กเกจ AI chatbot, SEO, โฮสติ้ง, maintenance หรือ requirement เว็บไซต์ custom ได้เลย",
+      "ยังไม่แน่ใจว่าแพ็กเกจไหนเหมาะกับธุรกิจของคุณ ถามผู้ช่วย AI ได้ทั้งเรื่องราคา แชตบอต AI, SEO, โฮสติ้ง การดูแลเว็บไซต์ และงานพัฒนาตามความต้องการ",
     desktopSupport:
-      "AI consultant ช่วยเลือกแพ็กเกจที่เหมาะ ตอบข้อกังวล และเก็บรายละเอียดโปรเจกต์เพื่อให้ทีมทำใบเสนอราคา",
+      "ผู้ช่วย AI จะช่วยเลือกแพ็กเกจ ตอบข้อสงสัย และเก็บรายละเอียดโปรเจกต์เพื่อให้ทีมงานจัดทำใบเสนอราคา",
     mobileTitle: "ยังไม่แน่ใจว่าแพ็กเกจไหนเหมาะกับธุรกิจของคุณ?",
     mobileSubtitle:
-      "คุยกับ AI consultant เพื่อเปรียบเทียบแพ็กเกจ ถามคำถาม และขอใบเสนอราคา",
+      "คุยกับผู้ช่วย AI เพื่อเปรียบเทียบแพ็กเกจ สอบถามรายละเอียด และขอใบเสนอราคา",
     benefits: [
       "เปรียบเทียบแพ็กเกจได้ทันที",
       "ตอบเรื่องราคาและสิ่งที่รวมในบริการ",
-      "ขอใบเสนอราคางาน custom",
-      "ฝากช่องทางติดต่อให้ทีม follow-up",
+      "ขอใบเสนอราคาสำหรับงานเฉพาะ",
+      "ฝากช่องทางติดต่อให้ทีมงานติดต่อกลับ",
     ],
     welcome:
-      "สวัสดีครับ/ค่ะ ผม/ฉันคือ DJAI AI Consultant ช่วยเลือกแพ็กเกจเว็บไซต์ อธิบายราคา ตอบคำถาม หรือเตรียมใบเสนอราคา custom ได้ คุณอยากสร้างอะไรครับ/ค่ะ",
+      "สวัสดี เราคือผู้ช่วย AI ของ DJAI ช่วยเลือกแพ็กเกจ อธิบายราคา ตอบคำถาม และเตรียมข้อมูลสำหรับใบเสนอราคาได้ วันนี้อยากสร้างอะไร",
     initialChips: [
       ["landing", "Landing Page &mdash; 5,000 บาท"],
       ["full", "เว็บไซต์ครบชุด &mdash; 10,000 บาท"],
       ["additional", "หน้าเพิ่มเติม &mdash; 3,000 บาท/หน้า"],
-      ["custom", "ขอใบเสนอราคา custom"],
+      ["custom", "ขอใบเสนอราคางานเฉพาะ"],
     ],
     ctaChips: [
       ["contact", "ฝากช่องทางติดต่อ"],
       ["compare", "เปรียบเทียบแพ็กเกจ"],
-      ["custom", "ต้องการ quote custom"],
+      ["custom", "ขอใบเสนอราคางานเฉพาะ"],
     ],
   },
 };
@@ -551,7 +558,7 @@ function renderPackageCard(pkg, singleSlide = false) {
 
         <div class="price-block">
           <div class="price-main">
-            <span class="price-symbol">THB</span>
+            <span class="price-symbol">${promoData.ui.currencyLabel}</span>
             <span class="price-value">${pkg.promoPrice}</span>
             ${pkg.priceUnit ? `<span class="price-unit">${pkg.priceUnit}</span>` : ""}
           </div>
@@ -877,8 +884,8 @@ function renderLanguageSwitch() {
     <div class="language-bar" aria-label="${promoData.ui.languageLabel}">
       <span>${promoData.ui.languageLabel}</span>
       <div class="language-switch" role="group" aria-label="${promoData.ui.languageLabel}">
-        <button type="button" data-language="th" class="${currentLanguage === "th" ? "is-active" : ""}" aria-pressed="${currentLanguage === "th"}">TH</button>
-        <button type="button" data-language="en" class="${currentLanguage === "en" ? "is-active" : ""}" aria-pressed="${currentLanguage === "en"}">EN</button>
+        <button type="button" data-language="th" class="${currentLanguage === "th" ? "is-active" : ""}" aria-pressed="${currentLanguage === "th"}">${promoData.ui.thaiLanguage}</button>
+        <button type="button" data-language="en" class="${currentLanguage === "en" ? "is-active" : ""}" aria-pressed="${currentLanguage === "en"}">${promoData.ui.englishLanguage}</button>
       </div>
     </div>
   `;

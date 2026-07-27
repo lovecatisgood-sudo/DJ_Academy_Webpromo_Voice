@@ -4,6 +4,7 @@ import { updateLeadAction } from "../actions";
 import { InterestPill } from "../components/InterestPill";
 import { StatusPill } from "../components/StatusPill";
 import { requireAdmin } from "@/lib/admin-auth";
+import { currentIntlLocale } from "@/lib/browser-locale";
 import { getSql } from "@/lib/db";
 import type { LeadStatus } from "@/lib/types";
 
@@ -65,7 +66,7 @@ function contactLine(lead: {
     lead.line_id ? `LINE: ${lead.line_id}` : "",
     lead.whatsapp ? `WhatsApp: ${lead.whatsapp}` : "",
     lead.other_contact ? `Other: ${lead.other_contact}` : "",
-  ].filter(Boolean).join(" · ") || lead.contact || "No contact";
+  ].filter(Boolean).join(" · ") || lead.contact || "ยังไม่มีข้อมูลติดต่อ";
 }
 
 function leadHref(id: string, status: StatusFilter, q: string, channel: ChannelFilter) {
@@ -237,31 +238,35 @@ export default async function LeadsPage({
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="truncate font-semibold text-slate-950">
-                      {lead.client_name || lead.name || "Unnamed"}{lead.company_name ? ` · ${lead.company_name}` : ""}
+                    <div data-no-localize className="truncate font-semibold text-slate-950">
+                      {lead.client_name || lead.name || "ยังไม่มีชื่อ"}{lead.company_name ? ` · ${lead.company_name}` : ""}
                     </div>
                     <StatusPill status={lead.status} />
                     <StatusPill tone={channelTone(lead.source_channel)}>{channelLabel(lead.source_channel)}</StatusPill>
                     <InterestPill value={lead.interest_level} />
                   </div>
-                  <div className="mt-2 text-slate-600">{contactLine(lead)}</div>
-                  <div className="mt-2 line-clamp-2 text-slate-700">{lead.main_problem || lead.need || lead.summary || "No summary yet."}</div>
+                  <div data-no-localize className="mt-2 text-slate-600">{contactLine(lead)}</div>
+                  <div className="mt-2 line-clamp-2 text-slate-700">
+                    {lead.main_problem || lead.need || lead.summary
+                      ? <span data-no-localize>{lead.main_problem || lead.need || lead.summary}</span>
+                      : <span>ยังไม่มีสรุป</span>}
+                  </div>
                   <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-                    <span>Service: {lead.recommended_service || "Not captured"}</span>
-                    <span>Next: {lead.next_action || "Not captured"}</span>
+                    <span>Service: {lead.recommended_service ? <span data-no-localize>{lead.recommended_service}</span> : "ยังไม่มีข้อมูล"}</span>
+                    <span>Next: {lead.next_action ? <span data-no-localize>{lead.next_action}</span> : "ยังไม่มีข้อมูล"}</span>
                   </div>
                 </div>
                 <div className="text-slate-600">
-                  <div>Assigned: {lead.assigned_admin_name || "Unassigned"}</div>
+                  <div>Assigned: {lead.assigned_admin_name ? <span data-no-localize>{lead.assigned_admin_name}</span> : "ยังไม่ได้มอบหมาย"}</div>
                   <div className="mt-1">
-                    Appointment: {lead.appointment_status ? `${lead.appointment_status.replaceAll("_", " ")}${lead.appointment_start_at ? ` · ${new Date(lead.appointment_start_at).toLocaleString()}` : ""}` : "None"}
+                    Appointment: {lead.appointment_status ? `${lead.appointment_status.replaceAll("_", " ")}${lead.appointment_start_at ? ` · ${new Date(lead.appointment_start_at).toLocaleString(currentIntlLocale())}` : ""}` : "None"}
                   </div>
-                  {lead.concern_or_objection ? <div className="mt-1">Concern: {lead.concern_or_objection}</div> : null}
+                  {lead.concern_or_objection ? <div className="mt-1">Concern: <span data-no-localize>{lead.concern_or_objection}</span></div> : null}
                 </div>
                 <div className="text-slate-500 lg:text-right">
                   <div>Updated</div>
                   <div className="font-medium text-slate-700">
-                    {lead.updated_at ? new Date(lead.updated_at).toLocaleString() : new Date(lead.created_at).toLocaleString()}
+                    {lead.updated_at ? new Date(lead.updated_at).toLocaleString(currentIntlLocale()) : new Date(lead.created_at).toLocaleString(currentIntlLocale())}
                   </div>
                   {lead.conversation_id ? <div className="mt-2 text-cyan-700">Open conversation</div> : null}
                 </div>
@@ -284,7 +289,7 @@ export default async function LeadsPage({
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="font-semibold text-slate-950">Lead detail</h3>
-                  <p className="mt-1 text-sm text-slate-500">{selectedLead.conversation_started_at ? `From ${new Date(selectedLead.conversation_started_at).toLocaleString()}` : "Manual or imported lead"}</p>
+                  <p className="mt-1 text-sm text-slate-500">{selectedLead.conversation_started_at ? <>From <span data-no-localize>{new Date(selectedLead.conversation_started_at).toLocaleString(currentIntlLocale())}</span></> : "ข้อมูลผู้สนใจที่เพิ่มเองหรือนำเข้า"}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <StatusPill tone={channelTone(selectedLead.source_channel)}>{channelLabel(selectedLead.source_channel)}</StatusPill>

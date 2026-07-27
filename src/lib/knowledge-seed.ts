@@ -1,74 +1,74 @@
-export const initialKnowledgeMarkdown = `# DJAI Academy Voice Agent Knowledge
+export const initialKnowledgeMarkdown = `# คลังความรู้สำหรับผู้ช่วย AI ของ DJAI Academy
 
-## Services
-- Landing pages
-- Business websites
-- AI chatbots
-- AI voice agents
-- Custom software
-- Mobile and web apps
-- Games
-- Automation workflows
-- In-person vibe-coding courses
+## บริการ
+- Landing Page
+- เว็บไซต์ธุรกิจ
+- แชตบอต AI
+- ผู้ช่วยสนทนาด้วยเสียง AI
+- ซอฟต์แวร์ตามความต้องการ
+- แอปมือถือและเว็บแอป
+- เกม
+- ระบบอัตโนมัติสำหรับงานธุรกิจ
+- คอร์ส vibe coding แบบเรียนในสถานที่
 
-## Website Packages Published On The Landing Page
+## แพ็กเกจเว็บไซต์ที่เผยแพร่บนหน้าเว็บไซต์
 
 ### Landing Page
-- Promotional price: 5,000 THB.
-- Original listed price: 10,000 THB.
-- Promotion is valid for July and August 2026.
-- Best for a single product, campaign, lead generation, ads, promotions, menus, portfolios, and simple business launches.
-- Includes: 1 custom-designed page, SEO optimization, AI Chat Bot (Auto CTA) 1-month free trial, first-year hosting, mobile responsive layout, and fast turnaround.
-- Renewal note: 3,000 THB/year after the first year.
+- ราคาโปรโมชัน 5,000 บาท
+- ราคาปกติที่แสดง 10,000 บาท
+- โปรโมชันใช้ได้ในเดือนกรกฎาคมและสิงหาคม 2026
+- เหมาะกับสินค้าเดี่ยว แคมเปญ การเก็บข้อมูลผู้สนใจ โฆษณา โปรโมชัน เมนู พอร์ตโฟลิโอ และการเริ่มธุรกิจด้วยเว็บหน้าเดียว
+- รวมหน้าเว็บที่ออกแบบเฉพาะธุรกิจ 1 หน้า การวางโครงสร้าง SEO ทดลองใช้ AI Chat Bot (Auto CTA) ฟรี 1 เดือน โฮสติ้งปีแรก การแสดงผลที่รองรับมือถือ และการส่งมอบงานรวดเร็ว
+- ค่าต่ออายุหลังปีแรก 3,000 บาทต่อปี
 
-### Additional Page
-- Promotional price: 3,000 THB/page.
-- Original listed price: 5,000 THB/page.
-- Best for expanding an existing website with extra pages.
-- Includes: design consistency, SEO optimization, AI Chat Bot 1-month free trial, quick turnaround, and mobile responsive layout.
-- Renewal note: covered under the customer's maintenance plan.
+### หน้าเพิ่มเติม
+- ราคาโปรโมชัน 3,000 บาทต่อหน้า
+- ราคาปกติที่แสดง 5,000 บาทต่อหน้า
+- เหมาะสำหรับเพิ่มหน้าใหม่ให้เว็บไซต์เดิม
+- รวมการออกแบบให้สอดคล้องกับเว็บไซต์เดิม การวางโครงสร้าง SEO ทดลองใช้ AI Chat Bot ฟรี 1 เดือน การส่งมอบงานรวดเร็ว และการแสดงผลที่รองรับมือถือ
+- ค่าดูแลรวมอยู่ในแผนดูแลเว็บไซต์ของลูกค้า
 
 ### Complete Website
-- Promotional price: 10,000 THB.
-- Original listed price: 20,000 THB.
-- Best for a full 5-page business website.
-- Includes: 5 custom-designed pages, responsive design, SEO-ready structure, professional UI, contact page, gallery, business information, contact form, social media integration, first-year hosting, mobile responsive layout, and priority support.
-- Renewal note: 3,000 THB/year after the first year.
+- ราคาโปรโมชัน 10,000 บาท
+- ราคาปกติที่แสดง 20,000 บาท
+- เหมาะสำหรับเว็บไซต์ธุรกิจครบชุด 5 หน้า
+- รวมหน้าเว็บที่ออกแบบเฉพาะธุรกิจ 5 หน้า ดีไซน์ที่รองรับทุกขนาดหน้าจอ โครงสร้างพร้อมสำหรับ SEO ส่วนติดต่อผู้ใช้ระดับมืออาชีพ หน้าติดต่อ แกลเลอรี ข้อมูลธุรกิจ ฟอร์มติดต่อ การเชื่อมต่อโซเชียลมีเดีย โฮสติ้งปีแรก การแสดงผลที่รองรับมือถือ และสิทธิ์รับบริการก่อน
+- ค่าต่ออายุหลังปีแรก 3,000 บาทต่อปี
 
-## AI Sales Chatbot
-- Acts like a professional salesperson on the website.
-- Can answer questions, recommend products or services, handle objections, collect leads, qualify prospects, and help book appointments.
-- Available 24/7.
-- Supports multiple languages.
-- Useful when paid traffic is being lost, visitors have questions before buying, or staff cannot respond instantly.
+## แชตบอตฝ่ายขาย AI
+- ทำหน้าที่เสมือนพนักงานขายมืออาชีพบนเว็บไซต์
+- ตอบคำถาม แนะนำสินค้าหรือบริการ รับมือข้อกังวล เก็บข้อมูลและคัดกรองผู้สนใจ รวมถึงช่วยนัดหมายได้
+- พร้อมให้บริการตลอด 24 ชั่วโมง
+- รองรับหลายภาษา
+- เหมาะเมื่อธุรกิจสูญเสียผู้เข้าชมจากโฆษณา ลูกค้ามีคำถามก่อนซื้อ หรือทีมงานตอบกลับไม่ได้ทันที
 
-## AI Voice Agent
-- Works like an AI receptionist or AI phone sales assistant.
-- Can answer calls, handle FAQs, qualify customers, book appointments, transfer leads, and collect information.
-- Supports multiple languages.
-- Useful when the business misses calls, needs faster first response, needs multilingual reception, or wants to qualify leads before a human call.
+## ผู้ช่วยสนทนาด้วยเสียง AI
+- ทำหน้าที่เสมือนพนักงานต้อนรับหรือผู้ช่วยฝ่ายขายทางโทรศัพท์
+- รับสาย ตอบคำถามที่พบบ่อย คัดกรองลูกค้า นัดหมาย ส่งต่อข้อมูลผู้สนใจ และเก็บข้อมูลได้
+- รองรับหลายภาษา
+- เหมาะเมื่อธุรกิจพลาดสาย ต้องการตอบกลับครั้งแรกให้เร็วขึ้น ต้องการบริการหลายภาษา หรือต้องการคัดกรองผู้สนใจก่อนให้ทีมงานติดต่อ
 
-## Custom Development And Automation Signals
-- Investigate further if the visitor mentions Excel, paper, manual work, inventory, POS, CRM, scheduling, membership, booking, reports, multiple branches, internal systems, many employees, or repetitive tasks.
-- Custom development, apps, games, automation, and voice agents are quotation-based unless a specific package is listed here.
-- Do not immediately pitch software. First ask how they do the process today and what the business impact is.
+## สัญญาณที่ควรถามต่อเรื่องซอฟต์แวร์และระบบอัตโนมัติ
+- ถามรายละเอียดเพิ่มเมื่อผู้เข้าชมกล่าวถึง Excel เอกสารกระดาษ งานที่ทำด้วยมือ สินค้าคงคลัง POS, CRM, ตารางนัดหมาย สมาชิก การจอง รายงาน หลายสาขา ระบบภายใน พนักงานจำนวนมาก หรืองานซ้ำ ๆ
+- ซอฟต์แวร์ แอป เกม ระบบอัตโนมัติ และผู้ช่วยเสียง AI ที่พัฒนาตามความต้องการต้องประเมินราคาเป็นรายงาน เว้นแต่เอกสารนี้ระบุแพ็กเกจและราคาไว้อย่างชัดเจน
+- อย่ารีบเสนอขายซอฟต์แวร์ ให้ถามก่อนว่าปัจจุบันลูกค้าทำงานขั้นตอนนั้นอย่างไรและส่งผลต่อธุรกิจอย่างไร
 
-## Trust And Included-Service Claims
-- The landing page states: no hidden fees, money-back guarantee, and free revisions.
-- Every package includes custom web design, SEO optimization, AI Chat Bot (Auto CTA) 1-month free trial, and first-year hosting where the package states hosting is included.
-- Hosting after the first year is listed as 3,000 THB/year where the package states that renewal note.
+## ข้อความรับรองและสิ่งที่รวมในบริการ
+- หน้าเว็บไซต์ระบุว่าไม่มีค่าธรรมเนียมแอบแฝง รับประกันคืนเงิน และแก้ไขงานฟรี
+- ทุกแพ็กเกจรวมการออกแบบเว็บไซต์เฉพาะธุรกิจ การวางโครงสร้าง SEO และทดลองใช้ AI Chat Bot (Auto CTA) ฟรี 1 เดือน ส่วนโฮสติ้งปีแรกให้ยึดตามรายละเอียดของแต่ละแพ็กเกจ
+- ค่าโฮสติ้งหลังปีแรกคือ 3,000 บาทต่อปีเฉพาะแพ็กเกจที่ระบุค่าต่ออายุไว้
 
-## Pricing Posture
-- Only state prices that are explicitly listed in this knowledge document.
-- If the visitor asks for a price that is not listed here, say a human will confirm after reviewing the scope.
-- Custom software, apps, games, automation, and voice agents are quotation-based unless a specific package is listed here.
+## หลักการแจ้งราคา
+- แจ้งเฉพาะราคาที่ระบุไว้อย่างชัดเจนในเอกสารนี้เท่านั้น
+- หากผู้เข้าชมถามราคาที่ไม่มีในเอกสาร ให้แจ้งว่าทีมงานจะยืนยันหลังตรวจสอบขอบเขตงาน
+- ซอฟต์แวร์ แอป เกม ระบบอัตโนมัติ และผู้ช่วยเสียง AI ที่พัฒนาตามความต้องการต้องประเมินราคาเป็นรายงาน เว้นแต่เอกสารนี้ระบุแพ็กเกจเฉพาะไว้
 
-## Course Info
-- DJAI Academy offers in-person vibe-coding courses in Bangkok.
-- Course details, schedules, and prices must be confirmed by the DJAI team unless listed here.
+## ข้อมูลคอร์ส
+- DJAI Academy มีคอร์ส vibe coding แบบเรียนในสถานที่ในกรุงเทพฯ
+- รายละเอียด กำหนดการ และราคาคอร์สต้องให้ทีม DJAI ยืนยัน เว้นแต่จะระบุไว้ในเอกสารนี้
 
-## Contact Policy
-- When a visitor shows meaningful interest, collect their name, company or business name if available, one or more usable contact methods, project need, and preferred callback or consultation time.
-- Tell visitors the DJAI consultant will review their business context before the consultation so the call can focus on specific opportunities.
-- Do not claim a booking is fully confirmed.
+## แนวทางเก็บข้อมูลติดต่อ
+- เมื่อผู้เข้าชมแสดงความสนใจอย่างชัดเจน ให้เก็บชื่อ ชื่อบริษัทหรือธุรกิจ (ถ้ามี) ช่องทางติดต่อที่ใช้งานได้อย่างน้อยหนึ่งช่องทาง ความต้องการของโครงการ และวันหรือเวลาที่สะดวกให้ติดต่อกลับหรือนัดปรึกษา
+- แจ้งว่าที่ปรึกษา DJAI จะศึกษาบริบทธุรกิจก่อนการนัดหมาย เพื่อให้การพูดคุยมุ่งเน้นโอกาสที่เหมาะกับธุรกิจนั้น
+- ห้ามแจ้งว่าการนัดหมายได้รับการยืนยันเรียบร้อยแล้วจนกว่าระบบหรือทีมงานจะยืนยัน
 `;

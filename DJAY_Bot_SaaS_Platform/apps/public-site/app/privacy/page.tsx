@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { LegalDocumentClient } from "../LegalDocumentClient";
 
 export const metadata: Metadata = {
-  title: "Privacy Notice | DJAY Bot",
-  description: "Current approved DJAY Bot privacy notice.",
+  title: "ประกาศความเป็นส่วนตัว | DJAY Bot",
+  description: "ประกาศความเป็นส่วนตัวฉบับอนุมัติปัจจุบันของ DJAY Bot",
 };
 
 export default function PrivacyPage() {

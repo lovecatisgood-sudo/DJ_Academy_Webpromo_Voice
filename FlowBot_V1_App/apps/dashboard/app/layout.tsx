@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import "./styles.css";
+import { LocaleBoundary } from "./LocaleBoundary";
 
 export const metadata: Metadata = {
-  title: "FlowBot Admin",
-  description: "Deterministic chatbot admin dashboard"
+  title: "ระบบจัดการ FlowBot",
+  description: "แดชบอร์ดจัดการแชตบอตแบบกำหนดเส้นทาง"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="th">
+      <body><LocaleBoundary>{children}</LocaleBoundary></body>
     </html>
   );
 }

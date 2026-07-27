@@ -3,7 +3,9 @@ import { recoveryCompleteInputSchema, recoveryRequestInputSchema } from "./contr
 import { createOpaqueToken, hashOpaqueToken, hashPassword, sealJson } from "./crypto";
 import type { AuthStore } from "./store";
 
-const genericRecoveryMessage = "If the account exists, a recovery email has been sent.";
+function recoveryMessage(locale: "th" | "en") {
+  return locale === "en" ? "If the account exists, a recovery email has been sent." : "หากมีบัญชีนี้อยู่ ระบบได้ส่งอีเมลกู้คืนบัญชีแล้ว";
+}
 
 export type RecoveryServiceConfig = Readonly<{
   publicAppUrl: string;
@@ -32,10 +34,11 @@ export function createRecoveryService(store: AuthStore, config: RecoveryServiceC
           to: emailNormalized,
           recoveryUrl: recoveryUrl.toString(),
           expiresAt: expiresAt.toISOString(),
+          locale: parsed.locale,
         }, config.emailEnvelopeKey),
         requestId: parsed.requestId,
       });
-      return Object.freeze({ accepted: true as const, message: genericRecoveryMessage });
+      return Object.freeze({ accepted: true as const, message: recoveryMessage(parsed.locale) });
     },
 
     async complete(input: unknown) {

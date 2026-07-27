@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import QRCode from "qrcode";
-import { safeMutationFetch } from "@djay/shared";
+import { currentIntlLocale, safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspaceAccessDenied, WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { useWorkspaceSession } from "../useWorkspaceSession";
@@ -186,9 +186,9 @@ export default function SecurityPage() {
               <div className="data-row session-row" role="row" key={session.sessionId}>
                 <div>
                   <strong>{session.current ? "Current session" : "Active session"}</strong>
-                  <span>Last active {new Date(session.lastSeenAt).toLocaleString()}</span>
+                  <span>Last active {new Date(session.lastSeenAt).toLocaleString(currentIntlLocale())}</span>
                 </div>
-                <span>Expires {new Date(session.absoluteExpiresAt).toLocaleDateString()}</span>
+                <span>Expires {new Date(session.absoluteExpiresAt).toLocaleDateString(currentIntlLocale())}</span>
                 <button className="secondary-command danger-command" type="button" onClick={() => void revoke(session.sessionId)}>
                   {session.current ? "Sign out" : "Revoke"}
                 </button>

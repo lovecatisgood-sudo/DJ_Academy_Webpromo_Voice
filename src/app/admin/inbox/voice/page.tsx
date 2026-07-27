@@ -12,6 +12,7 @@ import {
 import { InterestPill } from "../../components/InterestPill";
 import { StatusPill } from "../../components/StatusPill";
 import { requireAdmin } from "@/lib/admin-auth";
+import { currentIntlLocale } from "@/lib/browser-locale";
 import { getSql } from "@/lib/db";
 import type { TranscriptItem } from "@/lib/types";
 
@@ -480,20 +481,20 @@ export default async function VoiceInboxPage({
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <div className="truncate font-semibold text-slate-950">
+                          <div data-no-localize className="truncate font-semibold text-slate-950">
                             {item.lead_client_name || item.lead_company_name || item.summary || item.main_problem || "Visitor"}
                           </div>
                           {item.starred ? <span className="text-amber-500">Star</span> : null}
                         </div>
-                        <div className="mt-1 line-clamp-2 text-slate-600">{item.main_problem || item.summary || item.page_url || item.id}</div>
+                        <div data-no-localize className="mt-1 line-clamp-2 text-slate-600">{item.main_problem || item.summary || item.page_url || item.id}</div>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {item.had_lead ? <StatusPill tone="cyan">Lead</StatusPill> : <StatusPill tone="slate">No lead</StatusPill>}
                           <StatusPill tone={channelTone(item.channel)}>{channelLabel(item.channel)}</StatusPill>
                           {item.lead_status ? <StatusPill status={item.lead_status} /> : null}
                           {item.appointment_status ? <StatusPill status={item.appointment_status} /> : null}
                         </div>
-                        <div className="mt-2 text-xs text-slate-500">
-                          {new Date(item.started_at).toLocaleString()} · {item.language || "unknown"} · {item.interaction_mode === "text" ? "text chat" : `${item.duration_seconds ?? 0}s`}
+                        <div data-no-localize className="mt-2 text-xs text-slate-500">
+                          {new Date(item.started_at).toLocaleString(currentIntlLocale())} · {item.language || "unknown"} · {item.interaction_mode === "text" ? "text chat" : `${item.duration_seconds ?? 0}s`}
                         </div>
                       </div>
                     </div>
@@ -517,15 +518,15 @@ export default async function VoiceInboxPage({
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-lg font-semibold text-slate-950">
+                      <h3 data-no-localize className="text-lg font-semibold text-slate-950">
                         {lead?.client_name || lead?.company_name || conversation.summary || `${channelLabel(conversation.channel)} conversation`}
                       </h3>
                       <StatusPill tone={channelTone(conversation.channel)}>{channelLabel(conversation.channel)}</StatusPill>
                       <InterestPill value={conversation.interest_level} />
                       <StatusPill status={conversation.analysis_status} />
                     </div>
-                    <div className="mt-1 text-sm text-slate-500">
-                      {new Date(conversation.started_at).toLocaleString()} · {conversation.language || "unknown"} · {conversation.interaction_mode === "text" ? "text chat" : `${conversation.duration_seconds ?? 0}s`} · {conversation.page_url || "unknown page"}
+                    <div data-no-localize className="mt-1 text-sm text-slate-500">
+                      {new Date(conversation.started_at).toLocaleString(currentIntlLocale())} · {conversation.language || "unknown"} · {conversation.interaction_mode === "text" ? "text chat" : `${conversation.duration_seconds ?? 0}s`} · {conversation.page_url || "unknown page"}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -553,12 +554,12 @@ export default async function VoiceInboxPage({
                   <input type="hidden" name="redirect_to" value={selectedHref(conversation.id, filter, q, channel)} />
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <h4 className="font-semibold text-slate-950">Conversation intelligence</h4>
-                    <span className="text-xs text-slate-500">
-                      {conversation.analysis_model_id || "no model"} · {conversation.analysis_updated_at ? new Date(conversation.analysis_updated_at).toLocaleString() : "not analysed"}
+                    <span data-no-localize className="text-xs text-slate-500">
+                      {conversation.analysis_model_id || "no model"} · {conversation.analysis_updated_at ? new Date(conversation.analysis_updated_at).toLocaleString(currentIntlLocale()) : "not analysed"}
                     </span>
                   </div>
                   {conversation.analysis_error ? (
-                    <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                    <div data-no-localize className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
                       {conversation.analysis_error}
                     </div>
                   ) : null}
@@ -604,7 +605,7 @@ export default async function VoiceInboxPage({
                   <button className="mt-4 rounded-md bg-[#0e7c86] px-4 py-2 text-sm font-semibold text-white">Save analysis</button>
                 </form>
 
-                <div className="space-y-3">
+                <div data-no-localize className="space-y-3">
                   {transcriptItems.map((item, index) => (
                     <div
                       key={`${item.t}-${index}`}
@@ -714,13 +715,13 @@ export default async function VoiceInboxPage({
                   {appointments.map((appointment) => (
                     <Link key={appointment.id} href="/admin/calendar" className="block rounded-lg bg-slate-50 p-3 text-sm">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-slate-950">{appointment.client_name}</span>
+                        <span data-no-localize className="font-semibold text-slate-950">{appointment.client_name}</span>
                         <StatusPill status={appointment.status} />
                       </div>
-                      <div className="mt-2 text-slate-600">
-                        {new Date(appointment.start_at).toLocaleString()} - {new Date(appointment.end_at).toLocaleTimeString()}
+                      <div data-no-localize className="mt-2 text-slate-600">
+                        {new Date(appointment.start_at).toLocaleString(currentIntlLocale())} - {new Date(appointment.end_at).toLocaleTimeString(currentIntlLocale())}
                       </div>
-                      <div className="mt-1 text-slate-500">
+                      <div data-no-localize className="mt-1 text-slate-500">
                         {[appointment.email, appointment.phone, appointment.assigned_admin_name].filter(Boolean).join(" · ")}
                       </div>
                     </Link>

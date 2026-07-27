@@ -9,6 +9,7 @@ import {
 } from "../actions";
 import { ConfirmSubmitButton } from "../ConfirmSubmitButton";
 import { requireMasterAdmin } from "@/lib/admin-auth";
+import { currentIntlLocale } from "@/lib/browser-locale";
 import { getSql } from "@/lib/db";
 import type { AdminRole } from "@/lib/types";
 
@@ -207,8 +208,8 @@ export default async function TeamPage({
                     <div>Calendar: {admin.calendar_active ? "active" : "inactive"}</div>
                     <div>Upcoming: {admin.upcoming_appointments}</div>
                     <div>Pending: {admin.pending_confirmations}</div>
-                    <div>Last login: {admin.last_login_at ? new Date(admin.last_login_at).toLocaleString() : "Never"}</div>
-                    <div>Created: {new Date(admin.created_at).toLocaleDateString()}</div>
+                    <div>Last login: {admin.last_login_at ? new Date(admin.last_login_at).toLocaleString(currentIntlLocale()) : "Never"}</div>
+                    <div>Created: {new Date(admin.created_at).toLocaleDateString(currentIntlLocale())}</div>
                   </div>
                 </div>
 
@@ -293,7 +294,7 @@ export default async function TeamPage({
                   </div>
                 ) : (
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                    Deleted {new Date(admin.deleted_at).toLocaleString()}. Historical records remain linked by snapshot or ID.
+                    Deleted {new Date(admin.deleted_at).toLocaleString(currentIntlLocale())}. Historical records remain linked by snapshot or ID.
                   </div>
                 )}
               </div>

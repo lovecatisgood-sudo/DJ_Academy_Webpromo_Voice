@@ -2,7 +2,7 @@ import { z, ZodError } from "zod";
 import { getServices } from "../../../../lib/container";
 import { clientAddress, enforceRateLimit, hasTrustedOrigin, readJson, requestId, safeJson } from "../../../../lib/http";
 
-const bodySchema = z.object({ email: z.email().max(320) }).strict();
+const bodySchema = z.object({ email: z.email().max(320), locale: z.enum(["th", "en"]).default("th") }).strict();
 
 export async function POST(request: Request) {
   const id = requestId();

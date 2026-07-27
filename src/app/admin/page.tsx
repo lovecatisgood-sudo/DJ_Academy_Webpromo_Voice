@@ -6,6 +6,7 @@ import { MetricCard } from "./components/MetricCard";
 import { QueueItem } from "./components/QueueItem";
 import { StatusPill } from "./components/StatusPill";
 import { requireAdmin } from "@/lib/admin-auth";
+import { currentIntlLocale } from "@/lib/browser-locale";
 import { getSql } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ function contactLine(lead: {
   whatsapp: string | null;
   other_contact: string | null;
 }) {
-  return [lead.phone, lead.email, lead.line_id, lead.whatsapp, lead.other_contact].filter(Boolean).join(" · ") || "No contact captured";
+  return [lead.phone, lead.email, lead.line_id, lead.whatsapp, lead.other_contact].filter(Boolean).join(" · ") || "ยังไม่มีข้อมูลติดต่อ";
 }
 
 export default async function AdminOverview({
@@ -342,9 +343,10 @@ export default async function AdminOverview({
                 href="/admin/calendar?status=pending_confirmation"
                 status="pending_confirmation"
                 title={`${appointment.client_name}${appointment.company_name ? ` · ${appointment.company_name}` : ""}`}
-                subtitle={`Requested ${new Date(appointment.start_at).toLocaleString()}`}
+                subtitle={`ร้องขอ ${new Date(appointment.start_at).toLocaleString(currentIntlLocale())}`}
                 meta={[appointment.email, appointment.phone, appointment.admin_name].filter(Boolean).join(" · ")}
                 actionLabel="Review"
+                dataNoLocalize
               />
             ))}
             {pendingLeads.map((lead) => (
@@ -352,10 +354,11 @@ export default async function AdminOverview({
                 key={lead.id}
                 href={lead.conversation_id ? `/admin/conversations/${lead.conversation_id}` : "/admin/leads"}
                 status="pending_follow_up"
-                title={lead.client_name || lead.company_name || "Unnamed lead"}
-                subtitle={lead.main_problem || "No problem summary yet."}
-                meta={`${contactLine(lead)} · ${lead.next_action || "No next action"}`}
+                title={lead.client_name || lead.company_name || "ลีดยังไม่มีชื่อ"}
+                subtitle={lead.main_problem || "ยังไม่มีสรุปปัญหา"}
+                meta={`${contactLine(lead)} · ${lead.next_action || "ยังไม่มีขั้นตอนถัดไป"}`}
                 actionLabel="Follow up"
+                dataNoLocalize
               />
             ))}
             {pendingAppointments.length === 0 && pendingLeads.length === 0 ? (
@@ -399,14 +402,14 @@ export default async function AdminOverview({
                 className="block py-4 text-sm first:pt-0 last:pb-0"
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="font-semibold text-slate-950">
-                    {lead.client_name || lead.company_name || "Unnamed lead"}
+                  <div data-no-localize className="font-semibold text-slate-950">
+                    {lead.client_name || lead.company_name || "ลีดยังไม่มีชื่อ"}
                   </div>
                   <InterestPill value={lead.interest_level} />
                 </div>
-                <div className="mt-1 text-slate-600">{contactLine(lead)}</div>
-                <div className="mt-2 text-slate-700">{lead.main_problem || "No problem summary yet."}</div>
-                <div className="mt-2 text-xs text-slate-500">{lead.next_action || "No next action captured"}</div>
+                <div data-no-localize className="mt-1 text-slate-600">{contactLine(lead)}</div>
+                <div className="mt-2 text-slate-700">{lead.main_problem ? <span data-no-localize>{lead.main_problem}</span> : "ยังไม่มีสรุปปัญหา"}</div>
+                <div className="mt-2 text-xs text-slate-500">{lead.next_action ? <span data-no-localize>{lead.next_action}</span> : "ไม่มีข้อมูลขั้นตอนถัดไป"}</div>
               </Link>
             ))}
             {pendingLeads.length === 0 ? <div className="py-6 text-sm text-slate-500">No pending follow-up leads.</div> : null}
@@ -422,10 +425,10 @@ export default async function AdminOverview({
                 className="grid gap-2 py-4 text-sm first:pt-0 last:pb-0 sm:grid-cols-[1fr_auto]"
               >
                 <div className="min-w-0">
-                  <div className="truncate font-semibold text-slate-950">
+                  <div data-no-localize className="truncate font-semibold text-slate-950">
                     {conversation.summary || conversation.main_problem || conversation.page_url || conversation.id}
                   </div>
-                  <div className="mt-1 text-slate-500">
+                  <div data-no-localize className="mt-1 text-slate-500">
                     {conversation.channel === "text_widget" ? "Chat" : "Voice"} · {conversation.language || "unknown"} · {conversation.interaction_mode === "text" ? "text chat" : `${conversation.duration_seconds ?? 0}s`} · {conversation.page_url || "unknown page"}
                   </div>
                 </div>

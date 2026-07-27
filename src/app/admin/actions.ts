@@ -503,7 +503,7 @@ export async function createAdminUserAction(formData: FormData) {
         ${created.name},
         ${bookingSlug(created.username)},
         'Asia/Bangkok',
-        'DJAI Consultation',
+        'ปรึกษากับ DJAI',
         30
       )
       on conflict (booking_slug) do nothing
@@ -725,7 +725,7 @@ export async function setActiveAiBookingLinkAction(formData: FormData) {
 export async function createBookingLinkAction(formData: FormData) {
   const admin = await requireAdmin();
   const ownerAdminId = admin.role === "master_admin" ? text(formData, "owner_admin_id") || admin.id : admin.id;
-  const name = text(formData, "name") || "Free Consultation";
+  const name = text(formData, "name") || "ปรึกษาเบื้องต้นฟรี";
   const slug = bookingSlug(text(formData, "slug") || name);
   const title = text(formData, "title") || name;
   const description = nullableText(formData, "description");
@@ -830,7 +830,7 @@ export async function createBookingLinkAction(formData: FormData) {
 export async function updateBookingLinkAction(formData: FormData) {
   const admin = await requireAdmin();
   const id = text(formData, "id");
-  const name = text(formData, "name") || "Free Consultation";
+  const name = text(formData, "name") || "ปรึกษาเบื้องต้นฟรี";
   const slug = bookingSlug(text(formData, "slug") || name);
   const title = text(formData, "title") || name;
   const description = nullableText(formData, "description");
@@ -1302,7 +1302,7 @@ export async function updateCalendarProfileAction(formData: FormData) {
 
   const displayName = text(formData, "display_name");
   const timezone = text(formData, "timezone") || "Asia/Bangkok";
-  const meetingTitle = text(formData, "meeting_title") || "DJAI Consultation";
+  const meetingTitle = text(formData, "meeting_title") || "ปรึกษากับ DJAI";
   const meetingLocation = nullableText(formData, "meeting_location");
   const slug = bookingSlug(text(formData, "booking_slug"));
   const duration = Math.min(240, Math.max(10, numberValue(formData, "default_duration_minutes", 30)));

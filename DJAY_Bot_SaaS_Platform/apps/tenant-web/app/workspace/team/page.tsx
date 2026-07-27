@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { emailFieldConstraints, safeMutationFetch } from "@djay/shared";
+import { emailFieldConstraints, safeMutationFetch, uiCopy } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspaceAccessDenied, WorkspacePageLoadError, WorkspaceSessionLoadError } from "../WorkspaceAccess";
 import { useWorkspaceSession } from "../useWorkspaceSession";
@@ -73,7 +73,7 @@ export default function TeamPage() {
   }
 
   async function transferOwnership(targetMembershipId: string) {
-    if (!window.confirm("Send an ownership transfer request to this member?")) return;
+    if (!window.confirm(uiCopy("ส่งคำขอโอนความเป็นเจ้าของให้สมาชิกคนนี้หรือไม่?", "Send an ownership transfer request to this member?"))) return;
     setWorking(true);
     const response = await safeMutationFetch("/tenant/ownership-transfers", {
       method: "POST",
@@ -107,7 +107,7 @@ export default function TeamPage() {
   }
 
   async function removeMember(membershipId: string, displayName: string) {
-    if (!window.confirm(`Remove ${displayName}'s workspace access?`)) return;
+    if (!window.confirm(uiCopy(`ลบสิทธิ์เข้าถึงพื้นที่ทำงานของ ${displayName} หรือไม่?`, `Remove ${displayName}'s workspace access?`))) return;
     setWorking(true);
     setMessage("");
     const response = await safeMutationFetch(`/tenant/team/${membershipId}`, { method: "DELETE" });

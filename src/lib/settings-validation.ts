@@ -123,7 +123,7 @@ export function normalizeSettingsInput(input: SettingsInput, mode: "form" | "pat
 
   const languageMode = cleanString(input.language_mode, 64);
   if (languageMode !== undefined) {
-    if (!languageMode || !/^[A-Za-z0-9._:-]+$/.test(languageMode)) {
+    if (languageMode !== "thai_first" && languageMode !== "english_only") {
       throw new Error("Language mode is invalid.");
     }
     output.language_mode = languageMode;

@@ -37,7 +37,7 @@ export default function TenantLoginPage() {
       const response = await safeMutationFetch("/public/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: data.get("email"), password: data.get("password") }),
+        body: JSON.stringify({ email: data.get("email"), password: data.get("password"), locale: /(?:^|;\s*)djay-locale=en(?:;|$)/.test(document.cookie) ? "en" : "th" }),
       });
       const result = await response.json().catch(() => ({}));
       if (response.ok && result.status === "mfa_required") {

@@ -15,32 +15,32 @@ export function VerificationResendForm({ initialEmail = "" }: Readonly<{ initial
     const response = await safeMutationFetch("/public/auth/resend-verification", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: data.get("email") }),
+      body: JSON.stringify({ email: data.get("email"), locale: /(?:^|;\s*)djay-locale=en(?:;|$)/.test(document.cookie) ? "en" : "th" }),
     });
     if (response.ok) {
       setStatus("sent");
-      setMessage("If a pending account matches that email, a new verification link has been sent.");
+      setMessage("หากมีบัญชีที่รอดำเนินการตรงกับอีเมลนี้ ระบบได้ส่งลิงก์ยืนยันใหม่แล้ว");
     } else {
       setStatus("error");
       setMessage(response.status >= 500
-        ? "Verification email delivery is temporarily unavailable. Try again shortly."
-        : "Enter a valid work email and try again.");
+        ? "การส่งอีเมลยืนยันไม่พร้อมใช้งานชั่วคราว โปรดลองอีกครั้งในภายหลัง"
+        : "กรอกอีเมลที่ใช้ทำงานให้ถูกต้องแล้วลองอีกครั้ง");
     }
   }
 
   return (
     <div className="verification-resend">
       <div>
-        <strong>Need a new verification link?</strong>
-        <span>For privacy, the result is the same whether or not an account exists.</span>
+        <strong>ต้องการลิงก์ยืนยันใหม่หรือไม่?</strong>
+        <span>เพื่อความเป็นส่วนตัว ผลลัพธ์จะแสดงเหมือนกันไม่ว่าจะมีบัญชีอยู่หรือไม่</span>
       </div>
       <form onSubmit={submit}>
         <label>
-          Work email
+          อีเมลที่ใช้ทำงาน
           <input className="field" type="email" name="email" autoComplete="email" defaultValue={initialEmail} {...emailFieldConstraints} required />
         </label>
         <button type="submit" disabled={status === "working"}>
-          {status === "working" ? "Sending..." : "Send new link"}
+          {status === "working" ? "กำลังส่ง..." : "ส่งลิงก์ใหม่"}
         </button>
       </form>
       {message ? <p className={`resend-message ${status}`} role={status === "error" ? "alert" : "status"}>{message}</p> : null}

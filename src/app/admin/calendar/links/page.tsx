@@ -123,7 +123,7 @@ export default async function CalendarLinksPage({
           ) : null}
           <label className={labelClass}>
             Link name
-            <input name="name" defaultValue="Free Consultation" className={inputClass} required />
+            <input name="name" defaultValue="ปรึกษาเบื้องต้นฟรี" className={inputClass} required />
           </label>
           <label className={labelClass}>
             Public slug
@@ -142,7 +142,7 @@ export default async function CalendarLinksPage({
           </label>
           <label className={`${labelClass} xl:col-span-2`}>
             Meeting title
-            <input name="title" defaultValue="DJAI Free Consultation" className={inputClass} required />
+            <input name="title" defaultValue="ปรึกษากับ DJAI" className={inputClass} required />
           </label>
           <label className={`${labelClass} xl:col-span-2`}>
             Meeting location/link

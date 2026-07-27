@@ -21,11 +21,31 @@ export default async function BookingPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ context?: string; booked?: string; error?: string }>;
+  searchParams: Promise<{ context?: string; booked?: string; error?: string; lang?: string }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
-  const context = verifyBookingContext(query.context);
+  const locale = query.lang === "en" ? "en" : "th";
+  const copy = locale === "en" ? {
+    duration: (minutes: number, name: string) => `${minutes} minutes with ${name}`,
+    booked: "Appointment booked", requested: "Appointment requested",
+    bookedBody: "Your appointment time is booked. DJAI Academy has received your details.",
+    requestedBody: "Your requested time has been sent to DJAI Academy. The team will review and confirm the appointment.",
+    details: "Your details", name: "Name", email: "Email", company: "Company", phone: "Phone", note: "Note",
+    choose: "Choose a time", unavailable: "Booking is currently unavailable.", noSlots: "No available slots are open right now.",
+    submit: "Request appointment",
+  } : {
+    duration: (minutes: number, name: string) => `ใช้เวลา ${minutes} นาที กับ ${name}`,
+    booked: "จองนัดหมายเรียบร้อยแล้ว", requested: "ส่งคำขอนัดหมายแล้ว",
+    bookedBody: "เวลานัดหมายของคุณได้รับการยืนยันแล้ว ทีม DJAI Academy ได้รับข้อมูลเรียบร้อยแล้ว",
+    requestedBody: "ส่งเวลาที่คุณต้องการให้ทีม DJAI Academy แล้ว ทีมงานจะตรวจสอบและยืนยันนัดหมายอีกครั้ง",
+    details: "ข้อมูลของคุณ", name: "ชื่อ", email: "อีเมล", company: "บริษัทหรือชื่อธุรกิจ", phone: "เบอร์โทรศัพท์", note: "ข้อมูลเพิ่มเติม",
+    choose: "เลือกวันและเวลา", unavailable: "ขณะนี้ยังไม่เปิดให้จองนัดหมาย", noSlots: "ขณะนี้ยังไม่มีเวลาว่างสำหรับนัดหมาย",
+    submit: "ส่งคำขอนัดหมาย",
+  };
+  // Reads the stored context to prefill the form. Deliberately does not consume it — the
+  // appointment POST does that, so a reload of this page does not invalidate the booking.
+  const context = await verifyBookingContext(query.context);
   const sql = getSql();
   const [settings] = (await sql`
     select booking_enabled from settings where id = 1 limit 1
@@ -51,7 +71,7 @@ export default async function BookingPage({
           <div className="text-sm font-semibold text-cyan-200">DJAI Academy</div>
           <h1 className="mt-2 text-3xl font-semibold text-white">{profile.title}</h1>
           <p className="mt-2 text-sm text-slate-400">
-            {profile.duration_minutes} minutes with {profile.display_name}
+            {copy.duration(profile.duration_minutes, profile.display_name)}
             {profile.meeting_location ? ` · ${profile.meeting_location}` : ""}
           </p>
           {profile.description ? <p className="mt-2 max-w-2xl text-sm text-slate-400">{profile.description}</p> : null}
@@ -60,41 +80,42 @@ export default async function BookingPage({
         {query.booked ? (
           <section className="rounded-lg border border-cyan-300/30 bg-cyan-300/10 p-6">
             <h2 className="text-xl font-semibold text-white">
-              {query.booked === "confirmed" ? "Appointment booked" : "Appointment requested"}
+              {query.booked === "confirmed" ? copy.booked : copy.requested}
             </h2>
             <p className="mt-2 text-sm text-cyan-50">
               {query.booked === "confirmed"
-                ? "Your appointment time is booked. DJAI Academy has received your details."
-                : "Your requested time has been sent to DJAI Academy. The team will review and confirm the appointment."}
+                ? copy.bookedBody
+                : copy.requestedBody}
             </p>
           </section>
         ) : (
           <form action="/api/booking/appointments" method="post" className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
             <input type="hidden" name="slug" value={slug} />
+            <input type="hidden" name="lang" value={locale} />
             {query.context ? <input type="hidden" name="context" value={query.context} /> : null}
 
             <section className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
-              <h2 className="text-lg font-semibold text-white">Your details</h2>
+              <h2 className="text-lg font-semibold text-white">{copy.details}</h2>
               {query.error ? (
                 <div className="mt-4 rounded-md border border-red-300/20 bg-red-400/10 px-3 py-2 text-sm text-red-100">
                   {query.error}
                 </div>
               ) : null}
               <label className="mt-4 block text-sm text-slate-300">
-                Name
+                {copy.name}
                 <input name="client_name" defaultValue={context?.clientName || ""} className="mt-2 w-full rounded-md border border-white/10 bg-[#0a1128] px-3 py-2 text-white" required />
               </label>
               <label className="mt-4 block text-sm text-slate-300">
-                Email
+                {copy.email}
                 <input name="email" type="email" defaultValue={context?.email || ""} className="mt-2 w-full rounded-md border border-white/10 bg-[#0a1128] px-3 py-2 text-white" required />
               </label>
               <label className="mt-4 block text-sm text-slate-300">
-                Company
+                {copy.company}
                 <input name="company_name" defaultValue={context?.companyName || ""} className="mt-2 w-full rounded-md border border-white/10 bg-[#0a1128] px-3 py-2 text-white" />
               </label>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <label className="block text-sm text-slate-300">
-                  Phone
+                  {copy.phone}
                   <input name="phone" defaultValue={context?.phone || ""} className="mt-2 w-full rounded-md border border-white/10 bg-[#0a1128] px-3 py-2 text-white" />
                 </label>
                 <label className="block text-sm text-slate-300">
@@ -107,27 +128,27 @@ export default async function BookingPage({
                 </label>
               </div>
               <label className="mt-4 block text-sm text-slate-300">
-                Note
+                {copy.note}
                 <textarea name="note" rows={4} className="mt-2 w-full rounded-md border border-white/10 bg-[#0a1128] px-3 py-2 text-white" />
               </label>
             </section>
 
             <section className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
-              <h2 className="text-lg font-semibold text-white">Choose a time</h2>
+              <h2 className="text-lg font-semibold text-white">{copy.choose}</h2>
               {!settings?.booking_enabled ? (
                 <div className="mt-4 rounded-md border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
-                  Booking is currently unavailable.
+                  {copy.unavailable}
                 </div>
               ) : groupedSlots.length === 0 ? (
                 <div className="mt-4 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-300">
-                  No available slots are open right now.
+                  {copy.noSlots}
                 </div>
               ) : (
                 <div className="mt-4 max-h-[620px] space-y-5 overflow-auto pr-1">
                   {groupedSlots.map(([date, daySlots]) => (
                     <div key={date}>
                       <div className="mb-2 text-sm font-semibold text-slate-200">
-                        {new Date(`${date}T00:00:00+07:00`).toLocaleDateString(undefined, {
+                        {new Date(`${date}T00:00:00+07:00`).toLocaleDateString(locale === "th" ? "th-TH" : "en-GB", {
                           weekday: "long",
                           year: "numeric",
                           month: "short",
@@ -150,7 +171,7 @@ export default async function BookingPage({
                 disabled={!settings?.booking_enabled || groupedSlots.length === 0}
                 className="mt-5 w-full rounded-md bg-gradient-to-r from-cyan-400 to-blue-600 px-4 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Request appointment
+                {copy.submit}
               </button>
             </section>
           </form>

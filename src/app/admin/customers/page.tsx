@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AdminShell } from "../AdminShell";
 import { requireAdmin } from "@/lib/admin-auth";
+import { currentIntlLocale } from "@/lib/browser-locale";
 import { getSql } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -64,20 +65,20 @@ export default async function CustomersPage() {
           {profiles.map((profile) => (
             <div key={`${profile.client_name}-${profile.email || profile.phone || profile.line_id || profile.whatsapp}`} className="grid gap-4 px-5 py-4 text-sm lg:grid-cols-[1fr_280px_140px]">
               <div>
-                <div className="font-semibold text-slate-950">
+                <div data-no-localize className="font-semibold text-slate-950">
                   {profile.client_name}{profile.company_name ? ` · ${profile.company_name}` : ""}
                 </div>
-                <div className="mt-2 flex flex-wrap gap-2 text-slate-600">
+                <div data-no-localize className="mt-2 flex flex-wrap gap-2 text-slate-600">
                   {profile.phone ? <span>Phone: {profile.phone}</span> : null}
                   {profile.email ? <span>Email: {profile.email}</span> : null}
                   {profile.line_id ? <span>LINE: {profile.line_id}</span> : null}
                   {profile.whatsapp ? <span>WhatsApp: {profile.whatsapp}</span> : null}
                 </div>
               </div>
-              <div className="text-slate-600">
+              <div data-no-localize className="text-slate-600">
                 <div>Leads: {profile.lead_count}</div>
                 <div>Status: {profile.latest_status?.replaceAll("_", " ") || "unknown"}</div>
-                <div>Last seen: {new Date(profile.last_seen_at).toLocaleString()}</div>
+                <div>Last seen: {new Date(profile.last_seen_at).toLocaleString(currentIntlLocale())}</div>
               </div>
               <div className="flex items-start justify-end">
                 {profile.conversation_id ? (

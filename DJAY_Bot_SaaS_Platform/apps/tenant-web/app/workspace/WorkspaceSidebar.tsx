@@ -24,27 +24,27 @@ export type WorkspaceArea =
 type NavItem = Readonly<{
   area: WorkspaceArea;
   href: string;
-  label: string;
+  label: Readonly<{ en: string; th: string }>;
   permission: TenantPermission;
   group: "get_live" | "customers" | "products" | "workspace";
 }>;
 
 const workspaceNavigation: readonly NavItem[] = [
-  { area: "overview", href: "/workspace", label: "Overview", permission: "tenant.read", group: "get_live" },
-  { area: "setup", href: "/workspace/setup", label: "Setup", permission: "tenant.read", group: "get_live" },
-  { area: "inbox", href: "/workspace/inbox", label: "Inbox", permission: "conversations.read", group: "customers" },
-  { area: "contacts", href: "/workspace/contacts", label: "Contacts", permission: "contacts.read", group: "customers" },
-  { area: "leads", href: "/workspace/leads", label: "Leads", permission: "leads.read", group: "customers" },
-  { area: "flowbot", href: "/workspace/flowbot", label: "FlowBot", permission: "flowbot.read", group: "products" },
-  { area: "ai_chat", href: "/workspace/ai-chat", label: "AI Chat", permission: "ai_chat.read", group: "products" },
-  { area: "voice", href: "/workspace/voice", label: "Voice", permission: "voice.read", group: "products" },
-  { area: "knowledge", href: "/workspace/knowledge", label: "Knowledge", permission: "knowledge.read", group: "products" },
-  { area: "operations", href: "/workspace/operations", label: "Services & add-ons", permission: "tenant.read", group: "products" },
-  { area: "settings", href: "/workspace/settings", label: "Business profile", permission: "tenant.read", group: "workspace" },
-  { area: "team", href: "/workspace/team", label: "Team", permission: "team.read", group: "workspace" },
-  { area: "usage", href: "/workspace/usage", label: "Usage", permission: "usage.read", group: "workspace" },
-  { area: "data", href: "/workspace/data", label: "Data controls", permission: "privacy.manage", group: "workspace" },
-  { area: "security", href: "/workspace/security", label: "Security", permission: "security.sessions.read", group: "workspace" },
+  { area: "overview", href: "/workspace", label: { en: "Overview", th: "ภาพรวม" }, permission: "tenant.read", group: "get_live" },
+  { area: "setup", href: "/workspace/setup", label: { en: "Setup", th: "เริ่มใช้งาน" }, permission: "tenant.read", group: "get_live" },
+  { area: "inbox", href: "/workspace/inbox", label: { en: "Inbox", th: "กล่องข้อความ" }, permission: "conversations.read", group: "customers" },
+  { area: "contacts", href: "/workspace/contacts", label: { en: "Contacts", th: "ข้อมูลติดต่อ" }, permission: "contacts.read", group: "customers" },
+  { area: "leads", href: "/workspace/leads", label: { en: "Leads", th: "ผู้สนใจ" }, permission: "leads.read", group: "customers" },
+  { area: "flowbot", href: "/workspace/flowbot", label: { en: "FlowBot", th: "FlowBot" }, permission: "flowbot.read", group: "products" },
+  { area: "ai_chat", href: "/workspace/ai-chat", label: { en: "AI Chat", th: "แชต AI" }, permission: "ai_chat.read", group: "products" },
+  { area: "voice", href: "/workspace/voice", label: { en: "Voice", th: "ระบบเสียง" }, permission: "voice.read", group: "products" },
+  { area: "knowledge", href: "/workspace/knowledge", label: { en: "Knowledge", th: "คลังความรู้" }, permission: "knowledge.read", group: "products" },
+  { area: "operations", href: "/workspace/operations", label: { en: "Services & add-ons", th: "บริการและส่วนเสริม" }, permission: "tenant.read", group: "products" },
+  { area: "settings", href: "/workspace/settings", label: { en: "Business profile", th: "โปรไฟล์ธุรกิจ" }, permission: "tenant.read", group: "workspace" },
+  { area: "team", href: "/workspace/team", label: { en: "Team", th: "ทีมงาน" }, permission: "team.read", group: "workspace" },
+  { area: "usage", href: "/workspace/usage", label: { en: "Usage", th: "การใช้งานและแผน" }, permission: "usage.read", group: "workspace" },
+  { area: "data", href: "/workspace/data", label: { en: "Data controls", th: "การจัดการข้อมูล" }, permission: "privacy.manage", group: "workspace" },
+  { area: "security", href: "/workspace/security", label: { en: "Security", th: "ความปลอดภัย" }, permission: "security.sessions.read", group: "workspace" },
 ];
 
 const groupLabels = {
@@ -73,7 +73,7 @@ export function WorkspaceSidebar({
   selectedTenantId,
   onSelect,
   onLogout,
-  chromeLocale = "en",
+  chromeLocale = "th",
 }: Readonly<{
   active: WorkspaceArea;
   workspaces: readonly WorkspaceSummary[];
@@ -87,10 +87,10 @@ export function WorkspaceSidebar({
   const navigation = workspaceNavigationForRole(role);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerId = useId();
-  const locale = chromeLocale === "th" ? "th" : "en";
+  const locale = chromeLocale === "en" ? "en" : "th";
   const labels = locale === "th"
-    ? { overview: "ภาพรวม", setup: "เริ่มใช้งาน", menu: "เมนู", close: "ปิด" }
-    : { overview: "Overview", setup: "Setup", menu: "Menu", close: "Close" };
+    ? { menu: "เมนู", close: "ปิด", skip: "ข้ามไปยังเนื้อหาหลัก", workspace: "เวิร์กสเปซ", navigation: "เมนูเวิร์กสเปซ", access: "สิทธิ์", signOut: "ออกจากระบบ" }
+    : { menu: "Menu", close: "Close", skip: "Skip to main content", workspace: "Workspace", navigation: "Workspace navigation", access: "access", signOut: "Sign out" };
 
   useEffect(() => {
     setDrawerOpen(false);
@@ -115,7 +115,7 @@ export function WorkspaceSidebar({
 
   return (
     <div className="workspace-chrome">
-      <a className="skip-link" href="#workspace-main">Skip to main content</a>
+      <a className="skip-link" href="#workspace-main">{labels.skip}</a>
       <div className="workspace-mobile-bar">
         <button
           type="button"
@@ -132,28 +132,26 @@ export function WorkspaceSidebar({
         <button
           type="button"
           className="workspace-nav-backdrop"
-          aria-label="Close navigation"
+          aria-label={labels.close}
           onClick={() => setDrawerOpen(false)}
         />
       ) : null}
       <aside id={drawerId} className={drawerOpen ? "workspace-drawer open" : "workspace-drawer"}>
         <div className="workspace-brand"><span className="mark">D</span><strong>DJAY BOT</strong></div>
         <label className="workspace-select-label">
-          Workspace
+          {labels.workspace}
           <select value={selectedTenantId} onChange={(event) => onSelect(event.target.value)}>
             {workspaces.map((workspace) => (
               <option key={workspace.tenantId} value={workspace.tenantId}>{workspace.businessName}</option>
             ))}
           </select>
         </label>
-        <nav className="workspace-nav" aria-label="Workspace navigation">
+        <nav className="workspace-nav" aria-label={labels.navigation}>
           {groups.map((group) => (
             <div className="workspace-nav-group" key={group.id}>
               <p className="workspace-nav-group-label">{group.label}</p>
               {group.items.map((item) => {
-                const label = item.area === "overview" ? labels.overview
-                  : item.area === "setup" ? labels.setup
-                    : item.label;
+                const label = item.label[locale];
                 return (
                   <a
                     aria-current={active === item.area ? "page" : undefined}
@@ -169,9 +167,9 @@ export function WorkspaceSidebar({
           ))}
         </nav>
         {tenantRoles.includes(role as TenantRole) ? (
-          <p className="workspace-role">{humanizeTenantRole(role)} access</p>
+          <p className="workspace-role">{humanizeTenantRole(role)} {labels.access}</p>
         ) : null}
-        <button className="quiet-command" type="button" onClick={onLogout}>Sign out</button>
+        <button className="quiet-command" type="button" onClick={onLogout}>{labels.signOut}</button>
       </aside>
     </div>
   );

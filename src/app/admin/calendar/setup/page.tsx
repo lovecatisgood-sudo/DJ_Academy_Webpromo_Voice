@@ -162,7 +162,7 @@ export default async function CalendarSetupPage({
               Default meeting location/link
               <input name="meeting_location" defaultValue={profile?.meeting_location || ""} className={inputClass} />
             </label>
-            <input type="hidden" name="meeting_title" value="DJAI Consultation" />
+            <input type="hidden" name="meeting_title" value="ปรึกษากับ DJAI" />
             <input type="hidden" name="default_duration_minutes" value="30" />
             <input type="hidden" name="buffer_before_minutes" value="0" />
             <input type="hidden" name="buffer_after_minutes" value="0" />
@@ -239,7 +239,7 @@ export default async function CalendarSetupPage({
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <label className={labelClass}>
               Link name
-              <input name="name" defaultValue="Free Consultation" className={inputClass} required />
+              <input name="name" defaultValue="ปรึกษาเบื้องต้นฟรี" className={inputClass} required />
             </label>
             <label className={labelClass}>
               Public slug
@@ -258,7 +258,7 @@ export default async function CalendarSetupPage({
             </label>
             <label className={labelClass}>
               Meeting title
-              <input name="title" defaultValue="DJAI Free Consultation" className={inputClass} required />
+              <input name="title" defaultValue="ปรึกษากับ DJAI" className={inputClass} required />
             </label>
             <label className={`${labelClass} md:col-span-2`}>
               Meeting location/link

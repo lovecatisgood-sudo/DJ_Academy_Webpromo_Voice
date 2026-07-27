@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { safeMutationFetch } from "@djay/shared";
+import { currentIntlLocale, safeMutationFetch } from "@djay/shared";
 import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
@@ -39,7 +39,7 @@ export default function LeadsPage() {
   return <main className="workspace-shell">
     <WorkspaceSidebar active="leads" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} />
     <section className="workspace-main"><WorkspaceSupportBanner tenantId={session.selectedTenantId} />
-      <header className="workspace-header"><div><p>Sales</p><h1>Leads</h1></div><span className="role-label">{workspace?.businessName}</span></header>
+      <header className="workspace-header"><div><p>Sales</p><h1>Leads</h1></div><span data-no-localize className="role-label">{workspace?.businessName}</span></header>
       {!canWrite ? <WorkspaceViewOnly>You can review the sales pipeline. An operator or administrator can create leads.</WorkspaceViewOnly> : null}
       {canWrite ? <section className="tool-band"><div className="band-heading"><div><p>Pipeline</p><h2>Create lead</h2></div></div>
         <form className="record-form lead-form" onSubmit={createLead}>
@@ -50,7 +50,7 @@ export default function LeadsPage() {
         </form>{message ? <p className="inline-message" role="status">{message}</p> : null}
       </section> : null}
       <section className="tool-band muted-band"><div className="band-heading"><div><p>Pipeline</p><h2>Active records</h2></div><span>{leads.length}</span></div>
-        <div className="data-table">{leads.map((lead) => <div className="data-row" key={lead.id}><div><strong>{lead.title}</strong><span>{lead.contactName} / {lead.source}</span></div><span className="status-text">{lead.status.replaceAll("_", " ")}</span><span>{new Date(lead.updatedAt).toLocaleDateString()}</span></div>)}
+        <div className="data-table">{leads.map((lead) => <div className="data-row" key={lead.id}><div data-no-localize><strong>{lead.title}</strong><span>{lead.contactName} / {lead.source}</span></div><span className="status-text">{lead.status.replaceAll("_", " ")}</span><span>{new Date(lead.updatedAt).toLocaleDateString(currentIntlLocale())}</span></div>)}
         {!leads.length ? <div className="pending-line"><strong>No leads</strong><span>Create one from a contact.</span></div> : null}</div>
       </section>
     </section>

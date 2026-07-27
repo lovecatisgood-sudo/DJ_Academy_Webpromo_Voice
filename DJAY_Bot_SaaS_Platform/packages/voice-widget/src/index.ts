@@ -149,7 +149,7 @@ class VoiceWidget {
 
   constructor(private readonly options: VoiceWidgetOptions) {
     this.apiBaseUrl = normalizeVoiceApiBaseUrl(options.apiBaseUrl);
-    this.language = options.language ?? "en";
+    this.language = options.language ?? "th";
     this.opened = Boolean(options.openOnLoad);
     this.host.dataset.djayVoice = options.deploymentKey.slice(0, 20);
   }

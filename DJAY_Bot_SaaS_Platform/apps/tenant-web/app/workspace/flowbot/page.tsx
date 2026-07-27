@@ -4,9 +4,11 @@ import { useEffect, useState, type FormEvent } from "react";
 import { flowSnapshotSchema } from "@djay/flowbot-domain";
 import {
   flowbotOperationsFieldConstraints,
+  currentIntlLocale,
   flowbotRoutingTeamFormError,
   flowbotScheduleFormError,
   safeMutationFetch,
+  uiCopy,
 } from "@djay/shared";
 import { createWidgetInstallSnippet } from "@djay/shared/widget-install";
 import { tenantWidgetInstallEnvironment } from "../../../lib/widget-install-environment";
@@ -208,12 +210,12 @@ export default function FlowBotPage() {
     if (!selectedBotId) return; setWorking(true); setMessage("");
     const response = await safeMutationFetch(`/tenant/flowbot/bots/${selectedBotId}/publish`, { method: "POST" }); const result = await response.json(); setWorking(false);
     if (!response.ok) { setMessage(result.issues?.map((issue: { code: string }) => issue.code).join(", ") || "Publish failed."); return; }
-    setMessage(`Version ${result.version} published.`); await loadBots(); await loadBot(selectedBotId);
+    setMessage(uiCopy(`เผยแพร่เวอร์ชัน ${result.version} แล้ว`, `Version ${result.version} published.`)); await loadBots(); await loadBot(selectedBotId);
   }
   async function rollback(versionId: string) {
-    if (!selectedBotId || !window.confirm("Publish this historical definition as a new version?")) return; setWorking(true);
+    if (!selectedBotId || !window.confirm(uiCopy("เผยแพร่คำจำกัดความย้อนหลังนี้เป็นเวอร์ชันใหม่หรือไม่?", "Publish this historical definition as a new version?"))) return; setWorking(true);
     const response = await safeMutationFetch(`/tenant/flowbot/bots/${selectedBotId}/rollback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceVersionId: versionId }) }); const result = await response.json(); setWorking(false);
-    setMessage(response.ok ? `Version ${result.version} published from history.` : "Rollback publish failed."); if (response.ok) await loadBot(selectedBotId);
+    setMessage(response.ok ? uiCopy(`เผยแพร่เวอร์ชัน ${result.version} จากประวัติแล้ว`, `Version ${result.version} published from history.`) : uiCopy("เผยแพร่เวอร์ชันย้อนหลังไม่สำเร็จ", "Rollback publish failed.")); if (response.ok) await loadBot(selectedBotId);
   }
   async function createDeployment(input: Readonly<{ name: string; allowedOrigins: readonly [string] }>, form: HTMLFormElement) {
     if (!selectedBotId) return; setWorking(true); setNewDeploymentKey("");
@@ -302,7 +304,7 @@ export default function FlowBotPage() {
     if (response.ok) { setNewSocialWebhookKey(result.webhookKey); form.reset(); await loadOperations(); }
   }
   async function revokeSocialConnection(connectionId: string) {
-    if (!window.confirm("Revoke this social channel connection?")) return; setWorking(true);
+    if (!window.confirm(uiCopy("เพิกถอนการเชื่อมต่อช่องทางโซเชียลนี้หรือไม่?", "Revoke this social channel connection?"))) return; setWorking(true);
     const response = await safeMutationFetch(`/tenant/flowbot/social-connections/${connectionId}`, { method: "DELETE" });
     setWorking(false); setMessage(response.ok ? "Social channel revoked." : "Social channel could not be revoked.");
     if (response.ok) await loadOperations();
@@ -324,7 +326,7 @@ export default function FlowBotPage() {
     <section id="workspace-main" className="workspace-main" tabIndex={-1}><WorkspaceSupportBanner tenantId={session.selectedTenantId} />
       <header className="workspace-header"><div><p>Website automation</p><h1>FlowBot</h1></div><span className="role-label">{humanizePlanKey(capabilities?.planKey)} · {humanizeAccessMode(capabilities?.accessMode)}</span></header>
       <section className="tool-band flowbot-control-band"><div className="band-heading"><div><p>Bots</p><h2>Published assistants</h2></div><span>{bots.length}{capabilities?.limits.activeBots ? ` / ${capabilities.limits.activeBots}` : ""}</span></div>
-        {canAuthor ? <form className="flowbot-create" onSubmit={createBot}><label>Name<input name="name" minLength={2} maxLength={160} required /></label><label>Language<select name="defaultLanguage" defaultValue="en"><option value="en">English</option><option value="th">Thai</option></select></label><button type="submit" disabled={working}>Create bot</button></form> : null}
+        {canAuthor ? <form className="flowbot-create" onSubmit={createBot}><label>Name<input name="name" minLength={2} maxLength={160} required /></label><label>Language<select name="defaultLanguage" defaultValue="th"><option value="th">ไทย</option><option value="en">English</option></select></label><button type="submit" disabled={working}>Create bot</button></form> : null}
         <div className="flowbot-bot-tabs" role="tablist" aria-label="Flow bots">{bots.map((bot) => <button type="button" role="tab" id={`flowbot-bot-${bot.id}`} aria-controls="flowbot-studio-panels" aria-selected={bot.id === selectedBotId} className={bot.id === selectedBotId ? "selected" : ""} key={bot.id} onClick={() => setSelectedBotId(bot.id)}><strong>{bot.name}</strong><span>{bot.status} / {bot.deploymentCount} deployments</span></button>)}</div>
         {!bots.length ? <div className="pending-line"><strong>No FlowBots</strong><span>{canAuthor ? "Create the first bot." : "An administrator can create one."}</span></div> : null}
         <p className="field-help"><a href="/workspace/setup">Open guided Setup wizard</a> for first launch. Studio tabs below are for day-2 editing.</p>
@@ -392,12 +394,12 @@ export default function FlowBotPage() {
         <div role="tabpanel" id="flowbot-panel-advanced" aria-labelledby="flowbot-tab-advanced" hidden={studioTab !== "advanced"}>
         {analyticsLoadError ? <section className="tool-band"><div className="pending-line inline-retry" role="alert"><strong>FlowBot analytics could not be loaded</strong><span>Bot and deployment records remain available.</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>Try again</button></div></section> : null}
         {analytics ? <section className="tool-band"><div className="band-heading"><div><p>{analytics.periodDays}-day {analytics.level}</p><h2>FlowBot analytics</h2></div><a className="secondary-command" href="/tenant/flowbot/analytics?format=csv">Export CSV</a></div><div className="metric-grid"><div><strong>{analytics.executions}</strong><span>Executions</span></div><div><strong>{analytics.completed}</strong><span>Completed</span></div><div><strong>{analytics.leads}</strong><span>Leads</span></div><div><strong>{analytics.handovers}</strong><span>Handovers</span></div><div><strong>{analytics.messages}</strong><span>Messages</span></div></div>
-          {analytics.level === "advanced" ? <><div className="band-heading"><div><p>Needs review</p><h3>Unanswered inputs</h3></div><span>{analytics.unansweredInputs.length}</span></div><div className="data-table">{analytics.unansweredInputs.map((item) => <div className="data-row" key={`${item.executionId}-${item.occurredAt}`}><div><strong>{item.inputText || "No text captured"}</strong><span>{item.contactName}</span></div><span>{item.reason.replaceAll("_", " ")}</span><time>{new Date(item.occurredAt).toLocaleString()}</time></div>)}{!analytics.unansweredInputs.length ? <div className="pending-line"><strong>No unanswered inputs</strong><span>No keyword misses in this period.</span></div> : null}</div>
+          {analytics.level === "advanced" ? <><div className="band-heading"><div><p>Needs review</p><h3>Unanswered inputs</h3></div><span>{analytics.unansweredInputs.length}</span></div><div className="data-table">{analytics.unansweredInputs.map((item) => <div className="data-row" key={`${item.executionId}-${item.occurredAt}`}><div><strong>{item.inputText || "No text captured"}</strong><span>{item.contactName}</span></div><span>{item.reason.replaceAll("_", " ")}</span><time>{new Date(item.occurredAt).toLocaleString(currentIntlLocale())}</time></div>)}{!analytics.unansweredInputs.length ? <div className="pending-line"><strong>No unanswered inputs</strong><span>No keyword misses in this period.</span></div> : null}</div>
           <div className="band-heading"><div><p>Path performance</p><h3>Customer journeys</h3></div><span>{analytics.journeys.length}</span></div><div className="data-table">{analytics.journeys.map((item) => <div className="data-row" key={item.path}><div><strong>{item.path}</strong><span>{item.executions} executions</span></div><span>{item.completed} completed</span><span>{item.handovers} handovers</span></div>)}{!analytics.journeys.length ? <div className="pending-line"><strong>No journey data</strong><span>Published flow paths appear after customer executions.</span></div> : null}</div></> : null}
         </section> : null}
         {preflightLoadError ? <section className="tool-band muted-band"><div className="pending-line inline-retry" role="alert"><strong>Downgrade compatibility could not be checked</strong><span>No subscription change has been made.</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>Try again</button></div></section> : null}
         {preflight ? <section className="tool-band muted-band"><div className="band-heading"><div><p>Plan safety</p><h2>Basic downgrade preflight</h2></div><span>{preflight.allowed ? "Ready" : `${preflight.blockers.length} blockers`}</span></div>{preflight.allowed ? <p className="inline-message">Current definitions are compatible with FlowBot Basic.</p> : <div className="data-table">{preflight.blockers.map((blocker, index) => <div className="data-row" key={`${blocker.code}-${index}`}><strong>{blocker.code}</strong><span>{blocker.detail || "Configuration dependency"}</span><span>{preflight.remediation[index]?.action}</span></div>)}</div>}</section> : null}
-        <section className="tool-band"><div className="band-heading"><div><p>Immutable history</p><h2>Published versions</h2></div><span>{versions.length}</span></div><div className="data-table">{versions.map((version) => <div className="data-row" key={version.id}><div><strong>Version {version.version}</strong><span>{new Date(version.publishedAt).toLocaleString()}</span></div><span>{version.sourceVersionId ? "Derived" : "Published"}</span>{canAuthor ? <button type="button" className="secondary-command" onClick={() => void rollback(version.id)} disabled={working}>Publish copy</button> : <span />}</div>)}</div></section>
+        <section className="tool-band"><div className="band-heading"><div><p>Immutable history</p><h2>Published versions</h2></div><span>{versions.length}</span></div><div className="data-table">{versions.map((version) => <div className="data-row" key={version.id}><div><strong>Version {version.version}</strong><span>{new Date(version.publishedAt).toLocaleString(currentIntlLocale())}</span></div><span>{version.sourceVersionId ? "Derived" : "Published"}</span>{canAuthor ? <button type="button" className="secondary-command" onClick={() => void rollback(version.id)} disabled={working}>Publish copy</button> : <span />}</div>)}</div></section>
         </div>
         </div>
       </> : null}

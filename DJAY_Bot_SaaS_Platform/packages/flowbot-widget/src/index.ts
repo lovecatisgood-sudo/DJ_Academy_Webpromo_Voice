@@ -71,7 +71,9 @@ class FlowbotWidget {
 
   constructor(private readonly options: FlowbotWidgetOptions) {
     this.apiBaseUrl = normalizeApiBaseUrl(options.apiBaseUrl);
-    this.language = options.language ?? "en";
+    // Thai first: this is the pre-connect language. Once the session starts, the deployment's
+    // configured defaultLanguage takes over unless the embedder pinned one explicitly.
+    this.language = options.language ?? "th";
     this.opened = Boolean(options.openOnLoad);
     this.storage = options.storage ?? safeStorage();
     this.host.dataset.djayFlowbot = options.deploymentKey.slice(0, 16);

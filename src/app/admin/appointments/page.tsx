@@ -12,6 +12,7 @@ import {
 } from "../actions";
 import { ConfirmSubmitButton } from "../ConfirmSubmitButton";
 import { requireAdmin } from "@/lib/admin-auth";
+import { currentIntlLocale } from "@/lib/browser-locale";
 import { getSql } from "@/lib/db";
 import type { AppointmentStatus } from "@/lib/types";
 
@@ -334,7 +335,7 @@ export default async function AppointmentsPage({
                       {dayAppointments.map((appointment) => (
                         <div key={appointment.id} className={`rounded-md border px-3 py-2 text-xs ${statusClass(appointment.status)}`}>
                           <div className="font-semibold">{timeLabel(appointment.start_at)} · {appointment.client_name}</div>
-                          <div className="mt-1">{appointment.assigned_admin_name || appointment.assigned_admin_name_snapshot || "Unassigned"}</div>
+                          <div className="mt-1">{appointment.assigned_admin_name || appointment.assigned_admin_name_snapshot || "ยังไม่ได้มอบหมาย"}</div>
                           <div className="mt-1">{appointment.status.replaceAll("_", " ")}</div>
                         </div>
                       ))}
@@ -359,7 +360,7 @@ export default async function AppointmentsPage({
             <div key={appointment.id} className="grid gap-5 px-5 py-5 text-sm xl:grid-cols-[1fr_380px]">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="font-semibold text-slate-950">
+                  <div data-no-localize className="font-semibold text-slate-950">
                     {appointment.client_name}{appointment.company_name ? ` · ${appointment.company_name}` : ""}
                   </div>
                   <span className={`rounded-full border px-2 py-1 text-xs ${statusClass(appointment.status)}`}>
@@ -370,20 +371,20 @@ export default async function AppointmentsPage({
                   </span>
                 </div>
                 <div className="mt-2 text-slate-700">
-                  {new Date(appointment.start_at).toLocaleString()} · {appointment.duration_minutes} min · {appointment.timezone}
+                  {new Date(appointment.start_at).toLocaleString(currentIntlLocale())} · {appointment.duration_minutes} min · {appointment.timezone}
                 </div>
-                <div className="mt-2 text-slate-600">{contactLine(appointment)}</div>
+                <div data-no-localize className="mt-2 text-slate-600">{contactLine(appointment)}</div>
                 <div className="mt-2 text-slate-500">
-                  Assigned to {appointment.assigned_admin_name || appointment.assigned_admin_name_snapshot || "Unassigned"}
+                  Assigned to {appointment.assigned_admin_name || appointment.assigned_admin_name_snapshot || "ยังไม่ได้มอบหมาย"}
                 </div>
                 <div className="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-2">
-                  <div>Problem: {appointment.main_problem || appointment.summary || "Not captured"}</div>
-                  <div>Service: {appointment.recommended_service || "Not captured"}</div>
+                  <div>Problem: {appointment.main_problem || appointment.summary ? <span data-no-localize>{appointment.main_problem || appointment.summary}</span> : "ยังไม่มีข้อมูล"}</div>
+                  <div>Service: {appointment.recommended_service ? <span data-no-localize>{appointment.recommended_service}</span> : "ยังไม่มีข้อมูล"}</div>
                   <div>Interest: {appointment.interest_level || "unknown"}</div>
                   <div>Lead status: {appointment.lead_status || "none"}</div>
                 </div>
                 {appointment.note || appointment.admin_notes ? (
-                  <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  <div data-no-localize className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
                     {appointment.note ? `Client note: ${appointment.note}` : null}
                     {appointment.note && appointment.admin_notes ? <br /> : null}
                     {appointment.admin_notes ? `Admin note: ${appointment.admin_notes}` : null}

@@ -212,7 +212,7 @@ export default async function CalendarAvailabilityPage({
               </label>
               <label className={labelClass}>
                 Default meeting title
-                <input name="meeting_title" defaultValue={profile?.meeting_title || "DJAI Consultation"} className={inputClass} />
+                <input name="meeting_title" defaultValue={profile?.meeting_title || "ปรึกษากับ DJAI"} className={inputClass} />
               </label>
               <label className={labelClass}>
                 Default location/link

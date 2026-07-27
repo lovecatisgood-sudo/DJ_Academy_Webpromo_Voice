@@ -19,7 +19,8 @@ body {
     radial-gradient(circle at top left, rgba(0, 216, 255, 0.12), transparent 24rem),
     radial-gradient(circle at top right, rgba(198, 83, 255, 0.14), transparent 28rem),
     linear-gradient(180deg, #050816 0%, #070b17 100%);
-  font-family: "Manrope", sans-serif;
+  font-family: "Noto Sans Thai", "Manrope", "Leelawadee UI", sans-serif;
+  line-height: 1.6;
   overflow-x: hidden;
 }
 
@@ -117,6 +118,10 @@ img {
     box-shadow 160ms ease;
 }
 
+.language-switch button {
+  min-width: 4.75rem;
+}
+
 .language-switch button:hover,
 .language-switch button:focus-visible {
   color: #ffffff;
@@ -159,7 +164,7 @@ img {
   position: relative;
   width: 100%;
   padding: 48px 40px 40px;
-  font-family: "Manrope", sans-serif;
+  font-family: "Noto Sans Thai", "Manrope", "Leelawadee UI", sans-serif;
   color: #ffffff;
   isolation: isolate;
   overflow: hidden;

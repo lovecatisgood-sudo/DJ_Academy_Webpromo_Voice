@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import StatusPageClient from "./StatusPageClient";
 
 export const metadata: Metadata = {
-  title: "Service status | DJAY Bot",
-  description: "Current provider-neutral availability for DJAY Bot customer services.",
+  title: "สถานะบริการ | DJAY Bot",
+  description: "ความพร้อมใช้งานปัจจุบันของบริการ DJAY Bot สำหรับลูกค้า โดยไม่ผูกกับผู้ให้บริการรายใด",
 };
 
 export default function StatusPage() {

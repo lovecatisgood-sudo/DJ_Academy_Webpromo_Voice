@@ -125,7 +125,10 @@ export default async function SettingsPage({
           <div className="mt-5 grid gap-4 md:grid-cols-3">
             <label className={labelClass}>
               Language mode
-              <input name="language_mode" className={inputClass} defaultValue={settings.language_mode} />
+              <select name="language_mode" className={inputClass} defaultValue={settings.language_mode === "english_only" ? "english_only" : "thai_first"}>
+                <option value="thai_first">ภาษาไทยเป็นหลัก เปลี่ยนเป็นอังกฤษเมื่อผู้ใช้เลือก</option>
+                <option value="english_only">ภาษาอังกฤษเท่านั้น</option>
+              </select>
             </label>
             <label className={labelClass}>
               Max call seconds

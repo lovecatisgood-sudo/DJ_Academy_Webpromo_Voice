@@ -21,7 +21,8 @@ export const djayWidgetBaseStyles = `
   z-index: 2147483000;
   color: var(--djay-widget-ink);
   color-scheme: light;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Noto Sans Thai", "Leelawadee UI", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.6;
 }
 *, *::before, *::after { box-sizing: border-box; }
 button, input, textarea, select { font: inherit; }

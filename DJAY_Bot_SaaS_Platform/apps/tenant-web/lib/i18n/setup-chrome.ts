@@ -102,9 +102,16 @@ const chrome = {
 export type SetupChromeKey = keyof typeof chrome.en;
 
 export function setupChrome(locale: ChromeLocale): Readonly<Record<SetupChromeKey, string>> {
-  return chrome[locale] ?? chrome.en;
+  return chrome[locale] ?? chrome.th;
 }
 
+/**
+ * Thai is the platform default; English applies only when explicitly selected.
+ *
+ * The buyer is a Thai SME owner, so an unknown, missing or unsupported locale must land on Thai
+ * rather than English. Written as an explicit `=== "en"` check so that adding a third locale later
+ * cannot silently make English the fallback again.
+ */
 export function resolveChromeLocale(value: string | null | undefined): ChromeLocale {
-  return value === "th" ? "th" : "en";
+  return value === "en" ? "en" : "th";
 }

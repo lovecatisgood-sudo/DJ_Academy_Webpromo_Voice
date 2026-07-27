@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   emailFieldConstraints,
+  currentIntlLocale,
   normalizePlatformVoiceReason,
   safeMutationFetch,
+  uiCopy,
   voiceRoutingActionReasonError,
   voiceRoutingActionReasonFieldConstraints,
   voiceRuntimeReasonError,
@@ -382,7 +384,7 @@ export default function PlatformMasterPage() {
   }
 
   async function activate(subscriptionId: string) {
-    if (!window.confirm("Activate this subscription for the pilot workspace?")) return;
+    if (!window.confirm(uiCopy("เปิดใช้งานสมาชิกนี้สำหรับพื้นที่ทำงานนำร่องหรือไม่?", "Activate this subscription for the pilot workspace?"))) return;
     setWorking(true);
     clearMessage();
     const response = await safeMutationFetch(`/platform/subscriptions/${subscriptionId}/activate`, { method: "POST" });
@@ -395,7 +397,7 @@ export default function PlatformMasterPage() {
   }
 
   async function provisionSharedAddOn(requestId: string) {
-    if (!window.confirm("Provision this add-on and increase the customer entitlement now?")) return;
+    if (!window.confirm(uiCopy("จัดสรรส่วนเสริมนี้และเพิ่มสิทธิ์ของลูกค้าตอนนี้หรือไม่?", "Provision this add-on and increase the customer entitlement now?"))) return;
     setWorking(true); clearMessage();
     const response = await safeMutationFetch("/platform/shared-operations", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -556,7 +558,9 @@ export default function PlatformMasterPage() {
   }
 
   async function reviewDunningPolicy(policyId: string, approve: boolean) {
-    if (!window.confirm(`${approve ? "Activate" : "Reject"} this subscription dunning policy?`)) return;
+    if (!window.confirm(approve
+      ? uiCopy("เปิดใช้งานนโยบายติดตามชำระเงินของสมาชิกนี้หรือไม่?", "Activate this subscription dunning policy?")
+      : uiCopy("ปฏิเสธนโยบายติดตามชำระเงินของสมาชิกนี้หรือไม่?", "Reject this subscription dunning policy?"))) return;
     setWorking(true); clearMessage();
     const response = await safeMutationFetch("/platform/subscription-dunning", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -582,7 +586,9 @@ export default function PlatformMasterPage() {
   }
 
   async function reviewWebhookRecovery(caseId: string, approve: boolean) {
-    if (!window.confirm(`${approve ? "Approve" : "Reject"} this Stripe webhook recovery action?`)) return;
+    if (!window.confirm(approve
+      ? uiCopy("อนุมัติการกู้คืน Stripe webhook นี้หรือไม่?", "Approve this Stripe webhook recovery action?")
+      : uiCopy("ปฏิเสธการกู้คืน Stripe webhook นี้หรือไม่?", "Reject this Stripe webhook recovery action?"))) return;
     setWorking(true); clearMessage();
     const response = await safeMutationFetch("/platform/webhook-recovery", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -624,7 +630,7 @@ export default function PlatformMasterPage() {
   }
 
   async function reviewRecovery(requestId: string, decision: "approve" | "reject") {
-    if (decision === "approve" && !window.confirm("Approve one idempotent email delivery attempt? This action is audited and cannot be undone.")) return;
+    if (decision === "approve" && !window.confirm(uiCopy("อนุมัติการส่งอีเมลซ้ำหนึ่งครั้งหรือไม่? การกระทำนี้ถูกบันทึกตรวจสอบและย้อนกลับไม่ได้", "Approve one idempotent email delivery attempt? This action is audited and cannot be undone."))) return;
     setWorking(true); clearMessage();
     const response = await safeMutationFetch(`/platform/dead-letter-recovery/${requestId}/review`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }),
@@ -655,10 +661,10 @@ export default function PlatformMasterPage() {
     voiceReasonRef.current?.setCustomValidity("");
     const reasonCode = normalizePlatformVoiceReason(voiceReason);
     const warning = mode === "emergency_stop"
-      ? "Emergency stop ends every active Voice session and prevents new sessions. Continue?"
+      ? uiCopy("หยุดฉุกเฉินจะจบเซสชัน Voice ที่ใช้งานอยู่ทั้งหมดและป้องกันเซสชันใหม่ ดำเนินการต่อหรือไม่?", "Emergency stop ends every active Voice session and prevents new sessions. Continue?")
       : mode === "running"
-        ? "Resume new Voice sessions? Confirm deployment readiness first."
-        : "Pause admission of new Voice sessions? Active sessions will continue.";
+        ? uiCopy("กลับมาเปิดรับเซสชัน Voice ใหม่หรือไม่? โปรดยืนยันความพร้อมของการติดตั้งก่อน", "Resume new Voice sessions? Confirm deployment readiness first.")
+        : uiCopy("หยุดรับเซสชัน Voice ใหม่ชั่วคราวหรือไม่? เซสชันที่ใช้งานอยู่จะดำเนินต่อ", "Pause admission of new Voice sessions? Active sessions will continue.");
     if (!window.confirm(warning)) return;
     setWorking(true);
     const response = await safeMutationFetch("/platform/voice/runtime-control", {
@@ -722,7 +728,9 @@ export default function PlatformMasterPage() {
   }
 
   async function reviewVoiceChange(changeId: string, decision: "approve" | "reject") {
-    if (!window.confirm(`${decision === "approve" ? "Approve" : "Reject"} this Advanced Voice routing change?`)) return;
+    if (!window.confirm(decision === "approve"
+      ? uiCopy("อนุมัติการเปลี่ยนเส้นทาง Advanced Voice นี้หรือไม่?", "Approve this Advanced Voice routing change?")
+      : uiCopy("ปฏิเสธการเปลี่ยนเส้นทาง Advanced Voice นี้หรือไม่?", "Reject this Advanced Voice routing change?"))) return;
     await sendVoiceRoutingCommand({ command: "change.review", changeId, decision }, `Routing change ${decision}d.`);
   }
 
@@ -739,7 +747,7 @@ export default function PlatformMasterPage() {
     setRoutingActionReasonIssue("");
     routingActionReasonRef.current?.setCustomValidity("");
     const reason = normalizePlatformVoiceReason(routingActionReason);
-    if (!window.confirm(`${action.replaceAll("_", " ")} this reviewed Advanced Voice change?`)) return;
+    if (!window.confirm(uiCopy(`ดำเนินการ ${action.replaceAll("_", " ")} กับการเปลี่ยนแปลง Advanced Voice ที่ตรวจสอบแล้วหรือไม่?`, `${action.replaceAll("_", " ")} this reviewed Advanced Voice change?`))) return;
     await sendVoiceRoutingCommand({ command: "change.apply", changeId, action, reason }, `Routing action ${action.replaceAll("_", " ")} completed.`);
   }
 
@@ -754,12 +762,16 @@ export default function PlatformMasterPage() {
   }
 
   async function reviewVoiceAdmission(changeId: string, decision: "approve" | "reject") {
-    if (!window.confirm(`${decision === "approve" ? "Approve" : "Reject"} this Advanced Voice admission change?`)) return;
+    if (!window.confirm(decision === "approve"
+      ? uiCopy("อนุมัติการเปลี่ยนการรับงาน Advanced Voice นี้หรือไม่?", "Approve this Advanced Voice admission change?")
+      : uiCopy("ปฏิเสธการเปลี่ยนการรับงาน Advanced Voice นี้หรือไม่?", "Reject this Advanced Voice admission change?"))) return;
     await sendVoiceRoutingCommand({ command: "admission.review", changeId, decision }, `Admission change ${decision}d.`);
   }
 
   async function applyVoiceAdmission(changeId: string, enabled: boolean) {
-    if (!window.confirm(`${enabled ? "Enable" : "Disable"} Advanced Voice production admission now?`)) return;
+    if (!window.confirm(enabled
+      ? uiCopy("เปิดรับงาน Advanced Voice ในโปรดักชันตอนนี้หรือไม่?", "Enable Advanced Voice production admission now?")
+      : uiCopy("ปิดรับงาน Advanced Voice ในโปรดักชันตอนนี้หรือไม่?", "Disable Advanced Voice production admission now?"))) return;
     await sendVoiceRoutingCommand({ command: "admission.apply", changeId }, `Advanced Voice admission ${enabled ? "enabled" : "disabled"}.`);
   }
 
@@ -774,7 +786,9 @@ export default function PlatformMasterPage() {
   }
 
   async function reviewVoiceCredit(incidentId: string, decision: "approve" | "reject") {
-    if (!window.confirm(`${decision === "approve" ? "Approve" : "Reject"} the credit review recommendation?`)) return;
+    if (!window.confirm(decision === "approve"
+      ? uiCopy("อนุมัติคำแนะนำจากการตรวจเครดิตหรือไม่?", "Approve the credit review recommendation?")
+      : uiCopy("ปฏิเสธคำแนะนำจากการตรวจเครดิตหรือไม่?", "Reject the credit review recommendation?"))) return;
     await sendVoiceRoutingCommand({ command: "incident.credit_review", incidentId, decision }, `Credit review ${decision}d.`);
   }
 
@@ -796,7 +810,7 @@ export default function PlatformMasterPage() {
           <button className="quiet-button" type="button" onClick={() => void logout()}>Sign out</button>
         </aside>
         <section className="platform-content">
-          <header><div><p>Internal operations</p><h1>Platform health</h1></div><span>{user.displayName}<small>{user.role.replaceAll("_", " ")}</small></span></header>
+          <header><div><p>Internal operations</p><h1>Platform health</h1></div><span><span data-no-localize>{user.displayName}</span><small>{user.role.replaceAll("_", " ")}</small></span></header>
           {message ? <div className={`platform-message dashboard-message ${messageTone}`} role={messageTone === "error" ? "alert" : "status"}>{message}</div> : null}
           {dashboardLoading ? <div className="platform-resource-status loading" aria-live="polite" aria-busy="true"><strong>Refreshing authorized operations data…</strong><span>Current controls remain unavailable until each requested resource responds.</span></div> : null}
           {resourceErrors.length ? <div className="platform-resource-status error" role="alert"><div><strong>Some operations data could not be loaded</strong><span>No operational state was changed. Unavailable areas: {resourceErrors.join(", ")}.</span></div><button type="button" disabled={dashboardLoading} onClick={() => void loadCurrent()}>Try again</button></div> : null}
@@ -830,12 +844,12 @@ export default function PlatformMasterPage() {
               </article>)}
             </div>
             <div className="readiness-attestations" aria-label="Operational attestations">
-              {readiness.attestations.map((item) => <div className={item.passing ? "passing" : "blocked"} key={item.kind}><strong>{item.kind.replaceAll("_", " ")}</strong><span>{item.passing ? "Current" : item.status}</span><small>{item.validUntil ? `Valid until ${new Date(item.validUntil).toLocaleString()}` : "Evidence required"}</small></div>)}
+              {readiness.attestations.map((item) => <div className={item.passing ? "passing" : "blocked"} key={item.kind}><strong>{item.kind.replaceAll("_", " ")}</strong><span>{item.passing ? "Current" : item.status}</span><small>{item.validUntil ? `Valid until ${new Date(item.validUntil).toLocaleString(currentIntlLocale())}` : "Evidence required"}</small></div>)}
             </div>
             <div className="readiness-authority"><strong>{user.role === "platform_owner" ? "Platform Owner" : user.role === "platform_support" ? "Support operations" : user.role === "platform_ai_operations" ? "AI operations" : "Platform Finance"}</strong><span>{user.role === "platform_owner" ? "Approve deployment only through the reviewed release workflow after this gate is ready."
               : user.role === "platform_support" ? "Keep on-call and support-runbook evidence current; escalate every blocking incident."
                 : user.role === "platform_ai_operations" ? "Resolve failing runtime objectives without exposing internal routing to customer surfaces."
-                  : "This technical gate does not authorize prices, invoices, tax, or payment collection."}</span><small>Checked {new Date(readiness.asOf).toLocaleString()}</small></div>
+                  : "This technical gate does not authorize prices, invoices, tax, or payment collection."}</span><small>Checked {new Date(readiness.asOf).toLocaleString(currentIntlLocale())}</small></div>
           </div> : null}
           {reconciliationStage === "loading" && !reconciliation ? <div className="subscription-band reconciliation-band reconciliation-placeholder" id="usage-reconciliation" aria-live="polite">
             <div><p>Billing operations · restricted</p><h2>Checking usage reconciliation…</h2></div>
@@ -865,21 +879,21 @@ export default function PlatformMasterPage() {
               <span>{user.role === "platform_finance"
                 ? "Read-only evidence. Escalate a variance; never repair immutable usage or quota totals with direct SQL."
                 : "Pause rollout expansion when a variance appears and use the documented idempotent recovery workflow."}</span>
-              <small>As of {new Date(reconciliation.asOf).toLocaleString()}</small>
+              <small>As of {new Date(reconciliation.asOf).toLocaleString(currentIntlLocale())}</small>
             </div>
             <div className="platform-table reconciliation-table" role="list" aria-label="Usage reconciliation accounts">
               {reconciliation.accounts.map((account) => <div className={`platform-row reconciliation-row ${account.status}`} role="listitem" key={account.quotaAccountId}>
-                <div><strong>{account.businessName}</strong><span>{account.publicName} · {account.customerUnit.replaceAll("_", " ")}</span></div>
+                <div><strong data-no-localize>{account.businessName}</strong><span><span data-no-localize>{account.publicName}</span> · {account.customerUnit.replaceAll("_", " ")}</span></div>
                 <div><strong>{account.accountSettled}</strong><span>settled · {account.accountReserved} reserved</span></div>
                 <div><strong>{account.status === "healthy" ? "Reconciled" : "Review"}</strong><span>{account.status === "healthy" ? "No variance" : `Settled ${account.settledVariance} · reserved ${account.reservedVariance} · event ${account.eventVariance}`}</span></div>
-                <span>{new Date(account.periodStart).toLocaleDateString()} – {new Date(account.periodEnd).toLocaleDateString()}</span>
+                <span>{new Date(account.periodStart).toLocaleDateString(currentIntlLocale())} – {new Date(account.periodEnd).toLocaleDateString(currentIntlLocale())}</span>
               </div>)}
               {!reconciliation.accounts.length ? <p className="empty-row" role="listitem">No quota accounts to reconcile</p> : null}
             </div>
             {reconciliation.summary.quotaAccounts > reconciliation.summary.displayedAccounts ? <small className="reconciliation-limit">Showing the {reconciliation.summary.displayedAccounts} highest-priority accounts. Aggregate checks cover all {reconciliation.summary.quotaAccounts} accounts.</small> : null}
             <div className="platform-table reconciliation-table provider-reconciliation-table" role="list" aria-label="Provider usage reconciliation attention">
               {reconciliation.providerResults.map((result) => <div className="platform-row provider-reconciliation-row attention" role="listitem" key={result.resultId}>
-                <div><strong>{result.businessName}</strong><span>{result.providerKey} · {result.providerMeterKey}</span></div>
+                <div><strong data-no-localize>{result.businessName}</strong><span>{result.providerKey} · {result.providerMeterKey}</span></div>
                 <div><strong>{result.nativeQuantity} {result.nativeUnit}</strong><span>{result.status.replaceAll("_", " ")}</span></div>
                 {result.caseId ? <div><strong>{result.requestedAction?.replaceAll("_", " ")}</strong><span>{result.caseStatus?.replaceAll("_", " ")}</span></div> : <form onSubmit={(event) => void requestUsageReconciliation(event, result)}>
                   <select name="action" defaultValue="investigate"><option value="investigate">Investigate</option><option value="correct_correlation">Correct correlation</option><option value="request_provider_credit">Request provider credit</option><option value="accept_provider_only">Accept provider-only event</option></select>
@@ -904,9 +918,9 @@ export default function PlatformMasterPage() {
             </div>
             <div className="platform-table reconciliation-table" role="list" aria-label="Stripe invoice reconciliation">
               {financialReconciliation.results.map((result) => <div className={`platform-row provider-reconciliation-row ${result.status === "matched" ? "healthy" : "attention"}`} role="listitem" key={result.resultId}>
-                <div><strong>{result.businessName}</strong><span>Invoice {result.externalInvoiceRef}</span></div>
+                <div><strong data-no-localize>{result.businessName}</strong><span>Invoice {result.externalInvoiceRef}</span></div>
                 <div><strong>{result.status.replaceAll("_", " ")}</strong><span>{Object.keys(result.differences).length ? Object.keys(result.differences).join(", ") : "No difference"}</span></div>
-                {result.status === "matched" ? <span>Reconciled {new Date(result.reconciledAt).toLocaleString()}</span>
+                {result.status === "matched" ? <span>Reconciled {new Date(result.reconciledAt).toLocaleString(currentIntlLocale())}</span>
                   : result.caseId ? <div><strong>{result.requestedAction?.replaceAll("_", " ")}</strong><span>{result.reviewStatus ?? "review requested"}</span></div>
                     : <form onSubmit={(event) => void requestFinancialReconciliation(event, result.resultId)}>
                       <select name="action" defaultValue="investigate"><option value="investigate">Investigate</option><option value="retry_provider_retrieval">Retry retrieval</option><option value="request_stripe_correction">Request Stripe correction</option><option value="issue_customer_credit">Issue customer credit</option></select>
@@ -929,9 +943,9 @@ export default function PlatformMasterPage() {
             </div>
             <div className="platform-table reconciliation-table" role="list" aria-label="Stripe financial event reconciliation">
               {financialEventReconciliation.results.map((result) => <div className={`platform-row provider-reconciliation-row ${result.status === "matched" ? "healthy" : "attention"}`} role="listitem" key={result.resultId}>
-                <div><strong>{result.businessName}</strong><span>{result.evidenceKind.replaceAll("_", " ")} {result.externalRef}</span></div>
+                <div><strong data-no-localize>{result.businessName}</strong><span>{result.evidenceKind.replaceAll("_", " ")} {result.externalRef}</span></div>
                 <div><strong>{result.status.replaceAll("_", " ")}</strong><span>{Object.keys(result.differences).length ? Object.keys(result.differences).join(", ") : "No difference"}</span></div>
-                {result.status === "matched" ? <span>Reconciled {new Date(result.reconciledAt).toLocaleString()}</span>
+                {result.status === "matched" ? <span>Reconciled {new Date(result.reconciledAt).toLocaleString(currentIntlLocale())}</span>
                   : result.caseId ? <div><strong>{result.requestedAction?.replaceAll("_", " ")}</strong><span>{result.reviewStatus ?? "review requested"}</span></div>
                     : <form onSubmit={(event) => void requestFinancialEventReconciliation(event, result.resultId)}>
                       <select name="action" defaultValue="investigate"><option value="investigate">Investigate</option><option value="retry_provider_retrieval">Retry retrieval</option><option value="request_stripe_correction">Request Stripe correction</option><option value="issue_customer_credit">Issue customer credit</option></select>
@@ -956,9 +970,9 @@ export default function PlatformMasterPage() {
             </div>
             <div className="platform-table reconciliation-table" role="list" aria-label="FlowAccount reconciliation">
               {accountingReconciliation.results.map((result) => <div className={`platform-row provider-reconciliation-row ${result.status === "matched" ? "healthy" : "attention"}`} role="listitem" key={result.resultId}>
-                <div><strong>{result.businessName}</strong><span>{result.documentKind.replaceAll("_", " ")} {result.externalDocumentRef ?? "reference pending"}</span></div>
+                <div><strong data-no-localize>{result.businessName}</strong><span>{result.documentKind.replaceAll("_", " ")} {result.externalDocumentRef ?? "reference pending"}</span></div>
                 <div><strong>{result.status.replaceAll("_", " ")}</strong><span>{Object.keys(result.differences).length ? Object.keys(result.differences).join(", ") : "No difference"}</span></div>
-                {result.status === "matched" ? <span>Reconciled {new Date(result.reconciledAt).toLocaleString()}</span>
+                {result.status === "matched" ? <span>Reconciled {new Date(result.reconciledAt).toLocaleString(currentIntlLocale())}</span>
                   : result.caseId ? <div><strong>{result.requestedAction?.replaceAll("_", " ")}</strong><span>{result.reviewStatus ?? "review requested"}</span></div>
                     : <form onSubmit={(event) => void requestAccountingReconciliation(event, result.resultId)}>
                       <select name="action" defaultValue="investigate"><option value="investigate">Investigate</option><option value="retry_retrieval">Retry retrieval</option><option value="request_flowaccount_correction">Request FlowAccount correction</option><option value="credit_and_replace">Credit and replace</option></select>
@@ -1007,7 +1021,7 @@ export default function PlatformMasterPage() {
                     <select name="action" defaultValue="retry_application"><option value="retry_application">Retry application</option><option value="accept_unsupported">Accept unsupported</option><option value="escalate_provider">Escalate provider</option></select>
                     <input name="reason" minLength={8} maxLength={1000} defaultValue="Review independently confirmed Stripe event authority" required />
                     <button type="submit" disabled={controlsBusy}>Request review</button>
-                  </form> : <span>{new Date(item.occurredAt).toLocaleString()}</span>}
+                  </form> : <span>{new Date(item.occurredAt).toLocaleString(currentIntlLocale())}</span>}
                 <div className="row-actions">{user.role === "platform_owner" && item.caseId && !item.reviewStatus ? <>
                   <button type="button" disabled={controlsBusy || item.requestedByPlatformUserId === user.id} onClick={() => void reviewWebhookRecovery(item.caseId!, true)}>Approve</button>
                   <button className="outline-button" type="button" disabled={controlsBusy || item.requestedByPlatformUserId === user.id} onClick={() => void reviewWebhookRecovery(item.caseId!, false)}>Reject</button>
@@ -1029,7 +1043,7 @@ export default function PlatformMasterPage() {
               <button className="outline-button" type="button" disabled={controlsBusy || voiceControl.mode === "paused"} onClick={() => void changeVoiceMode("paused")}>Pause new sessions</button>
               <button className="danger-button" type="button" disabled={controlsBusy || voiceControl.mode === "emergency_stop"} onClick={() => void changeVoiceMode("emergency_stop")}>Emergency stop</button>
             </div>
-            <small>Version {voiceControl.version} · changed {new Date(voiceControl.changedAt).toLocaleString()}</small>
+            <small>Version {voiceControl.version} · changed {new Date(voiceControl.changedAt).toLocaleString(currentIntlLocale())}</small>
           </div> : null}
           {voiceRouting ? <div className={`subscription-band advanced-voice-band mode-${voiceRouting.profiles[0]?.mode || "paused"}`}>
             <div><p>Advanced Voice · restricted</p><h2>Second-Generation route governance</h2></div>
@@ -1079,7 +1093,7 @@ export default function PlatformMasterPage() {
             <div className="platform-table" role="list" aria-label="Dead-letter recovery requests">
               {recovery.requests.map((request) => <div className="platform-row recovery-row" role="listitem" key={request.recordId}>
                 <div><strong>{request.queueKind.replaceAll("_", " ")} · …{request.itemId.slice(-8)}</strong><span>{request.reason}</span></div>
-                <span>{request.status}</span><span>Attempt {request.attemptCount} · {new Date(request.occurredAt).toLocaleString()}</span>
+                <span>{request.status}</span><span>Attempt {request.attemptCount} · {new Date(request.occurredAt).toLocaleString(currentIntlLocale())}</span>
                 <div className="row-actions">{user.role === "platform_owner" && request.status === "requested" ? <><button type="button" disabled={controlsBusy || request.requestedByPlatformUserId === user.id} onClick={() => void reviewRecovery(request.recordId, "approve")}>Approve one retry</button><button className="outline-button" type="button" disabled={controlsBusy || request.requestedByPlatformUserId === user.id} onClick={() => void reviewRecovery(request.recordId, "reject")}>Reject</button></> : null}</div>
               </div>)}
               {!recovery.requests.length ? <p className="empty-row" role="listitem">No recovery requests</p> : null}
@@ -1091,7 +1105,7 @@ export default function PlatformMasterPage() {
             <div className="platform-table" role="list" aria-label="Product subscriptions">
               {subscriptions.map((subscription) => (
                 <div className="platform-row" role="listitem" key={subscription.id}>
-                  <div><strong>{subscription.businessName}</strong><span>{subscription.publicName}</span></div>
+                  <div><strong data-no-localize>{subscription.businessName}</strong><span data-no-localize>{subscription.publicName}</span></div>
                   <span>{subscription.status.replaceAll("_", " ")}</span>
                   {user.role === "platform_owner" && subscription.status === "pending" ? (
                     <button type="button" disabled={controlsBusy} onClick={() => void activate(subscription.id)}>Activate pilot</button>
@@ -1107,8 +1121,8 @@ export default function PlatformMasterPage() {
             <h3>Add-on requests</h3>
             <div className="platform-table" role="list" aria-label="Add-on fulfillment requests">
               {sharedOperations.addOns.map((request) => <div className="platform-row fulfillment-row" role="listitem" key={request.id}>
-                <div><strong>{request.businessName}</strong><span>{request.addOnKey.replaceAll("_", " ")} · quantity {request.quantity}</span></div>
-                <span>{request.status}</span><span>{new Date(request.createdAt).toLocaleString()}</span>
+                <div><strong data-no-localize>{request.businessName}</strong><span>{request.addOnKey.replaceAll("_", " ")} · quantity {request.quantity}</span></div>
+                <span>{request.status}</span><span>{new Date(request.createdAt).toLocaleString(currentIntlLocale())}</span>
                 <div className="row-actions">{user.role === "platform_owner" ? <button type="button" disabled={controlsBusy} onClick={() => void provisionSharedAddOn(request.id)}>Provision</button> : null}</div>
               </div>)}
               {!sharedOperations.addOns.length ? <p className="empty-row" role="listitem">No open add-on requests</p> : null}
@@ -1116,8 +1130,8 @@ export default function PlatformMasterPage() {
             <h3>Professional service requests</h3>
             <div className="platform-table" role="list" aria-label="Professional service requests">
               {sharedOperations.services.map((request) => <div className="platform-row fulfillment-service-row" role="listitem" key={request.id}>
-                <div><strong>{request.businessName}</strong><span>{request.serviceKind.replaceAll("_", " ")} · {request.productKey?.replaceAll("_", " ") || "workspace"}</span></div>
-                <span>{request.status}</span><span>{new Date(request.createdAt).toLocaleString()}</span>
+                <div><strong data-no-localize>{request.businessName}</strong><span>{request.serviceKind.replaceAll("_", " ")} · {request.productKey?.replaceAll("_", " ") || "workspace"}</span></div>
+                <span>{request.status}</span><span>{new Date(request.createdAt).toLocaleString(currentIntlLocale())}</span>
                 {["platform_owner", "platform_support"].includes(user.role) ? <form onSubmit={(event) => void createServiceEngagement(event, request.id)}>
                   <label>Engagement title<input name="title" minLength={3} maxLength={200} required /></label>
                   <label>Delivery scope<textarea name="scope" minLength={20} maxLength={20000} rows={2} required /></label>
@@ -1130,8 +1144,8 @@ export default function PlatformMasterPage() {
             <h3>Active service engagements</h3>
             <div className="platform-table" role="list" aria-label="Active professional service engagements">
               {sharedOperations.engagements.map((engagement) => <div className="platform-row fulfillment-service-row" role="listitem" key={engagement.id}>
-                <div><strong>{engagement.businessName}</strong><span>{engagement.title} · next action {engagement.nextActionOwner}</span></div>
-                <span>{engagement.status}</span><span>{new Date(engagement.updatedAt).toLocaleString()}</span>
+                <div><strong data-no-localize>{engagement.businessName}</strong><span><span data-no-localize>{engagement.title}</span> · next action {engagement.nextActionOwner}</span></div>
+                <span>{engagement.status}</span><span>{new Date(engagement.updatedAt).toLocaleString(currentIntlLocale())}</span>
                 {(["platform_owner", "platform_support"] as string[]).includes(user.role) ? <form onSubmit={(event) => void updateServiceEngagement(event, engagement.id)}>
                   <label>Status<select name="status" defaultValue={engagement.status}><option value="awaiting_customer">Awaiting customer</option><option value="scheduled">Scheduled</option><option value="in_progress">In progress</option><option value="review">Review</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></label>
                   <label>Customer-visible update<textarea name="body" minLength={2} maxLength={5000} rows={2} required /></label>
@@ -1152,7 +1166,7 @@ export default function PlatformMasterPage() {
             </form> : null}
             <div className="platform-table" role="list" aria-label="Support access grants">
               {supportGrants.map((grant) => <div className="platform-row support-row" role="listitem" key={grant.id}>
-                <div><strong>{grant.businessName}</strong><span>{grant.reason}</span></div><span>{grant.status}</span><span>{new Date(grant.expiresAt).toLocaleString()}</span>
+                <div><strong data-no-localize>{grant.businessName}</strong><span data-no-localize>{grant.reason}</span></div><span>{grant.status}</span><span>{new Date(grant.expiresAt).toLocaleString(currentIntlLocale())}</span>
                 <div className="row-actions">{user.role === "platform_owner" && grant.status === "requested" ? <button type="button" disabled={controlsBusy || grant.requestedByPlatformUserId === user.id} onClick={() => void decideSupport(grant.id, "approve")}>Approve</button> : null}{user.role === "platform_owner" && ["requested", "approved", "active"].includes(grant.status) ? <button className="outline-button" type="button" disabled={controlsBusy} onClick={() => void decideSupport(grant.id, "revoke")}>Revoke</button> : null}</div>
               </div>)}
               {!supportGrants.length && !resourceErrors.includes("Support access grants") ? <p className="empty-row" role="listitem">No support access grants</p> : null}

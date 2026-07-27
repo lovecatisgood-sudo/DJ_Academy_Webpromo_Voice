@@ -36,7 +36,7 @@ export function RecoveryCompleteClient({ token: initialToken }: Readonly<{ token
     const response = await safeMutationFetch("/public/auth/recovery/complete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, newPassword: data.get("newPassword") }),
+      body: JSON.stringify({ token, newPassword: data.get("newPassword"), locale: /(?:^|;\s*)djay-locale=en(?:;|$)/.test(document.cookie) ? "en" : "th" }),
     });
     const result = await response.json().catch(() => ({}));
     if (response.ok && result.status === "completed") {

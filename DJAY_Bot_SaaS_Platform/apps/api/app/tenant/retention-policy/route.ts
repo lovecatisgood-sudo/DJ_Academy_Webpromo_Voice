@@ -5,8 +5,22 @@ import { hasTrustedOrigin, readJson, safeJson } from "../../../lib/http";
 import { resolveTenantRequest } from "../../../lib/tenant-context";
 import { hasSensitiveTenantAssurance } from "../../../lib/tenant-assurance";
 
+/*
+ * Standard merchants may set message retention between 30 and 730 days (SKU1-DEC-004).
+ *
+ * The database constraint still permits up to 3650 days, deliberately: counsel's decision is that
+ * retention beyond two years is available only through a separately reviewed enterprise
+ * arrangement. That review is a platform-operator action, not a self-serve one, so the ceiling is
+ * enforced here at the tenant-facing boundary rather than by narrowing the column — narrowing it
+ * would make the enterprise case impossible to honour without another migration.
+ *
+ * The Privacy Notice states 365 days as the default and 730 as the standard maximum. Raising this
+ * number silently would make that statement false, so it must move only with the decision record.
+ */
+const standardMaximumTranscriptDays = 730;
+
 const retentionPolicySchema = z.object({
-  transcriptDays: z.number().int().min(30).max(3650),
+  transcriptDays: z.number().int().min(30).max(standardMaximumTranscriptDays),
 }).strict();
 
 export async function GET(request: NextRequest) {

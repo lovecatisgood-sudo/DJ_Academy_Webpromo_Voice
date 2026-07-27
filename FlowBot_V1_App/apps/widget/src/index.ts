@@ -87,19 +87,19 @@ const COPY = {
   th: {
     open: "เปิดแชท",
     close: "ปิด",
-    placeholder: "พิมพ์ข้อความ...",
+    placeholder: "พิมพ์ข้อความ…",
     send: "ส่ง",
     retry: "ลองใหม่",
     loading: "กำลังเชื่อมต่อ...",
-    offline: "เชื่อมต่อไม่ได้ กดลองใหม่อีกครั้ง",
-    awaiting: "กำลังรอแอดมินตอบกลับ",
-    adminActive: "กำลังคุยกับแอดมิน",
-    botHandling: "บอทกำลังช่วยตอบ",
-    returnToBot: "กลับเมนูบอท",
+    offline: "เชื่อมต่อไม่ได้ กรุณาลองใหม่อีกครั้ง",
+    awaiting: "กำลังรอทีมงานตอบกลับ",
+    adminActive: "กำลังสนทนากับทีมงาน",
+    botHandling: "บอตกำลังดูแลการสนทนา",
+    returnToBot: "กลับไปยังเมนูบอต",
     restart: "เริ่มใหม่",
     leaveDetails: "ฝากข้อมูล",
     name: "ชื่อ",
-    phone: "เบอร์โทร",
+    phone: "เบอร์โทรศัพท์",
     email: "อีเมล",
     submit: "ส่งข้อมูล",
     disabled: "ขณะนี้แชทยังไม่เปิดใช้งาน กรุณาติดต่อทีมงานตามช่องทางด้านล่าง",
@@ -458,6 +458,7 @@ class FlowBotWidget {
       toggle.className = "lang";
       toggle.type = "button";
       toggle.textContent = this.state.lang === "th" ? "EN" : "TH";
+      toggle.setAttribute("aria-label", this.state.lang === "th" ? "เปลี่ยนเป็นภาษาอังกฤษ" : "Switch to Thai");
       toggle.addEventListener("click", () => {
         this.state.lang = this.state.lang === "th" ? "en" : "th";
         this.persistSession();
@@ -746,7 +747,7 @@ function safeStorage(): Storage | null {
 
 function css(position: "left" | "right", accent: string): string {
   return `
-    :host { all: initial; font-family: "IBM Plex Sans Thai", ui-sans-serif, system-ui, sans-serif; color: #122A2E; }
+    :host { all: initial; font-family: "Noto Sans Thai", "Leelawadee UI", Tahoma, ui-sans-serif, system-ui, sans-serif; color: #122A2E; line-height: 1.55; }
     .flowbot { position: fixed; ${position}: 20px; bottom: 20px; z-index: 2147483000; }
     .launcher { min-width: 60px; min-height: 60px; border: 0; border-radius: 999px; background: ${accent}; color: #fff; font-weight: 700; box-shadow: 0 14px 40px rgba(18,42,46,.25); cursor: pointer; }
     .panel { position: absolute; ${position}: 0; bottom: 76px; width: min(390px, calc(100vw - 32px)); height: min(620px, calc(100vh - 112px)); background: #fff; border: 1px solid #E2E8E6; border-radius: 18px; box-shadow: 0 24px 70px rgba(18,42,46,.24); display: flex; flex-direction: column; overflow: hidden; }

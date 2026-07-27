@@ -46,6 +46,7 @@ const payloadSchema = z.object({
   invitationUrl: z.url().optional(),
   transferUrl: z.url().optional(),
   expiresAt: z.string().optional(),
+  locale: z.enum(["th", "en"]).default("th"),
 }).strict();
 
 function escapeHtml(value: string): string {
@@ -91,9 +92,9 @@ function renderMerchantLead(to: string, payload: z.infer<typeof merchantLeadPayl
   const leadId = escapeHtml(payload.leadId);
   return {
     to,
-    subject: "New website lead captured by DJAY Bot",
-    text: `A new website lead was captured. Lead ID: ${payload.leadId}`,
-    html: `<p>A new website lead was captured by DJAY Bot.</p><p>Lead ID: <strong>${leadId}</strong></p>`,
+    subject: "DJAY Bot เก็บข้อมูลผู้สนใจรายใหม่จากเว็บไซต์แล้ว",
+    text: `มีผู้สนใจรายใหม่จากเว็บไซต์ รหัสผู้สนใจ: ${payload.leadId}`,
+    html: `<p>DJAY Bot เก็บข้อมูลผู้สนใจรายใหม่จากเว็บไซต์แล้ว</p><p>รหัสผู้สนใจ: <strong>${leadId}</strong></p>`,
   };
 }
 
@@ -142,9 +143,9 @@ export async function runAiChatMerchantEmail(
     const leadId = escapeHtml(payload.leadId);
     await delivery.send({
       to: recipient.email,
-      subject: "Qualified website lead from DJAY Bot",
-      text: `A website visitor completed an AI sales conversation. Lead ID: ${payload.leadId}`,
-      html: `<p>A website visitor completed an AI sales conversation.</p><p>Lead ID: <strong>${leadId}</strong></p>`,
+      subject: "ผู้สนใจที่ผ่านการคัดกรองจาก DJAY Bot",
+      text: `ผู้เข้าชมเว็บไซต์สนทนากับผู้ช่วยฝ่ายขาย AI จบแล้ว รหัสผู้สนใจ: ${payload.leadId}`,
+      html: `<p>ผู้เข้าชมเว็บไซต์สนทนากับผู้ช่วยฝ่ายขาย AI จบแล้ว</p><p>รหัสผู้สนใจ: <strong>${leadId}</strong></p>`,
     }, item.id);
     await store.finish(item.id, true, null, false);
     return Object.freeze({ status: "sent" as const, outboxId: item.id });
@@ -175,19 +176,19 @@ export async function runUsageAlertEmail(
     const recipient = merchantRecipientSchema.parse(openJson<unknown>(item.recipientCiphertext, envelopeKey));
     const payload = usageAlertPayloadSchema.parse(item.payload);
     const alertLabels: Record<string, string> = {
-      allowance_50: "50% of the included allowance has been used",
-      allowance_75: "75% of the included allowance has been used",
-      allowance_90: "90% of the included allowance has been used",
-      allowance_100: "The included allowance has been used",
-      projected_exhaustion: "Usage is projected to exceed the included allowance",
-      usage_anomaly: "An unusual increase in usage was detected",
+      allowance_50: "ใช้โควตาที่รวมในแผนแล้ว 50%",
+      allowance_75: "ใช้โควตาที่รวมในแผนแล้ว 75%",
+      allowance_90: "ใช้โควตาที่รวมในแผนแล้ว 90%",
+      allowance_100: "ใช้โควตาที่รวมในแผนครบแล้ว",
+      projected_exhaustion: "คาดว่าการใช้งานจะเกินโควตาที่รวมในแผน",
+      usage_anomaly: "ตรวจพบการใช้งานเพิ่มขึ้นผิดปกติ",
     };
-    const summary = alertLabels[payload.alertKey] ?? "A usage alert requires review";
+    const summary = alertLabels[payload.alertKey] ?? "มีการแจ้งเตือนการใช้งานที่ต้องตรวจสอบ";
     await delivery.send({
       to: recipient.email,
-      subject: `DJAY Bot usage alert: ${summary}`,
-      text: `${summary}. Review usage and the safety cap in your DJAY Bot workspace. Alert ID: ${payload.alertId}`,
-      html: `<p><strong>${escapeHtml(summary)}</strong></p><p>Review usage and the safety cap in your DJAY Bot workspace.</p><p>Alert ID: ${escapeHtml(payload.alertId)}</p>`,
+      subject: `การแจ้งเตือนการใช้งาน DJAY Bot: ${summary}`,
+      text: `${summary} โปรดตรวจการใช้งานและขีดจำกัดความปลอดภัยในเวิร์กสเปซ DJAY Bot รหัสการแจ้งเตือน: ${payload.alertId}`,
+      html: `<p><strong>${escapeHtml(summary)}</strong></p><p>โปรดตรวจการใช้งานและขีดจำกัดความปลอดภัยในเวิร์กสเปซ DJAY Bot</p><p>รหัสการแจ้งเตือน: ${escapeHtml(payload.alertId)}</p>`,
     }, item.id);
     await store.finish(item.id, true, null, false);
     return Object.freeze({ status: "sent" as const, outboxId: item.id });
@@ -249,11 +250,12 @@ export async function runCustomerBillingEmail(
     const review = payload.locale === "th"
       ? "โปรดลงชื่อเข้าใช้พื้นที่ทำงาน DJAY Bot เพื่อตรวจสอบรายละเอียดการเรียกเก็บเงิน"
       : "Sign in to your DJAY Bot workspace to review the billing details.";
+    const notificationIdLabel = payload.locale === "th" ? "รหัสการแจ้งเตือน" : "Notification ID";
     await delivery.send({
       to: recipient.email,
       subject,
-      text: `${subject}. ${review} Notification ID: ${payload.notificationId}`,
-      html: `<p><strong>${escapeHtml(subject)}</strong></p><p>${escapeHtml(review)}</p><p>Notification ID: ${escapeHtml(payload.notificationId)}</p>`,
+      text: `${subject}. ${review} ${notificationIdLabel}: ${payload.notificationId}`,
+      html: `<p><strong>${escapeHtml(subject)}</strong></p><p>${escapeHtml(review)}</p><p>${notificationIdLabel}: ${escapeHtml(payload.notificationId)}</p>`,
     }, item.id);
     await store.finish(item.id, true, null, false);
     return Object.freeze({ status: "sent" as const, outboxId: item.id });
@@ -270,11 +272,16 @@ export async function runCustomerBillingEmail(
 }
 
 function render(payload: z.infer<typeof payloadSchema>): EmailMessage {
-  const configurations = {
+  const configurations = payload.locale === "en" ? {
     "verify-email": { subject: "Verify your DJAY Bot account", action: "Verify account", url: payload.verificationUrl },
     "recover-password": { subject: "Reset your DJAY Bot password", action: "Reset password", url: payload.recoveryUrl },
     "tenant-invitation": { subject: "You are invited to a DJAY Bot workspace", action: "Accept invitation", url: payload.invitationUrl },
     "ownership-transfer": { subject: "DJAY Bot ownership transfer request", action: "Review transfer", url: payload.transferUrl },
+  } as const : {
+    "verify-email": { subject: "ยืนยันบัญชี DJAY Bot", action: "ยืนยันบัญชี", url: payload.verificationUrl },
+    "recover-password": { subject: "รีเซ็ตรหัสผ่าน DJAY Bot", action: "รีเซ็ตรหัสผ่าน", url: payload.recoveryUrl },
+    "tenant-invitation": { subject: "คำเชิญเข้าเวิร์กสเปซ DJAY Bot", action: "ยอมรับคำเชิญ", url: payload.invitationUrl },
+    "ownership-transfer": { subject: "คำขอโอนสิทธิ์เจ้าของ DJAY Bot", action: "ตรวจสอบการโอนสิทธิ์", url: payload.transferUrl },
   } as const;
   const selected = configurations[payload.template];
   if (!selected.url) throw new Error("notification_payload_invalid");

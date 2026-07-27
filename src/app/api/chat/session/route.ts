@@ -9,6 +9,22 @@ import { getCachedSettings } from "@/lib/settings-cache";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const DEFAULT_THAI_GREETING =
+  "สวัสดี เราคือ DJ ผู้ช่วยด้านการเติบโตทางธุรกิจจาก DJAI Academy ตอนนี้คุณทำธุรกิจอะไร และอยากพัฒนาเรื่องใดมากที่สุด";
+const DEFAULT_ENGLISH_GREETINGS = new Set([
+  "Hi, this is DJAI Academy. Tell me what you want to build, and I will help you choose the right next step.",
+  "Hi, I am DJ from DJAI Academy. What kind of business are you running, and what are you trying to improve right now?",
+  "Hi, I am DJ from DJAI Academy. What kind of business are you running?",
+]);
+
+function publicGreeting(configured: string | null, preferredLanguage: "th" | "en" | "auto") {
+  const greeting = configured?.trim() || "";
+  if (preferredLanguage === "en") {
+    return greeting || "Hi, I am DJ from DJAI Academy. What kind of business are you running, and what would you like to improve?";
+  }
+  return !greeting || DEFAULT_ENGLISH_GREETINGS.has(greeting) ? DEFAULT_THAI_GREETING : greeting;
+}
+
 function requestKey(request: Request) {
   const realIp = request.headers.get("x-real-ip")?.trim();
   const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
@@ -121,7 +137,7 @@ export async function POST(request: Request) {
       ok: true,
       conversationId: sessionContext.conversationId,
       sessionContext,
-      greeting: settings.text_chat_greeting || settings.greeting || "Hi, I am DJ from DJAI Academy. What kind of business are you running?",
+      greeting: publicGreeting(settings.text_chat_greeting || settings.greeting, preferredLanguage),
       maxMessages: settings.text_chat_max_messages,
       preferredLanguage,
     });

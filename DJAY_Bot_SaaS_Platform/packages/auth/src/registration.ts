@@ -17,7 +17,11 @@ import {
 } from "./contracts";
 import type { AuthStore } from "./store";
 
-const genericRegistrationMessage = "Check your email to continue. If an account already exists, use sign in or recovery.";
+function registrationMessage(locale: "th" | "en") {
+  return locale === "en"
+    ? "Check your email to continue. If an account already exists, use sign in or recovery."
+    : "ตรวจอีเมลเพื่อดำเนินการต่อ หากมีบัญชีอยู่แล้ว ให้เข้าสู่ระบบหรือใช้การกู้คืนบัญชี";
+}
 
 export type RegistrationServiceConfig = Readonly<{
   publicAppUrl: string;
@@ -57,7 +61,7 @@ export function createRegistrationService(store: AuthStore, config: Registration
         return Object.freeze({
           accepted: false as const,
           status: "registration_unavailable" as const,
-          message: "Registration is paused until the current service terms and privacy notice are available.",
+          message: parsed.locale === "en" ? "Registration is paused until the current service terms and privacy notice are available." : "หยุดการลงทะเบียนชั่วคราวจนกว่าข้อกำหนดการให้บริการและประกาศความเป็นส่วนตัวฉบับปัจจุบันจะพร้อมใช้งาน",
         });
       }
       if (parsed.termsVersion !== config.legalVersions.termsVersion
@@ -65,7 +69,7 @@ export function createRegistrationService(store: AuthStore, config: Registration
         return Object.freeze({
           accepted: false as const,
           status: "legal_version_changed" as const,
-          message: "The service terms or privacy notice changed. Review the current documents and accept them again.",
+          message: parsed.locale === "en" ? "The service terms or privacy notice changed. Review the current documents and accept them again." : "ข้อกำหนดการให้บริการหรือประกาศความเป็นส่วนตัวมีการเปลี่ยนแปลง โปรดอ่านเอกสารฉบับปัจจุบันและยอมรับอีกครั้ง",
         });
       }
       const emailNormalized = normalizeEmail(parsed.email);
@@ -98,10 +102,11 @@ export function createRegistrationService(store: AuthStore, config: Registration
           to: emailNormalized,
           verificationUrl: verificationUrl.toString(),
           expiresAt: expiresAt.toISOString(),
+          locale: parsed.locale,
         }, config.emailEnvelopeKey),
       });
 
-      return Object.freeze({ accepted: true, message: genericRegistrationMessage });
+      return Object.freeze({ accepted: true, message: registrationMessage(parsed.locale) });
     },
 
     async verify(input: VerificationInput): Promise<VerificationResponse> {
@@ -143,15 +148,17 @@ export function createRegistrationService(store: AuthStore, config: Registration
           to: emailNormalized,
           verificationUrl: verificationUrl.toString(),
           expiresAt: expiresAt.toISOString(),
+          locale: parsed.locale,
         }, config.emailEnvelopeKey),
         requestId: parsed.requestId,
       });
-      return Object.freeze({ accepted: true as const, message: genericRegistrationMessage });
+      return Object.freeze({ accepted: true as const, message: registrationMessage(parsed.locale) });
     },
   };
 }
 
 const verificationResendSchema = z.object({
   email: z.email().max(320),
+  locale: z.enum(["th", "en"]).default("th"),
   requestId: z.string().min(8).max(128),
 }).strict();

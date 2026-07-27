@@ -19,7 +19,7 @@ describe("email outbox worker", () => {
     };
     const delivery: EmailDelivery = { async send(message, idempotencyKey) { events.push(`deliver:${message.to}:${message.subject}:${idempotencyKey}`); } };
     await expect(runEmailBatch(store, delivery, key)).resolves.toEqual({ claimed: 1, sent: 1, failed: 0 });
-    expect(events).toEqual(["deliver:owner@example.test:Verify your DJAY Bot account:job-1", "sent:job-1"]);
+    expect(events).toEqual(["deliver:owner@example.test:ยืนยันบัญชี DJAY Bot:job-1", "sent:job-1"]);
   });
 
   it("records a bounded error code without exposing payload data", async () => {
@@ -74,7 +74,7 @@ describe("AI Chat merchant email worker", () => {
       async send(message) { events.push(`deliver:${message.to}:${message.subject}`); },
     }, key)).resolves.toMatchObject({ status: "sent", outboxId: "ai-outbox-1" });
     expect(events).toEqual([
-      "deliver:sales@example.test:Qualified website lead from DJAY Bot",
+      "deliver:sales@example.test:ผู้สนใจที่ผ่านการคัดกรองจาก DJAY Bot",
       "finish:ai-outbox-1:true:null:false",
     ]);
   });
@@ -104,7 +104,7 @@ describe("FlowBot merchant email worker", () => {
     };
     await expect(runFlowbotMerchantEmail(store, delivery, key)).resolves.toMatchObject({ status: "sent", outboxId: "outbox-1" });
     expect(events).toEqual([
-      "deliver:merchant@example.test:New website lead captured by DJAY Bot:A new website lead was captured. Lead ID: 22222222-2222-4222-8222-222222222222",
+      "deliver:merchant@example.test:DJAY Bot เก็บข้อมูลผู้สนใจรายใหม่จากเว็บไซต์แล้ว:มีผู้สนใจรายใหม่จากเว็บไซต์ รหัสผู้สนใจ: 22222222-2222-4222-8222-222222222222",
       "finish:outbox-1:true:null:false",
     ]);
   });
