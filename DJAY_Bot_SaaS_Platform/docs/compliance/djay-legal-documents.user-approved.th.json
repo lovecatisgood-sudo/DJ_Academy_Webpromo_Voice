@@ -1,0 +1,494 @@
+{
+  "schema": "djay.legal-documents.v1",
+  "approvalStatus": "approved",
+  "approvalReference": "USER-APPROVED-OWN-RISK-TH-TRANSLATION-2026-07-27",
+  "approvedAt": "2026-07-27T22:30:00+07:00",
+  "terms": {
+    "version": "terms-2026-08-draft1",
+    "title": "DJBOT Master Terms of Service",
+    "effectiveDate": "2026-07-27",
+    "summary": "Business-to-business terms for merchant use of DJBOT services operated by DEEJAI LAB CO., LTD.",
+    "sections": [
+      {
+        "heading": "Parties and acceptance",
+        "paragraphs": [
+          "These Terms form a business-to-business agreement between DEEJAI LAB CO., LTD., registration number 0105569117953, of 48/187 Soi Sukhumvit 64, Bang Chak, Phra Khanong, Bangkok, Thailand (\"Deejai\", \"we\", \"us\"), and the organisation registering for or using DJBOT (\"Merchant\", \"you\"). DJAI Academy and DJBOT are Deejai brands.",
+          "By creating an account or selecting the acceptance control, the accepting individual confirms authority to bind the Merchant and agrees to these Terms and the DPA. The Merchant acknowledges the Privacy Notice. Reliable electronic acceptance records may be used as evidence."
+        ]
+      },
+      {
+        "heading": "Contract documents",
+        "paragraphs": [
+          "The agreement consists of these Terms, the applicable Product Schedule, DPA, Acceptable Use Policy, checkout/order and any approved add-on schedule. Precedence: signed order, Product Schedule, DPA for personal-data matters, these Terms, AUP, public help content."
+        ]
+      },
+      {
+        "heading": "Service licence and availability",
+        "paragraphs": [
+          "Deejai grants a limited, non-exclusive, non-transferable and revocable right during the subscription term to use the subscribed Service for internal business purposes. Only features in the approved Product Schedule and checkout are included. Demonstrations, roadmaps, repository code or inactive interfaces do not create commitments.",
+          "Deejai uses commercially reasonable efforts. No uptime, response-time, service-credit or customer-facing SLA applies unless a signed enterprise order expressly provides one."
+        ]
+      },
+      {
+        "heading": "Accounts",
+        "paragraphs": [
+          "The Merchant must provide accurate information, protect credentials, use reasonable access controls, promptly remove unauthorised users and notify security@djai.academy of suspected compromise. The Merchant is responsible for users, flows, domains, channels, content and instructions."
+        ]
+      },
+      {
+        "heading": "Merchant content and customer data",
+        "paragraphs": [
+          "The Merchant owns its content and data. It grants Deejai the limited rights necessary to host, transmit, display, secure, back up, export and process that material to provide the Service and comply with law.",
+          "For end-customer data processed for Merchant purposes, the Merchant is controller and Deejai processor under the DPA. The Merchant must provide a lawful privacy notice, establish a legal basis, respond to customers, minimise collection and avoid prohibited data.",
+          "Deejai-controlled marketing, partner marketing and model development require separate notices and choices. The Merchant may not select consent for a customer, pre-tick it, conceal it or condition the core enquiry on optional Deejai consent."
+        ]
+      },
+      {
+        "heading": "Acceptable use",
+        "paragraphs": [
+          "The Merchant must comply with the AUP and must not use the Service for unlawful activity, deception, harassment, malware, phishing, credential collection, spam, emergency response, unapproved sensitive-data collection, child-directed collection without approval or automatic high-impact decisions. Automated output must not be presented as guaranteed professional advice."
+        ]
+      },
+      {
+        "heading": "Fees, annual term and renewal",
+        "paragraphs": [
+          "FlowBot Basic is THB 2,499 tax-inclusive for the first year and THB 4,999 tax-inclusive for each renewal year unless an approved checkout states otherwise. It renews automatically for successive one-year terms unless cancelled before renewal through the account control or by email to support@djai.academy.",
+          "Current reference add-ons: additional administrator THB 99/month; additional workspace from THB 299/month; additional supported social channel THB 299/month; Flow Starter Setup from THB 3,900.",
+          "Stripe handles checkout and full card details. Deejai receives payment tokens and billing status, not full card numbers. Failed payments may be retried and may result in restriction or suspension after reasonable notice."
+        ]
+      },
+      {
+        "heading": "Taxes and records",
+        "paragraphs": [
+          "Catalog prices are tax-inclusive where stated. The Merchant must provide correct billing/tax details. Deejai will issue documents according to its tax status and Thai law. Billing and tax records may be retained seven years."
+        ]
+      },
+      {
+        "heading": "Cancellation, closure and data access",
+        "paragraphs": [
+          "Cancellation stops renewal and ordinarily leaves access through the paid term. The target closure process provides a 30-day read-only export/reactivation period after the paid term, followed by production purge and backup expiry within an additional 30 days. This becomes effective only after release verification; until then requests are support-managed under the current-state disclosure.",
+          "No refund is due for change of mind, unused time or failure to cancel, except as required by law or expressly approved. If Deejai ends a paid Service without Merchant breach and cannot offer a reasonable substitute, Deejai may provide a proportionate unused-period refund as the exclusive monetary remedy, subject to law."
+        ]
+      },
+      {
+        "heading": "Suspension and termination",
+        "paragraphs": [
+          "Deejai may suspend or terminate for non-payment, material breach, security risk, unlawful use, infringement, regulatory requirement or material risk to persons/platform. Where practicable, notice and cure opportunity will be provided; urgent action may be immediate.",
+          "Accrued payment, confidentiality, IP, data handling, disclaimers, liability, indemnity, records and dispute provisions survive as appropriate."
+        ]
+      },
+      {
+        "heading": "Intellectual property",
+        "paragraphs": [
+          "Deejai and licensors own the platform, software, interfaces, documentation, designs, templates, models and improvements. The Merchant may not reverse engineer, copy, resell, sublicense, white-label, publicly benchmark or create competing derivatives except as mandatory law permits or written agreement authorises.",
+          "Feedback may be used without restriction or payment if the Merchant is not publicly identified without permission."
+        ]
+      },
+      {
+        "heading": "Confidentiality",
+        "paragraphs": [
+          "Each party protects the other's non-public business, technical and commercial information with reasonable care and uses it only for the agreement. Exclusions apply to information lawfully public, previously known, independently developed or lawfully received. Required disclosure is permitted with notice where legally allowed."
+        ]
+      },
+      {
+        "heading": "Warranties and disclaimers",
+        "paragraphs": [
+          "Each party warrants authority. The Merchant warrants lawful content, instructions, collection and use.",
+          "Except for express commitments, the Service is provided \"as available.\" Deejai does not warrant uninterrupted operation, error-free content, sales, lead quality, model accuracy, every-site compatibility or suitability for professional, medical, legal, financial, emergency or high-impact decisions."
+        ]
+      },
+      {
+        "heading": "Liability",
+        "paragraphs": [
+          "To the maximum lawful extent, neither party is liable for indirect, incidental, special, punitive or consequential loss, lost profit, revenue, opportunity, goodwill or reliance on automated output.",
+          "Subject to non-excludable liability, Deejai's aggregate liability will not exceed fees paid or payable for the affected Service in the 12 months before the event. The cap does not apply to fraud or wilful misconduct and does not override mandatory PDPA liability."
+        ]
+      },
+      {
+        "heading": "Merchant indemnity",
+        "paragraphs": [
+          "The Merchant will defend and indemnify Deejai against third-party claims and reasonable costs arising from Merchant content, unlawful collection/marketing, missing authority/consent, infringement, misuse or AUP breach. Deejai must notify promptly and permit reasonable defence control, while retaining participation and settlement-consent rights."
+        ]
+      },
+      {
+        "heading": "Changes",
+        "paragraphs": [
+          "Material changes are versioned and notified. Renewed acceptance is requested where a change materially expands a data purpose or reduces a paid right and law requires it."
+        ]
+      },
+      {
+        "heading": "Support and notices",
+        "paragraphs": [
+          "Support: support@djai.academy, 09:00-18:00 ICT Monday-Friday excluding Thai public holidays. Target response is next business day, not guaranteed. Legal notices: legal@djai.academy. Notices to Merchant may use the registered email or in-product notice."
+        ]
+      },
+      {
+        "heading": "Assignment",
+        "paragraphs": [
+          "Merchant assignment requires written consent. Deejai may use affiliates/subcontractors and assign with a merger, reorganisation, financing or relevant business transfer, subject to data duties."
+        ]
+      },
+      {
+        "heading": "General and law",
+        "paragraphs": [
+          "This is the entire agreement for its subject. Non-enforcement is not waiver. Invalid provisions are narrowed. No partnership/employment/agency is created.",
+          "Thai law governs. Bangkok courts have exclusive jurisdiction unless a written lawful alternative applies."
+        ]
+      },
+      {
+        "heading": "Contact",
+        "paragraphs": [
+          "DEEJAI LAB CO., LTD. 48/187 Soi Sukhumvit 64, Bang Chak, Phra Khanong, Bangkok, Thailand. Support: support@djai.academy. Privacy: privacy@djai.academy. Legal: legal@djai.academy. Documents: https://djai.academy/legal"
+        ]
+      }
+    ],
+    "translations": {
+      "th": {
+        "title": "ข้อกำหนดการใช้บริการหลักของ DJBOT",
+        "summary": "ข้อกำหนดแบบธุรกิจต่อธุรกิจสำหรับการใช้บริการ DJBOT โดยผู้ประกอบการ ซึ่งดำเนินการโดยบริษัท ดีใจ แล็บ จำกัด",
+        "sections": [
+          {
+            "heading": "คู่สัญญาและการยอมรับข้อกำหนด",
+            "paragraphs": [
+              "ข้อกำหนดนี้เป็นข้อตกลงแบบธุรกิจต่อธุรกิจระหว่างบริษัท ดีใจ แล็บ จำกัด เลขทะเบียนนิติบุคคล 0105569117953 ที่อยู่ 48/187 ซอยสุขุมวิท 64 แขวงบางจาก เขตพระโขนง กรุงเทพมหานคร ประเทศไทย (\"ดีใจ\", \"เรา\", \"ของเรา\") กับองค์กรที่ลงทะเบียนหรือใช้ DJBOT (\"ผู้ประกอบการ\", \"คุณ\") ทั้ง DJAI Academy และ DJBOT เป็นแบรนด์ของดีใจ",
+              "เมื่อสร้างบัญชีหรือเลือกช่องยอมรับ บุคคลที่ยอมรับยืนยันว่าตนมีอำนาจผูกพันผู้ประกอบการ และตกลงตามข้อกำหนดนี้รวมถึงข้อตกลงการประมวลผลข้อมูลส่วนบุคคล (DPA) ผู้ประกอบการรับทราบประกาศความเป็นส่วนตัว บันทึกการยอมรับทางอิเล็กทรอนิกส์ที่เชื่อถือได้อาจใช้เป็นพยานหลักฐานได้"
+            ]
+          },
+          {
+            "heading": "เอกสารสัญญา",
+            "paragraphs": [
+              "ข้อตกลงประกอบด้วยข้อกำหนดนี้ ตารางผลิตภัณฑ์ที่เกี่ยวข้อง DPA นโยบายการใช้งานที่ยอมรับได้ รายการชำระเงินหรือคำสั่งซื้อ และตารางส่วนเสริมที่ได้รับอนุมัติ หากมีข้อขัดกัน ให้เรียงลำดับบังคับใช้ดังนี้: คำสั่งซื้อที่ลงนาม ตารางผลิตภัณฑ์ DPA สำหรับเรื่องข้อมูลส่วนบุคคล ข้อกำหนดนี้ นโยบายการใช้งานที่ยอมรับได้ และเนื้อหาช่วยเหลือสาธารณะ"
+            ]
+          },
+          {
+            "heading": "สิทธิการใช้บริการและความพร้อมให้บริการ",
+            "paragraphs": [
+              "ดีใจให้สิทธิแบบจำกัด ไม่ผูกขาด โอนไม่ได้ และเพิกถอนได้ในระหว่างอายุสมาชิก เพื่อใช้บริการที่สมัครไว้สำหรับวัตถุประสงค์ทางธุรกิจภายในของผู้ประกอบการเท่านั้น ฟีเจอร์ที่รวมอยู่มีเฉพาะที่ระบุในตารางผลิตภัณฑ์และรายการชำระเงินที่ได้รับอนุมัติ การสาธิต แผนงาน โค้ดใน repository หรืออินเทอร์เฟซที่ยังไม่เปิดใช้งานไม่ก่อให้เกิดข้อผูกพัน",
+              "ดีใจจะใช้ความพยายามเชิงพาณิชย์ตามสมควร เว้นแต่คำสั่งซื้อระดับองค์กรที่ลงนามจะระบุไว้โดยชัดแจ้ง จะไม่มี SLA ด้าน uptime เวลาตอบสนอง เครดิตบริการ หรือ SLA ที่ลูกค้าปลายทางใช้อ้างได้"
+            ]
+          },
+          {
+            "heading": "บัญชี",
+            "paragraphs": [
+              "ผู้ประกอบการต้องให้ข้อมูลที่ถูกต้อง ปกป้องข้อมูลรับรอง ใช้มาตรการควบคุมการเข้าถึงตามสมควร ลบผู้ใช้ที่ไม่ได้รับอนุญาตโดยเร็ว และแจ้ง security@djai.academy เมื่อสงสัยว่ามีการรั่วไหลหรือถูกเข้าถึงโดยมิชอบ ผู้ประกอบการรับผิดชอบต่อผู้ใช้ โฟลว์ โดเมน ช่องทาง เนื้อหา และคำสั่งของตน"
+            ]
+          },
+          {
+            "heading": "เนื้อหาของผู้ประกอบการและข้อมูลลูกค้า",
+            "paragraphs": [
+              "ผู้ประกอบการเป็นเจ้าของเนื้อหาและข้อมูลของตน และให้สิทธิแก่ดีใจเท่าที่จำเป็นเพื่อโฮสต์ ส่ง แสดงผล รักษาความปลอดภัย สำรอง ส่งออก และประมวลผลเนื้อหาและข้อมูลดังกล่าว เพื่อให้บริการและปฏิบัติตามกฎหมาย",
+              "สำหรับข้อมูลลูกค้าปลายทางที่ประมวลผลเพื่อวัตถุประสงค์ของผู้ประกอบการ ผู้ประกอบการเป็นผู้ควบคุมข้อมูลส่วนบุคคล และดีใจเป็นผู้ประมวลผลข้อมูลส่วนบุคคลตาม DPA ผู้ประกอบการต้องจัดให้มีประกาศความเป็นส่วนตัวที่ชอบด้วยกฎหมาย กำหนดฐานทางกฎหมาย ตอบสนองต่อลูกค้า ลดการเก็บข้อมูลเท่าที่จำเป็น และหลีกเลี่ยงข้อมูลต้องห้าม",
+              "การตลาดที่ดีใจควบคุม การตลาดของพันธมิตร และการพัฒนาโมเดล ต้องมีประกาศและทางเลือกแยกต่างหาก ผู้ประกอบการห้ามเลือกความยินยอมแทนลูกค้า ห้ามติ๊กไว้ล่วงหน้า ห้ามปกปิด และห้ามกำหนดให้การสอบถามหลักขึ้นอยู่กับความยินยอมเสริมของดีใจ"
+            ]
+          },
+          {
+            "heading": "การใช้งานที่ยอมรับได้",
+            "paragraphs": [
+              "ผู้ประกอบการต้องปฏิบัติตามนโยบายการใช้งานที่ยอมรับได้ และห้ามใช้บริการเพื่อกิจกรรมผิดกฎหมาย การหลอกลวง การคุกคาม มัลแวร์ ฟิชชิง การเก็บข้อมูลรับรอง สแปม การตอบสนองเหตุฉุกเฉิน การเก็บข้อมูลอ่อนไหวที่ไม่ได้รับอนุมัติ การเก็บข้อมูลที่มุ่งเป้าเด็กโดยไม่ได้รับอนุมัติ หรือการตัดสินใจอัตโนมัติที่มีผลกระทบสูง ห้ามนำผลลัพธ์อัตโนมัติไปแสดงว่าเป็นคำแนะนำวิชาชีพที่รับประกันผล"
+            ]
+          },
+          {
+            "heading": "ค่าบริการ ระยะเวลารายปี และการต่ออายุ",
+            "paragraphs": [
+              "FlowBot Basic มีค่าบริการ 2,499 บาท รวมภาษี สำหรับปีแรก และ 4,999 บาท รวมภาษี สำหรับการต่ออายุรายปีแต่ละครั้ง เว้นแต่รายการชำระเงินที่ได้รับอนุมัติจะระบุไว้เป็นอย่างอื่น บริการจะต่ออายุอัตโนมัติเป็นรอบหนึ่งปีต่อเนื่อง เว้นแต่จะยกเลิกก่อนวันต่ออายุผ่านส่วนควบคุมบัญชีหรือทางอีเมล support@djai.academy",
+              "ส่วนเสริมอ้างอิงปัจจุบัน ได้แก่ ผู้ดูแลเพิ่มเติม 99 บาทต่อเดือน; พื้นที่ทำงานเพิ่มเติมเริ่มต้น 299 บาทต่อเดือน; ช่องทางโซเชียลที่รองรับเพิ่มเติม 299 บาทต่อเดือน; และ Flow Starter Setup เริ่มต้น 3,900 บาท",
+              "Stripe เป็นผู้จัดการ checkout และรายละเอียดบัตรแบบเต็ม ดีใจได้รับโทเคนการชำระเงินและสถานะการเรียกเก็บเงิน ไม่ได้รับเลขบัตรเต็ม การชำระเงินที่ล้มเหลวอาจถูกเรียกเก็บซ้ำ และอาจนำไปสู่การจำกัดหรือระงับบริการหลังแจ้งตามสมควร"
+            ]
+          },
+          {
+            "heading": "ภาษีและบันทึก",
+            "paragraphs": [
+              "ราคาตามแคตตาล็อกรวมภาษีเมื่อมีการระบุไว้ ผู้ประกอบการต้องให้ข้อมูลการเรียกเก็บเงินและภาษีที่ถูกต้อง ดีใจจะออกเอกสารตามสถานะภาษีของตนและกฎหมายไทย บันทึกการเรียกเก็บเงินและภาษีอาจถูกเก็บรักษาเป็นเวลาเจ็ดปี"
+            ]
+          },
+          {
+            "heading": "การยกเลิก การปิดบัญชี และการเข้าถึงข้อมูล",
+            "paragraphs": [
+              "การยกเลิกจะหยุดการต่ออายุ และโดยปกติยังคงให้เข้าถึงบริการได้จนสิ้นสุดรอบที่ชำระแล้ว กระบวนการปิดบัญชีเป้าหมายจะให้ช่วงอ่านอย่างเดียวเพื่อส่งออกหรือเปิดใช้งานใหม่ 30 วันหลังสิ้นสุดรอบที่ชำระแล้ว จากนั้นจึงลบข้อมูลในระบบ production และให้ข้อมูลสำรองหมดอายุภายในอีก 30 วัน กระบวนการนี้มีผลเฉพาะหลังผ่านการตรวจสอบ release แล้วเท่านั้น ก่อนหน้านั้นคำขอจะจัดการโดยทีมสนับสนุนตามการเปิดเผยสถานะปัจจุบัน",
+              "ไม่มีการคืนเงินสำหรับการเปลี่ยนใจ เวลาที่ไม่ได้ใช้ หรือการไม่ยกเลิก เว้นแต่กฎหมายกำหนดหรือดีใจอนุมัติไว้อย่างชัดแจ้ง หากดีใจยุติบริการแบบชำระเงินโดยไม่มีการผิดสัญญาของผู้ประกอบการ และไม่สามารถเสนอสิ่งทดแทนที่สมเหตุสมผลได้ ดีใจอาจคืนเงินตามสัดส่วนของระยะเวลาที่ยังไม่ได้ใช้เป็นการเยียวยาทางการเงินแต่เพียงผู้เดียว ทั้งนี้อยู่ภายใต้กฎหมาย"
+            ]
+          },
+          {
+            "heading": "การระงับและการเลิกสัญญา",
+            "paragraphs": [
+              "ดีใจอาจระงับหรือเลิกสัญญาในกรณีไม่ชำระเงิน ผิดสัญญาสาระสำคัญ ความเสี่ยงด้านความปลอดภัย การใช้งานผิดกฎหมาย การละเมิดสิทธิ ข้อกำหนดของหน่วยงานกำกับ หรือความเสี่ยงสาระสำคัญต่อบุคคลหรือแพลตฟอร์ม หากทำได้ ดีใจจะแจ้งและให้โอกาสแก้ไข แต่กรณีเร่งด่วนอาจดำเนินการทันที",
+              "สิทธิเรียกร้องการชำระเงินที่เกิดแล้ว ความลับ ทรัพย์สินทางปัญญา การจัดการข้อมูล ข้อจำกัดความรับผิด การชดใช้ค่าเสียหาย บันทึก และข้อพิพาท ยังคงมีผลเท่าที่เหมาะสม"
+            ]
+          },
+          {
+            "heading": "ทรัพย์สินทางปัญญา",
+            "paragraphs": [
+              "ดีใจและผู้ให้สิทธิเป็นเจ้าของแพลตฟอร์ม ซอฟต์แวร์ อินเทอร์เฟซ เอกสาร การออกแบบ เทมเพลต โมเดล และการปรับปรุงต่าง ๆ ผู้ประกอบการห้ามทำวิศวกรรมย้อนกลับ คัดลอก จำหน่ายต่อ ให้สิทธิช่วง ทำ white-label เผยแพร่ benchmark ต่อสาธารณะ หรือสร้างงานดัดแปลงเพื่อแข่งขัน เว้นแต่กฎหมายบังคับอนุญาตหรือมีข้อตกลงเป็นลายลักษณ์อักษร",
+              "ข้อเสนอแนะอาจถูกใช้ได้โดยไม่มีข้อจำกัดหรือค่าตอบแทน หากไม่มีการระบุตัวผู้ประกอบการต่อสาธารณะโดยไม่ได้รับอนุญาต"
+            ]
+          },
+          {
+            "heading": "ความลับ",
+            "paragraphs": [
+              "แต่ละฝ่ายต้องคุ้มครองข้อมูลธุรกิจ เทคนิค และการค้าซึ่งไม่เปิดเผยต่อสาธารณะของอีกฝ่ายด้วยความระมัดระวังตามสมควร และใช้เฉพาะเพื่อข้อตกลงนี้ ข้อยกเว้นใช้กับข้อมูลที่เปิดเผยต่อสาธารณะโดยชอบ เคยทราบมาก่อน พัฒนาขึ้นเองโดยอิสระ หรือได้รับโดยชอบ การเปิดเผยที่กฎหมายกำหนดทำได้โดยแจ้งล่วงหน้าเมื่อกฎหมายอนุญาต"
+            ]
+          },
+          {
+            "heading": "คำรับรองและข้อจำกัดการรับประกัน",
+            "paragraphs": [
+              "แต่ละฝ่ายรับรองว่ามีอำนาจทำข้อตกลง ผู้ประกอบการรับรองว่าเนื้อหา คำสั่ง การเก็บรวบรวม และการใช้งานของตนชอบด้วยกฎหมาย",
+              "เว้นแต่มีข้อผูกพันโดยชัดแจ้ง บริการจัดให้ในสภาพ \"ตามที่พร้อมให้บริการ\" ดีใจไม่รับประกันว่าการทำงานจะไม่สะดุด เนื้อหาจะปราศจากข้อผิดพลาด จะเกิดยอดขาย คุณภาพผู้สนใจ ความถูกต้องของโมเดล ความเข้ากันได้กับทุกเว็บไซต์ หรือความเหมาะสมสำหรับการตัดสินใจด้านวิชาชีพ การแพทย์ กฎหมาย การเงิน เหตุฉุกเฉิน หรือการตัดสินใจที่มีผลกระทบสูง"
+            ]
+          },
+          {
+            "heading": "ความรับผิด",
+            "paragraphs": [
+              "เท่าที่กฎหมายอนุญาตสูงสุด ไม่มีฝ่ายใดรับผิดสำหรับความเสียหายทางอ้อม อุบัติการณ์ พิเศษ เชิงลงโทษ หรือสืบเนื่อง กำไร รายได้ โอกาส ความนิยม หรือการพึ่งพาผลลัพธ์อัตโนมัติที่สูญเสียไป",
+              "ภายใต้ความรับผิดที่กฎหมายห้ามยกเว้น ความรับผิดรวมของดีใจจะไม่เกินค่าบริการที่ชำระแล้วหรือค้างชำระสำหรับบริการที่ได้รับผลกระทบในช่วง 12 เดือนก่อนเหตุการณ์ เพดานนี้ไม่ใช้กับการฉ้อโกงหรือเจตนากระทำผิด และไม่ลบล้างความรับผิดตามกฎหมายคุ้มครองข้อมูลส่วนบุคคลที่บังคับใช้"
+            ]
+          },
+          {
+            "heading": "การชดใช้ค่าเสียหายโดยผู้ประกอบการ",
+            "paragraphs": [
+              "ผู้ประกอบการจะต่อสู้คดีและชดใช้ค่าเสียหายแก่ดีใจจากข้อเรียกร้องของบุคคลภายนอกและค่าใช้จ่ายตามสมควรที่เกิดจากเนื้อหาของผู้ประกอบการ การเก็บรวบรวมหรือการตลาดที่ไม่ชอบด้วยกฎหมาย การขาดอำนาจหรือความยินยอม การละเมิดสิทธิ การใช้งานผิดวัตถุประสงค์ หรือการฝ่าฝืนนโยบายการใช้งานที่ยอมรับได้ ดีใจต้องแจ้งโดยเร็วและอนุญาตให้ควบคุมการต่อสู้คดีตามสมควร โดยยังคงสิทธิเข้าร่วมและสิทธิยินยอมต่อการตกลงยุติคดี"
+            ]
+          },
+          {
+            "heading": "การเปลี่ยนแปลง",
+            "paragraphs": [
+              "การเปลี่ยนแปลงสาระสำคัญจะถูกกำหนดเวอร์ชันและแจ้งให้ทราบ จะขอการยอมรับใหม่เมื่อการเปลี่ยนแปลงขยายวัตถุประสงค์ข้อมูลอย่างมีนัยสำคัญหรือลดสิทธิแบบชำระเงิน และกฎหมายกำหนดให้ต้องดำเนินการ"
+            ]
+          },
+          {
+            "heading": "การสนับสนุนและการแจ้ง",
+            "paragraphs": [
+              "การสนับสนุน: support@djai.academy เวลา 09:00-18:00 ICT วันจันทร์ถึงศุกร์ ยกเว้นวันหยุดราชการไทย เป้าหมายการตอบกลับคือวันทำการถัดไป แต่ไม่รับประกัน การแจ้งทางกฎหมาย: legal@djai.academy การแจ้งถึงผู้ประกอบการอาจใช้ทางอีเมลที่ลงทะเบียนหรือการแจ้งในผลิตภัณฑ์"
+            ]
+          },
+          {
+            "heading": "การโอนสิทธิ",
+            "paragraphs": [
+              "การโอนสิทธิของผู้ประกอบการต้องได้รับความยินยอมเป็นลายลักษณ์อักษร ดีใจอาจใช้บริษัทในเครือหรือผู้รับเหมาช่วง และอาจโอนสิทธิพร้อมการควบรวม ปรับโครงสร้าง จัดหาเงินทุน หรือโอนธุรกิจที่เกี่ยวข้อง โดยอยู่ภายใต้หน้าที่ด้านข้อมูล"
+            ]
+          },
+          {
+            "heading": "ทั่วไปและกฎหมายที่ใช้บังคับ",
+            "paragraphs": [
+              "ข้อตกลงนี้เป็นข้อตกลงทั้งหมดสำหรับเรื่องที่เกี่ยวข้อง การไม่บังคับใช้ไม่ถือเป็นการสละสิทธิ ข้อกำหนดที่ไม่สมบูรณ์จะถูกตีความให้แคบลง ไม่มีการก่อให้เกิดห้างหุ้นส่วน การจ้างงาน หรือความสัมพันธ์ตัวแทน",
+              "ให้ใช้กฎหมายไทยบังคับ ศาลในกรุงเทพมหานครมีเขตอำนาจแต่เพียงผู้เดียว เว้นแต่มีทางเลือกอื่นที่ชอบด้วยกฎหมายและทำเป็นลายลักษณ์อักษร"
+            ]
+          },
+          {
+            "heading": "ติดต่อ",
+            "paragraphs": [
+              "บริษัท ดีใจ แล็บ จำกัด 48/187 ซอยสุขุมวิท 64 แขวงบางจาก เขตพระโขนง กรุงเทพมหานคร ประเทศไทย ฝ่ายสนับสนุน: support@djai.academy ความเป็นส่วนตัว: privacy@djai.academy กฎหมาย: legal@djai.academy เอกสาร: https://djai.academy/legal"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "privacy": {
+    "version": "privacy-2026-08-draft1",
+    "title": "Deejai Lab Privacy Notice",
+    "effectiveDate": "2026-07-27",
+    "summary": "Privacy notice for DJAI Academy and DJBOT services operated by DEEJAI LAB CO., LTD.",
+    "sections": [
+      {
+        "heading": "Who we are",
+        "paragraphs": [
+          "DEEJAI LAB CO., LTD. (บริษัท ดีใจ แล็บ จำกัด), registration number 0105569117953, of 48/187 Soi Sukhumvit 64, Bang Chak, Phra Khanong, Bangkok, Thailand, operates DJAI Academy and DJBOT. Contact privacy@djai.academy. A Privacy Lead is appointed; statutory DPO need will be reassessed if legal thresholds apply."
+        ]
+      },
+      {
+        "heading": "Scope and roles",
+        "paragraphs": [
+          "This Notice covers Merchant owners/staff, billing/support contacts, visitors and end customers where Deejai is controller. For Merchant enquiry/lead data, Merchant is normally controller and Deejai processor under the DPA. Deejai is controller for account administration, billing, security, Deejai marketing, approved partner disclosure and model development."
+        ]
+      },
+      {
+        "heading": "Data collected",
+        "paragraphs": [
+          "Merchant name; staff name/email; authentication/account/role records; billing identity/subscription; support communications; IP, request/security and device/browser data; consent and preferences.",
+          "Through Merchant bots: name, email, telephone, free-text messages, lead information, opaque session token and channel identifiers. Basic may offer separate Deejai marketing, partner and model choices. Premium contact details are not used for Deejai/partner marketing."
+        ]
+      },
+      {
+        "heading": "Sources",
+        "paragraphs": [
+          "The person, Merchant, Merchant site/channel, Stripe, approved providers and security systems. A Merchant providing another person's data must have authority and give required notice."
+        ]
+      },
+      {
+        "heading": "Purposes and bases",
+        "paragraphs": [
+          "Account/service/billing/support, security/fraud, law/claims and rights administration rely as applicable on contract, legal obligation and legitimate interests.",
+          "Deejai contact marketing, partner disclosure and model development rely on separate consent in the initial release. Consent may be withdrawn for future processing."
+        ]
+      },
+      {
+        "heading": "Model development",
+        "paragraphs": [
+          "Training Conversation Data is not described as anonymous. Direct identifiers are removed and free text screened before dataset admission. Known child and sensitive-data conversations are excluded. Data remains protected as personal data unless identification is no longer reasonably possible. See the Model Development Data Notice."
+        ]
+      },
+      {
+        "heading": "Cookies/local storage",
+        "paragraphs": [
+          "FlowBot sets no cookies. It uses one first-party localStorage entry per deployment containing an opaque session token. Any future optional analytics will require an update and any required choice."
+        ]
+      },
+      {
+        "heading": "Recipients",
+        "paragraphs": [
+          "Neon, AWS and Stripe are current recipients. Google Cloud is planned but Asian deployment is not active until verified. No transactional-email, AI or Voice provider is approved. LINE applies only when activated."
+        ]
+      },
+      {
+        "heading": "International processing",
+        "paragraphs": [
+          "The current primary database is Neon on AWS us-east-2, Ohio, USA. Personal data therefore may be transferred outside Thailand. Provider agreements and applicable safeguards are used and transfer risk is assessed. Notice changes only after verified migration."
+        ]
+      },
+      {
+        "heading": "Retention",
+        "paragraphs": [
+          "Chat content defaults to 365 days, but Merchants can configure 30-3,650 days; then content becomes a non-content tombstone. Voice recording is disabled/zero unless separately approved.",
+          "Privacy export downloads are available seven days. The expired encrypted result row is not yet physically purged. Contacts/leads remain until erasure or closure handling; no automatic time purge is active. Billing/tax records: seven years. Consent evidence: five years after withdrawal/last reliance unless claims/law require longer. Legal holds continue until release.",
+          "Target after verification: contacts/leads 24 months inactivity; 30-day read-only/reactivation after paid term; production purge; backups within 30 additional days. Those controls are not represented as active until verified."
+        ]
+      },
+      {
+        "heading": "Rights",
+        "paragraphs": [
+          "Subject to law: access/copy, portability where applicable, correction, deletion, restriction, objection and consent withdrawal. Merchant customers should contact Merchant for Merchant purposes. Deejai-purpose requests: privacy@djai.academy or https://djai.academy/privacy/preferences when available.",
+          "Identity may be verified. Lawful limitations may apply. Erasure may remove identifying content while retaining non-identifying shells, audit evidence, legal-hold data and backup copies until expiry."
+        ]
+      },
+      {
+        "heading": "Marketing preferences",
+        "paragraphs": [
+          "Every Deejai/partner marketing message provides opt-out. Withdrawal does not affect prior lawful processing. Minimal suppression evidence may be retained to avoid renewed contact."
+        ]
+      },
+      {
+        "heading": "Security and breaches",
+        "paragraphs": [
+          "Reasonable controls include access restriction, tenant separation, transport encryption, provider security, logging and incident response. No system is completely secure. Breaches are assessed and notified under applicable duties."
+        ]
+      },
+      {
+        "heading": "Children and sensitive data",
+        "paragraphs": [
+          "Standard Service is not designed to intentionally collect child or sensitive data. Child-related Merchants should collect guardian contact and obtain separate approval for higher-risk processing. Do not submit passwords, OTPs, full card data, identity documents or unrequested sensitive data."
+        ]
+      },
+      {
+        "heading": "Changes and contact",
+        "paragraphs": [
+          "Material changes are versioned/notified and new consent or acceptance requested where required.",
+          "Privacy: privacy@djai.academy. Security: security@djai.academy. Legal: legal@djai.academy. Address: 48/187 Soi Sukhumvit 64, Bang Chak, Phra Khanong, Bangkok, Thailand. A complaint may be submitted to Thailand's PDPC where applicable."
+        ]
+      }
+    ],
+    "translations": {
+      "th": {
+        "title": "ประกาศความเป็นส่วนตัวของดีใจ แล็บ",
+        "summary": "ประกาศความเป็นส่วนตัวสำหรับบริการ DJAI Academy และ DJBOT ซึ่งดำเนินการโดยบริษัท ดีใจ แล็บ จำกัด",
+        "sections": [
+          {
+            "heading": "เราเป็นใคร",
+            "paragraphs": [
+              "บริษัท ดีใจ แล็บ จำกัด เลขทะเบียนนิติบุคคล 0105569117953 ที่อยู่ 48/187 ซอยสุขุมวิท 64 แขวงบางจาก เขตพระโขนง กรุงเทพมหานคร ประเทศไทย เป็นผู้ดำเนินการ DJAI Academy และ DJBOT ติดต่อเรื่องความเป็นส่วนตัวได้ที่ privacy@djai.academy มีการแต่งตั้งผู้รับผิดชอบด้านความเป็นส่วนตัว และจะประเมินความจำเป็นในการแต่งตั้งเจ้าหน้าที่คุ้มครองข้อมูลส่วนบุคคลตามกฎหมายอีกครั้งหากถึงเกณฑ์ที่เกี่ยวข้อง"
+            ]
+          },
+          {
+            "heading": "ขอบเขตและบทบาท",
+            "paragraphs": [
+              "ประกาศนี้ครอบคลุมเจ้าของหรือพนักงานของผู้ประกอบการ ผู้ติดต่อด้านการเรียกเก็บเงินหรือสนับสนุน ผู้เยี่ยมชม และลูกค้าปลายทางในกรณีที่ดีใจเป็นผู้ควบคุมข้อมูลส่วนบุคคล สำหรับข้อมูลการสอบถามหรือผู้สนใจของผู้ประกอบการ โดยปกติผู้ประกอบการเป็นผู้ควบคุมข้อมูลส่วนบุคคลและดีใจเป็นผู้ประมวลผลข้อมูลส่วนบุคคลตาม DPA ดีใจเป็นผู้ควบคุมข้อมูลส่วนบุคคลสำหรับการจัดการบัญชี การเรียกเก็บเงิน ความปลอดภัย การตลาดของดีใจ การเปิดเผยต่อพันธมิตรที่ได้รับอนุมัติ และการพัฒนาโมเดล"
+            ]
+          },
+          {
+            "heading": "ข้อมูลที่เก็บรวบรวม",
+            "paragraphs": [
+              "ชื่อผู้ประกอบการ; ชื่อและอีเมลของพนักงาน; บันทึกการยืนยันตัวตน บัญชี และบทบาท; ข้อมูลระบุตัวตนและสมาชิกด้านการเรียกเก็บเงิน; การสื่อสารกับฝ่ายสนับสนุน; IP ข้อมูลคำขอ/ความปลอดภัย และข้อมูลอุปกรณ์/เบราว์เซอร์; ความยินยอมและการตั้งค่า",
+              "ผ่านบอตของผู้ประกอบการ: ชื่อ อีเมล โทรศัพท์ ข้อความอิสระ ข้อมูลผู้สนใจ โทเคนเซสชันแบบไม่ระบุตัวโดยตรง และตัวระบุช่องทาง แพ็กเกจ Basic อาจเสนอทางเลือกแยกสำหรับการตลาดของดีใจ พันธมิตร และโมเดล รายละเอียดติดต่อของ Premium จะไม่ถูกใช้เพื่อการตลาดของดีใจหรือพันธมิตร"
+            ]
+          },
+          {
+            "heading": "แหล่งที่มาของข้อมูล",
+            "paragraphs": [
+              "ข้อมูลอาจมาจากตัวบุคคล ผู้ประกอบการ เว็บไซต์หรือช่องทางของผู้ประกอบการ Stripe ผู้ให้บริการที่ได้รับอนุมัติ และระบบความปลอดภัย ผู้ประกอบการที่ให้ข้อมูลของบุคคลอื่นต้องมีอำนาจและต้องแจ้งตามที่กฎหมายกำหนด"
+            ]
+          },
+          {
+            "heading": "วัตถุประสงค์และฐานทางกฎหมาย",
+            "paragraphs": [
+              "การจัดการบัญชี บริการ การเรียกเก็บเงิน การสนับสนุน ความปลอดภัย/การฉ้อโกง กฎหมาย/ข้อเรียกร้อง และการบริหารสิทธิ อาศัยฐานสัญญา หน้าที่ตามกฎหมาย และประโยชน์โดยชอบด้วยกฎหมายตามที่ใช้ได้",
+              "การตลาดติดต่อของดีใจ การเปิดเผยต่อพันธมิตร และการพัฒนาโมเดล อาศัยความยินยอมแยกต่างหากใน release แรก สามารถถอนความยินยอมสำหรับการประมวลผลในอนาคตได้"
+            ]
+          },
+          {
+            "heading": "การพัฒนาโมเดล",
+            "paragraphs": [
+              "ข้อมูลบทสนทนาสำหรับฝึกโมเดลจะไม่ถูกอธิบายว่าเป็นข้อมูลนิรนาม ตัวระบุโดยตรงจะถูกลบออกและข้อความอิสระจะถูกคัดกรองก่อนรับเข้าสู่ชุดข้อมูล บทสนทนาที่ทราบว่าเกี่ยวข้องกับเด็กหรือข้อมูลอ่อนไหวจะถูกกันออก ข้อมูลยังคงได้รับการคุ้มครองเป็นข้อมูลส่วนบุคคล เว้นแต่การระบุตัวบุคคลจะไม่สามารถทำได้อย่างสมเหตุสมผลอีกต่อไป โปรดดูประกาศข้อมูลการพัฒนาโมเดล"
+            ]
+          },
+          {
+            "heading": "คุกกี้และ localStorage",
+            "paragraphs": [
+              "FlowBot ไม่ตั้งคุกกี้ แต่ใช้รายการ localStorage แบบ first-party หนึ่งรายการต่อการเผยแพร่ ซึ่งมีโทเคนเซสชันแบบไม่ระบุตัวโดยตรง หากมี analytics เสริมในอนาคต จะต้องอัปเดตประกาศและจัดให้มีทางเลือกตามที่จำเป็น"
+            ]
+          },
+          {
+            "heading": "ผู้รับข้อมูล",
+            "paragraphs": [
+              "Neon, AWS และ Stripe เป็นผู้รับข้อมูลปัจจุบัน Google Cloud อยู่ในแผน แต่การติดตั้งในเอเชียยังไม่เปิดใช้งานจนกว่าจะตรวจสอบแล้ว ยังไม่มีผู้ให้บริการอีเมลธุรกรรม AI หรือ Voice ที่ได้รับอนุมัติ LINE ใช้เฉพาะเมื่อเปิดใช้งานแล้วเท่านั้น"
+            ]
+          },
+          {
+            "heading": "การประมวลผลระหว่างประเทศ",
+            "paragraphs": [
+              "ฐานข้อมูลหลักปัจจุบันคือ Neon บน AWS us-east-2 รัฐโอไฮโอ สหรัฐอเมริกา ดังนั้นข้อมูลส่วนบุคคลอาจถูกโอนไปนอกประเทศไทย มีการใช้ข้อตกลงกับผู้ให้บริการและมาตรการคุ้มครองที่เกี่ยวข้อง และมีการประเมินความเสี่ยงการโอนข้อมูล การเปลี่ยนแปลงประกาศจะทำหลังจากมีการย้ายระบบที่ตรวจสอบแล้วเท่านั้น"
+            ]
+          },
+          {
+            "heading": "การเก็บรักษา",
+            "paragraphs": [
+              "เนื้อหาแชตมีค่าเริ่มต้นเก็บ 365 วัน แต่ผู้ประกอบการสามารถกำหนดได้ตั้งแต่ 30 ถึง 3,650 วัน จากนั้นเนื้อหาจะกลายเป็น tombstone ที่ไม่มีเนื้อหา การบันทึกเสียงถูกปิด/เป็นศูนย์ เว้นแต่ได้รับอนุมัติแยกต่างหาก",
+              "ไฟล์ส่งออกด้านความเป็นส่วนตัวพร้อมให้ดาวน์โหลดเจ็ดวัน แถวผลลัพธ์ที่เข้ารหัสและหมดอายุยังไม่ได้ถูกลบออกทางกายภาพ ข้อมูลติดต่อ/ผู้สนใจคงอยู่จนกว่าจะมีการลบหรือจัดการเมื่อปิดบัญชี ยังไม่มีการลบอัตโนมัติตามเวลา บันทึกการเรียกเก็บเงิน/ภาษี: เจ็ดปี หลักฐานความยินยอม: ห้าปีหลังถอนหรือพึ่งพาครั้งล่าสุด เว้นแต่ข้อเรียกร้องหรือกฎหมายต้องเก็บนานกว่า การอายัดทางกฎหมายคงอยู่จนกว่าจะปลด",
+              "เป้าหมายหลังการตรวจสอบ: ข้อมูลติดต่อ/ผู้สนใจ 24 เดือนนับจากไม่มีกิจกรรม; ช่วงอ่านอย่างเดียว/เปิดใช้งานใหม่ 30 วันหลังสิ้นสุดรอบที่ชำระแล้ว; ลบ production; ข้อมูลสำรองภายในอีก 30 วัน การควบคุมเหล่านี้จะไม่ถูกแสดงว่าเปิดใช้งานแล้วจนกว่าจะตรวจสอบแล้ว"
+            ]
+          },
+          {
+            "heading": "สิทธิของเจ้าของข้อมูล",
+            "paragraphs": [
+              "ภายใต้กฎหมาย เจ้าของข้อมูลอาจมีสิทธิขอเข้าถึง/สำเนา โอนย้ายข้อมูลเมื่อใช้ได้ แก้ไข ลบ จำกัด คัดค้าน และถอนความยินยอม ลูกค้าของผู้ประกอบการควรติดต่อผู้ประกอบการสำหรับวัตถุประสงค์ของผู้ประกอบการ คำขอที่เกี่ยวกับวัตถุประสงค์ของดีใจส่งได้ที่ privacy@djai.academy หรือ https://djai.academy/privacy/preferences เมื่อพร้อมใช้งาน",
+              "อาจมีการยืนยันตัวตน ข้อจำกัดตามกฎหมายอาจใช้ได้ การลบอาจลบเนื้อหาที่ระบุตัวบุคคลได้ ในขณะที่ยังเก็บโครงข้อมูลที่ไม่ระบุตัวบุคคล หลักฐานตรวจสอบ ข้อมูลภายใต้ legal hold และสำเนาสำรองไว้จนกว่าจะหมดอายุ"
+            ]
+          },
+          {
+            "heading": "การตั้งค่าการตลาด",
+            "paragraphs": [
+              "ข้อความการตลาดของดีใจหรือพันธมิตรทุกฉบับมีช่องทางยกเลิก การถอนความยินยอมไม่กระทบการประมวลผลที่ชอบด้วยกฎหมายก่อนหน้า อาจเก็บหลักฐานการระงับติดต่อขั้นต่ำเพื่อหลีกเลี่ยงการติดต่อซ้ำ"
+            ]
+          },
+          {
+            "heading": "ความปลอดภัยและเหตุละเมิดข้อมูล",
+            "paragraphs": [
+              "มาตรการตามสมควรรวมถึงการจำกัดการเข้าถึง การแยก tenant การเข้ารหัสระหว่างส่ง ผู้ให้บริการด้านความปลอดภัย การบันทึก log และการตอบสนองเหตุการณ์ ไม่มีระบบใดปลอดภัยสมบูรณ์ เหตุละเมิดจะถูกประเมินและแจ้งตามหน้าที่ที่ใช้บังคับ"
+            ]
+          },
+          {
+            "heading": "เด็กและข้อมูลอ่อนไหว",
+            "paragraphs": [
+              "บริการมาตรฐานไม่ได้ออกแบบมาเพื่อเก็บข้อมูลเด็กหรือข้อมูลอ่อนไหวโดยเจตนา ผู้ประกอบการที่เกี่ยวข้องกับเด็กควรเก็บข้อมูลติดต่อผู้ปกครองและขออนุมัติแยกต่างหากสำหรับการประมวลผลที่มีความเสี่ยงสูงกว่า ห้ามส่งรหัสผ่าน OTP ข้อมูลบัตรเต็ม เอกสารประจำตัว หรือข้อมูลอ่อนไหวที่ไม่ได้ร้องขอ"
+            ]
+          },
+          {
+            "heading": "การเปลี่ยนแปลงและการติดต่อ",
+            "paragraphs": [
+              "การเปลี่ยนแปลงสาระสำคัญจะถูกกำหนดเวอร์ชัน/แจ้งให้ทราบ และจะขอความยินยอมหรือการยอมรับใหม่เมื่อจำเป็น",
+              "ความเป็นส่วนตัว: privacy@djai.academy ความปลอดภัย: security@djai.academy กฎหมาย: legal@djai.academy ที่อยู่: 48/187 ซอยสุขุมวิท 64 แขวงบางจาก เขตพระโขนง กรุงเทพมหานคร ประเทศไทย อาจยื่นร้องเรียนต่อสำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคลของประเทศไทยได้เมื่อใช้บังคับ"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

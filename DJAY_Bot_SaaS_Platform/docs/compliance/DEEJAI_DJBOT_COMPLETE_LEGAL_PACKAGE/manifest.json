@@ -1,0 +1,283 @@
+{
+  "package": "DEEJAI_DJBOT_COMPLETE_LEGAL_PACKAGE",
+  "package_date": "2026-07-27",
+  "company": {
+    "name_en": "DEEJAI LAB CO., LTD.",
+    "name_th": "บริษัท ดีใจ แล็บ จำกัด",
+    "registration_number": "0105569117953"
+  },
+  "status": "COUNSEL_DRAFT_NOT_APPROVED",
+  "document_count": 47,
+  "current_state_rule": "US Neon/AWS processing is disclosed until an Asian deployment is applied and independently verified.",
+  "retention_revision": {
+    "chat_default_days": 365,
+    "merchant_configurable_min_days": 30,
+    "merchant_configurable_max_days": 3650,
+    "voice_recording_days": 0,
+    "privacy_export_access_days": 7,
+    "contacts_time_purge_current": false,
+    "target_contacts_inactivity_months": 24,
+    "target_read_only_reactivation_days": 30,
+    "target_backup_expiry_after_production_purge_days": 30,
+    "target_application_logs_days": 30,
+    "target_security_audit_months": 24,
+    "target_billing_tax_years": 7
+  },
+  "files": [
+    {
+      "path": "00_Master_Complete_Legal_Package.docx",
+      "size_bytes": 86777,
+      "sha256": "22005fc46bf9de08e10256f3685bcacbd8bfe442a5eb7a05142f46c3a69807bd"
+    },
+    {
+      "path": "01_Public_Contracts_and_Notices.docx",
+      "size_bytes": 62291,
+      "sha256": "204fbe6eb0c5b6e02edfc26143cc06952372d4d0c45087872ff548baa69f6143"
+    },
+    {
+      "path": "02_Internal_Privacy_AI_Governance.docx",
+      "size_bytes": 64055,
+      "sha256": "66527ee301c8df9e5a446d35a03ac5df3afdfc158193a9024384d3328efa59a2"
+    },
+    {
+      "path": "README.md",
+      "size_bytes": 9114,
+      "sha256": "e022068056371a4c1df8abee26d571e05bd80629bea9a130a6e4fd1f49da7b03"
+    },
+    {
+      "path": "individual_documents_md/01_consolidated_counsel_brief.md",
+      "size_bytes": 5882,
+      "sha256": "b63ad5326eb9fa9536ec661137e213c8bd44d3cd0ee5a5c3001bfb24511eded0"
+    },
+    {
+      "path": "individual_documents_md/02_controller_processor_role_matrix.md",
+      "size_bytes": 2901,
+      "sha256": "241ad4aa9302f5523f3aa2c0401300dbf757bf98f503c5a0efa20d87368adcb0"
+    },
+    {
+      "path": "individual_documents_md/03_counsel_decision_schedule.md",
+      "size_bytes": 2959,
+      "sha256": "192a538de8507650f552ff64730d11324a536c9ed454f0043a52f1dd5a928ac5"
+    },
+    {
+      "path": "individual_documents_md/04_counsel_approval_certificate.md",
+      "size_bytes": 1510,
+      "sha256": "61e16c604b533619436248817ea9484127aba492e2c34d8ccb5db3fb557242ed"
+    },
+    {
+      "path": "individual_documents_md/05_legal_version_deployment_manifest.md",
+      "size_bytes": 1840,
+      "sha256": "8a1a033a93d1e9b4bfd7589b3e17cd4a179ba87a015d5c55b51f8452d6eedc69"
+    },
+    {
+      "path": "individual_documents_md/06_master_terms_of_service.md",
+      "size_bytes": 9066,
+      "sha256": "044d5863a4425d7bce7766ce9c2cc3bdd6d4d1a879e9a300b497d716896d2fff"
+    },
+    {
+      "path": "individual_documents_md/07_flowbot_basic_product_schedule.md",
+      "size_bytes": 3138,
+      "sha256": "7cb2916e8dfe6807edde2efeac13c337743d62d45a608df2c8f8342f0a64c8fb"
+    },
+    {
+      "path": "individual_documents_md/08_premium_product_schedule.md",
+      "size_bytes": 1678,
+      "sha256": "de1af6c94316b91ee45286452630fbddd7de9878b126a24887351f097d071bdd"
+    },
+    {
+      "path": "individual_documents_md/09_ai_text_bot_schedule.md",
+      "size_bytes": 2589,
+      "sha256": "b813a8db1c4262b62661d90c8b9ff7dd33a0cc8146a1cdfe51bf4ed6c5e6973c"
+    },
+    {
+      "path": "individual_documents_md/10_voice_bot_schedule.md",
+      "size_bytes": 2148,
+      "sha256": "85b347d6fb1b78f56c72eb51be313165493efced308515e9719256d21a47fd18"
+    },
+    {
+      "path": "individual_documents_md/11_line_channel_addon_schedule.md",
+      "size_bytes": 1467,
+      "sha256": "c009ec1540e39585900998fed44c28476a5f57d6efb3a3b40f43fd891cbad028"
+    },
+    {
+      "path": "individual_documents_md/12_acceptable_use_policy.md",
+      "size_bytes": 2080,
+      "sha256": "73bcf4bb917c8464e50d07b7055b892fab0338124b34b6e3336b0b4f47bdbd5f"
+    },
+    {
+      "path": "individual_documents_md/13_merchant_data_processing_agreement.md",
+      "size_bytes": 4406,
+      "sha256": "f7592e07041b56588b52eaeedfa31ffe38d2db41a4af7e9849e795907b2f6cd7"
+    },
+    {
+      "path": "individual_documents_md/14_dpa_schedule_1_processing_details.md",
+      "size_bytes": 2298,
+      "sha256": "27864282dee01d91bd184311655e86c7fb7ef7edefdb83eaba25e6462976971d"
+    },
+    {
+      "path": "individual_documents_md/15_dpa_schedule_2_toms.md",
+      "size_bytes": 2162,
+      "sha256": "19a0b49bc04f661dc53f5e1a495963bc8ee269ce54b3bc989f297e6da0514dfd"
+    },
+    {
+      "path": "individual_documents_md/16_dpa_schedule_3_subprocessors.md",
+      "size_bytes": 1809,
+      "sha256": "5fdc8c3460721d6d13d88f989ab41cce16e292dcb8525f4dd0c9e174c1db822f"
+    },
+    {
+      "path": "individual_documents_md/17_basic_controller_to_controller_addendum.md",
+      "size_bytes": 2302,
+      "sha256": "b70b38400a7f49ccce9d095659b8e2406ab2687b63aa94bb64dd06e8b8050b83"
+    },
+    {
+      "path": "individual_documents_md/18_marketing_partner_standard_terms.md",
+      "size_bytes": 2248,
+      "sha256": "0019a9bdb12e022c1047dbdea9bab3ad4be28fd7066ed19ca8a2f38b8d0c6487"
+    },
+    {
+      "path": "individual_documents_md/19_marketing_partner_schedule.md",
+      "size_bytes": 1322,
+      "sha256": "9feeae95b3fc6ddf2a9683aeeca8274d4cd9ca94c95709875f86704202a45a0e"
+    },
+    {
+      "path": "individual_documents_md/20_main_privacy_notice.md",
+      "size_bytes": 5985,
+      "sha256": "9f00bce7e87f4b9f8aacb8c311c02b4920da9e0bc57459f628edd5d3088462c8"
+    },
+    {
+      "path": "individual_documents_md/21_layered_end_customer_privacy_notice.md",
+      "size_bytes": 3478,
+      "sha256": "59c7b34710780451ce73c404e7acd8d78befcec5b30ae1dcc5fdd9f1832bd9b6"
+    },
+    {
+      "path": "individual_documents_md/22_flowbot_basic_data_use_notice.md",
+      "size_bytes": 1961,
+      "sha256": "d7451c5355af6e6be4baa5b3bb485b91b61f2fcf60e73f41606a37622737a319"
+    },
+    {
+      "path": "individual_documents_md/23_premium_data_use_notice.md",
+      "size_bytes": 1352,
+      "sha256": "7e912e3b99b889d8cd24a1e8501c4143a45d06b45b53154e846144c6a09aee81"
+    },
+    {
+      "path": "individual_documents_md/24_model_development_data_notice.md",
+      "size_bytes": 2700,
+      "sha256": "315bbc5b9b0364121339dc5a39ada690743c74fbd2f6d5d31c989761b0272050"
+    },
+    {
+      "path": "individual_documents_md/25_deejai_marketing_consent.md",
+      "size_bytes": 2176,
+      "sha256": "07b91af5b0544c0dd102cf7bb2fe6324518bb4cec15a3da329522533dd6dd439"
+    },
+    {
+      "path": "individual_documents_md/26_marketing_partner_consent.md",
+      "size_bytes": 2165,
+      "sha256": "b2ac925c6020dc678ffe915d18c73a363d6cb13dea5a3973c4a917b7d7b5c350"
+    },
+    {
+      "path": "individual_documents_md/27_model_development_consent.md",
+      "size_bytes": 2398,
+      "sha256": "c496dafe4ce585edef20bad84c35ec4c7ac9bae16e942db462cf10f6b60b97fc"
+    },
+    {
+      "path": "individual_documents_md/28_consent_withdrawal_preference_notice.md",
+      "size_bytes": 1721,
+      "sha256": "3aed0897b5a7cac55eb94901f4cf0b084e675897c595118d71541557cd02b8a0"
+    },
+    {
+      "path": "individual_documents_md/29_ai_text_interaction_notice.md",
+      "size_bytes": 1486,
+      "sha256": "bb98778fbf5c4444b02c4859ab7f85676be7e4884182637a75e1b59606d3ec6a"
+    },
+    {
+      "path": "individual_documents_md/30_voice_call_notice_scripts.md",
+      "size_bytes": 3151,
+      "sha256": "1d37168ca01eec1e6c5f3166d0fa34a8875655e9d5a0170ed7ea0756ca86db52"
+    },
+    {
+      "path": "individual_documents_md/31_data_flow_map.md",
+      "size_bytes": 2507,
+      "sha256": "abb6de8ee2ae0cedef6b1072c8369467efb7cfead050c71f263279e2286984fe"
+    },
+    {
+      "path": "individual_documents_md/32_record_of_processing_activities.md",
+      "size_bytes": 2308,
+      "sha256": "ef2db330fe65ec6d45a621797593aba18f8213e62dcb8ab7b197d02c11b2896f"
+    },
+    {
+      "path": "individual_documents_md/33_legal_basis_matrix.md",
+      "size_bytes": 1952,
+      "sha256": "b56071be6455a1374ab3d628ed6c35c6d378533b4f67521883e25aaa5f4ed56b"
+    },
+    {
+      "path": "individual_documents_md/34_consent_governance_specification.md",
+      "size_bytes": 1941,
+      "sha256": "12c0678495887ba7e70e13c605023592d597e42663ec6fa3a31b84c41ace31bb"
+    },
+    {
+      "path": "individual_documents_md/35_marketing_suppression_policy.md",
+      "size_bytes": 1566,
+      "sha256": "12d956d57b3d0975d0500fcf433fc2010689f30a15f4546b0d8c4d0a6a0c8abe"
+    },
+    {
+      "path": "individual_documents_md/36_model_development_governance_policy.md",
+      "size_bytes": 2367,
+      "sha256": "d4246f96bd2e2da53a3bf8bdc5b28105897d1f06b79c802eae8e0aa04b509dc7"
+    },
+    {
+      "path": "individual_documents_md/37_model_dataset_register.md",
+      "size_bytes": 1418,
+      "sha256": "3545d8913c4b92f4ea86c98eac9213578e6200e2a46a1970fbab54673227eb1a"
+    },
+    {
+      "path": "individual_documents_md/38_retention_deletion_standard.md",
+      "size_bytes": 2491,
+      "sha256": "574bd8cfe09c797e24fb7de64d7f401e81a0432ee789e8f3bff6a53c7011cf88"
+    },
+    {
+      "path": "individual_documents_md/39_dsar_residual_list.md",
+      "size_bytes": 1815,
+      "sha256": "71721fcf0a9fdb0b50fa26214a7bc135f7fd30db57ab688dad340f30575fcebc"
+    },
+    {
+      "path": "individual_documents_md/40_international_transfer_assessment.md",
+      "size_bytes": 1839,
+      "sha256": "c11dfe14afde4b67b80e3350598e44507489f0601d0bb57756cc69c1276a2a45"
+    },
+    {
+      "path": "individual_documents_md/41_vendor_due_diligence_standard.md",
+      "size_bytes": 1793,
+      "sha256": "70fc8edf0c4fd3cca14572e1dd6139a21d8e6331823375c157856deb461ee2e3"
+    },
+    {
+      "path": "individual_documents_md/42_personal_data_breach_response_plan.md",
+      "size_bytes": 2107,
+      "sha256": "c588e271178f79a63bf0fb655611d0e0726a16c172670993bb9be2f9004bb55b"
+    },
+    {
+      "path": "individual_documents_md/43_children_sensitive_data_policy.md",
+      "size_bytes": 1877,
+      "sha256": "8e829c43d794fae5fd82a79665df9ebcdcab81d3482139f2ceb35e1c770adc2a"
+    },
+    {
+      "path": "individual_documents_md/44_registration_publication_controls.md",
+      "size_bytes": 1756,
+      "sha256": "bfd3da33ceafd2c656f166fbd40662d83e582833b3f1803391c6c3014231997a"
+    },
+    {
+      "path": "individual_documents_md/45_current_state_launch_conditions.md",
+      "size_bytes": 2106,
+      "sha256": "c5c638fb88abca236df58d817362d2e32d223ffc78285e3fd85446277449d78b"
+    },
+    {
+      "path": "individual_documents_md/46_launch_readiness_certificate.md",
+      "size_bytes": 2000,
+      "sha256": "173842f7896f88fb344a3c03aeed4fedf1e5fe37a05df980736df50b8dfe5c18"
+    },
+    {
+      "path": "individual_documents_md/47_legal_authority_source_notes.md",
+      "size_bytes": 2260,
+      "sha256": "df46bb1b5182c3f7bf1c97902cc794e93ad3083211f91a7f551f7ed875ab26cb"
+    }
+  ]
+}

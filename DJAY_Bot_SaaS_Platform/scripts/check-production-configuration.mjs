@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -35,8 +35,42 @@ for (const path of ["apps/workers/package.json", "apps/voice-gateway/package.jso
   }
 }
 
+/*
+ * Environment files must not wrap values in quotes.
+ *
+ * A shell sources `.env` and strips the quotes, so quoting looks harmless locally. But
+ * `docker run --env-file` and Cloud Run's environment injection do NOT parse shell quoting —
+ * they take the bytes after `=` literally. `DATABASE_URL="postgresql://..."` therefore becomes
+ * a connection string that begins and ends with a double-quote character and fails to parse,
+ * and a quoted secret authenticates with quotes included. This surfaces for the first time at
+ * deploy, which is the worst place to discover it.
+ *
+ * Only variable NAMES are ever reported; values are never read into the failure text.
+ */
+const QUOTED_ASSIGNMENT = /^([A-Z_][A-Z0-9_]*)=(["'])(.*)\2\s*$/;
+for (const path of [".env", ".env.example", ".env.local"]) {
+  const absolute = resolve(root, path);
+  if (!existsSync(absolute)) continue;
+  const offenders = [];
+  for (const line of readFileSync(absolute, "utf8").split("\n")) {
+    if (line.trimStart().startsWith("#")) continue;
+    const match = QUOTED_ASSIGNMENT.exec(line);
+    // A value containing whitespace or '#' genuinely needs quoting for shell sourcing; those
+    // are exempt because the deploy path would mangle them either way and they must be
+    // handled deliberately rather than silently unquoted here.
+    if (match && !/[\s#]/.test(match[3])) offenders.push(match[1]);
+  }
+  if (offenders.length) {
+    failures.push(
+      `${path} quotes ${offenders.length} value(s) that must be unquoted for `
+      + `docker --env-file and Cloud Run: ${offenders.join(", ")}`,
+    );
+  }
+}
+
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
 console.info("Production configuration admission is enforced by API, workers, and Voice gateway.");
+console.info("Environment files carry no shell-quoted values.");

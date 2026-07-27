@@ -43,79 +43,58 @@ const legacyKnowledgeMarkdown = `# DJAI Academy Voice Agent Knowledge
 - Tell visitors the DJAI team will contact them. Do not claim a booking is confirmed.
 `;
 
-const initialKnowledgeMarkdown = `# DJAI Academy Voice Agent Knowledge
+const initialKnowledgeMarkdown = `# คลังความรู้สำหรับผู้ช่วย AI ของ DJAI Academy
 
-## Services
-- Landing pages
-- Business websites
-- AI chatbots
-- AI voice agents
-- Custom software
-- Mobile and web apps
-- Games
-- Automation workflows
-- In-person vibe-coding courses
+## บริการ
+- Landing Page และเว็บไซต์ธุรกิจ
+- แชตบอต AI และผู้ช่วยสนทนาด้วยเสียง AI
+- ซอฟต์แวร์ตามความต้องการ แอปมือถือ เว็บแอป เกม และระบบอัตโนมัติ
+- คอร์ส vibe coding แบบเรียนในสถานที่
 
-## Website Packages Published On The Landing Page
+## แพ็กเกจเว็บไซต์ที่เผยแพร่บนหน้าเว็บไซต์
 
 ### Landing Page
-- Promotional price: 5,000 THB.
-- Original listed price: 10,000 THB.
-- Promotion is valid for July and August 2026.
-- Best for a single product, campaign, lead generation, ads, promotions, menus, portfolios, and simple business launches.
-- Includes: 1 custom-designed page, SEO optimization, AI Chat Bot (Auto CTA) 1-month free trial, first-year hosting, mobile responsive layout, and fast turnaround.
-- Renewal note: 3,000 THB/year after the first year.
+- ราคาโปรโมชัน 5,000 บาท จากราคาปกติ 10,000 บาท โปรโมชันใช้ได้ในเดือนกรกฎาคมและสิงหาคม 2026
+- เหมาะกับสินค้าเดี่ยว แคมเปญ การเก็บข้อมูลผู้สนใจ โฆษณา โปรโมชัน เมนู พอร์ตโฟลิโอ และการเริ่มธุรกิจด้วยเว็บหน้าเดียว
+- รวมหน้าเว็บที่ออกแบบเฉพาะธุรกิจ 1 หน้า การวางโครงสร้าง SEO ทดลองใช้ AI Chat Bot (Auto CTA) ฟรี 1 เดือน โฮสติ้งปีแรก การแสดงผลที่รองรับมือถือ และการส่งมอบงานรวดเร็ว
+- ค่าต่ออายุหลังปีแรก 3,000 บาทต่อปี
 
-### Additional Page
-- Promotional price: 3,000 THB/page.
-- Original listed price: 5,000 THB/page.
-- Best for expanding an existing website with extra pages.
-- Includes: design consistency, SEO optimization, AI Chat Bot 1-month free trial, quick turnaround, and mobile responsive layout.
-- Renewal note: covered under the customer's maintenance plan.
+### หน้าเพิ่มเติม
+- ราคาโปรโมชัน 3,000 บาทต่อหน้า จากราคาปกติ 5,000 บาทต่อหน้า
+- เหมาะสำหรับเพิ่มหน้าใหม่ให้เว็บไซต์เดิม โดยรวมการออกแบบให้สอดคล้องกับเว็บไซต์เดิม การวางโครงสร้าง SEO ทดลองใช้ AI Chat Bot ฟรี 1 เดือน การส่งมอบงานรวดเร็ว และการแสดงผลที่รองรับมือถือ
+- ค่าดูแลรวมอยู่ในแผนดูแลเว็บไซต์ของลูกค้า
 
 ### Complete Website
-- Promotional price: 10,000 THB.
-- Original listed price: 20,000 THB.
-- Best for a full 5-page business website.
-- Includes: 5 custom-designed pages, responsive design, SEO-ready structure, professional UI, contact page, gallery, business information, contact form, social media integration, first-year hosting, mobile responsive layout, and priority support.
-- Renewal note: 3,000 THB/year after the first year.
+- ราคาโปรโมชัน 10,000 บาท จากราคาปกติ 20,000 บาท
+- เหมาะสำหรับเว็บไซต์ธุรกิจครบชุด 5 หน้า
+- รวมหน้าเว็บที่ออกแบบเฉพาะธุรกิจ 5 หน้า ดีไซน์ที่รองรับทุกขนาดหน้าจอ โครงสร้างพร้อมสำหรับ SEO ส่วนติดต่อผู้ใช้ระดับมืออาชีพ หน้าติดต่อ แกลเลอรี ข้อมูลธุรกิจ ฟอร์มติดต่อ การเชื่อมต่อโซเชียลมีเดีย โฮสติ้งปีแรก และสิทธิ์รับบริการก่อน
+- ค่าต่ออายุหลังปีแรก 3,000 บาทต่อปี
 
-## AI Sales Chatbot
-- Acts like a professional salesperson on the website.
-- Can answer questions, recommend products or services, handle objections, collect leads, qualify prospects, and help book appointments.
-- Available 24/7.
-- Supports multiple languages.
-- Useful when paid traffic is being lost, visitors have questions before buying, or staff cannot respond instantly.
+## แชตบอตฝ่ายขาย AI
+- ทำหน้าที่เสมือนพนักงานขายบนเว็บไซต์ ตอบคำถาม แนะนำบริการ รับมือข้อกังวล เก็บและคัดกรองข้อมูลผู้สนใจ รวมถึงช่วยนัดหมายได้ตลอด 24 ชั่วโมงและรองรับหลายภาษา
+- เหมาะเมื่อธุรกิจสูญเสียผู้เข้าชมจากโฆษณา ลูกค้ามีคำถามก่อนซื้อ หรือทีมงานตอบกลับไม่ได้ทันที
 
-## AI Voice Agent
-- Works like an AI receptionist or AI phone sales assistant.
-- Can answer calls, handle FAQs, qualify customers, book appointments, transfer leads, and collect information.
-- Supports multiple languages.
-- Useful when the business misses calls, needs faster first response, needs multilingual reception, or wants to qualify leads before a human call.
+## ผู้ช่วยสนทนาด้วยเสียง AI
+- ทำหน้าที่เสมือนพนักงานต้อนรับหรือผู้ช่วยฝ่ายขายทางโทรศัพท์ รับสาย ตอบคำถามที่พบบ่อย คัดกรองลูกค้า นัดหมาย ส่งต่อข้อมูลผู้สนใจ และเก็บข้อมูลได้
+- รองรับหลายภาษา เหมาะเมื่อธุรกิจพลาดสาย ต้องการตอบกลับเร็วขึ้น หรือต้องการคัดกรองผู้สนใจก่อนให้ทีมงานติดต่อ
 
-## Custom Development And Automation Signals
-- Investigate further if the visitor mentions Excel, paper, manual work, inventory, POS, CRM, scheduling, membership, booking, reports, multiple branches, internal systems, many employees, or repetitive tasks.
-- Custom development, apps, games, automation, and voice agents are quotation-based unless a specific package is listed here.
-- Do not immediately pitch software. First ask how they do the process today and what the business impact is.
+## ซอฟต์แวร์และระบบอัตโนมัติ
+- ถามรายละเอียดเพิ่มเมื่อผู้เข้าชมกล่าวถึง Excel เอกสารกระดาษ งานที่ทำด้วยมือ สินค้าคงคลัง POS, CRM, ตารางนัดหมาย สมาชิก การจอง รายงาน หลายสาขา ระบบภายใน พนักงานจำนวนมาก หรืองานซ้ำ ๆ
+- ซอฟต์แวร์ แอป เกม ระบบอัตโนมัติ และผู้ช่วยเสียง AI ที่พัฒนาตามความต้องการต้องประเมินราคาเป็นรายงาน เว้นแต่เอกสารนี้ระบุแพ็กเกจไว้ชัดเจน
+- อย่ารีบเสนอขายซอฟต์แวร์ ให้ถามก่อนว่าปัจจุบันลูกค้าทำขั้นตอนนั้นอย่างไรและส่งผลต่อธุรกิจอย่างไร
 
-## Trust And Included-Service Claims
-- The landing page states: no hidden fees, money-back guarantee, and free revisions.
-- Every package includes custom web design, SEO optimization, AI Chat Bot (Auto CTA) 1-month free trial, and first-year hosting where the package states hosting is included.
-- Hosting after the first year is listed as 3,000 THB/year where the package states that renewal note.
+## ข้อความรับรองและหลักการแจ้งราคา
+- หน้าเว็บไซต์ระบุว่าไม่มีค่าธรรมเนียมแอบแฝง รับประกันคืนเงิน และแก้ไขงานฟรี
+- ทุกแพ็กเกจรวมการออกแบบเว็บไซต์เฉพาะธุรกิจ การวางโครงสร้าง SEO และทดลองใช้ AI Chat Bot (Auto CTA) ฟรี 1 เดือน ส่วนโฮสติ้งปีแรกให้ยึดตามรายละเอียดแต่ละแพ็กเกจ
+- แจ้งเฉพาะราคาที่ระบุในเอกสารนี้ หากไม่มีราคา ให้แจ้งว่าทีมงานจะยืนยันหลังตรวจสอบขอบเขตงาน
 
-## Pricing Posture
-- Only state prices that are explicitly listed in this knowledge document.
-- If the visitor asks for a price that is not listed here, say a human will confirm after reviewing the scope.
-- Custom software, apps, games, automation, and voice agents are quotation-based unless a specific package is listed here.
+## ข้อมูลคอร์ส
+- DJAI Academy มีคอร์ส vibe coding แบบเรียนในสถานที่ในกรุงเทพฯ
+- รายละเอียด กำหนดการ และราคาคอร์สต้องให้ทีม DJAI ยืนยัน เว้นแต่จะระบุไว้ในเอกสารนี้
 
-## Course Info
-- DJAI Academy offers in-person vibe-coding courses in Bangkok.
-- Course details, schedules, and prices must be confirmed by the DJAI team unless listed here.
-
-## Contact Policy
-- When a visitor shows meaningful interest, collect their name, company or business name if available, one or more usable contact methods, project need, and preferred callback or consultation time.
-- Tell visitors the DJAI consultant will review their business context before the consultation so the call can focus on specific opportunities.
-- Do not claim a booking is fully confirmed.
+## แนวทางเก็บข้อมูลติดต่อ
+- เมื่อผู้เข้าชมแสดงความสนใจชัดเจน ให้เก็บชื่อ ชื่อบริษัทหรือธุรกิจถ้ามี ช่องทางติดต่อที่ใช้งานได้ ความต้องการของโครงการ และวันหรือเวลาที่สะดวกให้ติดต่อกลับหรือนัดปรึกษา
+- แจ้งว่าที่ปรึกษา DJAI จะศึกษาบริบทธุรกิจก่อนการนัดหมาย และห้ามแจ้งว่าการนัดหมายได้รับการยืนยันจนกว่าระบบหรือทีมงานจะยืนยัน
 `;
 
 async function migrate() {
@@ -166,7 +145,7 @@ async function migrate() {
         greeting text,
         voice text default 'marin',
         voice_provider text default 'openai',
-        language_mode text default 'auto_th_en',
+        language_mode text default 'thai_first',
         knowledge_md text,
         knowledge_version int default 1,
         max_call_seconds int default 600,
@@ -382,7 +361,7 @@ async function migrate() {
         display_name text not null,
         booking_slug text unique not null,
         timezone text not null default 'Asia/Bangkok',
-        meeting_title text not null default 'DJAI Consultation',
+        meeting_title text not null default 'ปรึกษากับ DJAI',
         meeting_location text,
         default_duration_minutes int not null default 30,
         buffer_before_minutes int not null default 0,
@@ -518,9 +497,38 @@ async function migrate() {
       )
     `,
     tx`alter table appointments add column if not exists booking_link_id uuid references booking_links(id)`,
+    /*
+     * Server-side booking context store.
+     *
+     * Booking context used to travel in the `?context=` query parameter of the booking URL as
+     * a signed-but-unencrypted payload containing the customer's name, company, email, phone,
+     * LINE ID, and WhatsApp number. A signature prevents tampering; it does not provide
+     * confidentiality. That PII therefore leaked into browser history, server and proxy access
+     * logs, analytics referrers, and any screenshot or shared link.
+     *
+     * The URL now carries only an opaque random token. The PII lives here, server-side, with a
+     * short expiry and single-use semantics on the mutation that consumes it.
+     */
+    tx`
+      create table if not exists booking_contexts (
+        token text primary key,
+        payload jsonb not null,
+        lead_id uuid references leads(id),
+        conversation_id uuid references conversations(id),
+        expires_at timestamptz not null,
+        consumed_at timestamptz,
+        created_at timestamptz not null default now()
+      )
+    `,
+    tx`create index if not exists booking_contexts_expires_at_idx on booking_contexts (expires_at)`,
+    /*
+     * Retention: contexts are disposable and hold PII, so purge aggressively rather than
+     * accumulating them. Anything past expiry has no remaining use.
+     */
+    tx`delete from booking_contexts where expires_at < now() - interval '7 days'`,
     tx`
       insert into meeting_types (name, description, duration_minutes, is_default, is_active)
-      select 'Free Consultation', 'Initial consultation for qualified DJAI leads.', 30, true, true
+      select 'ปรึกษาเบื้องต้นฟรี', 'พูดคุยเบื้องต้นสำหรับผู้สนใจบริการของ DJAI', 30, true, true
       where not exists (select 1 from meeting_types where is_default = true)
     `,
     tx`
@@ -537,7 +545,7 @@ async function migrate() {
         au.name,
         lower(regexp_replace(au.username, '[^a-zA-Z0-9]+', '-', 'g')),
         'Asia/Bangkok',
-        'DJAI Consultation',
+        'ปรึกษากับ DJAI',
         30
       from admin_users au
       where au.role = 'master_admin'
@@ -568,10 +576,10 @@ async function migrate() {
       )
       select
         acp.admin_user_id,
-        'Free Consultation',
+        'ปรึกษาเบื้องต้นฟรี',
         acp.booking_slug,
         acp.meeting_title,
-        'Initial DJAI consultation for qualified leads.',
+        'พูดคุยเบื้องต้นเกี่ยวกับธุรกิจและบริการที่เหมาะสมกับทีม DJAI',
         acp.meeting_location,
         acp.default_duration_minutes,
         acp.buffer_before_minutes,
@@ -756,10 +764,10 @@ async function migrate() {
       values (
         1,
         true,
-        'Hi, this is DJAI Academy. Tell me what you want to build, and I will help you choose the right next step.',
+        'สวัสดี เราคือ DJ ผู้ช่วยด้านการเติบโตทางธุรกิจจาก DJAI Academy ตอนนี้คุณทำธุรกิจอะไร และอยากพัฒนาเรื่องใดมากที่สุด',
         'marin',
         'openai',
-        'auto_th_en',
+        'thai_first',
         ${initialKnowledgeMarkdown},
         1,
         600,
@@ -774,7 +782,7 @@ async function migrate() {
         30,
         true,
         'gpt-5-mini',
-        'Hi, I am DJ from DJAI Academy. What kind of business are you running, and what are you trying to improve right now?',
+        'สวัสดี เราคือ DJ ผู้ช่วยด้านการเติบโตทางธุรกิจจาก DJAI Academy ตอนนี้คุณทำธุรกิจอะไร และอยากพัฒนาเรื่องใดมากที่สุด',
         40,
         200
       )
@@ -782,6 +790,11 @@ async function migrate() {
     `,
     tx`
       update settings set
+        language_mode = case
+          when language_mode in ('auto_th_en', 'auto', '') or language_mode is null then 'thai_first'
+          when language_mode = 'en' then 'english_only'
+          else language_mode
+        end,
         voice_provider = case when voice_provider is null or voice_provider not in ('openai', 'gemini') then 'openai' else voice_provider end,
         model_id = case when model_id = 'gpt-realtime' then 'gpt-realtime-2.1' else model_id end,
         transcription_model = case when transcription_model = 'gpt-4o-mini-transcribe' then 'gpt-realtime-whisper' else transcription_model end,
@@ -828,21 +841,64 @@ async function migrate() {
             then 'gpt-5-mini'
           else text_chat_model_id
         end,
-        text_chat_greeting = coalesce(nullif(text_chat_greeting, ''), 'Hi, I am DJ from DJAI Academy. What kind of business are you running, and what are you trying to improve right now?'),
+        text_chat_greeting = case
+          when text_chat_greeting is null or text_chat_greeting = '' or text_chat_greeting = 'Hi, I am DJ from DJAI Academy. What kind of business are you running, and what are you trying to improve right now?'
+            then 'สวัสดี เราคือ DJ ผู้ช่วยด้านการเติบโตทางธุรกิจจาก DJAI Academy ตอนนี้คุณทำธุรกิจอะไร และอยากพัฒนาเรื่องใดมากที่สุด'
+          else text_chat_greeting
+        end,
         text_chat_max_messages = coalesce(text_chat_max_messages, 40),
         text_chat_daily_session_cap = coalesce(text_chat_daily_session_cap, 200),
         greeting = case
-          when greeting = 'Hi, this is DJAI Academy. Tell me what you want to build, and I will help you choose the right next step.'
-            then 'Hi, I am DJ from DJAI Academy. What kind of business are you running, and what are you trying to improve right now?'
+          when greeting in (
+            'Hi, this is DJAI Academy. Tell me what you want to build, and I will help you choose the right next step.',
+            'Hi, I am DJ from DJAI Academy. What kind of business are you running, and what are you trying to improve right now?'
+          ) then 'สวัสดี เราคือ DJ ผู้ช่วยด้านการเติบโตทางธุรกิจจาก DJAI Academy ตอนนี้คุณทำธุรกิจอะไร และอยากพัฒนาเรื่องใดมากที่สุด'
           else greeting
         end,
+        knowledge_version = case
+          when knowledge_version = 1 and knowledge_md like '# DJAI Academy Voice Agent Knowledge%'
+            then 2
+          else knowledge_version
+        end,
         knowledge_md = replace(
-          case when knowledge_md = ${legacyKnowledgeMarkdown} then ${initialKnowledgeMarkdown} else knowledge_md end,
+          case
+            when knowledge_md = ${legacyKnowledgeMarkdown}
+              or (knowledge_version = 1 and knowledge_md like '# DJAI Academy Voice Agent Knowledge%')
+              then ${initialKnowledgeMarkdown}
+            else knowledge_md
+          end,
           '- Landing page comparison states that buying 5 pages individually would be 15,000 THB, the bundle price is 10,000 THB, and the customer saves 5,000 THB.' || chr(10),
           ''
         ),
         updated_at = now()
       where id = 1
+    `,
+    tx`
+      update meeting_types
+      set
+        name = 'ปรึกษาเบื้องต้นฟรี',
+        description = 'พูดคุยเบื้องต้นสำหรับผู้สนใจบริการของ DJAI'
+      where name = 'Free Consultation'
+        and description = 'Initial consultation for qualified DJAI leads.'
+    `,
+    tx`
+      update admin_calendar_profiles
+      set meeting_title = 'ปรึกษากับ DJAI'
+      where meeting_title = 'DJAI Consultation'
+    `,
+    tx`
+      update booking_links
+      set
+        name = case when name = 'Free Consultation' then 'ปรึกษาเบื้องต้นฟรี' else name end,
+        title = case when title in ('DJAI Consultation', 'DJAI Free Consultation') then 'ปรึกษากับ DJAI' else title end,
+        description = case
+          when description = 'Initial DJAI consultation for qualified leads.'
+            then 'พูดคุยเบื้องต้นเกี่ยวกับธุรกิจและบริการที่เหมาะสมกับทีม DJAI'
+          else description
+        end
+      where name = 'Free Consultation'
+        or title in ('DJAI Consultation', 'DJAI Free Consultation')
+        or description = 'Initial DJAI consultation for qualified leads.'
     `,
     tx`
       update booking_links

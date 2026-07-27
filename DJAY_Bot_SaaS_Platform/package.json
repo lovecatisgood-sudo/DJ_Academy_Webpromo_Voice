@@ -10,7 +10,7 @@
     "build": "turbo run build",
     "package:release": "pnpm run lint:market-release-requirements && pnpm run lint:market-release-decisions && pnpm run build && node scripts/package-release.mjs",
     "dev": "turbo run dev --parallel",
-    "lint": "turbo run lint && pnpm run lint:boundaries && pnpm run lint:market-release-requirements && pnpm run lint:market-release-decisions && pnpm run lint:browser-origins && pnpm run lint:auth-cookies && pnpm run lint:runtime-proxies && pnpm run lint:ui-recovery && pnpm run lint:widget-foundation && pnpm run lint:legal-registration && pnpm run lint:production-config && pnpm run lint:onboarding-readiness && pnpm run lint:platform-snapshot && pnpm run lint:verification-continuity && pnpm run lint:auth-continuations && pnpm run lint:password-journeys && pnpm run lint:identity-fields && pnpm run lint:contact-creation && pnpm run lint:voice-deployment-fields && pnpm run lint:website-deployment-fields && pnpm run lint:flowbot-operations-fields && pnpm run lint:flowbot-editor-fields && pnpm run lint:ai-playbook-editor && pnpm run lint:privacy-job-scope && pnpm run lint:inbox-replies && pnpm run lint:channel-health-paths && pnpm run lint:platform-incident-resolution && pnpm run lint:platform-voice-actions",
+    "lint": "turbo run lint && pnpm run lint:boundaries && pnpm run lint:market-release-requirements && pnpm run lint:market-release-decisions && pnpm run lint:browser-origins && pnpm run lint:auth-cookies && pnpm run lint:runtime-proxies && pnpm run lint:ui-recovery && pnpm run lint:widget-foundation && pnpm run lint:legal-registration && pnpm run lint:production-config && pnpm run lint:onboarding-readiness && pnpm run lint:platform-snapshot && pnpm run lint:verification-continuity && pnpm run lint:auth-continuations && pnpm run lint:password-journeys && pnpm run lint:identity-fields && pnpm run lint:contact-creation && pnpm run lint:voice-deployment-fields && pnpm run lint:website-deployment-fields && pnpm run lint:flowbot-operations-fields && pnpm run lint:flowbot-editor-fields && pnpm run lint:ai-playbook-editor && pnpm run lint:privacy-job-scope && pnpm run lint:inbox-replies && pnpm run lint:channel-health-paths && pnpm run lint:platform-incident-resolution && pnpm run lint:platform-voice-actions && pnpm run lint:public-claims && pnpm run lint:thai-first-locale",
     "lint:boundaries": "node scripts/check-boundaries.mjs",
     "lint:market-release-requirements": "node scripts/check-market-release-requirements.mjs",
     "lint:market-release-decisions": "node scripts/check-market-release-decisions.mjs",
@@ -66,7 +66,11 @@
     "gate:sellable-flip": "node scripts/check-sellable-flip-ready.mjs",
     "gate:evidence-wave0": "node scripts/check-sellable-flip-ready.mjs && node scripts/check-market-release-decisions.mjs && node scripts/qa-merchant-first-sku.mjs",
     "gate:evidence-wave1": "node scripts/check-evidence-wave1-prereqs.mjs",
-    "verify": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
+    "verify": "pnpm run check:node && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
+    "lint:public-claims": "node scripts/check-public-claims.mjs",
+    "test:a11y:release": "AXE_REQUIRE=true vitest run tests/a11y",
+    "check:node": "node scripts/check-node-version.mjs",
+    "lint:thai-first-locale": "node scripts/check-thai-first-locale.mjs && node scripts/check-public-site-thai-source.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",

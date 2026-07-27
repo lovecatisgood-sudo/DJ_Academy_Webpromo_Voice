@@ -43,6 +43,29 @@ expect_failure() {
   tail -n 2 /tmp/djay-db-expected-failure.log
 }
 
+# Completeness guard: every integration suite on disk must be invoked by this script.
+#
+# The suite list below is explicit because suites need different role URLs, and that is fine
+# -- but it is exactly the same staleness hazard the migration list had. A newly added
+# `*.integration.test.ts` was simply never run, and nothing reported that: the harness
+# printed a wall of passes and exit 0 while the new suite sat unexecuted. A gate that
+# silently omits the thing you just wrote is worse than no gate.
+#
+# This compares the files on disk against the filenames referenced anywhere in this script,
+# before spending time on containers. Adding a suite without wiring it up now fails here.
+UNREFERENCED=""
+for suite_path in "$ROOT_DIR"/packages/db/src/*.integration.test.ts; do
+  suite_name="$(basename "$suite_path")"
+  if ! grep -q "$suite_name" "$0"; then
+    UNREFERENCED="$UNREFERENCED $suite_name"
+  fi
+done
+if [[ -n "$UNREFERENCED" ]]; then
+  echo "Integration suites exist on disk but are never run by this script:$UNREFERENCED" >&2
+  echo "Add an invocation with the role URLs the suite needs, or delete the file." >&2
+  exit 1
+fi
+
 # Every migration, in numeric order, discovered from disk.
 #
 # This was previously a hardcoded list that silently stopped at 0081, so 0082, 0083 and
@@ -295,6 +318,16 @@ FLOWBOT_DATABASE_URL="postgresql://djay_flowbot_runtime:djay_flowbot_test@127.0.
 WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/social-channel-admission.integration.test.ts
+
+echo "Running 0085 unlimited included-allowance funding integration test."
+FLOWBOT_DATABASE_URL="postgresql://djay_flowbot_runtime:djay_flowbot_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/unlimited-allowance.integration.test.ts
+
+echo "Running 0086 AI Chat social gate parity integration test."
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/ai-social-gate-parity.integration.test.ts
 
 echo "Running AI Chat Premium LINE connection and webhook receipt integration test."
 AI_DATABASE_URL="postgresql://djay_ai_runtime:djay_ai_test@127.0.0.1:${TEST_DB_PORT}/postgres" \

@@ -1,6 +1,6 @@
 # DJAI Voice Agent Current State
 
-Last updated: 2026-07-16
+Last updated: 2026-07-27
 
 ## DJAY Bot SaaS Platform State
 
@@ -767,3 +767,142 @@ export const buildVersion = "voice-behavior-restore-2026-07-14";
   web-only quietly vs. hold for SKU1.1; whether to pull AI Chat Basic forward.
 - This checkpoint is planning/documentation only. No code, schema, deployment,
   charge, or customer activation was created or authorized.
+
+## Launch Readiness Checkpoint - 2026-07-27
+
+Session scope: reviewed `GPTSOL_27JUL_AUDIT.md`, executed the resulting fixes,
+answered counsel's round-2 questions, mapped the 47-document legal package onto
+product work, and made the platform Thai-first.
+
+### Landed and verified
+
+- **Public claims honesty.** Removed "up to 50%", "+50%", "-70%", "Channels 4"
+  from `apps/public-site/app/page.tsx`. Added four availability states;
+  Messenger/Instagram/WhatsApp now read "Not available yet". New
+  `scripts/check-public-claims.mjs` wired into `lint`, proven to catch both a
+  reintroduced percentage and Instagram marked active.
+- **Accessibility gate.** `AXE_REQUIRE=true` (`pnpm test:a11y:release`) makes a
+  missing base URL, missing session or ANY skip a hard failure. Canvas surface
+  added. Previously exited 0 with all 9 tests skipped.
+- **Live PII exposure fixed (root app).** Booking context was signed but not
+  encrypted, putting name/email/phone/LINE in a query string on the live site.
+  Now an opaque 32-byte server-side token, 2h instead of 24h, single-use on the
+  appointment mutation. `/book/*` gets `Referrer-Policy: no-referrer` and
+  `no-store`, verified against a running server.
+- **Migration 0085** — NULL included allowance. Unlimited plans refused every
+  request as `allowance_exhausted`. 6 integration tests.
+- **Migration 0086** — AI Chat social gate parity with FlowBot's 0082. A Starter
+  tenant buying the social add-on was charged then refused. Five SECURITY
+  DEFINER functions recreated from verified-latest sources, each block diffed to
+  prove exactly 4 changed lines. New `tenancy.ai_social_channel_entitled` helper
+  carries a tenant-context guard against cross-tenant probing. 8 tests.
+- **Migration 0087** — Thai-first locale defaults on `identity.users`,
+  `identity.signup_intents`, `tenancy.tenants`, `tenancy.contacts`,
+  `tenancy.billing_notification_preferences`. Defaults only; existing rows are
+  deliberately not rewritten.
+- **Thai-first across code.** Inverted locale fallbacks in all three widgets,
+  the registration contract, `packages/domain`, `packages/db/schema.ts`, the
+  flowbot runtime store and four workspace surfaces. Removed the hardcoded
+  `locale: "en"` from the registration form. New
+  `scripts/check-thai-first-locale.mjs` in `lint` — a hand audit found 6
+  instances, the checker found 11 more.
+- **Retention decision `SKU1-DEC-004`** recorded in
+  `requirements/market-release-decisions.yaml`; 730-day standard maximum
+  enforced at `apps/api/app/tenant/retention-policy/route.ts` (see conflict
+  below).
+- **Deployment blockers.** Stripped 4 shell-quoted values from
+  `DJAY_Bot_SaaS_Platform/.env` (keys and values otherwise proven identical) and
+  added a lint assertion. Added `check:node`, which now fails instead of warning.
+- **Sixth fail-open closed.** `scripts/test-db-integration.sh` enumerated
+  integration suites explicitly, so a newly written suite was silently never
+  run. Added a completeness guard.
+
+### Evidence
+
+- `pnpm test:db` exit 0 — **88 migrations applied, 29 suites** (was 87/27).
+  Run with `TEST_DB_PORT=55445`; another project's container holds 55432.
+- `pnpm run lint` exit 0 including both new checks; `typecheck` 57/57;
+  `test` 57/57; `build` 35/35 — all on vendored Node 24.
+- Both new lint checks proven to exit 1 when their rule is broken, then 0 when
+  restored.
+
+### Documents written
+
+- `docs/plans/2026-07-27-launch-critical-path.md` — the active fix plan; §0
+  verifies each audit finding with file:line, §1 lists what the audit missed.
+- `docs/compliance/counsel-answers-round2.md` — verified answers on plan limits,
+  hosting, subprocessors, retention and closure.
+- `docs/compliance/retention-schedule-sku1.md` — partially superseded; keep for
+  the implementation-gap list.
+- `docs/compliance/legal-package-product-impact.md` — the 47-document legal
+  package mapped onto product work, ordered by dependency.
+
+### Open conflict — blocks all retention text
+
+Counsel's interim advice set a **730-day** message-retention maximum (now
+enforced in code). Five legal-package documents state **30-3,650**, including
+`03` CD-10 marked "current fact" and two end-customer notices (`21` Layer 2,
+`22` §6). Counsel must either restate those four texts or the cap reverts to
+3,650. Backups were also corrected from 35 to **30 days** after production purge.
+
+### Highest-value finding
+
+The platform database is **Neon on AWS `us-east-2` (Ohio, USA)** while the
+Terraform declares `asia-southeast3`. The legal package confirms US disclosure
+is required until an Asian deployment is applied and independently verified, and
+**Neon and AWS must be added to the subprocessor list**.
+
+### Not done
+
+`release:gate` (C2) — blocked because `qa-merchant-first-sku.mjs:54` drops its
+Stripe leg when no mapping exists, and `AXE_REQUIRE` has no session provisioning.
+Price display at the plan-decision point (A3). Root-app H-07/H-09/H-10 and
+M-03/04/05. All of Track B: Thai copy, guided-LINE-only onboarding, editable
+canvas, operations loop. Legal-package work: widget notice, consent subsystem,
+DPA acceptance, bundle content hash, three-domain limit, publication gate,
+retention jobs.
+
+### Blocking on the owner
+
+Counsel sign-off; one named pilot merchant; confirm the price then create the
+Stripe **test** mapping (unblocks four gates); deploy staging on GCP; provision
+the support/privacy/legal/security mailboxes (`privacy@djai.academy` is already
+named in end-customer legal text); name the transactional email provider
+(delivery is provider-agnostic today, Resend is not wired); verify the Meta app
+type; supply or approve Thai copy for the launch slice.
+
+Nothing in this session was committed. No migration was run against any hosted
+database — `test:db` uses a disposable Docker PostgreSQL 16 container.
+
+## Thai-first localization closure — 2026-07-27
+
+This section supersedes older statements in this file that Thai copy or Track B
+localization is not done.
+
+- All three runnable applications are Thai-first: the root Voice Sales Agent,
+  `DJAY_Bot_SaaS_Platform`, and `FlowBot_V1_App`.
+- English is secondary and appears only after an explicit `EN` selection. The
+  choice is persisted and propagated through relevant browser/auth flows.
+- Public pages, admin/workspace surfaces, booking, chat, widgets, validation,
+  API-facing user errors, notification/email copy, seed content, exports,
+  dates, numbers, currency, Thai typography, and accessibility labels were
+  reviewed and localized.
+- Shared terminology and future-maintenance rules are recorded in
+  `docs/THAI_LOCALIZATION.md`.
+- SaaS enforcement lives in `scripts/check-thai-first-locale.mjs`; shared UI
+  localization lives in `packages/shared/src/thai-ui.ts` and
+  `packages/shared/src/browser-locale.ts`.
+- Approved legal Thai text remains an external counsel-controlled artifact.
+  The legal bundle now accepts `translations.th`; Thai legal routes and new
+  registration fail closed if approved Thai text is absent. English legal text
+  is returned only after explicit English selection. Never label an improvised
+  or machine-generated legal translation as approved.
+- Verification passed: root typecheck/source invariants/production build; SaaS
+  lint/typecheck/build/full 57-task test suite and 11 release-requirement tests;
+  shared localization/legal tests 143/143; FlowBot `pnpm verify`; and
+  `git diff --check`.
+- The verification host used Node 22 successfully, but both monorepos require
+  Node 24 for deployment.
+
+The localization engineering goal was marked complete after approximately
+1 hour 2 minutes. No commit or deployment was performed.

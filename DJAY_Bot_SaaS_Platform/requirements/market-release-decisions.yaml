@@ -56,6 +56,22 @@
       "notes": "Platform activatePilot is complimentary access only and must not be booked as paid revenue. Paid SKU1 recognition starts only after verified Stripe invoice/payment webhooks activate entitlement. A tenant must not hold both an active paid FlowBot subscription and a pilot grant counted as revenue for the same period."
     },
     {
+      "id": "SKU1-DEC-004",
+      "title": "Retention periods (counsel-advised)",
+      "status": "accepted",
+      "owner": "Product Owner",
+      "supporting_owners": ["External Counsel", "Platform Engineering", "Security"],
+      "deadline_gate": "Before G6c Privacy close for flowbot_basic",
+      "required_evidence": [
+        "docs/compliance/retention-schedule-sku1.md",
+        "apps/api/app/tenant/retention-policy/route.ts enforces the 730-day standard maximum",
+        "Privacy Notice retention section matches the schedule verbatim"
+      ],
+      "fallback": "State only the enforced message-retention period in the Privacy Notice and omit every category whose sweep is not yet implemented.",
+      "blocker_scope": [],
+      "notes": "Counsel advice 2026-07-27, reconciled against DEEJAI_DJBOT_COMPLETE_LEGAL_PACKAGE the same day. Message retention default 365 days. UNRESOLVED: the interim advice set a 730-day standard merchant maximum (now enforced at the API) but package documents 03 CD-10, 07 s7, 21 Layer 2, 22 s6 and 38 s1 all state 30-3650 as current fact, including two end-customer notices — counsel must either restate those four texts or the cap reverts to 3650. See docs/compliance/legal-package-product-impact.md s0. Contacts and leads 24 months from last activity. Export files 7 days plus physical object purge. Application logs 30 days. Post-cancellation: access to paid term end, then 30-day read-only/reactivation window, then production purge. Backups expire within 30 days of production purge (corrected from 35). Billing and tax 7 years; security and audit 24 months; consent evidence 5 years; suppression 5 years. Contacts/leads sweep, export-object purge and the closure workflow are NOT yet enforced in code; publishing those periods before the jobs exist would make the Privacy Notice false."
+    },
+    {
       "id": "TEL-DEC-001", "title": "Thai telephony and SIP carrier", "status": "blocked",
       "owner": "Product Owner", "supporting_owners": ["Voice Engineering", "Finance", "Security"],
       "deadline_gate": "Before VOICE-03 implementation acceptance",
