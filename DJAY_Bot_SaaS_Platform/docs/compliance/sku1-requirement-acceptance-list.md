@@ -1,6 +1,6 @@
 # SKU1 requirement acceptance list (`flowbot_basic`)
 
-Phase 13 step 5: accept a **subset** of requirements for SKU1 — not all 291.  
+Phase 13 step 5: accept a **subset** of requirements for SKU1 — not all 297.
 Keep `packages[].sellable: false` until G7 flip moment.
 
 ## Proposed acceptance set (operators mark Accepted)

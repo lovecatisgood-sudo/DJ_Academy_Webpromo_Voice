@@ -1,5 +1,6 @@
 import { keyedRequestHash } from "@djay/auth";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getServices } from "./container";
 
 const maxBodyBytes = 16 * 1024;
@@ -42,6 +43,12 @@ type BrowserRealmUrls = Readonly<{
   platformAppUrl: string;
 }>;
 
+const browserRealmEnvSchema = z.object({
+  PUBLIC_APP_URL: z.string().url(),
+  TENANT_APP_URL: z.string().url(),
+  PLATFORM_APP_URL: z.string().url(),
+});
+
 const tenantPublicMutationPaths = new Set([
   "/public/auth/login",
   "/public/auth/logout",
@@ -78,7 +85,7 @@ export function isTrustedBrowserMutationOrigin(
 }
 
 export async function hasTrustedOrigin(request: Request): Promise<boolean> {
-  const { env } = await getServices();
+  const env = browserRealmEnvSchema.parse(process.env);
   return isTrustedBrowserMutationOrigin(
     request.headers.get("origin"),
     new URL(request.url).pathname,

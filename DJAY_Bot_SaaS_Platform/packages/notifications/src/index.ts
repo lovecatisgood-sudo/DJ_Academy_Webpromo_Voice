@@ -1,5 +1,7 @@
 import { openJson } from "@djay/auth";
 import { z } from "zod";
+export { deliveryPolicyFor, notificationDeliveryPolicy, notificationDeliveryPolicyStatus } from "./delivery-policy";
+export type { DeliveryMode, NotificationDeliveryRule } from "./delivery-policy";
 
 export type EmailOutboxItem = Readonly<{
   id: string;

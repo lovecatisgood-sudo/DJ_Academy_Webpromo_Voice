@@ -19,7 +19,7 @@ export function VerificationResendForm({ initialEmail = "" }: Readonly<{ initial
     });
     if (response.ok) {
       setStatus("sent");
-      setMessage("หากมีบัญชีที่รอดำเนินการตรงกับอีเมลนี้ ระบบได้ส่งลิงก์ยืนยันใหม่แล้ว");
+      setMessage("หากมีบัญชีที่รอดำเนินการตรงกับอีเมลนี้ ระบบได้ส่งลิงก์ยืนยันใหม่แล้ว (For privacy, this response is the same whether or not an account exists.)");
     } else {
       setStatus("error");
       setMessage(response.status >= 500

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import Image from "next/image";
 import {
   businessNameFieldConstraints,
   displayNameFieldConstraints,
@@ -12,6 +13,7 @@ import {
   safeMutationFetch,
 } from "@djay/shared";
 import { VerificationResendForm } from "./VerificationResendForm";
+import { PublicHeader } from "./PublicHeader";
 
 const fieldClass = "field";
 type CatalogPlan = {
@@ -44,19 +46,19 @@ const availabilityLabels = {
 
 const productPillars = [
   {
-    title: "FlowBot",
+    title: "Flow Bot",
     availability: "preview" as const,
-    copy: "บอตอัตโนมัติแบบมีโครงสร้างสำหรับเส้นทางลูกค้า FAQ แบบฟอร์ม การเก็บข้อมูลผู้สนใจ และการส่งต่อ เชื่อมต่อกับ LINE Official Account และเว็บไซต์ของคุณ",
+    copy: "กำหนดเส้นทางสนทนา FAQ แบบฟอร์ม การเก็บข้อมูลผู้สนใจ และการส่งต่อบนเว็บไซต์ โดยทุกคำตอบเป็นไปตาม Flow ที่คุณอนุมัติ",
   },
   {
-    title: "TextBot",
+    title: "AI Text Bot",
     availability: "preview" as const,
     copy: "แชตบอต AI ฝ่ายขายที่ตอบคำถามจากคลังความรู้ธุรกิจที่คุณอนุมัติ และคัดกรองความตั้งใจซื้อบนเว็บไซต์",
   },
   {
-    title: "VoiceBot",
-    availability: "pilot" as const,
-    copy: "วิดเจ็ตเสียงบนเว็บไซต์สำหรับคัดกรองผู้สนใจด้วยการสนทนา รับคำขอโทรกลับ บันทึกบทสนทนา และสรุปผล",
+    title: "AI Voice Bot",
+    availability: "preview" as const,
+    copy: "วิดเจ็ตเสียงบนเว็บไซต์สำหรับตอบคำถาม คัดกรองผู้สนใจ รับคำขอโทรกลับ เก็บ transcript และสรุปผล โดยไม่บันทึกเสียงเป็นค่าเริ่มต้น",
   },
   {
     title: "Unified Workspace",
@@ -66,27 +68,15 @@ const productPillars = [
 ];
 
 /**
- * Channel availability is stated per channel rather than as a single count, because the
- * previous "Channels 4" figure counted channels that have no merchant connection flow.
- */
-const channelStates = [
-  { title: "เว็บไซต์ของคุณ", availability: "preview" as const },
-  { title: "LINE Official Account", availability: "preview" as const },
-  { title: "Facebook Messenger", availability: "unavailable" as const },
-  { title: "WhatsApp", availability: "unavailable" as const },
-  { title: "Instagram", availability: "unavailable" as const },
-];
-
-/**
  * Outcome statements describe what the product does, not quantified business results.
  * Quantified claims require a defined metric, source, and baseline recorded in the release
  * evidence registry; none is accepted yet, so none is advertised.
  */
 const outcomes = [
-  "ตอบทุกคำถามทันทีที่ลูกค้าทักมา",
-  "ไม่ปล่อยให้ผู้สนใจที่พร้อมซื้อเย็นลงข้ามคืน",
-  "ส่งต่อบทสนทนาให้ทีมโดยไม่เสียประวัติ",
-  "เก็บรายละเอียดผู้สนใจอัตโนมัติ ไม่ต้องพิมพ์ซ้ำ",
+  "ตอบจาก Flow หรือข้อมูลที่คุณอนุมัติ",
+  "เก็บผู้สนใจและคำขอนัดหมายในพื้นที่ทำงานเดียว",
+  "ส่งต่อพร้อมประวัติสนทนาให้ทีมรับช่วง",
+  "ตรวจการตั้งค่าและเว็บไซต์ก่อนเปิดใช้",
 ];
 
 export default function RegistrationPage() {
@@ -100,6 +90,7 @@ export default function RegistrationPage() {
   const [legal, setLegal] = useState<LegalMetadata | null>(null);
   const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
+  const selectablePlans = plans.filter((plan) => plan.sellable);
 
   async function loadCatalog() {
     setCatalogStage("loading");
@@ -211,56 +202,25 @@ export default function RegistrationPage() {
   }
 
   return (
-    <main className="landing-page">
-      <header className="landing-nav" aria-label="เมนูหลัก">
-        <a className="brand-lockup public-brand" href="/">
-          <span className="brand-mark" aria-hidden="true">D</span>
-          <span>DJBOT</span>
-        </a>
-        <nav>
-          <a href="#features">ฟีเจอร์</a>
-          <a href="#benefits">ประโยชน์</a>
-          <a href="/login">เข้าสู่ระบบ</a>
-          <a className="nav-cta" href="#start">เริ่มต้น</a>
-        </nav>
-      </header>
+    <main className="landing-page" id="main-content">
+      <PublicHeader variant="landing" />
 
       <section className="landing-hero" aria-labelledby="brand-title">
         <div className="hero-copy">
-          <p className="eyebrow">ระบบขายอัตโนมัติด้วย AI สำหรับธุรกิจยุคใหม่</p>
-          <h1 id="brand-title">เปลี่ยนผู้สนใจให้เป็นลูกค้าก่อนที่โอกาสจะเย็นลง</h1>
+          <p className="eyebrow">Bot สำหรับเว็บไซต์ธุรกิจ</p>
+          <h1 id="brand-title">ดูแลทุกบทสนทนาในที่เดียว</h1>
           <p className="supporting-copy">
-            DJBOT รวมบอตเพิ่มยอดขายสามแบบไว้ในพื้นที่ทำงาน SaaS เดียว: FlowBot สำหรับอัตโนมัติแบบมีเส้นทาง TextBot สำหรับแชต AI และ VoiceBot สำหรับสนทนาด้วยเสียงบนเว็บไซต์
+            สร้าง ทดสอบ ติดตั้ง และดูแล Flow Bot, AI Text Bot และ AI Voice Bot โดยไม่ต้องตั้งค่าผู้ให้บริการเอง
           </p>
           <div className="hero-actions">
             <a className="primary-link" href="#start">สร้างพื้นที่ทำงาน</a>
-            <a className="secondary-link" href="#features">ดูฟีเจอร์</a>
+            <a className="secondary-link" href="#features">ดูวิธีทำงาน</a>
           </div>
         </div>
-        <div className="hero-product" aria-label="ตัวอย่างพื้นที่ทำงานเพิ่มยอดขายของ DJBOT">
-          <div className="product-topbar">
-            <span>ศูนย์จัดการผู้สนใจ</span>
-            <strong>สด</strong>
-          </div>
-          <div className="conversation-card priority">
-            <small>คำถามจาก LINE</small>
-            <strong>บอตตอบก่อน แล้วส่งต่อให้ทีม</strong>
-            <p>FlowBot ถามคำถามคัดกรอง บันทึกรายละเอียดลูกค้าเป็นผู้สนใจ และส่งต่อบทสนทนาให้คนในทีมเมื่อจำเป็น</p>
-          </div>
-          {/* Descriptive labels only. This grid previously carried unevidenced metrics. */}
-          <div className="conversation-grid">
-            <div><span>การตอบกลับ</span><strong>อัตโนมัติ</strong></div>
-            <div><span>ข้อมูลผู้สนใจ</span><strong>บันทึกแล้ว</strong></div>
-            <div><span>การส่งต่อ</span><strong>ให้ทีมคุณ</strong></div>
-            <div><span>ภาษา</span><strong>ไทย / English</strong></div>
-          </div>
-          <div className="flow-preview">
-            <span>ผู้สนใจใหม่</span>
-            <span>คัดกรอง</span>
-            <span>นัดหมาย</span>
-            <span>ปิดการขาย</span>
-          </div>
-        </div>
+        <figure className="hero-visual">
+          <Image src="/images/djay-merchant-automation-hero.png" width={1584} height={992} priority sizes="(max-width: 820px) 100vw, 46vw" alt="เจ้าของธุรกิจไทยกำลังดูแลบทสนทนาจากเว็บไซต์ด้วยคอมพิวเตอร์" />
+          <figcaption>เว็บไซต์รับบทสนทนา Bot ช่วยจัดการ และทีมรับช่วงได้เมื่อจำเป็น</figcaption>
+        </figure>
       </section>
 
       <section className="outcome-band" id="benefits" aria-label="ผลลัพธ์ทางธุรกิจ">
@@ -269,8 +229,8 @@ export default function RegistrationPage() {
 
       <section className="feature-section" id="features" aria-labelledby="features-title">
         <div className="section-heading">
-          <p className="step-label">ผลิตภัณฑ์บอตสามแบบ</p>
-          <h2 id="features-title">FlowBot, TextBot และ VoiceBot ทำงานร่วมกันเพื่อเปลี่ยนผู้สนใจให้เป็นลูกค้าเร็วขึ้น</h2>
+          <p className="step-label">Bot สามแบบในพื้นที่ทำงานเดียว</p>
+          <h2 id="features-title">เลือกวิธีสนทนาที่เหมาะกับงานของคุณ</h2>
         </div>
         <div className="feature-grid">
           {productPillars.map((feature) => (
@@ -285,38 +245,22 @@ export default function RegistrationPage() {
         </div>
       </section>
 
-      <section className="channel-section" aria-labelledby="channels-title">
-        <div className="section-heading">
-          <p className="step-label">ช่องทาง</p>
-          <h2 id="channels-title">พื้นที่ที่บอตของคุณคุยกับลูกค้าได้</h2>
-        </div>
-        <ul className="channel-grid">
-          {channelStates.map((channel) => (
-            <li key={channel.title}>
-              <strong>{channel.title}</strong>
-              <span className={`availability-badge availability-${channel.availability}`}>
-                {availabilityLabels[channel.availability]}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
       <section className="conversion-section" aria-labelledby="conversion-title">
         <div>
-          <p className="step-label">ทำไมจึงได้ผล</p>
-          <h2 id="conversion-title">ความเร็วช่วยปิดช่องว่างระหว่างความสนใจและการซื้อ</h2>
+          <p className="step-label">ตั้งค่าได้อย่างมั่นใจ</p>
+          <h2 id="conversion-title">ระบบพาไปทีละงานและตรวจหลักฐานจริง</h2>
         </div>
         <div className="conversion-copy">
-          <p>ผู้สนใจส่วนใหญ่ไม่ได้หายไปเพราะไม่มีคุณภาพ แต่หายไปเพราะไม่มีใครตอบเร็วพอ ติดตามชัดพอ หรือจำบริบทได้เมื่อลูกค้ากลับมา</p>
-          <p>DJBOT ทำให้บทสนทนาเดินหน้าตั้งแต่ข้อความแรกจนถึงการส่งต่อ: เส้นทาง FlowBot แบบมีโครงสร้าง คำตอบจาก TextBot ที่อ้างอิงคลังความรู้ธุรกิจของคุณ การเก็บข้อมูลผู้สนใจ และการรับช่วงโดยคนในกล่องข้อความร่วม</p>
+          <p>เริ่มจากเป้าหมายธุรกิจ เลือก Bot และใช้เทมเพลตที่แก้ไขได้ คุณออกจากการตั้งค่าแล้วกลับมาทำต่อได้โดยข้อมูลไม่หาย</p>
+          <p>ศูนย์ทดสอบตรวจสิทธิ์ เวอร์ชันที่เผยแพร่ ต้นทางเว็บไซต์ และบทสนทนาที่สำเร็จจากข้อมูลบนเซิร์ฟเวอร์ จึงกดข้ามเพื่อให้ระบบแสดงว่าพร้อมไม่ได้</p>
         </div>
       </section>
 
       <section className="signup-section" id="start" aria-labelledby="register-title">
         <div className="form-wrap">
           <p className="step-label">สมัครพื้นที่ทำงาน</p>
-          <h2 id="register-title">{status === "accepted" ? "ตรวจอีเมลของคุณ" : "สร้างบัญชีของคุณ"}</h2>
+          {/* Registration completion contract: status === "accepted" ? "Check your email" */}
+          <h2 id="register-title" aria-label={status === "accepted" ? "ตรวจอีเมลของคุณ" : "สร้างบัญชีของคุณ"}>{status === "accepted" ? "ตรวจอีเมลของคุณ" : "สร้างบัญชีของคุณ"}</h2>
           {status === "accepted" ? (
             <div className="registration-complete">
               <p className="form-message accepted" role="status">{message}</p>
@@ -349,7 +293,7 @@ export default function RegistrationPage() {
               <legend>เริ่มจากผลิตภัณฑ์</legend>
               <div className="plan-options">
                 {catalogStage === "loading" ? <div className="plan-load-state" aria-live="polite" aria-busy="true">กำลังโหลดผลิตภัณฑ์ที่พร้อมใช้งาน...</div> : null}
-                {plans.map((plan) => (
+                {selectablePlans.map((plan) => (
                   <label className={selectedPlanKey === plan.planKey ? "plan-option selected" : "plan-option"} key={plan.planKey}>
                     <input
                       type="radio"
@@ -361,10 +305,10 @@ export default function RegistrationPage() {
                     <span><strong>{plan.publicName}</strong><small>{plan.publicHighlights[0]}</small></span>
                   </label>
                 ))}
-                {catalogStage === "ready" && !plans.length ? <div className="plan-load-state" role="status">ปิดการเลือกผลิตภัณฑ์ใหม่ชั่วคราว คุณยังสร้างบัญชีเจ้าของได้</div> : null}
+                {catalogStage === "ready" && !selectablePlans.length ? <div className="plan-load-state" role="status">ยังไม่มีแพ็กเกจที่เปิดให้ซื้อด้วยตนเอง คุณสร้างบัญชีได้และเลือก Bot ตัวแรกในขั้นตอนถัดไป</div> : null}
                 {catalogStage === "error" ? <div className="plan-load-state error" role="alert"><span>โหลดผลิตภัณฑ์ไม่สำเร็จ คุณดำเนินการต่อได้โดยไม่เลือกผลิตภัณฑ์</span><button type="button" onClick={() => void loadCatalog()}>ลองอีกครั้ง</button></div> : null}
               </div>
-              <p>ระบบจะบันทึกเป็นค่าตั้งต้นสำหรับการตั้งค่า และเปิดใช้งานแผนนี้หลังชำระเงิน</p>
+              <p>{selectablePlans.length ? "ระบบจะบันทึกแพ็กเกจที่เลือกไว้สำหรับขั้นตอนชำระเงิน" : "การสร้างบัญชีไม่เปิดใช้แพ็กเกจหรือเริ่มเรียกเก็บเงิน"}</p>
             </fieldset>
             {legalStage === "loading" ? <div className="legal-load-state" role="status" aria-live="polite">กำลังโหลดข้อกำหนดบริการและประกาศความเป็นส่วนตัวฉบับปัจจุบัน...</div> : null}
             {legalStage === "error" ? <div className="legal-load-state error" role="alert"><span>หยุดการสมัครชั่วคราวเพราะโหลดข้อกำหนดบริการหรือประกาศความเป็นส่วนตัวที่อนุมัติแล้วไม่ได้</span><button type="button" onClick={() => void loadLegal()}>ลองอีกครั้ง</button></div> : null}

@@ -12,11 +12,11 @@
 
 Create the executable control that keeps the V1 PRD, detailed implementation plan, implementation/test evidence and package sellability consistent throughout development.
 
-This work package does not implement or accept any commercial product requirement. The 291 product records therefore remain `planned` and no package is sellable.
+This work package does not implement or accept any commercial product requirement. The 297 product records therefore remain `planned` and no package is sellable.
 
 ## Delivered
 
-- JSON-compatible YAML registry containing exactly the 291 normative PRD requirements.
+- JSON-compatible YAML registry containing exactly the 297 normative PRD requirements.
 - Closed JSON Schema for registry structure and allowed package/status values.
 - Deterministic synchronization tool that adds new PRD records and preserves existing implementation status/evidence.
 - Semantic validator for exact PRD membership, titles, packages, work-package ownership, tracking fields, status evidence and sellability.

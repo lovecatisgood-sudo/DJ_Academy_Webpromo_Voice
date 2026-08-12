@@ -4,6 +4,7 @@
   --djay-forest-900: #173f35;
   --djay-green-700: #126149;
   --djay-green-800: #0d4d3a;
+  --djay-green-900: #083b2d;
   --djay-green-100: #dceee7;
   --djay-accent: #f2c14e;
   --djay-canvas: #f4f6f5;
@@ -16,6 +17,7 @@
   --djay-warning-soft: #fff8e6;
   --djay-focus: #79c9ae;
   --djay-radius-control: 6px;
+  --djay-radius-panel: 12px;
 }
 
 html { scroll-behavior: smooth; }

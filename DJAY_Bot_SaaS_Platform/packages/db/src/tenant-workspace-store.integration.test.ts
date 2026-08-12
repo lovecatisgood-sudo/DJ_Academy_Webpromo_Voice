@@ -53,6 +53,31 @@ describe.runIf(enabled)("tenant workspace repository", () => {
     await expect(store.getOnboarding(tenantA)).resolves.toMatchObject({ stage: "business_profile" });
     await expect(store.getOnboarding(tenantB)).resolves.toMatchObject({ stage: "business_profile" });
 
+    await expect(store.updateOnboardingPreferences(tenantA, {
+      businessGoal: "capture_leads",
+      industry: "services",
+      firstProduct: "ai_chat",
+    })).resolves.toMatchObject({
+      status: "updated",
+      onboarding: {
+        preferences: {
+          businessGoal: "capture_leads",
+          industry: "services",
+          firstProduct: "ai_chat",
+          launchChannel: "website",
+          complete: true,
+        },
+        readiness: {
+          productSelected: false,
+          productStates: [{ productKey: "ai_chat", activeAccess: false, nextAction: "activate" }],
+        },
+      },
+    });
+    await expect(store.getOnboarding(tenantB)).resolves.toMatchObject({
+      preferences: { firstProduct: null, launchChannel: null, complete: false },
+      readiness: { productStates: [] },
+    });
+
     const teamA = await store.getTeamOverview(tenantA);
     const teamB = await store.getTeamOverview(tenantB);
     expect(teamA.members).toHaveLength(2);

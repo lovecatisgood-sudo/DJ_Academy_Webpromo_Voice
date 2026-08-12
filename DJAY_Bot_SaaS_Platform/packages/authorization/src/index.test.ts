@@ -82,4 +82,21 @@ describe("authorization policy", () => {
   it("covers every declared permission in the owner sets", () => {
     expect(platformPermissions.every((permission) => platformRoleAllows("platform_owner", permission))).toBe(true);
   });
+
+  it("lets every tenant role request help while reserving the support queue for support staff", () => {
+    for (const role of [
+      "tenant_master_admin", "tenant_admin", "tenant_operator", "tenant_conversation_manager",
+      "tenant_human_agent", "tenant_analyst", "tenant_billing_manager", "tenant_readonly_support",
+    ] as const) {
+      expect(tenantRoleAllows(role, "support.read")).toBe(true);
+      expect(tenantRoleAllows(role, "support.write")).toBe(true);
+    }
+    expect(platformRoleAllows("platform_support", "platform.support_tickets.read")).toBe(true);
+    expect(platformRoleAllows("platform_support", "platform.support_tickets.manage")).toBe(true);
+    expect(platformRoleAllows("platform_finance", "platform.support_tickets.read")).toBe(false);
+    expect(platformRoleAllows("platform_owner", "platform.incidents.manage")).toBe(true);
+    expect(platformRoleAllows("platform_ai_operations", "platform.incidents.manage")).toBe(true);
+    expect(platformRoleAllows("platform_support", "platform.incidents.manage")).toBe(true);
+    expect(platformRoleAllows("platform_finance", "platform.incidents.read")).toBe(false);
+  });
 });

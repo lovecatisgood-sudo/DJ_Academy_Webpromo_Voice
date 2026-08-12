@@ -6,6 +6,20 @@ import { withPlatformTransaction, withTenantTransaction } from "./scoped-transac
 
 export class TenantVoiceTelephonyStore {
   constructor(private readonly client: DatabaseClient) {}
+  async calendarOverview(context: TenantContext) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const authority = await sql<{ advanced: boolean }[]>`SELECT EXISTS(SELECT 1 FROM tenancy.entitlement_snapshots snapshot
+        JOIN tenancy.product_subscriptions subscription ON subscription.tenant_id = snapshot.tenant_id AND subscription.id = snapshot.subscription_id
+        WHERE snapshot.tenant_id = ${context.tenantId}::uuid AND snapshot.product_key = 'voice' AND snapshot.access_mode = 'active'
+          AND subscription.status IN ('active','trialing','scheduled_change')
+          AND snapshot.resolved_json->'entitlements'->>'voice.capability_profile' = 'voice_gen2') AS advanced`;
+      const profiles = await sql<{ id: string; name: string; providerKind: string; status: string; createdAt: Date }[]>`
+        SELECT id, name, provider_kind AS "providerKind", status, created_at AS "createdAt"
+        FROM tenancy.voice_scheduling_profiles WHERE tenant_id = ${context.tenantId}::uuid
+        ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END, created_at DESC, id DESC`;
+      return { advanced: authority[0]?.advanced === true, profiles };
+    });
+  }
   async overview(context: TenantContext) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await sql<{ advanced: boolean }[]>`SELECT EXISTS(SELECT 1 FROM tenancy.entitlement_snapshots snapshot
@@ -51,9 +65,31 @@ export class TenantVoiceTelephonyStore {
           AND snapshot.resolved_json->'entitlements'->>'voice.capability_profile' = 'voice_gen2') AS entitled`;
       if (!authority[0]?.entitled) return { status: "not_entitled" as const };
       const id = randomUUID();
+      await sql`UPDATE tenancy.voice_scheduling_profiles SET status = 'disabled', updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND status = 'active'`;
       await sql`INSERT INTO tenancy.voice_scheduling_profiles (id, tenant_id, name, provider_kind, config_ciphertext, created_by_membership_id)
         VALUES (${id}::uuid, ${context.tenantId}::uuid, ${input.name}, ${input.providerKind}, ${sealJson(input.config, input.envelopeKey)}, ${context.membershipId}::uuid)`;
+      await sql`INSERT INTO tenancy.audit_logs (tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id, request_id, result, metadata)
+        VALUES (${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid, 'appointment_calendar.connected',
+          'voice_scheduling_profile', ${id}, ${context.requestId}, 'succeeded', ${sql.json({ providerKind: input.providerKind })})`;
       return { status: "created" as const, schedulingProfileId: id };
+    });
+  }
+
+  async setSchedulingProfileStatus(context: TenantContext, profileId: string, status: "active" | "disabled") {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const current = await sql<{ status: string }[]>`SELECT status FROM tenancy.voice_scheduling_profiles
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${profileId}::uuid FOR UPDATE`;
+      if (!current[0] || current[0].status === "revoked") return { status: "not_found" as const };
+      if (current[0].status === status) return { status: "accepted" as const, replayed: true as const };
+      if (status === "active") await sql`UPDATE tenancy.voice_scheduling_profiles SET status = 'disabled', updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND status = 'active'`;
+      await sql`UPDATE tenancy.voice_scheduling_profiles SET status = ${status}, updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${profileId}::uuid`;
+      await sql`INSERT INTO tenancy.audit_logs (tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id, request_id, result, metadata)
+        VALUES (${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid, 'appointment_calendar.status_changed',
+          'voice_scheduling_profile', ${profileId}, ${context.requestId}, 'succeeded', ${sql.json({ from: current[0].status, to: status })})`;
+      return { status: "accepted" as const, replayed: false as const };
     });
   }
 }

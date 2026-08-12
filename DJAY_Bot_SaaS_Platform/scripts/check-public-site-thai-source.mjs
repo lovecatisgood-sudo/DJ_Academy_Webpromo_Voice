@@ -14,8 +14,11 @@ const allowedEnglishPhrases = new Set([
   "WhatsApp",
   "Instagram",
   "FlowBot",
+  "Flow Bot",
   "TextBot",
+  "AI Text Bot",
   "VoiceBot",
+  "AI Voice Bot",
   "Unified Workspace",
   "Thai / English",
 ]);

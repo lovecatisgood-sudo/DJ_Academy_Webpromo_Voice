@@ -19,14 +19,26 @@ docker run --rm --detach \
 
 echo "Started PostgreSQL 16 test container."
 
-for _ in $(seq 1 60); do
+POSTGRES_READY=false
+READY_STREAK=0
+for _ in $(seq 1 240); do
   if docker exec "$CONTAINER" pg_isready -U postgres >/dev/null 2>&1; then
-    break
+    READY_STREAK=$((READY_STREAK + 1))
+    if (( READY_STREAK >= 3 )); then
+      POSTGRES_READY=true
+      break
+    fi
+  else
+    READY_STREAK=0
   fi
   sleep 0.25
 done
 
-docker exec "$CONTAINER" pg_isready -U postgres >/dev/null
+if [[ "$POSTGRES_READY" != "true" ]]; then
+  echo "PostgreSQL did not become ready within 60 seconds. Container diagnostics:" >&2
+  docker logs --tail 80 "$CONTAINER" >&2 || true
+  exit 1
+fi
 echo "PostgreSQL is ready."
 
 run_sql() {
@@ -161,12 +173,51 @@ if [[ "${P9_RESILIENCE_ONLY:-false}" == "true" ]]; then
   exit 0
 fi
 
+if [[ "${APPOINTMENT_SYNC_ONLY:-false}" == "true" ]]; then
+  echo "Running focused provider-confirmed appointment calendar reconciliation test."
+  TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+    "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/appointment-sync-store.integration.test.ts
+  echo "Focused appointment calendar reconciliation passed."
+  exit 0
+fi
+
 run_sql /workspace/packages/db/tests/seed.sql
 run_sql /workspace/packages/db/tests/rls-isolation.sql
 expect_failure /workspace/packages/db/tests/cross-tenant-insert-must-fail.sql
 expect_failure /workspace/packages/db/tests/cross-tenant-reference-must-fail.sql
 expect_failure /workspace/packages/db/tests/last-owner-must-fail.sql
 run_sql /workspace/packages/db/tests/owner-transfer.sql
+
+if [[ "${PLATFORM_SUPPORT_ONLY:-false}" == "true" ]]; then
+  echo "Preparing platform identity for focused Tenant 360 and incident operations tests."
+  PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+    "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/platform-auth-store.integration.test.ts
+  echo "Running focused Tenant 360, incident operations, and support-access integration tests."
+  PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+    "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/platform-support-store.integration.test.ts
+  echo "Focused platform support and tenant incident operations passed."
+  exit 0
+fi
+
+if [[ "${SUPPORT_ONLY:-false}" == "true" ]]; then
+  echo "Preparing platform owner for focused support attachment test."
+  PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+    "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/platform-auth-store.integration.test.ts
+  echo "Running focused tenant-isolated support attachment test."
+  PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+    "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/support-ticket-store.integration.test.ts
+  echo "Focused support attachment lifecycle passed."
+  exit 0
+fi
 
 if [[ "${SHARED_OPS_ONLY:-false}" == "true" ]]; then
   echo "Preparing focused shared SaaS platform owner."
@@ -276,8 +327,16 @@ ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/po
 echo "Running two-person platform support access integration test."
 PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
 TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/platform-support-store.integration.test.ts
+
+echo "Running tenant-isolated merchant support ticket lifecycle integration test."
+PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/support-ticket-store.integration.test.ts
 
 echo "Running reviewed dead-letter recovery integration test."
 PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
@@ -349,11 +408,32 @@ WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/voice-runtime-store.integration.test.ts
 
+echo "Running unified customer callback queue and immutable history integration test."
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/customer-callback-operations.integration.test.ts
+
 echo "Running tenant Voice Basic deployment operations integration test."
 VOICE_DATABASE_URL="postgresql://djay_voice_runtime:djay_voice_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
 TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/voice-deployment-store.integration.test.ts
+
+echo "Running immutable current-version bot regression evidence integration test."
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/bot-regression-store.integration.test.ts
+
+echo "Running unified tenant notification center integration test."
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/tenant-notification-center.integration.test.ts
+
+echo "Running provider-confirmed appointment calendar reconciliation integration test."
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/appointment-sync-store.integration.test.ts
 
 echo "Rehearsing restartable Voice/Text legacy migration and guarded rollback."
 docker exec "$CONTAINER" createdb -U postgres legacy_voice_text

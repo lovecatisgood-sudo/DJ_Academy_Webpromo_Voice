@@ -91,7 +91,8 @@ for (const [page, product] of [
   }
 }
 const aiPage = readFileSync(resolve(root, "apps/tenant-web/app/workspace/ai-chat/page.tsx"), "utf8");
-if (!aiPage.includes("createSocialCallbackUrl(")) failures.push("AI Chat page bypasses the shared social callback generator");
+const socialSetupExposed = aiPage.includes("social-connections");
+if (socialSetupExposed && !aiPage.includes("createSocialCallbackUrl(")) failures.push("AI Chat page bypasses the shared social callback generator");
 
 const releaseSource = readFileSync(resolve(root, "scripts/package-release.mjs"), "utf8");
 const releaseQaSource = readFileSync(resolve(root, "scripts/qa-release-artifacts.mjs"), "utf8");

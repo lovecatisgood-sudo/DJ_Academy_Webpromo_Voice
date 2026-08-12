@@ -152,7 +152,7 @@ export default function ConnectLinePage() {
             <p>{copy.confirmBody}</p>
             <div className="data-row">
               {preview.pictureUrl ? <img src={preview.pictureUrl} alt="" width={64} height={64} /> : null}
-              <div><strong>{preview.displayName}</strong><span>{preview.basicId}</span></div>
+              <div><strong data-no-localize>{preview.displayName}</strong><span data-no-localize>{preview.basicId}</span></div>
             </div>
             <button type="button" disabled={working || !botId || name.trim().length < 2} onClick={() => void connect()}>
               {working ? copy.connecting : copy.confirm}

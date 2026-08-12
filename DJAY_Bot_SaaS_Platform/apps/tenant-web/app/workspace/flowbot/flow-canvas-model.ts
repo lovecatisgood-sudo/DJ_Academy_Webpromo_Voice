@@ -29,11 +29,11 @@ export type FlowCanvasNode = Readonly<{
   warnings: readonly FlowCanvasWarningCode[];
   position: Readonly<{ x: number; y: number }>;
 }>;
-export type FlowCanvasEdge = Readonly<{ id: string; source: string; target: string; kind: FlowEdgeKind; label: string }>;
+export type FlowCanvasEdge = Readonly<{ id: string; source: string; target: string; kind: FlowEdgeKind; edgeIndex: number; label: string }>;
 export type FlowCanvasWarning = Readonly<{ code: FlowCanvasWarningCode; nodeId: string; nodeTitle: string; label: string; detail: string }>;
 export type FlowCanvasModel = Readonly<{ nodes: readonly FlowCanvasNode[]; edges: readonly FlowCanvasEdge[]; warnings: readonly FlowCanvasWarning[] }>;
 
-type LooseGraph = Readonly<{ rootNodeId?: unknown; nodes?: unknown; keywords?: unknown }>;
+type LooseGraph = Readonly<{ rootNodeId?: unknown; nodes?: unknown; keywords?: unknown; editor?: unknown }>;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const isWarningCode = (code: string): code is FlowCanvasWarningCode => (warningCodes as readonly string[]).includes(code);
@@ -78,7 +78,7 @@ export function buildFlowCanvasModel(definition: unknown, locale: OnboardingLoca
   for (const [id, node] of nodes) {
     flowNodeEdges(node).forEach((item, index) => {
       if (!nodes.has(item.targetNodeId)) return; // A dangling target is a publish blocker, not a drawable edge.
-      edges.push({ id: `${id}:${item.kind}:${index}`, source: id, target: item.targetNodeId, kind: item.kind, label: edgeLabel(item.kind, item.label) });
+      edges.push({ id: `${id}:${item.kind}:${index}`, source: id, target: item.targetNodeId, kind: item.kind, edgeIndex: index, label: edgeLabel(item.kind, item.label) });
     });
   }
 
@@ -98,7 +98,7 @@ export function buildFlowCanvasModel(definition: unknown, locale: OnboardingLoca
     warnings.push({ code: advisory.code, nodeId: advisory.nodeId, nodeTitle: title, label: copy[advisory.code], detail: copy[`${advisory.code}_detail` as FlowCanvasCopyKey] });
   }
 
-  const positions = layoutPositions([...nodes.keys()], edges);
+  const positions = layoutPositions([...nodes.keys()], edges, graph.editor);
   const canvasNodes = [...nodes].map(([id, node]) => {
     const label = typeLabel(node.type);
     return {
@@ -121,8 +121,9 @@ export function buildFlowCanvasModel(definition: unknown, locale: OnboardingLoca
  * with stacked sibling nodes. Returned positions are top-left corners for React Flow; dagre reports
  * node centres.
  */
-function layoutPositions(nodeIds: readonly string[], edges: readonly FlowCanvasEdge[]): ReadonlyMap<string, { x: number; y: number }> {
+function layoutPositions(nodeIds: readonly string[], edges: readonly FlowCanvasEdge[], editor: unknown): ReadonlyMap<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
+  const storedPositions = isRecord(editor) && isRecord(editor.positions) ? editor.positions : {};
   const layout = new dagre.graphlib.Graph({ directed: true, multigraph: true });
   layout.setGraph({ ...layoutOptions });
   layout.setDefaultEdgeLabel(() => ({}));
@@ -139,7 +140,76 @@ function layoutPositions(nodeIds: readonly string[], edges: readonly FlowCanvasE
     const placed = layout.node(id);
     const x = typeof placed?.x === "number" ? placed.x - flowCanvasNodeSize.width / 2 : 0;
     const y = typeof placed?.y === "number" ? placed.y - flowCanvasNodeSize.height / 2 : index * (flowCanvasNodeSize.height + layoutOptions.nodesep);
-    positions.set(id, { x, y });
+    const stored = storedPositions[id];
+    positions.set(id, isRecord(stored) && typeof stored.x === "number" && Number.isFinite(stored.x)
+      && typeof stored.y === "number" && Number.isFinite(stored.y) ? { x: stored.x, y: stored.y } : { x, y });
   });
   return positions;
+}
+
+export function moveFlowCanvasNode(definition: unknown, nodeId: string, position: Readonly<{ x: number; y: number }>): Record<string, unknown> | null {
+  if (!isRecord(definition) || !isRecord(definition.nodes) || !isRecord(definition.nodes[nodeId])) return null;
+  if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return null;
+  const existingEditor = isRecord(definition.editor) ? definition.editor : {};
+  const existingPositions = isRecord(existingEditor.positions) ? existingEditor.positions : {};
+  return { ...definition, editor: { ...existingEditor, positions: { ...existingPositions, [nodeId]: { x: position.x, y: position.y } } } };
+}
+
+export function retargetFlowCanvasEdge(definition: unknown, edge: Pick<FlowCanvasEdge, "source" | "kind" | "edgeIndex">, targetNodeId: string): Record<string, unknown> | null {
+  if (!isRecord(definition) || !isRecord(definition.nodes) || !isRecord(definition.nodes[targetNodeId])) return null;
+  const sourceNode = definition.nodes[edge.source];
+  if (!isRecord(sourceNode)) return null;
+  let updated: Record<string, unknown> | null = null;
+  if (edge.kind === "option" && Array.isArray(sourceNode.options)) {
+    const options = sourceNode.options.map((option, index) => index === edge.edgeIndex && isRecord(option) ? { ...option, targetNodeId } : option);
+    if (options[edge.edgeIndex] !== sourceNode.options[edge.edgeIndex]) updated = { ...sourceNode, options };
+  } else if (edge.kind !== "option") {
+    const field = ({ next: "nextNodeId", true: "trueNodeId", false: "falseNodeId", open: "openNodeId", closed: "closedNodeId", failure: "failureNodeId", jump: "targetNodeId", subflow_return: "returnNodeId" } as const)[edge.kind];
+    if (field && field in sourceNode) updated = { ...sourceNode, [field]: targetNodeId };
+  }
+  return updated ? { ...definition, nodes: { ...definition.nodes, [edge.source]: updated } } : null;
+}
+
+export function connectFlowCanvasNodes(definition: unknown, sourceNodeId: string, targetNodeId: string): Record<string, unknown> | null {
+  if (!isRecord(definition) || !isRecord(definition.nodes) || !isRecord(definition.nodes[targetNodeId])) return null;
+  const sourceNode = definition.nodes[sourceNodeId];
+  if (!isRecord(sourceNode) || typeof sourceNode.type !== "string") return null;
+  const optionalNextTypes = new Set(["message", "media_reference", "product_card", "carousel", "actions", "form"]);
+  let field: "nextNodeId" | "returnNodeId" | null = null;
+  if (optionalNextTypes.has(sourceNode.type) && sourceNode.nextNodeId === null) field = "nextNodeId";
+  if (sourceNode.type === "subflow" && sourceNode.returnNodeId === null) field = "returnNodeId";
+  if (!field) return null;
+  return { ...definition, nodes: { ...definition.nodes, [sourceNodeId]: { ...sourceNode, [field]: targetNodeId } } };
+}
+
+export function addFlowCanvasMessage(definition: unknown, nodeId: string, position: Readonly<{ x: number; y: number }>, title: string): Record<string, unknown> | null {
+  if (!isRecord(definition) || !isRecord(definition.nodes) || definition.nodes[nodeId] || !Number.isFinite(position.x) || !Number.isFinite(position.y)) return null;
+  const withNode = { ...definition, nodes: { ...definition.nodes, [nodeId]: { id: nodeId, type: "message", title, content: { th: "ข้อความใหม่", en: "New message" }, nextNodeId: null } } };
+  return moveFlowCanvasNode(withNode, nodeId, position);
+}
+
+export function duplicateFlowCanvasNode(definition: unknown, sourceNodeId: string, newNodeId: string): Record<string, unknown> | null {
+  if (!isRecord(definition) || !isRecord(definition.nodes) || definition.nodes[newNodeId]) return null;
+  const sourceNode = definition.nodes[sourceNodeId];
+  if (!isRecord(sourceNode)) return null;
+  const sourceTitle = typeof sourceNode.title === "string" ? sourceNode.title : "Node";
+  const withNode = { ...definition, nodes: { ...definition.nodes, [newNodeId]: { ...sourceNode, id: newNodeId, title: `${sourceTitle} copy` } } };
+  const model = buildFlowCanvasModel(definition, "th");
+  const sourcePosition = model.nodes.find((node) => node.id === sourceNodeId)?.position ?? { x: 0, y: 0 };
+  return moveFlowCanvasNode(withNode, newNodeId, { x: sourcePosition.x + 36, y: sourcePosition.y + 144 });
+}
+
+export function deleteFlowCanvasNodes(definition: unknown, nodeIds: readonly string[]): Record<string, unknown> | null {
+  if (!isRecord(definition) || !isRecord(definition.nodes) || typeof definition.rootNodeId !== "string") return null;
+  const removing = new Set(nodeIds);
+  if (!removing.size || removing.has(definition.rootNodeId)) return null;
+  for (const [id, node] of Object.entries(definition.nodes)) {
+    if (removing.has(id) || !isRecord(node) || typeof node.type !== "string") continue;
+    if (flowNodeEdges(node as unknown as FlowNode).some((edge) => removing.has(edge.targetNodeId))) return null;
+  }
+  const nodes = Object.fromEntries(Object.entries(definition.nodes).filter(([id]) => !removing.has(id)));
+  const editor = isRecord(definition.editor) && isRecord(definition.editor.positions)
+    ? { ...definition.editor, positions: Object.fromEntries(Object.entries(definition.editor.positions).filter(([id]) => !removing.has(id))) }
+    : definition.editor;
+  return { ...definition, nodes, ...(editor ? { editor } : {}) };
 }

@@ -54,6 +54,7 @@ async function mockTenant(page, role) {
 
 async function inspect(name, role, viewport) {
   const context = await browser.newContext({ viewport });
+  await context.addInitScript(() => localStorage.setItem("djay-ui-locale", "en"));
   const page = await context.newPage();
   page.on("pageerror", (error) => failures.push(`${name}: page error ${error.message}`));
   page.on("console", (entry) => { if (entry.type() === "error") failures.push(`${name}: console ${entry.text()}`); });

@@ -17,11 +17,11 @@ export function WorkspaceSupportBanner({ tenantId }: Readonly<{ tenantId: string
     }).catch(() => { setGrants([]); setError(true); });
   }, [tenantId]);
 
-  if (error) return <div className="support-access-banner error" role="alert"><strong>Support access status unavailable</strong><span>Refresh before handling customer data or making workspace changes.</span></div>;
+  if (error) return <div className="support-access-banner error" role="alert"><strong>โหลดสถานะสิทธิ์ช่วยเหลือไม่สำเร็จ</strong><span>รีเฟรชก่อนจัดการข้อมูลลูกค้าหรือเปลี่ยนแปลงเวิร์กสเปซ</span></div>;
   if (!grants.length) return null;
   return (
     <div className="support-access-banner" role="status">
-      <strong>Platform support access is active</strong>
+      <strong>สิทธิ์ช่วยเหลือจากทีมแพลตฟอร์มกำลังใช้งาน</strong>
       <span>{grants[0]!.reason} {uiCopy("สิทธิ์จะหมดอายุ", "Access expires")} {new Date(grants[0]!.expiresAt).toLocaleString(currentIntlLocale())}</span>
     </div>
   );

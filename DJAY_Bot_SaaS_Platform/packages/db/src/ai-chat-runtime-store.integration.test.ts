@@ -147,6 +147,14 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
 
     const replacement = await authoring.publish(context, agent.agentId);
     expect(replacement.status).toBe("published");
+    const history = await authoring.listVersions(context, agent.agentId);
+    expect(history).toHaveLength(2);
+    expect(history[0]?.knowledgeCount).toBe(1);
+    const restored = await authoring.rollback(context, agent.agentId, published.playbookVersionId);
+    expect(restored.status).toBe("published");
+    const restoredHistory = await authoring.listVersions(context, agent.agentId);
+    expect(restoredHistory).toHaveLength(3);
+    expect(restoredHistory[0]).toMatchObject({ sourceVersionId: published.playbookVersionId, knowledgeCount: 1 });
     let gatewayCalls = 0;
     const runtime = new AiTextRuntime(repository, {
       async generate(request) {
@@ -233,7 +241,7 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       leads: 1, appointments: 1, appointment_options: 2, emails: 1,
       settled: 1, reserved: 0, native_usage: 1, fundingIncluded: 1,
       session_playbook: published.playbookVersionId,
-      current_playbook: replacement.status === "published" ? replacement.playbookVersionId : "missing",
+      current_playbook: restored.status === "published" ? restored.playbookVersionId : "missing",
     });
     const sentMessages: { to: string; subject: string }[] = [];
     await expect(runAiChatMerchantEmail(
@@ -241,7 +249,7 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       { async send(message) { sentMessages.push({ to: message.to, subject: message.subject }); } },
       notificationKey,
     )).resolves.toMatchObject({ status: "sent" });
-    expect(sentMessages).toEqual([{ to: "sales@example.test", subject: "Qualified website lead from DJAY Bot" }]);
+    expect(sentMessages).toEqual([{ to: "sales@example.test", subject: "ผู้สนใจที่ผ่านการคัดกรองจาก DJAY Bot" }]);
     const delivered = await adminClient!<{ status: string }[]>`
       SELECT status FROM tenancy.outbox
       WHERE tenant_id = ${tenantId}::uuid AND topic = 'ai_chat.merchant_email.requested'

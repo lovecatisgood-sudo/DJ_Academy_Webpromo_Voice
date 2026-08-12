@@ -28,6 +28,16 @@ if (!gateway.includes('NODE_ENV: z.enum(["development", "test", "production"])')
   failures.push("Voice gateway does not distinguish production startup");
 }
 
+const apiContainer = read("apps/api/lib/container.ts");
+const workers = read("apps/workers/src/index.ts");
+for (const [path, source] of [["apps/api/lib/container.ts", apiContainer], ["apps/workers/src/index.ts", workers]]) {
+  if (!source.includes("SOCIAL_CHANNELS_RELEASE_ENABLED")) failures.push(`${path} does not gate deferred social release configuration`);
+  if (!source.includes("socialReleaseEnabled && env.")) failures.push(`${path} can load social credentials without the release gate`);
+}
+if (!workers.includes("Social workers require SOCIAL_CHANNELS_RELEASE_ENABLED=true.")) {
+  failures.push("Workers can enable social processing while the social release remains disabled");
+}
+
 for (const path of ["apps/workers/package.json", "apps/voice-gateway/package.json"]) {
   const manifest = JSON.parse(read(path));
   if (manifest.dependencies?.["@djay/shared"] !== "workspace:*") {

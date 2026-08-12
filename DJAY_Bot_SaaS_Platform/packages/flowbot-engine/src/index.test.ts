@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { FlowEngineRequest } from "./index";
-import { advanceFlow } from "./index";
+import { advanceFlow, simulateFlow } from "./index";
 import { describe, expect, it } from "vitest";
 
 const ids = { version: randomUUID(), root: randomUUID(), form: randomUUID(), end: randomUUID(), option: randomUUID() };
@@ -104,5 +104,24 @@ describe("deterministic FlowBot engine", () => {
     expect(result.messages.map((message) => message.type)).toEqual(["media", "card", "carousel", "actions", "text"]);
     expect(result.messages[1]?.content).toMatchObject({ title: "Product", priceLabel: "THB 100", actions: [{ type: "website", label: "View" }] });
     expect(result.nextState.status).toBe("completed");
+  });
+
+  it("simulates from a selected node without dispatching or persisting commands", () => {
+    const simulation = simulateFlow({
+      snapshot: base.snapshot, authority: base.authority, language: "en",
+      startNodeId: ids.form, inputs: [{ type: "form", payload: { nodeId: ids.form, data: { email: "customer@example.test" } } }],
+      businessOpen: true, now: "2026-08-11T00:00:00.000Z",
+    });
+    expect(simulation.turns).toHaveLength(2);
+    expect(simulation.turns[0]?.result.messages[0]?.type).toBe("form");
+    expect(simulation.turns[1]?.result.commands).toMatchObject([{ type: "lead.create" }]);
+    expect(simulation.finalState.status).toBe("completed");
+  });
+
+  it("rejects an unknown simulation start node", () => {
+    expect(() => simulateFlow({
+      snapshot: base.snapshot, authority: base.authority, language: "en",
+      startNodeId: randomUUID(), inputs: [], businessOpen: true, now: "2026-08-11T00:00:00.000Z",
+    })).toThrowError("Flow execution was rejected.");
   });
 });

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { runAiTextPreview } from "@djay/ai-chat-runtime";
 import { tenantRoleAllows } from "@djay/authorization";
 import { uuidSchema } from "@djay/shared";
@@ -28,7 +29,18 @@ export async function POST(request: NextRequest, route: { params: Promise<{ agen
     const testContext = await resolved.services.aiChat.getTestContext(resolved.context, agentId.data);
     if (!testContext) return safeJson({ status: "not_found" }, 404);
     const preview = await runAiTextPreview({ gateway: resolved.services.aiTextGateway, ...testContext, ...body });
-    return safeJson({ preview });
+    const evidence = testContext.publishedVersionId ? await resolved.services.tenantBotRegression.record(resolved.context, {
+      productKey: "ai_chat", subjectId: agentId.data, artifactVersionId: testContext.publishedVersionId,
+      suiteKey: "merchant_scenario", locale: body.language,
+      checks: {
+        response_generated: preview.text.trim().length > 0,
+        provider_identity_hidden: !/openai|anthropic|gemini|gpt-/i.test(preview.text),
+        grounding_available: testContext.knowledgeChunks.length === 0 || preview.citationCount > 0,
+        external_actions_suppressed: Array.isArray(preview.proposedActionTypes),
+      },
+      idempotencyKey: randomUUID(),
+    }) : { status: "not_recorded" as const };
+    return safeJson({ preview, evidence: evidence.status, artifactVersionId: testContext.publishedVersionId });
   } catch (error) {
     return error instanceof ZodError || error instanceof SyntaxError
       ? safeJson({ status: "validation_failed" }, 400)

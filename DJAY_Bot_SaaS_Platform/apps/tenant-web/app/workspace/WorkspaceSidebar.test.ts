@@ -6,8 +6,13 @@ const areas = (role: string) => workspaceNavigationForRole(role).map((item) => i
 
 describe("role-aware workspace navigation", () => {
   it("shows every governed workspace area to the owner", () => {
-    expect(paths("tenant_master_admin")).toHaveLength(15);
+    expect(paths("tenant_master_admin")).toHaveLength(20);
     expect(paths("tenant_master_admin")).toContain("/workspace/setup");
+    expect(paths("tenant_master_admin")).toContain("/workspace/support");
+    expect(paths("tenant_master_admin")).toContain("/workspace/test-center");
+    expect(paths("tenant_master_admin")).toContain("/workspace/appointments");
+    expect(paths("tenant_master_admin")).toContain("/workspace/notifications");
+    expect(paths("tenant_master_admin")).toContain("/workspace/reports");
   });
 
   it("hides product studios from human agents", () => {
@@ -16,6 +21,8 @@ describe("role-aware workspace navigation", () => {
     expect(areas("tenant_human_agent")).not.toContain("voice");
     expect(areas("tenant_human_agent")).not.toContain("setup");
     expect(paths("tenant_human_agent")).toContain("/workspace/inbox");
+    expect(paths("tenant_human_agent")).toContain("/workspace/appointments");
+    expect(paths("tenant_human_agent")).toContain("/workspace/support");
   });
 
   it("keeps admin, operator, and analyst navigation inside their permissions", () => {

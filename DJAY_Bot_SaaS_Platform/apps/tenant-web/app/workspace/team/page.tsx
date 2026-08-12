@@ -122,9 +122,9 @@ export default function TeamPage() {
   }
 
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
-  if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading team...</main>;
-  if (!session.allows("team.read")) return <WorkspaceAccessDenied active="team" title="Team" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(tenantId) => void session.selectWorkspace(tenantId)} onLogout={() => void session.logout()} />;
-  if (loadError) return <WorkspacePageLoadError active="team" title="Team" resource="workspace members" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(tenantId) => void session.selectWorkspace(tenantId)} onLogout={() => void session.logout()} onRetry={() => void loadTeam()} />;
+  if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">กำลังโหลดทีมงาน...</main>;
+  if (!session.allows("team.read")) return <WorkspaceAccessDenied active="team" title="ทีมงาน" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(tenantId) => void session.selectWorkspace(tenantId)} onLogout={() => void session.logout()} />;
+  if (loadError) return <WorkspacePageLoadError active="team" title="ทีมงาน" resource="workspace members" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(tenantId) => void session.selectWorkspace(tenantId)} onLogout={() => void session.logout()} onRetry={() => void loadTeam()} />;
   const isOwner = activeWorkspace?.role === "tenant_master_admin";
   const canInvite = session.allows("team.invite");
 
@@ -137,37 +137,37 @@ export default function TeamPage() {
         onSelect={(tenantId) => void session.selectWorkspace(tenantId)}
         onLogout={() => void session.logout()}
       />
-      <section className="workspace-main">
-        <header className="workspace-header"><div><p>Workspace</p><h1>Team</h1></div><span className="role-label">{activeWorkspace?.businessName}</span></header>
+      <section id="workspace-main" className="workspace-main" tabIndex={-1}>
+        <header className="workspace-header"><div><p>เวิร์กสเปซ</p><h1>ทีมงาน</h1></div><span className="role-label">{activeWorkspace?.businessName}</span></header>
         {canInvite ? (
           <section className="tool-band">
-            <div className="band-heading"><div><p>Access</p><h2>Invite a team member</h2></div><span>{team ? `${team.capacity.occupied} / ${team.capacity.seatLimit} seats` : "Loading"}</span></div>
+            <div className="band-heading"><div><p>สิทธิ์ใช้งาน</p><h2>เชิญสมาชิกทีม</h2></div><span>{team ? `${team.capacity.occupied} / ${team.capacity.seatLimit} seats` : "Loading"}</span></div>
             <form className="inline-form" onSubmit={invite}>
-              <label>Email<input name="email" type="email" autoComplete="email" {...emailFieldConstraints} required /></label>
-              <label>Role<select name="role" defaultValue="tenant_human_agent">
+              <label>อีเมล<input name="email" type="email" autoComplete="email" {...emailFieldConstraints} required /></label>
+              <label>บทบาท<select name="role" defaultValue="tenant_human_agent">
                 {manageableRoles.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
               </select></label>
-              <button type="submit" disabled={working}>Send invitation</button>
+              <button type="submit" disabled={working}>ส่งคำเชิญ</button>
             </form>
             {message ? <p className="inline-message" role="status">{message}</p> : null}
-            {team && !team.capacity.allowed ? <p className="field-help">Seat capacity is full. <a href="/workspace/operations">Request an additional administrator</a> before inviting another member.</p> : null}
+            {team && !team.capacity.allowed ? <p className="field-help">จำนวนผู้ใช้เต็มตามแผนแล้ว <a href="/workspace/operations">ขอผู้ดูแลเพิ่มเติม</a> ก่อนเชิญสมาชิกเพิ่ม</p> : null}
           </section>
         ) : null}
         <section className="tool-band">
-          <div className="band-heading"><div><p>Members</p><h2>Active team</h2></div><span>{team?.members.length || 0}</span></div>
-          <div className="data-table" role="table" aria-label="Workspace members">
+          <div className="band-heading"><div><p>สมาชิก</p><h2>ทีมที่ใช้งานอยู่</h2></div><span>{team?.members.length || 0}</span></div>
+          <div className="data-table" role="table" aria-label="สมาชิกเวิร์กสเปซ">
             {team?.members.map((member) => (
               <div className="data-row" role="row" key={member.membership_id}>
-                <div><strong>{member.display_name}</strong><span>{member.email_normalized}</span></div>
+                <div><strong data-no-localize>{member.display_name}</strong><span data-no-localize>{member.email_normalized}</span></div>
                 <span className="role-label">{humanizeTenantRole(member.membership_role)} · {humanizeToken(member.membership_status)}</span>
                 {isOwner && member.membership_role !== "tenant_master_admin" ? (
                   <div className="member-actions">
-                    <label className="visually-hidden" htmlFor={`role-${member.membership_id}`}>Role for {member.display_name}</label>
-                    <select id={`role-${member.membership_id}`} aria-label={`Role for ${member.display_name}`} value={member.membership_role} disabled={working} onChange={(event) => void changeRole(member.membership_id, event.target.value)}>
+                    <label className="visually-hidden" htmlFor={`role-${member.membership_id}`}>บทบาทของ <span data-no-localize>{member.display_name}</span></label>
+                    <select id={`role-${member.membership_id}`} aria-label={`บทบาทของ ${member.display_name}`} value={member.membership_role} disabled={working} onChange={(event) => void changeRole(member.membership_id, event.target.value)}>
                       {manageableRoles.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
                     </select>
-                    <button className="secondary-command" type="button" disabled={working || Boolean(team.transfers.length)} onClick={() => void transferOwnership(member.membership_id)}>Transfer ownership</button>
-                    <button className="danger-command" type="button" disabled={working} onClick={() => void removeMember(member.membership_id, member.display_name)}>Remove access</button>
+                    <button className="secondary-command" type="button" disabled={working || Boolean(team.transfers.length)} onClick={() => void transferOwnership(member.membership_id)}>โอนสิทธิ์เจ้าของ</button>
+                    <button className="danger-command" type="button" disabled={working} onClick={() => void removeMember(member.membership_id, member.display_name)}>นำสิทธิ์ออก</button>
                   </div>
                 ) : <span />}
               </div>
@@ -175,7 +175,7 @@ export default function TeamPage() {
           </div>
         </section>
         {team?.invitations.length ? (
-          <section className="tool-band muted-band"><div className="band-heading"><div><p>Pending</p><h2>Invitations</h2></div></div>{team.invitations.map((invitation) => <div className="pending-line" key={invitation.id}><strong>{invitation.email_normalized}</strong><span>{humanizeTenantRole(invitation.role)}</span></div>)}</section>
+          <section className="tool-band muted-band"><div className="band-heading"><div><p>รอดำเนินการ</p><h2>คำเชิญ</h2></div></div>{team.invitations.map((invitation) => <div className="pending-line" key={invitation.id}><strong>{invitation.email_normalized}</strong><span>{humanizeTenantRole(invitation.role)}</span></div>)}</section>
         ) : null}
       </section>
     </main>

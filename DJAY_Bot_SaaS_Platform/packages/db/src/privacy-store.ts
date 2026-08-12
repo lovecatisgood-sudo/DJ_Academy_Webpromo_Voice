@@ -265,6 +265,22 @@ export class PrivacyStore {
           AND (${contactId}::uuid IS NULL OR session.contact_id = ${contactId}::uuid)
         ORDER BY callback.id
       `;
+      data.voiceCallbackHistory = await sql<ExportRow[]>`
+        SELECT history.* FROM tenancy.voice_callback_status_history history
+        JOIN tenancy.voice_callback_requests callback
+          ON callback.tenant_id = history.tenant_id AND callback.id = history.callback_request_id
+        JOIN tenancy.voice_sessions session
+          ON session.tenant_id = callback.tenant_id AND session.id = callback.session_id
+        WHERE history.tenant_id = ${job.tenantId}::uuid
+          AND (${contactId}::uuid IS NULL OR session.contact_id = ${contactId}::uuid)
+        ORDER BY history.callback_request_id, history.changed_at, history.id
+      `;
+      data.customerValueEvents = await sql<ExportRow[]>`
+        SELECT value.* FROM tenancy.customer_value_events value
+        WHERE value.tenant_id = ${job.tenantId}::uuid
+          AND (${contactId}::uuid IS NULL OR value.contact_id = ${contactId}::uuid)
+        ORDER BY value.id
+      `;
 
       const artifact: PrivacyExport = {
         format: "djay-privacy-export-v1",

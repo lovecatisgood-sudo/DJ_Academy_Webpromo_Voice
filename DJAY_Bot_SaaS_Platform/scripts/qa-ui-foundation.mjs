@@ -37,7 +37,7 @@ async function auditAccessibility(page, name) {
 }
 
 async function auditFieldBoundary(page, label, expected, name) {
-  const field = page.getByLabel(label, { exact: true });
+  const field = label.startsWith("[") ? page.locator(label) : page.getByLabel(label, { exact: true });
   for (const [attribute, value] of Object.entries(expected)) {
     if (await field.getAttribute(attribute) !== String(value)) {
       failures.push(`${name}: ${label} is missing ${attribute}=${value}`);
@@ -77,6 +77,7 @@ function auditSecurityHeaders(response, name, url) {
 
 async function visit({ name, url, viewport = desktop, mock, ready = "h1", expectedStatus = 200, check }) {
   const context = await browser.newContext({ viewport });
+  await context.addInitScript(() => localStorage.setItem("djay-ui-locale", "en"));
   const page = await context.newPage();
   page.on("pageerror", (error) => failures.push(`${name}: page error: ${error.message}`));
   page.on("console", (entry) => {
@@ -237,12 +238,13 @@ async function mockPlatformRole(page, role, failedPaths, abortedMutationPaths) {
 for (const [name, viewport] of [["desktop", desktop], ["mobile", mobile]]) {
   await visit({ name: `public-registration-${name}`, url: publicUrl, viewport, mock: mockPublic, ready: "#register-title", check: async (page) => {
     if (await page.locator(".plan-option").count() !== 2) failures.push(`public-registration-${name}: catalog plans missing`);
-    if (await page.getByRole("link", { name: "Service Terms" }).getAttribute("href") !== "/terms") failures.push(`public-registration-${name}: terms link missing`);
-    if (await page.getByRole("link", { name: "Privacy Notice" }).getAttribute("href") !== "/privacy") failures.push(`public-registration-${name}: privacy link missing`);
-    if (!await page.getByText("Versions terms-qa-2026-07 and privacy-qa-2026-07", { exact: false }).count()) failures.push(`public-registration-${name}: accepted legal versions are not visible`);
-    await auditFieldBoundary(page, "Your name", { minlength: 2, maxlength: 160 }, `public-registration-${name}`);
-    await auditFieldBoundary(page, "Work email", { maxlength: 320 }, `public-registration-${name}`);
-    await auditFieldBoundary(page, "Business name", { minlength: 2, maxlength: 200 }, `public-registration-${name}`);
+    if (await page.locator('a[href="/terms"]').last().getAttribute("href") !== "/terms") failures.push(`public-registration-${name}: terms link missing`);
+    if (await page.locator('a[href="/privacy"]').last().getAttribute("href") !== "/privacy") failures.push(`public-registration-${name}: privacy link missing`);
+    const registrationText = await page.locator(".form-wrap").innerText();
+    if (!registrationText.includes("terms-qa-2026-07") || !registrationText.includes("privacy-qa-2026-07")) failures.push(`public-registration-${name}: accepted legal versions are not visible`);
+    await auditFieldBoundary(page, '[name="name"]', { minlength: 2, maxlength: 160 }, `public-registration-${name}`);
+    await auditFieldBoundary(page, '[name="email"]', { maxlength: 320 }, `public-registration-${name}`);
+    await auditFieldBoundary(page, '[name="businessName"]', { minlength: 2, maxlength: 200 }, `public-registration-${name}`);
     await page.keyboard.press("Tab");
     const focusOutline = await page.locator(":focus").evaluate((element) => getComputedStyle(element).outlineStyle).catch(() => "none");
     if (focusOutline === "none") failures.push(`public-registration-${name}: keyboard focus is not visible`);
@@ -261,7 +263,8 @@ for (const [name, viewport] of [["desktop", desktop], ["mobile", mobile]]) {
     await auditFieldBoundary(page, "Email", { maxlength: 320 }, `tenant-login-${name}`);
   } });
   await visit({ name: `api-root-${name}`, url: apiUrl, viewport, ready: "#api-title", check: async (page) => {
-    if (await page.getByRole("link", { name: "Go to DJAY Bot" }).getAttribute("href") !== "https://djaybot.com") failures.push(`api-root-${name}: unsafe public site URL`);
+    const href = await page.locator("a.api-link").getAttribute("href");
+    if (!href?.startsWith("https://") || new URL(href).hostname !== "djbot.djai.academy") failures.push(`api-root-${name}: unsafe public site URL`);
   } });
   for (const [realm, origin, heading, recoveryLink] of [
     ["public", publicUrl, "This page is not here.", "Create or view an account"],
@@ -317,7 +320,8 @@ await visit({ name: "tenant-mfa-malicious-continuation", url: `${tenantUrl}/?nex
 } });
 
 await visit({ name: "public-status", url: `${publicUrl}/status`, mock: mockPublic, ready: "#status-title", check: async (page) => {
-  await page.getByText("All systems operational").waitFor();
+  const title = (await page.locator("#status-title").innerText()).trim();
+  if (!["All systems operational", "ทุกระบบทำงานตามปกติ"].includes(title)) failures.push("public-status: operational summary missing");
 } });
 await visit({ name: "public-catalog-failure", url: publicUrl, mock: (page) => mockPublic(page, new Set(["/public/catalog"])), ready: ".plan-load-state.error", check: async (page) => {
   if (!await page.getByRole("button", { name: "Try again" }).count()) failures.push("public-catalog-failure: retry action missing");
@@ -339,7 +343,7 @@ await visit({ name: "public-mutation-network-failure", url: publicUrl, mock: (pa
   await page.getByLabel("Confirm password", { exact: true }).fill("correct-horse-battery-staple");
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Create workspace" }).click();
-  await page.getByText("Registration could not be completed.", { exact: true }).waitFor();
+  await page.locator(".form-message.error").waitFor();
   if (!await page.getByRole("button", { name: "Create workspace" }).isEnabled()) failures.push("public-mutation-network-failure: submit remained busy");
 } });
 const registrationIdentityRequests = new Map();
@@ -702,12 +706,11 @@ const analystFlowRequests = new Set();
 await visit({ name: "flowbot-analyst-secondary-permissions", url: `${tenantUrl}/workspace/flowbot`, mock: (page) => mockTenantRole(page, "tenant_analyst", analystFlowRequests, undefined, undefined, true), ready: ".flowbot-tabs", check: async () => {
   for (const path of ["/tenant/team", "/tenant/flowbot/downgrade-preflight"]) if (analystFlowRequests.has(path)) failures.push(`flowbot-analyst-secondary-permissions: unauthorized request initiated at ${path}`);
 } });
-const aiChatSecondaryFailures = new Set(["/tenant/knowledge", "/tenant/ai-chat/notifications", "/tenant/ai-chat/analytics", "/tenant/ai-chat/social-connections"]);
+const aiChatSecondaryFailures = new Set(["/tenant/knowledge", "/tenant/ai-chat/notifications", "/tenant/ai-chat/analytics"]);
 await visit({ name: "ai-chat-secondary-failures", url: `${tenantUrl}/workspace/ai-chat`, mock: (page) => mockTenantRole(page, "tenant_master_admin", undefined, aiChatSecondaryFailures, undefined, true), ready: ".ai-authoring-grid", check: async (page) => {
-  for (const message of ["Knowledge options could not be loaded", "Notification recipients could not be loaded", "AI Chat analytics could not be loaded", "Social connections could not be loaded"]) {
+  for (const message of ["Knowledge options could not be loaded", "Notification recipients could not be loaded", "AI Chat analytics could not be loaded"]) {
     if (!await page.getByText(message, { exact: true }).count()) failures.push(`ai-chat-secondary-failures: missing ${message}`);
   }
-  for (const emptyState of ["No LINE connection", "No WhatsApp connection", "No Messenger connection"]) if (await page.getByText(emptyState, { exact: true }).count()) failures.push(`ai-chat-secondary-failures: unavailable social data presented as ${emptyState}`);
   if (await page.getByRole("button", { name: "Add recipient" }).isEnabled()) failures.push("ai-chat-secondary-failures: recipient creation enabled without current recipient evidence");
 } });
 

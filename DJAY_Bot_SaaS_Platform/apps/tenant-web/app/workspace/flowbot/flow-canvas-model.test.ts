@@ -1,7 +1,7 @@
 import { flowEdgeKinds, flowNodeTypes } from "@djay/flowbot-domain";
 import { describe, expect, it } from "vitest";
 import { flowCanvasCopy } from "../../../lib/i18n/flow-canvas";
-import { buildFlowCanvasModel } from "./flow-canvas-model";
+import { addFlowCanvasMessage, buildFlowCanvasModel, connectFlowCanvasNodes, deleteFlowCanvasNodes, duplicateFlowCanvasNode, moveFlowCanvasNode, retargetFlowCanvasEdge } from "./flow-canvas-model";
 
 const id = (label: string) => `00000000-0000-4000-8000-0000000000${label}`;
 const menu = id("01"); const buy = id("02"); const thanks = id("03"); const info = id("04"); const bye = id("05");
@@ -105,6 +105,42 @@ describe("FlowBot canvas model", () => {
     // Left-to-right ranking: a node's successor sits further right than the node itself.
     expect(nodeById(model, buy).position.x).toBeGreaterThan(nodeById(model, menu).position.x);
     expect(nodeById(model, thanks).position.x).toBeGreaterThan(nodeById(model, buy).position.x);
+  });
+
+  it("uses stored positions and updates them without changing runtime nodes", () => {
+    const moved = moveFlowCanvasNode(branching, menu, { x: 321, y: -45 });
+    expect(moved).not.toBeNull();
+    expect(buildFlowCanvasModel(moved, "en").nodes.find((node) => node.id === menu)?.position).toEqual({ x: 321, y: -45 });
+    expect(moved?.nodes).toEqual(branching.nodes);
+    expect(moveFlowCanvasNode(branching, "missing", { x: 0, y: 0 })).toBeNull();
+  });
+
+  it("retargets one branch without changing its label or sibling branch", () => {
+    const edge = buildFlowCanvasModel(branching, "en").edges.find((item) => item.source === menu && item.edgeIndex === 0)!;
+    const changed = retargetFlowCanvasEdge(branching, edge, thanks)!;
+    const options = (changed.nodes as typeof branching.nodes)[menu]!.options!;
+    expect(options[0]?.targetNodeId).toBe(thanks);
+    expect(options[0]?.label).toEqual({ th: "ซื้อสินค้า", en: "Buy" });
+    expect(options[1]?.targetNodeId).toBe(info);
+  });
+
+  it("connects only an available optional continuation", () => {
+    const disconnected = { ...branching, nodes: { ...branching.nodes, [closed]: { ...branching.nodes[closed], nextNodeId: null } } };
+    const changed = connectFlowCanvasNodes(disconnected, closed, thanks)!;
+    expect((changed.nodes as typeof disconnected.nodes)[closed]!.nextNodeId).toBe(thanks);
+    expect(connectFlowCanvasNodes(branching, closed, thanks)).toBeNull();
+    expect(connectFlowCanvasNodes(branching, bye, thanks)).toBeNull();
+  });
+
+  it("adds, duplicates and safely deletes canvas nodes", () => {
+    const addedId = id("51"); const copyId = id("52");
+    const added = addFlowCanvasMessage(branching, addedId, { x: 800, y: 120 }, "Follow up")!;
+    expect(buildFlowCanvasModel(added, "en").nodes.find((node) => node.id === addedId)?.position).toEqual({ x: 800, y: 120 });
+    const duplicated = duplicateFlowCanvasNode(added, addedId, copyId)!;
+    expect((duplicated.nodes as Record<string, { id: string; title: string }>)[copyId]).toMatchObject({ id: copyId, title: "Follow up copy" });
+    expect(deleteFlowCanvasNodes(duplicated, [copyId])?.nodes).not.toHaveProperty(copyId);
+    expect(deleteFlowCanvasNodes(branching, [menu])).toBeNull();
+    expect(deleteFlowCanvasNodes(branching, [thanks])).toBeNull();
   });
 
   it("survives a malformed or empty definition without throwing", () => {

@@ -257,7 +257,7 @@ export default function UsagePage() {
   }, [loadUsage]);
 
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
-  if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading usage...</main>;
+  if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">กำลังโหลดการใช้งาน...</main>;
   const isOwner = activeWorkspace?.role === "tenant_master_admin";
   const canManageUsage = isOwner || activeWorkspace?.role === "tenant_billing_manager";
   const subscriptions = usage?.subscriptions ?? [];
@@ -488,9 +488,9 @@ export default function UsagePage() {
         onSelect={(tenantId) => void session.selectWorkspace(tenantId)}
         onLogout={() => void session.logout()}
       />
-      <section className="workspace-main usage-center">
+      <section id="workspace-main" className="workspace-main usage-center" tabIndex={-1}>
         <header className="workspace-header">
-          <div><p>Workspace</p><h1>Plans and usage</h1></div>
+          <div><p>เวิร์กสเปซ</p><h1>แผนและการใช้งาน</h1></div>
           <span className="role-label">{activeWorkspace?.businessName}</span>
         </header>
 
@@ -514,9 +514,9 @@ export default function UsagePage() {
               </div>
               <div className="usage-state-actions">
                 {checkoutReturnState === "action_required" || checkoutReturnState === "active" ? (
-                  <button className="secondary-command" type="button" onClick={() => void openBillingPortal()}>Manage billing</button>
+                  <button className="secondary-command" type="button" onClick={() => void openBillingPortal()}>จัดการการเรียกเก็บเงิน</button>
                 ) : null}
-                <button className="secondary-command" type="button" onClick={() => setCheckoutReturnState(null)}>Dismiss</button>
+                <button className="secondary-command" type="button" onClick={() => setCheckoutReturnState(null)}>ปิดข้อความ</button>
               </div>
             </section>
           );
@@ -524,14 +524,14 @@ export default function UsagePage() {
 
         <section className="usage-intro" aria-labelledby="usage-summary-title">
           <div>
-            <p>Account overview</p>
-            <h2 id="usage-summary-title">Understand what your workspace is using</h2>
-            <span>Usage is shown in customer-friendly units. Internal processing and provider details are never included.</span>
+            <p>ภาพรวมบัญชี</p>
+            <h2 id="usage-summary-title">ทำความเข้าใจการใช้งานของเวิร์กสเปซ</h2>
+            <span>แสดงการใช้งานด้วยหน่วยที่ลูกค้าเข้าใจง่าย โดยไม่รวมรายละเอียดการประมวลผลภายในหรือผู้ให้บริการ</span>
           </div>
           <dl className="usage-summary-grid">
-            <div><dt>Products</dt><dd>{subscriptions.length}</dd></div>
-            <div><dt>Available now</dt><dd>{activeCount}</dd></div>
-            <div><dt>Billing status</dt><dd>{usage?.billingMode === "configured" ? "Configured" : "Pilot metering"}</dd></div>
+            <div><dt>ผลิตภัณฑ์</dt><dd>{subscriptions.length}</dd></div>
+            <div><dt>พร้อมใช้งานแล้ว</dt><dd>{activeCount}</dd></div>
+            <div><dt>สถานะการเรียกเก็บเงิน</dt><dd>{usage?.billingMode === "configured" ? "Configured" : "Pilot metering"}</dd></div>
           </dl>
         </section>
 
@@ -539,24 +539,24 @@ export default function UsagePage() {
           <section className="tool-band usage-plan-picker" aria-labelledby="usage-plan-picker-title">
             <div className="band-heading">
               <div>
-                <p>Self-serve</p>
-                <h2 id="usage-plan-picker-title">Choose a product</h2>
+                <p>ดำเนินการด้วยตนเอง</p>
+                <h2 id="usage-plan-picker-title">เลือกผลิตภัณฑ์</h2>
               </div>
-              <span>Prices come from the server catalog</span>
+              <span>ราคาอ้างอิงจากรายการผลิตภัณฑ์บนเซิร์ฟเวอร์</span>
             </div>
             <p className="control-copy">
               Selecting a plan saves a server-side preference. Access activates after successful payment — not from email verification or this browser alone.
             </p>
-            {catalogStage === "loading" ? <p className="usage-plan-status" aria-live="polite">Loading products…</p> : null}
+            {catalogStage === "loading" ? <p className="usage-plan-status" aria-live="polite">กำลังโหลดผลิตภัณฑ์…</p> : null}
             {catalogStage === "error" ? (
               <div className="usage-state usage-state-error" role="alert">
-                <div><strong>Products could not be loaded</strong><span>Try again before choosing a plan.</span></div>
-                <button className="secondary-command" type="button" onClick={() => void loadCatalog()}>Try again</button>
+                <div><strong>โหลดผลิตภัณฑ์ไม่สำเร็จ</strong><span>ลองใหม่ก่อนเลือกแผน</span></div>
+                <button className="secondary-command" type="button" onClick={() => void loadCatalog()}>ลองใหม่</button>
               </div>
             ) : null}
             {catalogStage === "ready" ? (
               <fieldset className="usage-plan-options">
-                <legend className="sr-only">Available products</legend>
+                <legend className="sr-only">ผลิตภัณฑ์ที่พร้อมใช้งาน</legend>
                 {catalogPlans.length ? catalogPlans.map((plan) => {
                   const alreadyHeld = subscriptions.some((subscription) => subscription.productKey === plan.productKey
                     && subscription.status !== "cancelled");
@@ -583,12 +583,12 @@ export default function UsagePage() {
                       </span>
                     </label>
                   );
-                }) : <p className="usage-plan-status">No products are available to select right now.</p>}
+                }) : <p className="usage-plan-status">ขณะนี้ไม่มีผลิตภัณฑ์ที่เลือกได้</p>}
               </fieldset>
             ) : null}
             {canManageUsage && catalogStage === "ready" && catalogPlans.some((plan) => !subscriptions.some((subscription) => subscription.productKey === plan.productKey && subscription.status !== "cancelled")) ? (
               <div className="usage-plan-actions">
-                <button type="button" onClick={() => void selectPlan()}>Save plan preference</button>
+                <button type="button" onClick={() => void selectPlan()}>บันทึกแผนที่สนใจ</button>
                 <span className="usage-plan-status" aria-live="polite">{planActionStatus}</span>
               </div>
             ) : null}
@@ -596,16 +596,16 @@ export default function UsagePage() {
         ) : null}
 
         {loadingUsage ? (
-          <section className="usage-state" aria-live="polite"><span className="usage-state-dot" /><strong>Loading current usage…</strong></section>
+          <section className="usage-state" aria-live="polite"><span className="usage-state-dot" /><strong>กำลังโหลดการใช้งานปัจจุบัน…</strong></section>
         ) : loadError ? (
           <section className="usage-state usage-state-error" role="alert">
-            <div><strong>Usage is temporarily unavailable</strong><span>Your plans are unchanged. Try loading this page again.</span></div>
-            <button className="secondary-command" type="button" onClick={() => void loadUsage()}>Try again</button>
+            <div><strong>ข้อมูลการใช้งานไม่พร้อมชั่วคราว</strong><span>แผนของคุณไม่ถูกเปลี่ยน โปรดลองโหลดหน้านี้ใหม่</span></div>
+            <button className="secondary-command" type="button" onClick={() => void loadUsage()}>ลองใหม่</button>
           </section>
         ) : subscriptions.length ? (
           <section className="tool-band usage-products" aria-labelledby="usage-products-title">
             <div className="band-heading">
-              <div><p>Products</p><h2 id="usage-products-title">Current period</h2></div>
+              <div><p>ผลิตภัณฑ์</p><h2 id="usage-products-title">รอบปัจจุบัน</h2></div>
               <span>Updated {usage ? new Date(usage.asOf).toLocaleTimeString(currentIntlLocale(), { hour: "2-digit", minute: "2-digit" }) : "now"}</span>
             </div>
             <div className="usage-card-grid">
@@ -620,22 +620,22 @@ export default function UsagePage() {
                       <span className={`usage-status usage-status-${subscription.accessMode}`}>{statusCopy(subscription.status, subscription.accessMode)}</span>
                     </header>
                     <div className="usage-period">
-                      <span>Current period</span>
+                      <span>รอบปัจจุบัน</span>
                       <strong>{formatDate(subscription.periodStart)} – {formatDate(subscription.periodEnd)}</strong>
                     </div>
                     <div className="usage-total">
                       <span>{unitCopy[subscription.customerUnit].short} used</span>
                       <strong>{formatQuantity(subscription.settledQuantity, subscription.customerUnit)}</strong>
-                      {subscription.reservedQuantity > 0 ? <small>{formatQuantity(subscription.reservedQuantity, subscription.customerUnit)} currently reserved</small> : <small>No usage currently reserved</small>}
+                      {subscription.reservedQuantity > 0 ? <small>{formatQuantity(subscription.reservedQuantity, subscription.customerUnit)} currently reserved</small> : <small>ไม่มีโควตาที่ถูกจองใช้อยู่</small>}
                     </div>
                     {included === null ? (
                       <div className="usage-unconfigured">
-                        <strong>Allowance not commercially configured</strong>
-                        <span>Metering is active for pilot visibility, but no public allowance or overage promise has been published.</span>
+                        <strong>ยังไม่ได้กำหนดโควตาเชิงพาณิชย์</strong>
+                        <span>ระบบกำลังวัดการใช้งานสำหรับโครงการนำร่อง แต่ยังไม่ได้เผยแพร่โควตาหรือเงื่อนไขการใช้เกินโควตาต่อสาธารณะ</span>
                       </div>
                     ) : (
                       <div className="usage-meter-wrap">
-                        <div className="usage-meter-label"><span>Included allowance</span><strong>{Math.round(progress)}%</strong></div>
+                        <div className="usage-meter-label"><span>โควตาที่รวมในแผน</span><strong>{Math.round(progress)}%</strong></div>
                         <div className="usage-meter" role="progressbar" aria-label={`${subscription.publicName} included usage`} aria-valuemin={0} aria-valuemax={included} aria-valuenow={Math.min(included, subscription.committedQuantity)}>
                           <span style={{ width: `${progress}%` }} />
                         </div>
@@ -646,18 +646,18 @@ export default function UsagePage() {
                       </div>
                     )}
                     <dl className="usage-card-details">
-                      <div><dt>Projected use</dt><dd>{formatQuantity(subscription.forecast.projectedQuantity, subscription.customerUnit)}</dd></div>
-                      <div><dt>Forecast confidence</dt><dd>{subscription.forecast.confidence}</dd></div>
-                      <div><dt>Projected overage</dt><dd>{subscription.forecast.estimatedOverageMinor === null ? "Not enabled" : formatMoney(subscription.forecast.estimatedOverageMinor)}</dd></div>
-                      <div><dt>Safety cap</dt><dd>{subscription.safetyCapQuantity === null ? "Not set" : formatQuantity(subscription.safetyCapQuantity, subscription.customerUnit)}</dd></div>
-                      <div><dt>Overage</dt><dd>{subscription.pricingConfigured && subscription.overageRateMinor !== null ? `${formatMoney(subscription.overageRateMinor)} / ${unitCopy[subscription.customerUnit].singular}` : "Not enabled"}</dd></div>
-                      <div><dt>Plan access</dt><dd>{statusCopy(subscription.status, subscription.accessMode)}</dd></div>
-                      <div><dt>Renewal</dt><dd>{subscription.cancelAt
+                      <div><dt>การใช้งานที่คาดการณ์</dt><dd>{formatQuantity(subscription.forecast.projectedQuantity, subscription.customerUnit)}</dd></div>
+                      <div><dt>ความมั่นใจของการคาดการณ์</dt><dd>{subscription.forecast.confidence}</dd></div>
+                      <div><dt>คาดการณ์การใช้เกินโควตา</dt><dd>{subscription.forecast.estimatedOverageMinor === null ? "Not enabled" : formatMoney(subscription.forecast.estimatedOverageMinor)}</dd></div>
+                      <div><dt>ขีดจำกัดความปลอดภัย</dt><dd>{subscription.safetyCapQuantity === null ? "Not set" : formatQuantity(subscription.safetyCapQuantity, subscription.customerUnit)}</dd></div>
+                      <div><dt>การใช้เกินโควตา</dt><dd>{subscription.pricingConfigured && subscription.overageRateMinor !== null ? `${formatMoney(subscription.overageRateMinor)} / ${unitCopy[subscription.customerUnit].singular}` : "Not enabled"}</dd></div>
+                      <div><dt>สิทธิ์ตามแผน</dt><dd>{statusCopy(subscription.status, subscription.accessMode)}</dd></div>
+                      <div><dt>การต่ออายุ</dt><dd>{subscription.cancelAt
                         ? `Ends ${formatDate(subscription.cancelAt)}` : "Renews automatically"}</dd></div>
                     </dl>
                     {canManageUsage && (subscription.accessMode === "none" || subscription.status === "pending") ? (
                       <div className="usage-cap-control usage-checkout-control">
-                        <span>Payment activates access for this product.</span>
+                        <span>การชำระเงินจะเปิดสิทธิ์ใช้ผลิตภัณฑ์นี้</span>
                         <button type="button" onClick={() => void startCheckout(subscription)}>
                           Continue to payment
                         </button>
@@ -678,13 +678,13 @@ export default function UsagePage() {
                       <form className="usage-cap-control" onSubmit={(event) => {
                         event.preventDefault(); void updateSafetyCap(subscription);
                       }}>
-                        <label htmlFor={`cap-${subscription.subscriptionId}`}>Safety cap</label>
+                        <label htmlFor={`cap-${subscription.subscriptionId}`}>ขีดจำกัดความปลอดภัย</label>
                         <input id={`cap-${subscription.subscriptionId}`} type="number" min="0" step="1"
                           value={capDrafts[subscription.subscriptionId] ?? subscription.safetyCapQuantity ?? ""}
                           onChange={(event) => setCapDrafts((current) => ({
                             ...current, [subscription.subscriptionId]: event.target.value,
                           }))} />
-                        <button className="secondary-command" type="submit">Update cap</button>
+                        <button className="secondary-command" type="submit">อัปเดตขีดจำกัด</button>
                         <span aria-live="polite">{capStatus[subscription.subscriptionId] ?? ""}</span>
                       </form>
                     ) : null}
@@ -696,8 +696,8 @@ export default function UsagePage() {
         ) : (
           <section className="usage-state">
             <div>
-              <strong>No active product yet</strong>
-              <span>Choose a product above to save your setup preference, then continue to payment when checkout is available. Pilot activation remains for named comps only.</span>
+              <strong>ยังไม่มีผลิตภัณฑ์ที่เปิดใช้งาน</strong>
+              <span>เลือกผลิตภัณฑ์ด้านบนเพื่อบันทึกความสนใจ แล้วดำเนินการชำระเงินเมื่อระบบเปิดให้บริการ การเปิดใช้แบบนำร่องสงวนไว้สำหรับบัญชีที่ได้รับอนุมัติเท่านั้น</span>
             </div>
           </section>
         )}
@@ -705,8 +705,8 @@ export default function UsagePage() {
         {subscriptions.length && canManageUsage ? (
           <section className="tool-band usage-alert-settings" aria-labelledby="usage-alerts-title">
             <div className="band-heading">
-              <div><p>Controls</p><h2 id="usage-alerts-title">Usage alerts</h2></div>
-              <span>Billing managers and owners</span>
+              <div><p>การควบคุม</p><h2 id="usage-alerts-title">การแจ้งเตือนการใช้งาน</h2></div>
+              <span>ผู้จัดการการเรียกเก็บเงินและเจ้าของ</span>
             </div>
             <div className="usage-alert-list">
               {subscriptions.map((subscription) => {
@@ -719,7 +719,7 @@ export default function UsagePage() {
                     <span>{subscription.alertPolicy.emailConfigured ? "Email delivery configured" : "Email delivery not configured"}</span>
                   </div>
                   <fieldset>
-                    <legend>Allowance thresholds</legend>
+                    <legend>เกณฑ์โควตา</legend>
                     {[50, 75, 90, 100].map((threshold) => <label key={threshold}>
                       <input type="checkbox" checked={draft.thresholds.includes(threshold)} onChange={(event) => {
                         const thresholds = event.target.checked
@@ -730,21 +730,21 @@ export default function UsagePage() {
                     </label>)}
                   </fieldset>
                   <div className="usage-alert-toggles">
-                    <label><input type="checkbox" checked={draft.exhaustionAlert} onChange={(event) => updateAlertDraft(subscription, { exhaustionAlert: event.target.checked })} /> Forecast exhaustion</label>
-                    <label><input type="checkbox" checked={draft.anomalyAlert} onChange={(event) => updateAlertDraft(subscription, { anomalyAlert: event.target.checked })} /> Usage anomaly</label>
+                    <label><input type="checkbox" checked={draft.exhaustionAlert} onChange={(event) => updateAlertDraft(subscription, { exhaustionAlert: event.target.checked })} /> คาดว่าจะใช้หมดเมื่อ</label>
+                    <label><input type="checkbox" checked={draft.anomalyAlert} onChange={(event) => updateAlertDraft(subscription, { anomalyAlert: event.target.checked })} /> การใช้งานผิดปกติ</label>
                   </div>
                   <label className="usage-alert-cooldown">Cooldown
                     <select value={draft.cooldownHours} onChange={(event) => updateAlertDraft(subscription, { cooldownHours: Number(event.target.value) })}>
-                      <option value={6}>6 hours</option><option value={12}>12 hours</option>
-                      <option value={24}>24 hours</option><option value={48}>48 hours</option>
-                      <option value={72}>72 hours</option><option value={168}>7 days</option>
+                      <option value={6}>6 ชั่วโมง</option><option value={12}>12 ชั่วโมง</option>
+                      <option value={24}>24 ชั่วโมง</option><option value={48}>48 ชั่วโมง</option>
+                      <option value={72}>72 ชั่วโมง</option><option value={168}>7 วัน</option>
                     </select>
                   </label>
                   <label className="usage-alert-recipient">Billing recipient
                     <input type="email" maxLength={320} required placeholder={subscription.alertPolicy.emailConfigured ? "Enter email to update" : "billing@business.com"}
                       value={draft.recipientEmail} onChange={(event) => updateAlertDraft(subscription, { recipientEmail: event.target.value })} />
                   </label>
-                  <button className="secondary-command" type="submit">Save alerts</button>
+                  <button className="secondary-command" type="submit">บันทึกการแจ้งเตือน</button>
                   <span className="usage-alert-result" aria-live="polite">{alertStatus[subscription.subscriptionId] ?? ""}</span>
                 </form>;
               })}
@@ -755,7 +755,7 @@ export default function UsagePage() {
         {resourceBoundaries ? (
           <section className="tool-band" aria-labelledby="resource-limits-title">
             <div className="band-heading">
-              <div><p>Contract boundaries</p><h2 id="resource-limits-title">Resources and seats</h2></div>
+              <div><p>ขอบเขตสัญญาการทำงาน</p><h2 id="resource-limits-title">ทรัพยากรและจำนวนผู้ใช้</h2></div>
               <span>{resourceBoundaries.seatCapacity.occupied} / {resourceBoundaries.seatCapacity.limit} seats</span>
             </div>
             <div className="data-table">
@@ -772,18 +772,18 @@ export default function UsagePage() {
 
         <section className="tool-band usage-alert-settings" aria-labelledby="billing-notifications-title">
           <div className="band-heading">
-            <div><p>Account activity</p><h2 id="billing-notifications-title">Billing notifications</h2></div>
+            <div><p>กิจกรรมในบัญชี</p><h2 id="billing-notifications-title">การแจ้งเตือนการเรียกเก็บเงิน</h2></div>
             <span>{billingNotifications?.notifications.filter((notice) => !notice.readAt).length ?? 0} unread</span>
           </div>
           {canManageUsage ? <form className="usage-alert-row" onSubmit={(event) => {
             event.preventDefault(); void saveBillingNotifications();
           }}>
             <label><input type="checkbox" checked={billingNotifications?.preference?.emailEnabled ?? true}
-              onChange={(event) => updateBillingPreference({ emailEnabled: event.target.checked })} /> Email billing events</label>
+              onChange={(event) => updateBillingPreference({ emailEnabled: event.target.checked })} /> เหตุการณ์เรียกเก็บเงินทางอีเมล</label>
             <label className="usage-alert-cooldown">Language
               <select value={billingNotifications?.preference?.locale ?? "th"}
                 onChange={(event) => updateBillingPreference({ locale: event.target.value as "en" | "th" })}>
-                <option value="en">English</option><option value="th">Thai</option>
+                <option value="en">English</option><option value="th">ไทย</option>
               </select>
             </label>
             <label className="usage-alert-recipient">Billing recipient
@@ -794,7 +794,7 @@ export default function UsagePage() {
                 value={billingNotificationEmail} onChange={(event) => setBillingNotificationEmail(event.target.value)} />
             </label>
             <fieldset>
-              <legend>Events</legend>
+              <legend>เหตุการณ์</legend>
               {billingEventKeys.map((eventKey) => <label key={eventKey}>
                 <input type="checkbox" checked={(billingNotifications?.preference?.eventKeys ?? billingEventKeys).includes(eventKey)}
                   onChange={(event) => {
@@ -804,41 +804,41 @@ export default function UsagePage() {
                   }} /> {eventKey.replaceAll(".", " ").replaceAll("_", " ")}
               </label>)}
             </fieldset>
-            <button className="secondary-command" type="submit">Save notifications</button>
+            <button className="secondary-command" type="submit">บันทึกการแจ้งเตือน</button>
             <span className="usage-alert-result" aria-live="polite">{billingNotificationStatus}</span>
           </form> : null}
-          <div className="data-table" role="list" aria-label="Recent billing notifications">
+          <div className="data-table" role="list" aria-label="การแจ้งเตือนการเรียกเก็บเงินล่าสุด">
             {billingNotifications?.notifications.length ? billingNotifications.notifications.map((notice) => (
               <div className="data-row" role="listitem" key={notice.id}>
                 <div><strong>{notice.eventKey.replaceAll(".", " ").replaceAll("_", " ")}</strong>
                   <span>{formatDate(notice.effectiveAt)}</span></div>
                 <span>{notice.readAt ? "Read" : "New"}</span>
                 {!notice.readAt ? <button className="secondary-command" type="button"
-                  onClick={() => void markBillingNotificationRead(notice.id)}>Mark read</button> : <span />}
+                  onClick={() => void markBillingNotificationRead(notice.id)}>ทำเครื่องหมายว่าอ่านแล้ว</button> : <span />}
               </div>
-            )) : <div className="billing-document-state" role="listitem"><strong>No billing activity yet</strong>
-              <span>Subscription, payment, cancellation and credit events will appear here.</span></div>}
+            )) : <div className="billing-document-state" role="listitem"><strong>ยังไม่มีกิจกรรมการเรียกเก็บเงิน</strong>
+              <span>เหตุการณ์สมัครใช้บริการ ชำระเงิน ยกเลิก และเครดิตจะแสดงที่นี่</span></div>}
           </div>
         </section>
 
         <section className="tool-band billing-readiness" aria-labelledby="billing-title">
           <div className="band-heading">
-            <div><p>Billing</p><h2 id="billing-title">Invoices and plan management</h2></div>
-            {canManageUsage ? <button className="secondary-command" type="button" onClick={() => void openBillingPortal()}>Manage billing</button> : null}
+            <div><p>การเรียกเก็บเงิน</p><h2 id="billing-title">ใบแจ้งหนี้และการจัดการแผน</h2></div>
+            {canManageUsage ? <button className="secondary-command" type="button" onClick={() => void openBillingPortal()}>จัดการการเรียกเก็บเงิน</button> : null}
           </div>
           {portalStatus ? <p className="billing-action-status" role="status">{portalStatus}</p> : null}
-          {documentsUnavailable ? <div className="billing-document-state" role="alert">Billing documents are temporarily unavailable.</div>
-            : documents.length ? <div className="billing-document-list" role="list" aria-label="Billing documents">
+          {documentsUnavailable ? <div className="billing-document-state" role="alert">เอกสารการเรียกเก็บเงินไม่พร้อมใช้งานชั่วคราว</div>
+            : documents.length ? <div className="billing-document-list" role="list" aria-label="เอกสารการเรียกเก็บเงิน">
               {documents.map((document) => <div className="billing-document-row" role="listitem" key={document.documentId}>
                 <div><strong>{document.documentKind === "invoice" ? "Invoice" : "Credit note"} {document.documentNumber}</strong>
                   <span>{formatDate(document.issuedAt ?? document.recordedAt)}</span></div>
                 <span>{document.status.replaceAll("_", " ")}</span>
                 <span>{formatMoney(document.totalMinor)}</span>
                 {document.documentKind === "invoice" ? <span>{document.amountRemainingMinor > 0
-                  ? `${formatMoney(document.amountRemainingMinor)} due` : `${formatMoney(document.amountPaidMinor)} paid`}</span> : <span>Account credit</span>}
+                  ? `${formatMoney(document.amountRemainingMinor)} due` : `${formatMoney(document.amountPaidMinor)} paid`}</span> : <span>เครดิตในบัญชี</span>}
               </div>)}
             </div> : <div className="billing-document-state">
-              <strong>No billing documents yet</strong>
+              <strong>ยังไม่มีเอกสารการเรียกเก็บเงิน</strong>
               <span>{usage?.billingMode === "configured" ? "Invoices and credit notes will appear after Stripe finalizes them."
                 : "Public charging remains disabled until the commercial release gates are approved."}</span>
             </div>}

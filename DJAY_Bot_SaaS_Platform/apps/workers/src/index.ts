@@ -10,6 +10,8 @@ import {
   PostgresEmailOutboxStore, PrivacyStore, ProviderUsageReconciliationWorkerStore,
   UsageAlertNotificationWorkerStore,
   UsageAlertWorkerStore, UsagePeriodWorkerStore, VoiceReaperStore,
+  SupportAttachmentWorkerStore,
+  AppointmentSyncWorkerStore,
   SubscriptionLifecycleWorkerStore,
   BillingWebhookRecoveryWorkerStore,
 } from "@djay/db";
@@ -26,10 +28,13 @@ import { z } from "zod";
 import { deliverFlowbotIntegration } from "./flowbot-integration";
 import { runKnowledgeIngestionBatch } from "./knowledge-ingestion";
 import { deliverAiIntegration } from "./ai-integration";
+import { runSupportAttachmentBatch } from "./support-attachments";
+import { appointmentSyncErrorCode, deliverAppointmentSync } from "./appointment-sync";
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().min(1).max(65_535).default(8080),
+  SOCIAL_CHANNELS_RELEASE_ENABLED: z.enum(["true", "false"]).default("false"),
+  PORT: z.coerce.number().int().min(1).max(65_535).default(3104),
   WORKER_DATABASE_URL: z.string().url(),
   AUTH_EMAIL_ENVELOPE_KEY: z.string().min(40).optional(),
   EMAIL_DELIVERY_MODE: z.enum(["disabled", "http"]).default("disabled"),
@@ -49,6 +54,9 @@ const envSchema = z.object({
   AI_INTEGRATION_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
   AI_INTEGRATION_ENVELOPE_KEY: z.string().min(40).optional(),
   KNOWLEDGE_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  SUPPORT_ATTACHMENT_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  APPOINTMENT_SYNC_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
+  VOICE_TELEPHONY_ENVELOPE_KEY: z.string().min(40).optional(),
   KNOWLEDGE_OBJECT_BUCKET: z.string().min(3).max(222).optional(),
   MALWARE_SCANNER_ENDPOINT: z.string().url().optional(),
   MALWARE_SCANNER_TOKEN: z.string().min(16).optional(),
@@ -80,15 +88,21 @@ const envSchema = z.object({
 });
 
 const env = envSchema.parse(process.env);
+const socialReleaseEnabled = env.SOCIAL_CHANNELS_RELEASE_ENABLED === "true";
 assertNoProductionPlaceholders(env.NODE_ENV, env);
 if (env.NODE_ENV === "production" && env.EMAIL_DELIVERY_MODE !== "http") throw new Error("EMAIL_DELIVERY_MODE=http is required in production.");
 if (env.NODE_ENV === "production" && env.PRIVACY_WORKER_ENABLED !== "true") throw new Error("PRIVACY_WORKER_ENABLED=true is required in production.");
 if (env.NODE_ENV === "production" && env.FLOWBOT_WORKER_ENABLED !== "true") throw new Error("FLOWBOT_WORKER_ENABLED=true is required in production.");
-if (env.NODE_ENV === "production" && env.FLOWBOT_SOCIAL_WORKER_ENABLED !== "true") throw new Error("FLOWBOT_SOCIAL_WORKER_ENABLED=true is required in production.");
+if (env.NODE_ENV === "production" && socialReleaseEnabled && env.FLOWBOT_SOCIAL_WORKER_ENABLED !== "true") throw new Error("FLOWBOT_SOCIAL_WORKER_ENABLED=true is required when the social release is enabled.");
 if (env.NODE_ENV === "production" && env.AI_WORKER_ENABLED !== "true") throw new Error("AI_WORKER_ENABLED=true is required in production.");
 if (env.NODE_ENV === "production" && env.AI_INTEGRATION_WORKER_ENABLED !== "true") throw new Error("AI_INTEGRATION_WORKER_ENABLED=true is required in production.");
 if (env.NODE_ENV === "production" && env.KNOWLEDGE_WORKER_ENABLED !== "true") throw new Error("KNOWLEDGE_WORKER_ENABLED=true is required in production.");
-if (env.NODE_ENV === "production" && env.AI_SOCIAL_WORKER_ENABLED !== "true") throw new Error("AI_SOCIAL_WORKER_ENABLED=true is required in production.");
+if (env.NODE_ENV === "production" && env.SUPPORT_ATTACHMENT_WORKER_ENABLED !== "true") throw new Error("SUPPORT_ATTACHMENT_WORKER_ENABLED=true is required in production.");
+if (env.NODE_ENV === "production" && env.APPOINTMENT_SYNC_WORKER_ENABLED !== "true") throw new Error("APPOINTMENT_SYNC_WORKER_ENABLED=true is required in production.");
+if (env.NODE_ENV === "production" && socialReleaseEnabled && env.AI_SOCIAL_WORKER_ENABLED !== "true") throw new Error("AI_SOCIAL_WORKER_ENABLED=true is required when the social release is enabled.");
+if (env.NODE_ENV === "production" && !socialReleaseEnabled && (env.FLOWBOT_SOCIAL_WORKER_ENABLED === "true" || env.AI_SOCIAL_WORKER_ENABLED === "true")) {
+  throw new Error("Social workers require SOCIAL_CHANNELS_RELEASE_ENABLED=true.");
+}
 if (env.NODE_ENV === "production" && env.ENTITLEMENT_CHANGE_WORKER_ENABLED !== "true") throw new Error("ENTITLEMENT_CHANGE_WORKER_ENABLED=true is required in production.");
 if (env.NODE_ENV === "production" && env.USAGE_ALERT_WORKER_ENABLED !== "true") throw new Error("USAGE_ALERT_WORKER_ENABLED=true is required in production.");
 if (env.NODE_ENV === "production" && env.USAGE_PERIOD_WORKER_ENABLED !== "true") throw new Error("USAGE_PERIOD_WORKER_ENABLED=true is required in production.");
@@ -112,6 +126,12 @@ if (env.AI_WORKER_ENABLED === "true" && !env.AI_NOTIFICATION_ENVELOPE_KEY) throw
 if (env.AI_INTEGRATION_WORKER_ENABLED === "true" && !env.AI_INTEGRATION_ENVELOPE_KEY) throw new Error("AI_INTEGRATION_ENVELOPE_KEY is required when AI integration processing is enabled.");
 if (env.KNOWLEDGE_WORKER_ENABLED === "true" && (!env.KNOWLEDGE_OBJECT_BUCKET || !env.MALWARE_SCANNER_ENDPOINT || !env.MALWARE_SCANNER_TOKEN)) {
   throw new Error("Knowledge object storage and malware scanner configuration is incomplete.");
+}
+if (env.SUPPORT_ATTACHMENT_WORKER_ENABLED === "true" && (!env.KNOWLEDGE_OBJECT_BUCKET || !env.MALWARE_SCANNER_ENDPOINT || !env.MALWARE_SCANNER_TOKEN)) {
+  throw new Error("Support attachment object storage and malware scanner configuration is incomplete.");
+}
+if (env.APPOINTMENT_SYNC_WORKER_ENABLED === "true" && !env.VOICE_TELEPHONY_ENVELOPE_KEY) {
+  throw new Error("VOICE_TELEPHONY_ENVELOPE_KEY is required when appointment synchronization is enabled.");
 }
 if (env.AI_SOCIAL_WORKER_ENABLED === "true" && (!env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY
   || !env.AI_TEXT_GATEWAY_ENDPOINT || !env.AI_TEXT_GATEWAY_SERVICE_TOKEN)) {
@@ -140,6 +160,8 @@ const flowbotNotificationWorker = new FlowbotNotificationWorkerStore(client);
 const flowSocialWorker = new FlowSocialWorkerStore(client);
 const aiChatNotificationWorker = new AiChatNotificationWorkerStore(client);
 const knowledgeWorker = new KnowledgeIngestionWorkerStore(client);
+const supportAttachmentWorker = new SupportAttachmentWorkerStore(client);
+const appointmentSyncWorker = new AppointmentSyncWorkerStore(client);
 const aiIntegrationWorker = new AiIntegrationWorkerStore(client);
 const delivery = env.EMAIL_DELIVERY_MODE === "http" ? createHttpEmailDelivery({
   endpoint: env.EMAIL_DELIVERY_ENDPOINT!, apiToken: env.EMAIL_DELIVERY_API_TOKEN!, from: env.EMAIL_FROM!,
@@ -148,16 +170,18 @@ const emailEnvelopeKey = env.AUTH_EMAIL_ENVELOPE_KEY ? parse32ByteSecret(env.AUT
 const privacyExportKey = env.PRIVACY_EXPORT_KEY ? parse32ByteSecret(env.PRIVACY_EXPORT_KEY, "PRIVACY_EXPORT_KEY") : null;
 const flowbotIntegrationKey = env.FLOWBOT_INTEGRATION_ENVELOPE_KEY ? parse32ByteSecret(env.FLOWBOT_INTEGRATION_ENVELOPE_KEY, "FLOWBOT_INTEGRATION_ENVELOPE_KEY") : null;
 const flowbotNotificationKey = env.FLOWBOT_NOTIFICATION_ENVELOPE_KEY ? parse32ByteSecret(env.FLOWBOT_NOTIFICATION_ENVELOPE_KEY, "FLOWBOT_NOTIFICATION_ENVELOPE_KEY") : null;
-const flowSocialCredentialKey = env.FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY
+const flowSocialCredentialKey = socialReleaseEnabled && env.FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY
   ? parse32ByteSecret(env.FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY, "FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY") : null;
 const aiNotificationKey = env.AI_NOTIFICATION_ENVELOPE_KEY ? parse32ByteSecret(env.AI_NOTIFICATION_ENVELOPE_KEY, "AI_NOTIFICATION_ENVELOPE_KEY") : null;
 const aiIntegrationKey = env.AI_INTEGRATION_ENVELOPE_KEY ? parse32ByteSecret(env.AI_INTEGRATION_ENVELOPE_KEY, "AI_INTEGRATION_ENVELOPE_KEY") : null;
-const aiSocialCredentialKey = env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY
+const aiSocialCredentialKey = socialReleaseEnabled && env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY
   ? parse32ByteSecret(env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY, "AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY") : null;
 const usageAlertNotificationKey = env.USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY
   ? parse32ByteSecret(env.USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY, "USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY") : null;
 const billingNotificationKey = env.BILLING_NOTIFICATION_ENVELOPE_KEY
   ? parse32ByteSecret(env.BILLING_NOTIFICATION_ENVELOPE_KEY, "BILLING_NOTIFICATION_ENVELOPE_KEY") : null;
+const appointmentSyncKey = env.VOICE_TELEPHONY_ENVELOPE_KEY
+  ? parse32ByteSecret(env.VOICE_TELEPHONY_ENVELOPE_KEY, "VOICE_TELEPHONY_ENVELOPE_KEY") : null;
 const aiSocialWorker = aiSocialCredentialKey ? new AiSocialWorkerStore(client, aiSocialCredentialKey) : null;
 const voiceReaper = new VoiceReaperStore(client);
 const entitlementChangeWorker = new EntitlementChangeWorkerStore(client);
@@ -530,6 +554,29 @@ do {
       malwareScannerToken: env.MALWARE_SCANNER_TOKEN!,
     });
     if (processed > 0) console.info("knowledge_ingestion_batch_complete", { processed });
+  }
+  if (env.SUPPORT_ATTACHMENT_WORKER_ENABLED === "true") {
+    const processed = await runSupportAttachmentBatch(supportAttachmentWorker, {
+      bucket: env.KNOWLEDGE_OBJECT_BUCKET!, malwareScannerEndpoint: env.MALWARE_SCANNER_ENDPOINT!,
+      malwareScannerToken: env.MALWARE_SCANNER_TOKEN!,
+    });
+    if (processed > 0) console.info("support_attachment_batch_complete", { processed });
+  }
+  if (env.APPOINTMENT_SYNC_WORKER_ENABLED === "true" && appointmentSyncKey) {
+    const claim = await appointmentSyncWorker.claim();
+    if (claim) {
+      try {
+        const externalEventRef = await deliverAppointmentSync(claim, appointmentSyncKey);
+        if (!(await appointmentSyncWorker.finish(claim.job_id, { succeeded: true, externalEventRef }))) {
+          throw new Error("calendar_job_state_conflict");
+        }
+        console.info("appointment_sync_succeeded", { jobId: claim.job_id, operation: claim.operation });
+      } catch (error) {
+        const safeErrorCode = appointmentSyncErrorCode(error);
+        await appointmentSyncWorker.finish(claim.job_id, { succeeded: false, safeErrorCode }).catch(() => undefined);
+        console.warn("appointment_sync_failed", { jobId: claim.job_id, operation: claim.operation, safeErrorCode });
+      }
+    }
   }
   if (env.AI_INTEGRATION_WORKER_ENABLED === "true" && aiIntegrationKey) {
     const claim = await aiIntegrationWorker.claim();

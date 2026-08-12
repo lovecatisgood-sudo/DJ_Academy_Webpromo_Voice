@@ -151,7 +151,7 @@ export default function WorkspacePage() {
     }
   }
 
-  if (loading) return <main className="workspace-loading">Loading workspace...</main>;
+  if (loading) return <main className="workspace-loading">กำลังโหลดเวิร์กสเปซ...</main>;
   if (loadError && !selectedTenantId) return <WorkspaceSessionLoadError onRetry={() => void load()} />;
 
   if (!selectedTenantId) {
@@ -159,17 +159,17 @@ export default function WorkspacePage() {
       <main className="workspace-picker">
         <div className="picker-wrap">
           <span className="mark">D</span>
-          <p>DJAY Bot workspace</p>
-          <h1>Choose a business</h1>
+          <p>เวิร์กสเปซ DJAY Bot</p>
+          <h1>เลือกธุรกิจ</h1>
           <div className="workspace-list">
             {workspaces.map((workspace) => (
               <button key={workspace.tenantId} type="button" onClick={() => selectWorkspace(workspace.tenantId)}>
-                <strong>{workspace.businessName}</strong><span>{humanizeTenantRole(workspace.role)}</span>
+                <strong data-no-localize>{workspace.businessName}</strong><span>{humanizeTenantRole(workspace.role)}</span>
               </button>
             ))}
           </div>
           {mutationMessage ? <p className="inline-message" role="alert">{mutationMessage}</p> : null}
-          <button className="quiet-command" type="button" onClick={logout}>Sign out</button>
+          <button className="quiet-command" type="button" onClick={logout}>ออกจากระบบ</button>
         </div>
       </main>
     );
@@ -192,14 +192,22 @@ export default function WorkspacePage() {
       />
       <section id="workspace-main" className="workspace-main" tabIndex={-1}>
         <header className="workspace-header">
-          <div><p>Workspace</p><h1>{activeWorkspace?.businessName || onboarding?.business_name}</h1></div>
+          <div><p>เวิร์กสเปซ</p><h1>{activeWorkspace?.businessName || onboarding?.business_name}</h1></div>
           <span className="role-label">{activeWorkspace ? humanizeTenantRole(activeWorkspace.role) : ""}</span>
         </header>
         {mutationMessage ? <p className={`inline-message dashboard-inline-message ${mutationTone || "error"}`} role={mutationTone === "success" ? "status" : "alert"}>{mutationMessage}</p> : null}
-        {!canUpdateOnboarding ? <WorkspaceViewOnly>You can review launch progress. A workspace administrator can refresh the evidence after setup or testing.</WorkspaceViewOnly> : null}
+        {!canUpdateOnboarding ? <WorkspaceViewOnly>คุณดูความคืบหน้าก่อนเปิดใช้ได้ ผู้ดูแลเวิร์กสเปซเป็นผู้รีเฟรชหลักฐานหลังตั้งค่าหรือทดสอบ</WorkspaceViewOnly> : null}
+        <section className="workspace-action-center" aria-labelledby="action-center-title">
+          <div className="band-heading"><div><p>What to do next</p><h2 id="action-center-title">Action Center</h2></div><span>{readiness?.launchReadyProducts.length ? `${readiness.launchReadyProducts.length} ready` : "Guided setup"}</span></div>
+          <div className="action-center-grid">
+            <article><span>01</span><h3>{primaryAction ? "Continue your setup" : "Setup is current"}</h3><p>{primaryAction ? "Resume the next incomplete step. Your progress is saved to this workspace." : "Review server-verified tests before changing a live bot."}</p><a href={primaryAction?.href || "/workspace/test-center"}>{primaryAction?.label || "Open Test Center"}</a></article>
+            <article><span>02</span><h3>Check customer conversations</h3><p>Take over when a person needs help, use a quick reply, or leave a private team note.</p><a href="/workspace/inbox">Open Inbox</a></article>
+            <article><span>03</span><h3>Need a person?</h3><p>Read a short guide or send a contextual support ticket without leaving your workspace.</p><a href="/workspace/support">Open Support</a></article>
+          </div>
+        </section>
         <section className="onboarding-band" aria-labelledby="onboarding-title">
-          <div className="band-heading"><div><p>Guided setup</p><h2 id="onboarding-title">Launch checklist</h2></div><span>{onboarding ? humanizeOnboardingStage(onboarding.stage) : "Account created"}</span></div>
-          <p className="control-copy">Progress comes from server-verified workspace and product evidence. A browser cannot mark setup ready by choosing a stage.</p>
+          <div className="band-heading"><div><p>ตัวช่วยตั้งค่าทีละขั้น</p><h2 id="onboarding-title">รายการตรวจสอบก่อนเปิดใช้</h2></div><span>{onboarding ? humanizeOnboardingStage(onboarding.stage) : "Account created"}</span></div>
+          <p className="control-copy">ความคืบหน้าอ้างอิงหลักฐานเวิร์กสเปซและผลิตภัณฑ์ที่เซิร์ฟเวอร์ตรวจสอบ (Progress comes from server-verified workspace and product evidence.) การเลือกขั้นตอนในเบราว์เซอร์ไม่สามารถทำเครื่องหมายว่าพร้อมได้</p>
           {primaryAction ? (
             <p className="onboarding-primary-action">
               <a className="primary-command" href={primaryAction.href}>{primaryAction.label}</a>
@@ -212,7 +220,7 @@ export default function WorkspacePage() {
               <small>{step.complete ? "Complete" : "Action needed"}</small>
             </li>)}
           </ol>
-          {readiness?.productStates.length ? <div className="product-lifecycle-list" aria-label="Product setup progress">{readiness.productStates.map((product) => {
+          {readiness?.productStates.length ? <div className="product-lifecycle-list" aria-label="ความคืบหน้าการตั้งค่าผลิตภัณฑ์">{readiness.productStates.map((product) => {
             const title = product.productKey === "flowbot" ? "Flow Bot" : product.productKey === "ai_chat" ? "AI Text Bot" : "AI Voice Bot";
             const labels = [
               ["Access", product.activeAccess], ["Configured", product.configured], ["Deployed", product.deployed], ["Tested", product.tested], ["Ready", product.launchReady],
@@ -233,16 +241,16 @@ export default function WorkspacePage() {
             </article>;
           })}</div> : null}
           <div className="onboarding-refresh">
-            <p>Public rollout still requires the applicable product, legal, commercial, and operational release gates.</p>
+            <p>การเปิดให้บริการสาธารณะยังต้องผ่านเกณฑ์ด้านผลิตภัณฑ์ กฎหมาย การค้า และการดำเนินงานที่เกี่ยวข้อง</p>
             {canUpdateOnboarding ? <button type="button" disabled={refreshing} onClick={() => void refreshOnboarding()}>{refreshing ? "Checking evidence…" : "Refresh checklist"}</button> : null}
           </div>
         </section>
         <section className="empty-band product-overview-band">
-          <p>Products</p>
+          <p>ผลิตภัณฑ์</p>
           <h2>{subscriptions.length ? `${subscriptions.length} product${subscriptions.length === 1 ? "" : "s"} configured` : "No products are configured yet"}</h2>
           {subscriptions.length ? <div className="product-overview-grid">{subscriptions.map((subscription) => <a href={`/workspace/${subscription.productKey === "ai_chat" ? "ai-chat" : subscription.productKey}`} key={subscription.id}>
             <span>{subscription.tierName}</span><strong>{subscription.publicName}</strong><small>{humanizeToken(subscription.status)} · {humanizeToken(subscription.accessMode)} access</small>
-          </a>)}</div> : <p className="field-help">A product appears here after its subscription request is created. Public charging remains disabled until the commercial release gate is approved.</p>}
+          </a>)}</div> : <p className="field-help">ผลิตภัณฑ์จะแสดงที่นี่หลังสร้างคำขอสมัครใช้บริการ ระบบยังไม่เรียกเก็บเงินสาธารณะจนกว่าประตูอนุมัติการเปิดขายจะผ่านครบถ้วน</p>}
         </section>
       </section>
     </main>

@@ -12,7 +12,7 @@ import {
 
 const env = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().min(1).max(65_535).default(8080),
+  PORT: z.coerce.number().int().min(1).max(65_535).default(3105),
   VOICE_GATEWAY_MAX_SESSIONS: z.coerce.number().int().positive().default(100),
   VOICE_SILENCE_WARNING_SECONDS: z.coerce.number().int().min(5).max(300).default(45),
   VOICE_IDLE_TIMEOUT_SECONDS: z.coerce.number().int().min(10).max(600).default(60),

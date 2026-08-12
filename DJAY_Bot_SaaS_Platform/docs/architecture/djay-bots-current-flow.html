@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Interactive current-state map of the DJAY Bot multi-tenant SaaS.">
+  <title>DJAY Bot SaaS — Current Flow & UI Map</title>
+  <style>
+    :root {
+      --ink: #17231f;
+      --muted: #65706b;
+      --line: #dce3df;
+      --canvas: #f4f7f5;
+      --panel: #ffffff;
+      --green: #126149;
+      --green-2: #1f7a5b;
+      --green-soft: #e8f4ef;
+      --yellow: #f6c453;
+      --yellow-soft: #fff7df;
+      --red: #a63b35;
+      --red-soft: #fff0ef;
+      --blue: #315f9d;
+      --blue-soft: #edf3fb;
+      --dark: #202724;
+      --shadow: 0 18px 50px rgba(21, 39, 32, .09);
+      --radius: 14px;
+      --radius-sm: 8px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--canvas);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; min-width: 320px; background: var(--canvas); }
+    button, input, select, textarea { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 3px solid rgba(31, 122, 91, .28);
+      outline-offset: 2px;
+    }
+
+    .app { min-height: 100vh; display: grid; grid-template-rows: 64px 1fr; }
+    .topbar {
+      position: sticky; top: 0; z-index: 30;
+      display: flex; align-items: center; gap: 14px;
+      padding: 0 22px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.95);
+      backdrop-filter: blur(16px);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 230px; }
+    .brand-mark { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; background: var(--yellow); font-weight: 950; }
+    .brand strong { font-size: 13px; letter-spacing: .04em; }
+    .brand small { display: block; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .03em; }
+    .top-context { display: flex; align-items: center; gap: 9px; margin-left: auto; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 5px 9px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-size: 10px; font-weight: 850; text-transform: uppercase; }
+    .pill.warning { background: var(--yellow-soft); color: #75510a; }
+    .pill.danger { background: var(--red-soft); color: var(--red); }
+    .pill.neutral { background: #eef1ef; color: #58615d; }
+    .menu-toggle { display: none; width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); font-weight: 900; }
+
+    .shell { min-width: 0; display: grid; grid-template-columns: 248px minmax(0, 1fr); }
+    .sidebar { position: sticky; top: 64px; height: calc(100vh - 64px); overflow: auto; padding: 20px 14px 28px; border-right: 1px solid var(--line); background: #fff; }
+    .nav-group { margin-top: 20px; }
+    .nav-group:first-child { margin-top: 0; }
+    .nav-label { margin: 0 10px 7px; color: #8a938f; font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+    .nav-item { width: 100%; min-height: 40px; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: #58625d; text-align: left; cursor: pointer; }
+    .nav-item:hover { background: #f4f7f5; color: var(--ink); }
+    .nav-item.active { background: var(--green-soft); color: var(--green); font-weight: 850; }
+    .nav-icon { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid #d3dcd8; border-radius: 7px; background: #fff; font-size: 10px; font-weight: 900; }
+    .nav-item.active .nav-icon { border-color: #b9d8cc; background: #fff; }
+    .nav-copy { display: grid; gap: 2px; }
+    .nav-copy span { font-size: 12px; }
+    .nav-copy small { color: #8a938f; font-size: 9px; font-weight: 600; }
+    .source-link { display: block; margin: 22px 10px 0; color: var(--green); font-size: 11px; font-weight: 750; text-underline-offset: 3px; }
+
+    .content { min-width: 0; padding: clamp(22px, 3.4vw, 48px); }
+    .screen { display: none; max-width: 1440px; margin: 0 auto; animation: reveal .22s ease; }
+    .screen.active { display: block; }
+    @keyframes reveal { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+    .screen-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 26px; }
+    .eyebrow { margin: 0 0 7px; color: var(--green); font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+    h1, h2, h3, p { overflow-wrap: anywhere; }
+    h1 { margin: 0; font-size: clamp(27px, 4vw, 44px); letter-spacing: -.04em; line-height: 1.04; }
+    h2 { margin: 0; font-size: 19px; letter-spacing: -.02em; }
+    h3 { margin: 0; font-size: 14px; }
+    .lead { max-width: 800px; margin: 12px 0 0; color: var(--muted); font-size: 14px; line-height: 1.65; }
+    .status-note { max-width: 380px; padding: 13px 15px; border-left: 3px solid var(--yellow); background: var(--yellow-soft); color: #624c1b; font-size: 11px; line-height: 1.5; }
+
+    .grid { display: grid; gap: 14px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .card { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); box-shadow: 0 2px 0 rgba(20,40,32,.02); }
+    .card.soft { background: #f8faf9; }
+    .card.dark { border-color: #303936; background: var(--dark); color: #fff; }
+    .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 15px; }
+    .card p { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .card.dark p { color: #b7c0bc; }
+    .metric { display: grid; gap: 6px; }
+    .metric span { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+    .metric strong { font-size: 25px; letter-spacing: -.04em; }
+    .metric small { color: #7c8782; font-size: 10px; }
+    .ok { color: var(--green-2); }
+    .attention { color: var(--red); }
+    .section-block { margin-top: 18px; }
+
+    .journey { display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)); gap: 22px; align-items: stretch; }
+    .journey-step { position: relative; min-height: 150px; padding: 17px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+    .journey-step:not(:last-child)::after { content: "→"; position: absolute; right: -18px; top: 62px; color: #8c9792; font-size: 18px; font-weight: 900; }
+    .step-number { width: 28px; height: 28px; display: grid; place-items: center; margin-bottom: 14px; border-radius: 50%; background: var(--green-soft); color: var(--green); font-size: 11px; font-weight: 900; }
+    .journey-step strong { display: block; font-size: 12px; }
+    .journey-step p { margin: 7px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .flow-output { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+    .output-card { padding: 14px; border-radius: 10px; background: var(--green-soft); }
+    .output-card strong { display: block; color: var(--green); font-size: 12px; }
+    .output-card span { display: block; margin-top: 5px; color: #587067; font-size: 10px; }
+
+    .browser { overflow: hidden; border: 1px solid #d4ddd9; border-radius: 16px; background: #fff; box-shadow: var(--shadow); }
+    .browser-bar { height: 42px; display: flex; align-items: center; gap: 6px; padding: 0 14px; border-bottom: 1px solid var(--line); background: #f3f6f4; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #bbc5c0; }
+    .address { flex: 1; max-width: 420px; margin-left: 10px; padding: 6px 11px; border: 1px solid #d7dfdc; border-radius: 7px; background: #fff; color: #72807a; font-size: 9px; }
+    .browser-body { min-height: 600px; }
+
+    .public-nav { height: 62px; display: flex; align-items: center; gap: 20px; padding: 0 26px; border-bottom: 1px solid var(--line); }
+    .public-nav .mini-brand { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 900; }
+    .public-links { display: flex; gap: 18px; margin-left: auto; color: var(--muted); font-size: 10px; }
+    .public-hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: 34px; padding: 42px 34px; background: linear-gradient(135deg, #f8fbf9 0%, #edf6f2 100%); }
+    .public-hero h2 { max-width: 620px; font-size: clamp(28px, 4vw, 48px); line-height: 1.04; }
+    .public-hero p { max-width: 620px; margin: 14px 0 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+    .hero-actions { display: flex; gap: 9px; margin-top: 20px; }
+    .btn { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; padding: 0 14px; border: 0; border-radius: 8px; background: var(--green); color: #fff; font-size: 10px; font-weight: 850; text-decoration: none; cursor: pointer; }
+    .btn.secondary { border: 1px solid #bdc9c4; background: #fff; color: var(--ink); }
+    .btn.danger { background: var(--red); }
+    .registration { padding: 22px; border: 1px solid #d7e3de; border-radius: 14px; background: #fff; box-shadow: 0 12px 34px rgba(23,56,43,.08); }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+    .field { display: grid; gap: 5px; }
+    .field.full { grid-column: 1 / -1; }
+    .field label { color: #66716c; font-size: 9px; font-weight: 800; }
+    .field input, .field select, .field textarea { width: 100%; min-height: 36px; padding: 8px 10px; border: 1px solid #cbd5d1; border-radius: 7px; background: #fff; color: var(--ink); font-size: 10px; }
+    .plan-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; padding: 24px 30px 32px; }
+    .plan { position: relative; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+    .plan h3 { margin-top: 10px; }
+    .price { margin-top: 10px; font-size: 18px; font-weight: 900; }
+    .plan ul { margin: 12px 0 0; padding-left: 16px; color: var(--muted); font-size: 9px; line-height: 1.7; }
+
+    .workspace-ui { min-height: 650px; display: grid; grid-template-columns: 190px minmax(0, 1fr); }
+    .workspace-side { display: flex; flex-direction: column; padding: 18px 13px; border-right: 1px solid var(--line); background: #f4f6f5; }
+    .workspace-title { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; font-size: 10px; font-weight: 900; }
+    .workspace-select { padding: 9px; border: 1px solid #d2dbd7; border-radius: 7px; background: #fff; font-size: 9px; }
+    .workspace-menu { display: grid; gap: 3px; margin-top: 14px; }
+    .workspace-menu span { padding: 8px 9px; border-radius: 7px; color: #64706a; font-size: 9px; }
+    .workspace-menu span.active { background: #dcece6; color: var(--green); font-weight: 850; }
+    .menu-divider { margin: 9px 9px 2px; color: #949d99; font-size: 8px; font-weight: 900; text-transform: uppercase; }
+    .workspace-main { min-width: 0; background: #fff; }
+    .workspace-head { min-height: 84px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 26px; border-bottom: 1px solid var(--line); }
+    .workspace-head h2 { font-size: 21px; }
+    .workspace-head small { color: var(--muted); font-size: 9px; }
+    .workspace-body { padding: 22px 26px 30px; }
+    .lifecycle { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+    .product-state { padding: 15px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+    .product-state strong { display: block; font-size: 11px; }
+    .product-state p { margin: 6px 0 12px; color: var(--muted); font-size: 9px; line-height: 1.5; }
+    .progress { height: 6px; overflow: hidden; border-radius: 99px; background: #e9eeeb; }
+    .progress span { display: block; height: 100%; border-radius: inherit; background: var(--green-2); }
+    .attention-list { margin-top: 18px; border-top: 1px solid var(--line); }
+    .attention-row { min-height: 56px; display: grid; grid-template-columns: minmax(0,1fr) 100px 90px; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); }
+    .attention-row strong { font-size: 10px; }
+    .attention-row small, .attention-row span { color: var(--muted); font-size: 9px; }
+
+    .wizard { display: grid; grid-template-columns: 190px minmax(0,1fr); gap: 18px; }
+    .wizard-steps { padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: #f8faf9; }
+    .wizard-step { display: grid; grid-template-columns: 24px 1fr; gap: 9px; align-items: center; padding: 9px 0; color: var(--muted); font-size: 10px; }
+    .wizard-step i { width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid #cbd6d1; border-radius: 50%; background: #fff; font-style: normal; font-size: 9px; }
+    .wizard-step.complete i { border-color: var(--green); background: var(--green); color: #fff; }
+    .wizard-step.active { color: var(--green); font-weight: 850; }
+    .wizard-panel { padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+    .template-row { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-top: 16px; }
+    .template { min-height: 100px; padding: 13px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
+    .template.selected { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
+    .template span { display: block; margin-top: 6px; color: var(--muted); font-size: 9px; line-height: 1.4; }
+
+    .studio-toolbar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: #f8faf9; }
+    .studio-toolbar strong { font-size: 11px; }
+    .studio-toolbar .toolbar-spacer { flex: 1; }
+    .tiny-btn { min-height: 30px; padding: 0 10px; border: 1px solid #cbd5d1; border-radius: 7px; background: #fff; color: var(--ink); font-size: 9px; font-weight: 800; }
+    .tiny-btn.primary { border-color: var(--green); background: var(--green); color: #fff; }
+    .studio-layout { min-height: 570px; display: grid; grid-template-columns: 190px minmax(0,1fr) 240px; }
+    .studio-pane { min-width: 0; padding: 16px; border-right: 1px solid var(--line); }
+    .studio-pane:last-child { border-right: 0; }
+    .studio-pane h3 { margin-bottom: 12px; }
+    .list-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: 9px; }
+    .list-item + .list-item { margin-top: 7px; }
+    .list-item.active { border-color: #a9d0c0; background: var(--green-soft); color: var(--green); font-weight: 800; }
+    .canvas { position: relative; min-height: 510px; overflow: hidden; background-image: radial-gradient(#d7dfdc 1px, transparent 1px); background-size: 18px 18px; }
+    .node { position: absolute; width: 150px; padding: 12px; border: 1px solid #cbd7d2; border-radius: 10px; background: #fff; box-shadow: 0 8px 20px rgba(30,54,44,.07); font-size: 9px; }
+    .node strong { display: block; margin-bottom: 5px; font-size: 10px; }
+    .node.start { left: 30px; top: 40px; border-color: #9bcab7; }
+    .node.question { left: 230px; top: 130px; }
+    .node.form { left: 60px; top: 290px; }
+    .node.handover { right: 25px; top: 320px; border-color: #e0b1ad; }
+    .connector { position: absolute; height: 2px; transform-origin: left; background: #9aaba4; }
+    .c1 { left: 175px; top: 105px; width: 125px; transform: rotate(24deg); }
+    .c2 { left: 272px; top: 222px; width: 180px; transform: rotate(55deg); }
+    .c3 { left: 190px; top: 340px; width: 245px; transform: rotate(5deg); }
+    .settings-stack { display: grid; gap: 10px; }
+    .setting { padding: 11px; border: 1px solid var(--line); border-radius: 8px; }
+    .setting label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 8px; font-weight: 800; }
+    .setting div { font-size: 9px; line-height: 1.4; }
+
+    .playbook-layout { min-height: 590px; display: grid; grid-template-columns: 180px minmax(0,1fr) 300px; }
+    .tab-rail { padding: 16px; border-right: 1px solid var(--line); background: #f7f9f8; }
+    .tab-rail span { display: block; padding: 9px 10px; border-radius: 7px; color: var(--muted); font-size: 9px; }
+    .tab-rail span.active { background: var(--green-soft); color: var(--green); font-weight: 850; }
+    .editor { padding: 18px; }
+    .editor-section { padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .editor-section:first-child { padding-top: 0; }
+    .editor-section p { margin: 5px 0 11px; color: var(--muted); font-size: 9px; line-height: 1.4; }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { padding: 6px 8px; border: 1px solid #cbd6d1; border-radius: 999px; background: #fff; color: #59645f; font-size: 8px; }
+    .preview { padding: 18px; border-left: 1px solid var(--line); background: #fbfcfb; }
+    .chat { display: grid; gap: 9px; margin-top: 14px; }
+    .bubble { max-width: 85%; padding: 10px 11px; border-radius: 11px; background: #edf1ef; font-size: 9px; line-height: 1.45; }
+    .bubble.bot { justify-self: start; background: var(--green-soft); color: #234a3c; }
+    .bubble.user { justify-self: end; background: #27312d; color: #fff; }
+    .citation { padding: 8px; border: 1px solid #cfe0d8; border-radius: 7px; background: #fff; color: var(--green); font-size: 8px; }
+
+    .voice-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: #f7f9f8; }
+    .voice-tabs span { padding: 7px 9px; border-radius: 7px; color: var(--muted); font-size: 8px; }
+    .voice-tabs span.active { background: var(--green-soft); color: var(--green); font-weight: 850; }
+    .voice-body { display: grid; grid-template-columns: minmax(0,1fr) 280px; gap: 18px; padding: 20px; }
+    .wave { height: 120px; display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 14px; border-radius: 12px; background: var(--dark); }
+    .wave i { width: 4px; border-radius: 99px; background: var(--yellow); }
+    .wave i:nth-child(1) { height: 22px; } .wave i:nth-child(2) { height: 50px; } .wave i:nth-child(3) { height: 34px; }
+    .wave i:nth-child(4) { height: 70px; } .wave i:nth-child(5) { height: 44px; } .wave i:nth-child(6) { height: 26px; }
+    .readiness { display: grid; gap: 8px; }
+    .check { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 9px; }
+    .check b { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--green); color: #fff; font-size: 8px; }
+
+    .inbox-layout { min-height: 610px; display: grid; grid-template-columns: 220px minmax(0,1fr) 230px; }
+    .conversation-list { border-right: 1px solid var(--line); }
+    .filter-bar { padding: 12px; border-bottom: 1px solid var(--line); background: #f7f9f8; }
+    .conversation { padding: 13px; border-bottom: 1px solid var(--line); }
+    .conversation.active { background: var(--green-soft); }
+    .conversation strong { display: block; font-size: 9px; }
+    .conversation p { margin: 5px 0 0; color: var(--muted); font-size: 8px; line-height: 1.4; }
+    .timeline { padding: 18px; }
+    .timeline-head { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 13px; border-bottom: 1px solid var(--line); }
+    .customer-panel { padding: 17px; border-left: 1px solid var(--line); background: #f8faf9; }
+    .fact { padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .fact span { display: block; color: var(--muted); font-size: 8px; text-transform: uppercase; }
+    .fact strong { display: block; margin-top: 4px; font-size: 9px; }
+
+    .widget-stage { min-height: 650px; position: relative; overflow: hidden; padding: 30px; background: linear-gradient(140deg, #f0f4f2, #dfeae5); }
+    .merchant-site { max-width: 760px; }
+    .merchant-site h2 { max-width: 520px; margin-top: 70px; font-size: 36px; }
+    .site-lines { display: grid; gap: 9px; max-width: 500px; margin-top: 20px; }
+    .site-lines i { height: 10px; border-radius: 99px; background: rgba(50,80,68,.12); }
+    .site-lines i:nth-child(2) { width: 80%; } .site-lines i:nth-child(3) { width: 64%; }
+    .widget { position: absolute; right: 28px; bottom: 28px; width: min(360px, calc(100% - 56px)); overflow: hidden; border: 1px solid #cad8d2; border-radius: 16px; background: #fff; box-shadow: 0 24px 65px rgba(19,48,36,.2); }
+    .widget-head { display: flex; align-items: center; gap: 10px; padding: 14px; background: var(--green); color: #fff; }
+    .widget-head strong { font-size: 10px; }
+    .widget-head span { margin-left: auto; font-size: 8px; }
+    .mode-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; border-bottom: 1px solid var(--line); background: var(--line); }
+    .mode-row button { min-height: 42px; border: 0; background: #fff; color: var(--muted); font-size: 8px; font-weight: 850; }
+    .mode-row button.active { background: var(--green-soft); color: var(--green); }
+    .widget-chat { min-height: 300px; padding: 14px; background: #fbfcfb; }
+    .widget-input { display: flex; gap: 7px; padding: 11px; border-top: 1px solid var(--line); }
+    .widget-input input { min-width: 0; flex: 1; border: 1px solid #cbd6d1; border-radius: 8px; padding: 8px; font-size: 9px; }
+
+    .platform-ui { min-height: 660px; display: grid; grid-template-columns: 190px minmax(0,1fr); background: #fff; }
+    .platform-side { display: flex; flex-direction: column; padding: 18px 13px; background: var(--dark); color: #fff; }
+    .platform-side .workspace-title { color: #fff; }
+    .platform-side span { padding: 9px; border-radius: 7px; color: #bdc6c2; font-size: 9px; }
+    .platform-side span.active { background: #37413d; color: #fff; font-weight: 850; }
+    .platform-main { min-width: 0; }
+    .platform-head { min-height: 82px; display: flex; align-items: center; justify-content: space-between; padding: 17px 24px; border-bottom: 1px solid var(--line); }
+    .platform-body { padding: 20px 24px 30px; }
+    .operations-table { margin-top: 14px; border-top: 1px solid var(--line); }
+    .op-row { min-height: 58px; display: grid; grid-template-columns: minmax(0,1fr) 120px 100px; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); }
+    .op-row strong { display: block; font-size: 10px; }
+    .op-row small, .op-row span { color: var(--muted); font-size: 8px; }
+
+    .arch-map { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 16px; align-items: stretch; }
+    .arch-column { padding: 17px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+    .arch-column h3 { margin-bottom: 12px; color: var(--green); }
+    .arch-node { position: relative; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #f8faf9; font-size: 9px; line-height: 1.4; }
+    .arch-node + .arch-node { margin-top: 8px; }
+    .arch-column:not(:last-child) .arch-node::after { content: "→"; position: absolute; right: -21px; top: 50%; transform: translateY(-50%); color: #92a09a; font-size: 14px; font-weight: 900; }
+    .rls-stack { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; margin-top: 16px; }
+    .rls-layer { padding: 13px; border-top: 3px solid var(--green); border-radius: 8px; background: #fff; font-size: 9px; line-height: 1.45; }
+    .rls-layer strong { display: block; margin-bottom: 5px; }
+
+    .route-search { width: min(100%, 420px); min-height: 40px; padding: 0 12px; border: 1px solid #cbd5d1; border-radius: 8px; background: #fff; }
+    .route-groups { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; margin-top: 18px; }
+    .route-group { padding: 17px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+    .route-list { display: grid; gap: 7px; margin-top: 13px; }
+    .route { padding: 9px; border-radius: 7px; background: #f5f8f6; }
+    .route code { display: block; color: var(--green); font-size: 9px; font-weight: 850; }
+    .route span { display: block; margin-top: 4px; color: var(--muted); font-size: 8px; line-height: 1.35; }
+    .route[hidden] { display: none; }
+
+    @media (max-width: 1180px) {
+      .journey { grid-template-columns: repeat(4, minmax(130px,1fr)); }
+      .journey-step:not(:last-child)::after { display: none; }
+      .grid.four { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .studio-layout { grid-template-columns: 160px minmax(0,1fr); }
+      .studio-layout .studio-pane:last-child { grid-column: 1 / -1; border-top: 1px solid var(--line); }
+      .playbook-layout { grid-template-columns: 150px minmax(0,1fr); }
+      .playbook-layout .preview { grid-column: 1 / -1; border-top: 1px solid var(--line); border-left: 0; }
+      .arch-map { grid-template-columns: repeat(3, minmax(0,1fr)); }
+      .arch-column:not(:last-child) .arch-node::after { display: none; }
+      .rls-stack { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    }
+
+    @media (max-width: 900px) {
+      .app { grid-template-rows: 58px 1fr; }
+      .topbar { padding: 0 14px; }
+      .brand { min-width: 0; }
+      .brand small, .top-context .pill:not(:first-child) { display: none; }
+      .menu-toggle { display: block; margin-left: auto; }
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { position: fixed; inset: 58px auto 0 0; z-index: 25; width: 260px; height: calc(100vh - 58px); transform: translateX(-105%); box-shadow: var(--shadow); transition: transform .2s ease; }
+      .sidebar.open { transform: translateX(0); }
+      .content { padding: 22px 14px 38px; }
+      .screen-head { display: grid; }
+      .grid.three, .route-groups { grid-template-columns: 1fr; }
+      .public-hero { grid-template-columns: 1fr; }
+      .plan-grid { grid-template-columns: 1fr 1fr; }
+      .workspace-ui, .platform-ui { grid-template-columns: 150px minmax(0,1fr); }
+      .lifecycle { grid-template-columns: 1fr; }
+      .wizard { grid-template-columns: 1fr; }
+      .template-row { grid-template-columns: 1fr; }
+      .inbox-layout { grid-template-columns: 180px minmax(0,1fr); }
+      .customer-panel { grid-column: 1 / -1; border-top: 1px solid var(--line); border-left: 0; }
+      .voice-body { grid-template-columns: 1fr; }
+      .arch-map { grid-template-columns: 1fr 1fr; }
+      .rls-stack { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .top-context { display: none; }
+      .grid.two, .grid.four, .flow-output { grid-template-columns: 1fr; }
+      .journey { grid-template-columns: 1fr; }
+      .browser-body { min-height: 520px; }
+      .public-links { display: none; }
+      .public-hero { padding: 28px 18px; }
+      .form-grid, .plan-grid { grid-template-columns: 1fr; }
+      .workspace-ui, .platform-ui { grid-template-columns: 1fr; }
+      .workspace-side, .platform-side { display: none; }
+      .workspace-head, .workspace-body, .platform-head, .platform-body { padding-left: 16px; padding-right: 16px; }
+      .attention-row, .op-row { grid-template-columns: 1fr; gap: 6px; padding: 10px 0; }
+      .studio-layout, .playbook-layout { grid-template-columns: 1fr; }
+      .studio-layout .studio-pane, .tab-rail { border-right: 0; border-bottom: 1px solid var(--line); }
+      .canvas { min-height: 540px; }
+      .inbox-layout { grid-template-columns: 1fr; }
+      .conversation-list { max-height: 240px; overflow: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      .widget-stage { padding: 18px; }
+      .merchant-site h2 { margin-top: 20px; font-size: 28px; }
+      .widget { right: 14px; bottom: 14px; width: calc(100% - 28px); }
+      .arch-map, .rls-stack { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">D</span><span><strong>DJAY BOT</strong><small>Current SaaS flow & UI map</small></span></div>
+      <div class="top-context">
+        <span class="pill">3 bot families</span>
+        <span class="pill neutral">Multi-tenant</span>
+        <span class="pill warning">Commercially gated</span>
+      </div>
+      <button class="menu-toggle" id="menuToggle" type="button" aria-label="Open navigation" aria-expanded="false">☰</button>
+    </header>
+
+    <div class="shell">
+      <aside class="sidebar" id="sidebar" aria-label="Prototype navigation">
+        <div class="nav-group">
+          <p class="nav-label">System</p>
+          <button class="nav-item active" data-view="flow"><span class="nav-icon">01</span><span class="nav-copy"><span>Current flow</span><small>End-to-end lifecycle</small></span></button>
+          <button class="nav-item" data-view="architecture"><span class="nav-icon">02</span><span class="nav-copy"><span>Multi-tenant design</span><small>Context, RLS, services</small></span></button>
+          <button class="nav-item" data-view="routes"><span class="nav-icon">03</span><span class="nav-copy"><span>Every current page</span><small>Route inventory</small></span></button>
+        </div>
+        <div class="nav-group">
+          <p class="nav-label">Merchant journey</p>
+          <button class="nav-item" data-view="public"><span class="nav-icon">P</span><span class="nav-copy"><span>Public & signup</span><small>Register, verify, plans</small></span></button>
+          <button class="nav-item" data-view="workspace"><span class="nav-icon">W</span><span class="nav-copy"><span>Workspace overview</span><small>Portfolio and attention</small></span></button>
+          <button class="nav-item" data-view="setup"><span class="nav-icon">S</span><span class="nav-copy"><span>Onboarding setup</span><small>Evidence-based launch</small></span></button>
+          <button class="nav-item" data-view="flowbot"><span class="nav-icon">F</span><span class="nav-copy"><span>FlowBot Studio</span><small>Graph, test, deploy</small></span></button>
+          <button class="nav-item" data-view="aichat"><span class="nav-icon">AI</span><span class="nav-copy"><span>AI Text Studio</span><small>Knowledge and playbook</small></span></button>
+          <button class="nav-item" data-view="voice"><span class="nav-icon">V</span><span class="nav-copy"><span>Voice Studio</span><small>Disclosure and quality</small></span></button>
+          <button class="nav-item" data-view="inbox"><span class="nav-icon">C</span><span class="nav-copy"><span>Customer operations</span><small>Inbox, contacts, leads</small></span></button>
+        </div>
+        <div class="nav-group">
+          <p class="nav-label">External & operator</p>
+          <button class="nav-item" data-view="customer"><span class="nav-icon">↗</span><span class="nav-copy"><span>End-customer UI</span><small>Widget and handover</small></span></button>
+          <button class="nav-item" data-view="platform"><span class="nav-icon">A</span><span class="nav-copy"><span>Platform Master</span><small>DJAI SaaS operations</small></span></button>
+        </div>
+        <a class="source-link" href="./djay-bots-system-map.md">Open detailed source map →</a>
+      </aside>
+
+      <main class="content">
+        <section class="screen active" id="view-flow">
+          <div class="screen-head">
+            <div><p class="eyebrow">Current source authority</p><h1>How DJAY Bot works today</h1><p class="lead">One account enters one tenant-scoped workspace, activates one or more bot families, publishes deployments, and handles every customer outcome through a shared Inbox, Contacts, Leads, Knowledge, Usage, and team layer.</p></div>
+            <div class="status-note"><strong>Current-state warning:</strong> all six catalogue packages remain marked non-sellable in release requirements. FlowBot and TextBot are public preview; VoiceBot is pilot. This UI is a system map, not a claim that paid self-service GA is live.</div>
+          </div>
+
+          <div class="journey" aria-label="Current merchant lifecycle">
+            <div class="journey-step"><span class="step-number">1</span><strong>Discover</strong><p>Public site explains FlowBot, TextBot, VoiceBot, channels, plans, legal and status.</p></div>
+            <div class="journey-step"><span class="step-number">2</span><strong>Register</strong><p>Email/password, business name, locale, timezone, current Terms and Privacy.</p></div>
+            <div class="journey-step"><span class="step-number">3</span><strong>Verify & provision</strong><p>Email token creates user, tenant, owner membership, onboarding and session atomically.</p></div>
+            <div class="journey-step"><span class="step-number">4</span><strong>Activate access</strong><p>Subscription is pending/active through pilot activation or Stripe-backed commerce state.</p></div>
+            <div class="journey-step"><span class="step-number">5</span><strong>Configure & test</strong><p>Business profile, product Studio, immutable version, exact-origin deployment and evidence.</p></div>
+            <div class="journey-step"><span class="step-number">6</span><strong>Go live</strong><p>Website widget, LINE/social foundation, or Voice session uses the active deployment.</p></div>
+            <div class="journey-step"><span class="step-number">7</span><strong>Operate</strong><p>Merchant receives conversations, contacts, leads, actions, usage and attention states.</p></div>
+          </div>
+
+          <div class="flow-output">
+            <div class="output-card"><strong>FlowBot</strong><span>Deterministic graph → forms, CTAs, lead capture and handover.</span></div>
+            <div class="output-card"><strong>AI Text Bot</strong><span>Published knowledge + sales playbook → grounded answer or handover.</span></div>
+            <div class="output-card"><strong>AI Voice Bot</strong><span>Disclosure + realtime session → transcript, outcome, callback or transfer.</span></div>
+            <div class="output-card"><strong>Shared workspace</strong><span>Inbox, Contacts, Leads, Knowledge, Team, Usage, Data and Security.</span></div>
+          </div>
+
+          <div class="grid three section-block">
+            <article class="card"><div class="card-head"><h2>Public realm</h2><span class="pill neutral">public-site</span></div><p>Catalogue, registration, verification, invitation acceptance, legal pages and service status. Sign-in redirects to the separate tenant realm.</p></article>
+            <article class="card"><div class="card-head"><h2>Merchant realm</h2><span class="pill">tenant-web</span></div><p>Workspace selection, role-aware navigation, product Studios, customer operations, commerce, privacy, team and security.</p></article>
+            <article class="card dark"><div class="card-head"><h2>Operator realm</h2><span class="pill danger">restricted</span></div><p>Platform health, release evidence, subscriptions, reconciliation, Voice controls, recovery, fulfillment and time-bound support access.</p></article>
+          </div>
+        </section>
+
+        <section class="screen" id="view-public">
+          <div class="screen-head"><div><p class="eyebrow">Public realm</p><h1>Discovery, registration and verification</h1><p class="lead">The current public page combines the product story, capability availability, catalogue selection, legal acceptance and account creation.</p></div></div>
+          <div class="browser">
+            <div class="browser-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="address">djbot.djai.academy</span></div>
+            <div class="browser-body">
+              <div class="public-nav"><span class="mini-brand"><b class="brand-mark">D</b> DJBOT</span><div class="public-links"><span>Features</span><span>Benefits</span><span>Sign in</span><span>Start</span></div></div>
+              <div class="public-hero">
+                <div><p class="eyebrow">AI sales automation for modern businesses</p><h2>Turn customer interest into a managed sales conversation.</h2><p>FlowBot handles predictable journeys. TextBot answers from approved business knowledge. VoiceBot qualifies leads through website voice. All three feed one merchant workspace.</p><div class="hero-actions"><a class="btn" href="#plans">Create workspace</a><a class="btn secondary" href="#plans">Compare products</a></div></div>
+                <div class="registration"><div class="card-head"><div><p class="eyebrow">Create account</p><h3>Start a business workspace</h3></div><span class="pill warning">email verification</span></div><div class="form-grid"><div class="field"><label>Display name</label><input value="Narin" readonly></div><div class="field"><label>Work email</label><input value="narin@example.com" readonly></div><div class="field full"><label>Business name</label><input value="Siam Pixel Studio" readonly></div><div class="field"><label>Password</label><input value="••••••••••••" readonly></div><div class="field"><label>Preferred language</label><select><option>Thai</option><option>English</option></select></div><div class="field full"><label><input type="checkbox" checked> Accept current Terms and Privacy Notice</label></div><button class="btn field full" type="button">Create workspace</button></div></div>
+              </div>
+              <div class="plan-grid" id="plans">
+                <article class="plan"><span class="pill neutral">Flow</span><h3>Flow Bot Starter</h3><div class="price">THB 2,499</div><ul><li>First-year annual price</li><li>1 bot · web widget</li><li>50,000 monthly conversations</li></ul></article>
+                <article class="plan"><span class="pill neutral">Flow</span><h3>Flow Bot Advanced</h3><div class="price">THB 4,450</div><ul><li>Up to 3 bots</li><li>Web + one social channel</li><li>Advanced logic and integrations</li></ul></article>
+                <article class="plan"><span class="pill">AI Text</span><h3>AI Text Starter</h3><div class="price">THB 5,950</div><ul><li>2,000 AI replies/month</li><li>Thai and English</li><li>Knowledge-grounded web chat</li></ul></article>
+                <article class="plan"><span class="pill">AI Text</span><h3>AI Text Advanced</h3><div class="price">THB 12,450</div><ul><li>Up to 3 agents</li><li>10,000 AI replies/month</li><li>Social and integrations</li></ul></article>
+                <article class="plan"><span class="pill warning">Voice</span><h3>AI Voice Starter</h3><div class="price">THB 14,950</div><ul><li>150 connected minutes</li><li>Web voice widget</li><li>Transcripts and summaries</li></ul></article>
+                <article class="plan"><span class="pill warning">Voice</span><h3>AI Voice Advanced</h3><div class="price">THB 29,950</div><ul><li>Up to 3 agents</li><li>500 connected minutes</li><li>Inbound telephone foundation</li></ul></article>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="screen" id="view-workspace">
+          <div class="screen-head"><div><p class="eyebrow">Merchant realm</p><h1>Workspace portfolio overview</h1><p class="lead">A merchant can own compatible Flow, AI Text and Voice subscriptions together. Each product keeps independent access, configuration, test, deployment and live-health state.</p></div></div>
+          <div class="browser"><div class="browser-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="address">workspace.djbot.djai.academy/workspace</span></div><div class="workspace-ui"><aside class="workspace-side"><div class="workspace-title"><b class="brand-mark">D</b> DJAY BOT</div><div class="workspace-select">Siam Pixel Studio ▾</div><div class="workspace-menu"><div class="menu-divider">Get live</div><span class="active">Overview</span><span>Setup</span><div class="menu-divider">Customers</div><span>Inbox</span><span>Contacts</span><span>Leads</span><div class="menu-divider">Products</div><span>FlowBot</span><span>AI Chat</span><span>Voice</span><span>Knowledge</span><span>Services & add-ons</span><div class="menu-divider">Workspace</div><span>Business profile</span><span>Team</span><span>Usage</span><span>Data controls</span><span>Security</span></div></aside><main class="workspace-main"><header class="workspace-head"><div><p class="eyebrow">Portfolio overview</p><h2>Siam Pixel Studio</h2></div><span class="pill">Owner access</span></header><div class="workspace-body"><div class="grid four"><div class="metric"><span>Conversations · 7 days</span><strong>428</strong><small>Across active products</small></div><div class="metric"><span>New leads</span><strong>36</strong><small>9 need follow-up</small></div><div class="metric"><span>Human handovers</span><strong>12</strong><small>3 waiting</small></div><div class="metric"><span>Usage risk</span><strong class="ok">Low</strong><small>Next reset 18 days</small></div></div><div class="section-block"><div class="card-head"><div><p class="eyebrow">Product lifecycle</p><h2>Independent launch state</h2></div><span class="pill neutral">evidence-derived</span></div><div class="lifecycle"><div class="product-state"><strong>FlowBot · Advanced</strong><p>Published v12 · website active · LINE healthy</p><div class="progress"><span style="width:100%"></span></div></div><div class="product-state"><strong>AI Text Bot · Starter</strong><p>Playbook saved · knowledge ready · deployment test pending</p><div class="progress"><span style="width:68%"></span></div></div><div class="product-state"><strong>AI Voice Bot</strong><p>No active access. Product Studio remains unavailable.</p><div class="progress"><span style="width:0%"></span></div></div></div></div><div class="section-block"><div class="card-head"><h2>Attention queue</h2><span class="pill danger">3 actions</span></div><div class="attention-list"><div class="attention-row"><div><strong>Complete AI Text website test</strong><br><small>Current playbook and knowledge are ready.</small></div><span>AI Text</span><button class="tiny-btn primary">Continue</button></div><div class="attention-row"><div><strong>3 handovers are waiting</strong><br><small>Oldest customer has waited 8 minutes.</small></div><span>Inbox</span><button class="tiny-btn">Open</button></div><div class="attention-row"><div><strong>LINE health review</strong><br><small>Last delivery retried successfully.</small></div><span>FlowBot</span><button class="tiny-btn">Review</button></div></div></div></div></main></div></div>
+        </section>
+
+        <section class="screen" id="view-setup">
+          <div class="screen-head"><div><p class="eyebrow">Current onboarding</p><h1>Evidence-based Flow setup</h1><p class="lead">The current `/workspace/setup` wizard is FlowBot-focused. It derives progress from saved business profile, active access, bot configuration, deployment and current-version test evidence.</p></div><div class="status-note">The target product plan expands this shell across all three product families. Today, AI Text and Voice setup remain primarily inside their respective Studios.</div></div>
+          <div class="grid two"><div class="wizard"><aside class="wizard-steps"><div class="wizard-step complete"><i>✓</i><span>Business profile</span></div><div class="wizard-step complete"><i>✓</i><span>Product access</span></div><div class="wizard-step active"><i>3</i><span>Configure bot</span></div><div class="wizard-step"><i>4</i><span>Deploy website</span></div><div class="wizard-step"><i>5</i><span>Test current version</span></div><div class="wizard-step"><i>6</i><span>Launch ready</span></div></aside><article class="wizard-panel"><p class="eyebrow">Step 3 of 6</p><h2>Choose a starting flow</h2><p class="lead">Start with a controlled template, then edit the graph in FlowBot Studio.</p><div class="template-row"><div class="template selected"><strong>Lead qualification</strong><span>Greeting → needs → contact → handover</span></div><div class="template"><strong>FAQ and CTA</strong><span>Topics → answers → approved action</span></div><div class="template"><strong>Blank flow</strong><span>Start from one greeting node</span></div></div><div class="hero-actions"><button class="btn secondary">Save and exit</button><button class="btn">Continue</button></div></article></div><div class="card"><div class="card-head"><h2>Readiness authority</h2><span class="pill">server evidence</span></div><div class="readiness"><div class="check"><b>✓</b><span>Business profile has legal/display name, locale and timezone.</span></div><div class="check"><b>✓</b><span>Active Flow entitlement exists for the selected workspace.</span></div><div class="check"><b>✓</b><span>Bot draft passes schema and entitlement validation.</span></div><div class="check"><b>—</b><span>Deployment origin and install check are still missing.</span></div><div class="check"><b>—</b><span>Published candidate has not passed the current-version test.</span></div></div></div></div>
+        </section>
+
+        <section class="screen" id="view-flowbot">
+          <div class="screen-head"><div><p class="eyebrow">Product Studio</p><h1>FlowBot visual authoring</h1><p class="lead">The deterministic engine executes a pinned immutable graph. Unknown text follows configured matching, fallback or handover rules and does not silently invoke AI.</p></div></div>
+          <div class="browser"><div class="browser-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="address">/workspace/flowbot/canvas</span></div><div class="studio-toolbar"><strong>Sales Qualification Bot</strong><span class="pill neutral">Draft saved · r18</span><span class="toolbar-spacer"></span><button class="tiny-btn">Validate</button><button class="tiny-btn">Preview</button><button class="tiny-btn primary">Publish</button></div><div class="studio-layout"><aside class="studio-pane"><h3>Topics & blocks</h3><div class="list-item active"><span>Welcome journey</span><b>8</b></div><div class="list-item"><span>Pricing FAQ</span><b>5</b></div><div class="list-item"><span>Book a call</span><b>4</b></div><div class="list-item"><span>Human handover</span><b>3</b></div></aside><div class="canvas"><i class="connector c1"></i><i class="connector c2"></i><i class="connector c3"></i><div class="node start"><strong>Greeting</strong>Welcome message · Thai/English</div><div class="node question"><strong>Qualification options</strong>Learn more · Pricing · Talk to team</div><div class="node form"><strong>Lead form</strong>Name · email · consent</div><div class="node handover"><strong>Human handover</strong>Sales team · business hours fallback</div></div><aside class="studio-pane"><h3>Selected node</h3><div class="settings-stack"><div class="setting"><label>Title</label><div>Qualification options</div></div><div class="setting"><label>Thai prompt</label><div>วันนี้เราช่วยอะไรคุณได้บ้าง?</div></div><div class="setting"><label>English prompt</label><div>How can we help today?</div></div><div class="setting"><label>Validation</label><div class="ok">No blocking issues</div></div></div></aside></div></div>
+        </section>
+
+        <section class="screen" id="view-aichat">
+          <div class="screen-head"><div><p class="eyebrow">Product Studio</p><h1>AI Text playbook and knowledge</h1><p class="lead">The agent combines a structured sales playbook with pinned, published knowledge. The runtime validates citations, confidence and action authority before committing a customer-facing reply.</p></div></div>
+          <div class="browser"><div class="browser-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="address">/workspace/ai-chat</span></div><div class="studio-toolbar"><strong>DJAI Sales Assistant</strong><span class="pill">Knowledge ready</span><span class="toolbar-spacer"></span><button class="tiny-btn">Save draft</button><button class="tiny-btn">Run test</button><button class="tiny-btn primary">Publish</button></div><div class="playbook-layout"><aside class="tab-rail"><span class="active">Identity</span><span>Sales goal</span><span>Approved claims</span><span>Prohibited claims</span><span>Discovery</span><span>Calls to action</span><span>Availability</span><span>Advanced JSON</span></aside><main class="editor"><div class="editor-section"><h3>Assistant identity</h3><p>The customer-facing role and tone used in Thai and English.</p><div class="grid two"><div class="field"><label>Agent name</label><input value="Mali" readonly></div><div class="field"><label>Tone</label><input value="Helpful, concise, consultative" readonly></div></div></div><div class="editor-section"><h3>Published knowledge</h3><p>Only ready revisions can be pinned into the next immutable playbook version.</p><div class="chip-row"><span class="chip">Service catalogue · v4</span><span class="chip">Company FAQ · v7</span><span class="chip">Course schedule · v2</span></div></div><div class="editor-section"><h3>Allowed actions</h3><div class="chip-row"><span class="chip">Capture lead</span><span class="chip">Request appointment</span><span class="chip">Open LINE</span><span class="chip">Human handover</span></div></div></main><aside class="preview"><div class="card-head"><h3>Quality preview</h3><span class="pill neutral">non-billable</span></div><div class="chat"><div class="bubble user">Which service is suitable for a small Thai business?</div><div class="bubble bot">I can help compare the available options. May I ask whether your main goal is lead capture, answering product questions, or voice qualification?</div><div class="citation">Grounding: Service catalogue v4 · 2 relevant chunks</div><div class="bubble bot">Proposed next action: continue discovery. No external action executed.</div></div></aside></div></div>
+        </section>
+
+        <section class="screen" id="view-voice">
+          <div class="screen-head"><div><p class="eyebrow">Product Studio</p><h1>Voice deployment and launch safety</h1><p class="lead">Voice has a stricter launch boundary: disclosure, maximum duration, usage fallback, end-call behavior, current-version test and deployment health must all be present.</p></div></div>
+          <div class="browser"><div class="browser-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="address">/workspace/voice</span></div><div class="studio-toolbar"><strong>Website Voice Agent</strong><span class="pill warning">Pilot access</span><span class="toolbar-spacer"></span><button class="tiny-btn">Disable</button><button class="tiny-btn primary">Open test call</button></div><div class="voice-tabs"><span class="active">Voice & languages</span><span>Sales playbook</span><span>Knowledge</span><span>Session entry</span><span>Disclosure</span><span>Transfer</span><span>Actions</span><span>Test call</span><span>Quality</span><span>Deploy</span></div><div class="voice-body"><main><div class="grid two"><div class="field"><label>Agent name</label><input value="Mali Voice" readonly></div><div class="field"><label>Default language</label><select><option>Thai</option><option>English</option></select></div><div class="field full"><label>Opening greeting</label><textarea rows="3" readonly>Hello, this is DJAI's automated voice assistant. This call may be transcribed to help answer your request.</textarea></div></div><div class="wave" aria-label="Voice waveform preview"><i></i><i></i><i></i><i></i><i></i><i></i></div></main><aside><div class="card-head"><h3>Launch checks</h3><span class="pill">7/8</span></div><div class="readiness"><div class="check"><b>✓</b><span>Automated-agent disclosure</span></div><div class="check"><b>✓</b><span>Maximum session duration</span></div><div class="check"><b>✓</b><span>Usage cap and fallback</span></div><div class="check"><b>✓</b><span>Published playbook</span></div><div class="check"><b>—</b><span>Current-version test pending</span></div></div></aside></div></div>
+        </section>
+
+        <section class="screen" id="view-inbox">
+          <div class="screen-head"><div><p class="eyebrow">Shared customer operations</p><h1>One Inbox across products</h1><p class="lead">Flow, AI Text and Voice all write into shared tenant-scoped conversations, contacts, leads, handover events and outcomes. Product-specific meters stay separate.</p></div></div>
+          <div class="browser"><div class="browser-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="address">/workspace/inbox</span></div><div class="inbox-layout"><aside class="conversation-list"><div class="filter-bar"><span class="pill neutral">Needs human · 3</span></div><div class="conversation active"><strong>Somchai · LINE</strong><p>Asked for pricing and requested a sales callback.</p></div><div class="conversation"><strong>Arisa · Website AI</strong><p>Qualified lead · appointment requested.</p></div><div class="conversation"><strong>Unknown caller · Voice</strong><p>Voice summary ready · callback requested.</p></div><div class="conversation"><strong>Nok · FlowBot</strong><p>Completed product enquiry flow.</p></div></aside><main class="timeline"><div class="timeline-head"><div><h3>Somchai</h3><p class="eyebrow">LINE · AI Text · handover</p></div><span class="pill danger">Waiting 8m</span></div><div class="chat"><div class="bubble user">Can you recommend the right package for my school?</div><div class="bubble bot">I can help. About how many student enquiries do you receive each week?</div><div class="bubble user">Around 200. Can someone call me?</div><div class="bubble bot">I’ve sent your callback request to the team.</div><div class="citation">System · handover requested · Sales team</div></div><div class="widget-input"><input value="Reply as Siam Pixel Studio…" readonly><button class="btn">Send</button></div></main><aside class="customer-panel"><div class="card-head"><h3>Customer context</h3><span class="pill">Lead</span></div><div class="fact"><span>Contact</span><strong>Somchai · LINE identity</strong></div><div class="fact"><span>Lead stage</span><strong>Qualified</strong></div><div class="fact"><span>Source</span><strong>AI Text · LINE</strong></div><div class="fact"><span>Next action</span><strong>Callback today</strong></div><div class="fact"><span>Consent</span><strong>Contact permitted</strong></div><div class="fact"><span>Assignment</span><strong>Unassigned</strong></div></aside></div></div>
+        </section>
+
+        <section class="screen" id="view-customer">
+          <div class="screen-head"><div><p class="eyebrow">Merchant's end customer</p><h1>One launcher, three conversation modes</h1><p class="lead">The merchant installs an exact-origin deployment. A customer opens the launcher, sees the business identity and disclosure, then uses only the modes the merchant has active.</p></div></div>
+          <div class="browser"><div class="browser-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="address">merchant-example.com</span></div><div class="widget-stage"><div class="merchant-site"><span class="pill neutral">Merchant website</span><h2>Find the right automation solution for your business.</h2><div class="site-lines"><i></i><i></i><i></i></div></div><aside class="widget"><div class="widget-head"><b class="brand-mark">D</b><div><strong>Siam Pixel Studio Assistant</strong><br><small>Online · Thai / English</small></div><span>Privacy</span></div><div class="mode-row"><button class="active" data-widget-mode="flow">Flow</button><button data-widget-mode="text">AI Text</button><button data-widget-mode="voice">Voice</button></div><div class="widget-chat" id="widgetChat"><div class="bubble bot">Welcome. What would you like help with today?</div><div class="chip-row" style="margin-top:10px"><span class="chip">Compare services</span><span class="chip">Pricing</span><span class="chip">Talk to our team</span></div></div><div class="widget-input"><input value="Choose an option or type…" readonly><button class="btn">Send</button></div></aside></div></div>
+          <div class="grid three section-block"><article class="card"><h3>Flow customer</h3><p>Moves through a published deterministic graph. Forms create contacts/leads. Unknown input follows fallback or handover.</p></article><article class="card"><h3>AI Text customer</h3><p>Receives a grounded reply from published knowledge and a structured sales playbook. Low confidence can hand over.</p></article><article class="card"><h3>Voice customer</h3><p>Receives disclosure before speech, then realtime conversation, bounded reconnect, verified actions and exact minute settlement.</p></article></div>
+        </section>
+
+        <section class="screen" id="view-platform">
+          <div class="screen-head"><div><p class="eyebrow">DJAI operator realm</p><h1>Platform Master</h1><p class="lead">Platform identities and sessions are separate from merchant accounts. Current operations are presented in one role-aware anchor dashboard with fail-closed commands and immutable evidence.</p></div></div>
+          <div class="browser"><div class="browser-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="address">platform-master · restricted access</span></div><div class="platform-ui"><aside class="platform-side"><div class="workspace-title"><b class="brand-mark">D</b> DJAY BOT</div><span class="active">Overview</span><span>Release operations</span><span>Usage reconciliation</span><span>Voice operations</span><span>Queue recovery</span><span>Commerce</span><span>Fulfillment</span><span>Support access</span></aside><main class="platform-main"><header class="platform-head"><div><p class="eyebrow">Internal operations</p><h2>Platform health</h2></div><div><strong style="font-size:10px">Platform Owner</strong><br><small>Recent MFA verified</small></div></header><div class="platform-body"><div class="grid four"><div class="metric"><span>Tenants</span><strong>24</strong><small>21 active</small></div><div class="metric"><span>Subscriptions</span><strong>31</strong><small>4 pending</small></div><div class="metric"><span>Usage health</span><strong class="ok">Healthy</strong><small>1 review case</small></div><div class="metric"><span>Release state</span><strong class="attention">Blocked</strong><small>External gates remain</small></div></div><div class="section-block"><div class="card-head"><h2>Operational attention</h2><span class="pill danger">evidence required</span></div><div class="operations-table"><div class="op-row"><div><strong>Provisioning exception · Siam Learn Co.</strong><small>Stripe evidence exists; local activation pending.</small></div><span>Commerce</span><button class="tiny-btn">Review</button></div><div class="op-row"><div><strong>Voice runtime incident · Major</strong><small>Profile paused; customer impact isolated.</small></div><span>Voice</span><button class="tiny-btn">Resolve</button></div><div class="op-row"><div><strong>Support access request</strong><small>Reason and 30-minute scope awaiting independent approval.</small></div><span>Support</span><button class="tiny-btn">Inspect</button></div><div class="op-row"><div><strong>FlowAccount reconciliation mismatch</strong><small>Finalized invoice remains immutable.</small></div><span>Finance</span><button class="tiny-btn">Open case</button></div></div></div></div></main></div></div>
+          <div class="grid four section-block"><article class="card"><h3>Platform Owner</h3><p>All platform permissions, independent approvals, catalog/commerce, support and fulfillment controls.</p></article><article class="card"><h3>AI Operations</h3><p>Health, routing, Voice control, recovery requests and incident operations.</p></article><article class="card"><h3>Support</h3><p>Tenant directory, scoped support requests, recovery requests and service fulfillment.</p></article><article class="card"><h3>Finance</h3><p>Commerce, usage, invoice/payment/credit and accounting reconciliation views.</p></article></div>
+        </section>
+
+        <section class="screen" id="view-architecture">
+          <div class="screen-head"><div><p class="eyebrow">Trust boundary</p><h1>How multi-tenancy is enforced</h1><p class="lead">Tenant isolation is not a frontend filter. Authentication, selected membership, permissions, transaction context and forced PostgreSQL row-level security all have to agree.</p></div></div>
+          <div class="arch-map"><div class="arch-column"><h3>Actors</h3><div class="arch-node">Prospect / merchant browser</div><div class="arch-node">Merchant's website visitor</div><div class="arch-node">DJAI platform operator</div><div class="arch-node">LINE / Meta / carrier</div></div><div class="arch-column"><h3>Experience realms</h3><div class="arch-node">public-site</div><div class="arch-node">tenant-web</div><div class="arch-node">platform-master</div><div class="arch-node">widget-cdn</div></div><div class="arch-column"><h3>Application boundary</h3><div class="arch-node">Same-origin realm proxy</div><div class="arch-node">API public / tenant / platform routes</div><div class="arch-node">TenantContext or PlatformContext</div><div class="arch-node">Role + recent assurance</div></div><div class="arch-column"><h3>Runtime services</h3><div class="arch-node">Flow engine</div><div class="arch-node">AI gateway + Sales Core</div><div class="arch-node">Voice gateway + runtime</div><div class="arch-node">Workers + outbox</div></div><div class="arch-column"><h3>Authoritative data</h3><div class="arch-node">PostgreSQL 16 + forced RLS</div><div class="arch-node">Immutable versions and ledgers</div><div class="arch-node">GCS private objects</div><div class="arch-node">Reconciled provider evidence</div></div></div>
+          <div class="rls-stack"><div class="rls-layer"><strong>1. Identity</strong>User/session is authenticated.</div><div class="rls-layer"><strong>2. Membership</strong>User belongs to selected tenant.</div><div class="rls-layer"><strong>3. Permission</strong>Role allows the operation.</div><div class="rls-layer"><strong>4. Context</strong>Transaction sets app.tenant_id.</div><div class="rls-layer"><strong>5. Forced RLS</strong>Rows must match tenant context.</div><div class="rls-layer"><strong>6. Entitlement</strong>Plan, limits, meter and cap allow use.</div></div>
+          <div class="grid two section-block"><article class="card"><div class="card-head"><h2>Tenant transaction</h2><span class="pill">scoped</span></div><p>Sets tenant ID, user ID, membership ID, session ID and request ID inside a database transaction. Tenant repositories still include explicit tenant predicates as defense in depth.</p></article><article class="card dark"><div class="card-head"><h2>Platform transaction</h2><span class="pill danger">separate realm</span></div><p>Sets platform user and role instead of tenant context. Cross-tenant views use dedicated permissioned projections and audit, not a general tenant-API bypass.</p></article></div>
+        </section>
+
+        <section class="screen" id="view-routes">
+          <div class="screen-head"><div><p class="eyebrow">Current rendered pages</p><h1>Complete route inventory</h1><p class="lead">These are the current user-facing pages found under public-site, tenant-web and platform-master. Product controls embedded in a Studio are listed as part of that page rather than invented as separate routes.</p></div></div>
+          <input class="route-search" id="routeSearch" type="search" placeholder="Filter routes or responsibilities…" aria-label="Filter current pages">
+          <div class="route-groups">
+            <article class="route-group"><div class="card-head"><h2>Public site</h2><span class="pill neutral">8 pages</span></div><div class="route-list">
+              <div class="route"><code>/</code><span>Product story, capability status, catalog selection, legal acceptance and registration.</span></div>
+              <div class="route"><code>/login</code><span>Redirect to tenant sign-in realm.</span></div>
+              <div class="route"><code>/verify-email</code><span>Verify signup token and provision account/workspace.</span></div>
+              <div class="route"><code>/invitations/accept</code><span>Accept new-user invitation or continue existing account.</span></div>
+              <div class="route"><code>/terms</code><span>Current approved Terms of Service.</span></div>
+              <div class="route"><code>/privacy</code><span>Current approved Privacy Notice.</span></div>
+              <div class="route"><code>/status</code><span>Public service status.</span></div>
+              <div class="route"><code>/not-found</code><span>Branded public 404 and safe recovery.</span></div>
+            </div></article>
+            <article class="route-group"><div class="card-head"><h2>Tenant identity</h2><span class="pill neutral">6 pages</span></div><div class="route-list">
+              <div class="route"><code>/</code><span>Business account login and MFA challenge.</span></div>
+              <div class="route"><code>/recovery</code><span>Request password recovery.</span></div>
+              <div class="route"><code>/recovery/complete</code><span>Set new password and revoke prior sessions.</span></div>
+              <div class="route"><code>/invitations/accept</code><span>Existing-account invitation acceptance.</span></div>
+              <div class="route"><code>/ownership/accept</code><span>Accept tenant ownership transfer.</span></div>
+              <div class="route"><code>/not-found</code><span>Branded tenant 404 and workspace recovery.</span></div>
+            </div></article>
+            <article class="route-group"><div class="card-head"><h2>Merchant workspace</h2><span class="pill">17 pages</span></div><div class="route-list">
+              <div class="route"><code>/workspace</code><span>Portfolio overview, readiness, subscriptions and next action.</span></div>
+              <div class="route"><code>/workspace/setup</code><span>Flow profile/access/configure/deploy/test wizard.</span></div>
+              <div class="route"><code>/workspace/flowbot</code><span>Flow bots, drafts, versions, deployments, channels, analytics and integrations.</span></div>
+              <div class="route"><code>/workspace/flowbot/canvas</code><span>Visual graph editor and validation.</span></div>
+              <div class="route"><code>/workspace/flowbot/connect/line</code><span>Authenticated LINE connection wizard.</span></div>
+              <div class="route"><code>/workspace/ai-chat</code><span>AI agent, playbook, knowledge, test, publish, deployments, analytics and social.</span></div>
+              <div class="route"><code>/workspace/voice</code><span>Voice identity, playbook, disclosure, actions, test, quality and deploy.</span></div>
+              <div class="route"><code>/workspace/inbox</code><span>Conversations, reply, handover, assignment and context.</span></div>
+              <div class="route"><code>/workspace/contacts</code><span>Contacts, identities, consent, tags, attributes and duplicate review.</span></div>
+              <div class="route"><code>/workspace/leads</code><span>Lead status, source, product/channel and next action.</span></div>
+              <div class="route"><code>/workspace/knowledge</code><span>Sources, revisions, ingestion state and bindings.</span></div>
+              <div class="route"><code>/workspace/operations</code><span>Setup services, add-ons and fulfillment state.</span></div>
+              <div class="route"><code>/workspace/settings</code><span>Business profile, locale, timezone and workspace settings.</span></div>
+              <div class="route"><code>/workspace/team</code><span>Members, invitations, roles, seats and ownership.</span></div>
+              <div class="route"><code>/workspace/usage</code><span>Meters, alerts, caps, packs, subscriptions, checkout return and portal.</span></div>
+              <div class="route"><code>/workspace/data</code><span>Export, scoped erasure, retention and privacy jobs.</span></div>
+              <div class="route"><code>/workspace/security</code><span>MFA/security sessions and revocation.</span></div>
+            </div></article>
+            <article class="route-group"><div class="card-head"><h2>Platform Master</h2><span class="pill danger">1 page · 8 sections</span></div><div class="route-list">
+              <div class="route"><code>/</code><span>Platform login/MFA or role-aware operations dashboard.</span></div>
+              <div class="route"><code>#overview</code><span>System and customer-impact health.</span></div>
+              <div class="route"><code>#release-operations</code><span>Release evidence and readiness.</span></div>
+              <div class="route"><code>#usage-reconciliation</code><span>Usage and provider reconciliation.</span></div>
+              <div class="route"><code>#voice-operations</code><span>Voice runtime, routing, admission and incidents.</span></div>
+              <div class="route"><code>#queue-recovery</code><span>Reviewed replay of eligible dead letters.</span></div>
+              <div class="route"><code>#commerce</code><span>Subscriptions, dunning, Stripe and finance operations.</span></div>
+              <div class="route"><code>#fulfillment</code><span>Add-ons and professional services.</span></div>
+              <div class="route"><code>#support-access</code><span>Reasoned, approved and time-limited tenant access.</span></div>
+            </div></article>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const sidebar = document.getElementById('sidebar');
+    const menuToggle = document.getElementById('menuToggle');
+    const navItems = [...document.querySelectorAll('.nav-item[data-view]')];
+    const screens = [...document.querySelectorAll('.screen')];
+
+    function showView(name, updateHash = true) {
+      const target = document.getElementById(`view-${name}`);
+      if (!target) return;
+      screens.forEach((screen) => screen.classList.toggle('active', screen === target));
+      navItems.forEach((item) => {
+        const active = item.dataset.view === name;
+        item.classList.toggle('active', active);
+        item.setAttribute('aria-current', active ? 'page' : 'false');
+      });
+      if (updateHash) history.replaceState(null, '', `#${name}`);
+      sidebar.classList.remove('open');
+      menuToggle.setAttribute('aria-expanded', 'false');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    navItems.forEach((item) => item.addEventListener('click', () => showView(item.dataset.view)));
+    menuToggle.addEventListener('click', () => {
+      const open = sidebar.classList.toggle('open');
+      menuToggle.setAttribute('aria-expanded', String(open));
+    });
+
+    const initialView = location.hash.slice(1);
+    if (initialView) showView(initialView, false);
+
+    const widgetChat = document.getElementById('widgetChat');
+    const widgetModes = [...document.querySelectorAll('[data-widget-mode]')];
+    const widgetContent = {
+      flow: '<div class="bubble bot">Welcome. What would you like help with today?</div><div class="chip-row" style="margin-top:10px"><span class="chip">Compare services</span><span class="chip">Pricing</span><span class="chip">Talk to our team</span></div>',
+      text: '<div class="bubble bot">Ask me a question about our approved services. I will hand over to the team if I am not confident.</div><div class="bubble user">Which option is best for lead capture?</div><div class="bubble bot">FlowBot is designed for predictable lead journeys. Would you like to compare Starter and Advanced?</div>',
+      voice: '<div class="bubble bot">This is an automated voice assistant. Your conversation may be transcribed according to the merchant privacy policy.</div><div class="wave" style="height:100px"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="citation">Microphone permission required · maximum session duration applies</div>'
+    };
+    widgetModes.forEach((button) => button.addEventListener('click', () => {
+      widgetModes.forEach((candidate) => candidate.classList.toggle('active', candidate === button));
+      widgetChat.innerHTML = widgetContent[button.dataset.widgetMode];
+    }));
+
+    const routeSearch = document.getElementById('routeSearch');
+    routeSearch.addEventListener('input', () => {
+      const query = routeSearch.value.trim().toLowerCase();
+      document.querySelectorAll('.route').forEach((route) => {
+        route.hidden = query && !route.textContent.toLowerCase().includes(query);
+      });
+    });
+  </script>
+</body>
+</html>

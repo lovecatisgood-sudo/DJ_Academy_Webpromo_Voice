@@ -90,7 +90,7 @@ export default function SettingsPage() {
 
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) {
-    return <main className="workspace-loading">Loading settings…</main>;
+    return <main className="workspace-loading">กำลังโหลดการตั้งค่า…</main>;
   }
   if (loadError) {
     return (
@@ -116,18 +116,18 @@ export default function SettingsPage() {
         onSelect={(tenantId) => void session.selectWorkspace(tenantId)}
         onLogout={() => void session.logout()}
       />
-      <section className="workspace-main">
+      <section id="workspace-main" className="workspace-main" tabIndex={-1}>
         <header className="workspace-header">
-          <div><p>Workspace</p><h1>Business profile</h1></div>
+          <div><p>เวิร์กสเปซ</p><h1>โปรไฟล์ธุรกิจ</h1></div>
           <span className="role-label">{activeWorkspace?.businessName}</span>
         </header>
         {!canUpdate ? (
-          <WorkspaceViewOnly>You can review the business profile. An administrator can update it.</WorkspaceViewOnly>
+          <WorkspaceViewOnly>คุณดูโปรไฟล์ธุรกิจได้ ผู้ดูแลเป็นผู้แก้ไข</WorkspaceViewOnly>
         ) : null}
         <section className="tool-band" aria-labelledby="profile-title">
           <div className="band-heading">
-            <div><p>Launch checklist</p><h2 id="profile-title">Name, language, and timezone</h2></div>
-            <a className="secondary-link" href="/workspace">Back to Overview</a>
+            <div><p>รายการตรวจสอบก่อนเปิดใช้</p><h2 id="profile-title">ชื่อ ภาษา และเขตเวลา</h2></div>
+            <a className="secondary-link" href="/workspace">กลับไปหน้าภาพรวม</a>
           </div>
           <p className="control-copy">
             These details are required before technical launch readiness can complete. Changes are saved on the server and reflected after the checklist refreshes.
@@ -142,7 +142,7 @@ export default function SettingsPage() {
                 Language
                 <select name="locale" defaultValue={profile.locale === "en" ? "en" : "th"} disabled={!canUpdate}>
                   <option value="en">English</option>
-                  <option value="th">Thai</option>
+                  <option value="th">ไทย</option>
                 </select>
               </label>
               <label>

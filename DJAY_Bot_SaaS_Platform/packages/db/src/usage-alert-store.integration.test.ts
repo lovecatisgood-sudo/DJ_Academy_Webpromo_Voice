@@ -119,7 +119,7 @@ describe.runIf(enabled)("COM-03 usage alert operations", () => {
       async send(message, key) { sent.push({ to: message.to, subject: message.subject, key }); },
     }, envelopeKey, { now: deliveryAt })).resolves.toMatchObject({ status: "sent" });
     expect(sent).toEqual([expect.objectContaining({
-      to: "billing@example.test", subject: expect.stringContaining("unusual increase"),
+      to: "billing@example.test", subject: expect.stringContaining("การใช้งานเพิ่มขึ้นผิดปกติ"),
     })]);
 
     const evidence = await adminClient!<{

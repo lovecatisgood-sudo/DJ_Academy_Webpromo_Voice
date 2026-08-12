@@ -5,7 +5,7 @@ import { hasTrustedOrigin, readJson, safeJson } from "../../../lib/http";
 import { resolvePlatformRequest } from "../../../lib/platform-context";
 
 const requestSchema = z.object({
-  queueKind: z.enum(["system_email", "flowbot_email", "ai_chat_email"]),
+  queueKind: z.enum(["system_email", "flowbot_email", "ai_chat_email", "appointment_calendar"]),
   itemId: z.uuid(), attemptCount: z.number().int().nonnegative(),
   reason: z.string().trim().min(12).max(500),
 }).strict();

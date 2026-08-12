@@ -26,6 +26,13 @@ type OnboardingRecord = Readonly<{
   slug: string;
   locale: string;
   timezone: string;
+  preferences: Readonly<{
+    businessGoal: "answer_questions" | "capture_leads" | "recommend_products" | "book_appointments" | "customer_support" | null;
+    industry: "retail" | "services" | "restaurant" | "education" | "property" | "health" | "other" | null;
+    firstProduct: OnboardingProductKey | null;
+    launchChannel: "website" | null;
+    complete: boolean;
+  }>;
   stage: OnboardingStage;
   readiness: Readonly<{
     businessProfile: boolean;
@@ -73,6 +80,7 @@ function productTitle(productKey: OnboardingProductKey): string {
 
 export function buildOnboardingChecklist(input: Readonly<{
   businessProfile: boolean;
+  launchPreferences?: boolean;
   productSelected: boolean;
   activeAccess: boolean;
   launchReadyProducts: readonly OnboardingProductKey[];
@@ -125,6 +133,15 @@ export function buildOnboardingChecklist(input: Readonly<{
       complete: true,
     },
     {
+      key: "goal",
+      label: "Business goal",
+      detail: input.launchPreferences === false
+        ? "Choose the main customer outcome, industry, and first website bot."
+        : "The workspace has a goal, industry, and first website bot.",
+      complete: input.launchPreferences !== false,
+      ...(input.launchPreferences === false ? { nextHref: "/workspace/setup", nextLabel: "Choose business goal" } : {}),
+    },
+    {
       key: "business",
       label: "Business profile",
       detail: input.businessProfile
@@ -171,9 +188,19 @@ export function buildOnboardingChecklist(input: Readonly<{
 async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Promise<OnboardingRecord | null> {
   const tenantRows = await sql<{
     tenant_id: string; business_name: string; slug: string; locale: string; timezone: string;
+    businessGoal: OnboardingRecord["preferences"]["businessGoal"];
+    industry: OnboardingRecord["preferences"]["industry"];
+    firstProduct: OnboardingRecord["preferences"]["firstProduct"];
+    launchChannel: OnboardingRecord["preferences"]["launchChannel"];
+    preferencesComplete: boolean;
   }[]>`
-    SELECT id AS tenant_id, business_name, slug, locale, timezone
-    FROM tenancy.tenants WHERE id = ${tenantId}::uuid
+    SELECT tenant.id AS tenant_id, tenant.business_name, tenant.slug, tenant.locale, tenant.timezone,
+      onboarding.business_goal AS "businessGoal", onboarding.industry,
+      onboarding.first_product AS "firstProduct",
+      onboarding.launch_channel AS "launchChannel",
+      onboarding.preferences_completed_at IS NOT NULL AS "preferencesComplete"
+    FROM tenancy.tenants tenant JOIN tenancy.tenant_onboarding onboarding ON onboarding.tenant_id = tenant.id
+    WHERE tenant.id = ${tenantId}::uuid
   `;
   const tenant = tenantRows[0];
   if (!tenant) return null;
@@ -202,7 +229,7 @@ async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Pro
         WHERE bot.tenant_id = ${tenantId}::uuid AND bot.status = 'active'
           AND bot.current_published_version_id IS NOT NULL
       ) AS configured,
-      EXISTS (
+      (EXISTS (
         SELECT 1 FROM tenancy.flow_executions execution
         JOIN tenancy.flow_deployments deployment
           ON deployment.tenant_id = execution.tenant_id
@@ -212,7 +239,12 @@ async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Pro
         WHERE execution.tenant_id = ${tenantId}::uuid
           AND execution.status = 'completed' AND deployment.status = 'active'
           AND bot.current_published_version_id = execution.flow_version_id
-      ) AS tested,
+      ) OR EXISTS (
+        SELECT 1 FROM tenancy.bot_regression_runs run
+        JOIN tenancy.flow_bots bot ON bot.tenant_id = run.tenant_id AND bot.id = run.subject_id
+        WHERE run.tenant_id = ${tenantId}::uuid AND run.product_key = 'flowbot' AND run.status = 'passed'
+          AND run.artifact_version_id = bot.current_published_version_id
+      )) AS tested,
       EXISTS (
         SELECT 1 FROM tenancy.flow_deployments deployment
         JOIN tenancy.flow_bots bot
@@ -227,7 +259,7 @@ async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Pro
         WHERE agent.tenant_id = ${tenantId}::uuid AND agent.status = 'active'
           AND agent.current_published_playbook_version_id IS NOT NULL
       ) AS configured,
-      EXISTS (
+      (EXISTS (
         SELECT 1 FROM tenancy.ai_turns turn
         JOIN tenancy.ai_sessions session
           ON session.tenant_id = turn.tenant_id AND session.id = turn.session_id
@@ -238,7 +270,12 @@ async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Pro
         WHERE turn.tenant_id = ${tenantId}::uuid AND turn.status = 'completed'
           AND deployment.status = 'active'
           AND agent.current_published_playbook_version_id = session.playbook_version_id
-      ) AS tested,
+      ) OR EXISTS (
+        SELECT 1 FROM tenancy.bot_regression_runs run
+        JOIN tenancy.ai_agents agent ON agent.tenant_id = run.tenant_id AND agent.id = run.subject_id
+        WHERE run.tenant_id = ${tenantId}::uuid AND run.product_key = 'ai_chat' AND run.status = 'passed'
+          AND run.artifact_version_id = agent.current_published_playbook_version_id
+      )) AS tested,
       EXISTS (
         SELECT 1 FROM tenancy.ai_deployments deployment
         JOIN tenancy.ai_agents agent
@@ -255,7 +292,7 @@ async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Pro
         WHERE deployment.tenant_id = ${tenantId}::uuid AND deployment.status = 'active'
           AND agent.current_published_playbook_version_id IS NOT NULL
       ) AS configured,
-      EXISTS (
+      (EXISTS (
         SELECT 1 FROM tenancy.voice_turns turn
         JOIN tenancy.voice_sessions session
           ON session.tenant_id = turn.tenant_id AND session.id = turn.session_id
@@ -266,7 +303,13 @@ async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Pro
         WHERE turn.tenant_id = ${tenantId}::uuid AND turn.status = 'completed'
           AND session.status = 'ended' AND deployment.status = 'active'
           AND agent.current_published_playbook_version_id = session.playbook_version_id
-      ) AS tested,
+      ) OR EXISTS (
+        SELECT 1 FROM tenancy.bot_regression_runs run
+        JOIN tenancy.voice_deployments deployment ON deployment.tenant_id = run.tenant_id AND deployment.id = run.subject_id
+        JOIN tenancy.ai_agents agent ON agent.tenant_id = deployment.tenant_id AND agent.id = deployment.agent_id
+        WHERE run.tenant_id = ${tenantId}::uuid AND run.product_key = 'voice' AND run.status = 'passed'
+          AND run.artifact_version_id = agent.current_published_playbook_version_id
+      )) AS tested,
       EXISTS (
         SELECT 1 FROM tenancy.voice_deployments deployment
         JOIN tenancy.ai_agents agent
@@ -285,7 +328,11 @@ async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Pro
     const fact = factByProduct.get(product);
     return activeProducts.has(product) && fact?.configured && fact.tested && fact.deployed;
   });
-  const productStates = selectedProducts.map((productKey) => {
+  const onboardingProducts = Array.from(new Set([
+    ...(tenant.firstProduct ? [tenant.firstProduct] : []),
+    ...selectedProducts,
+  ]));
+  const productStates = onboardingProducts.map((productKey) => {
     const fact = factByProduct.get(productKey);
     const activeAccess = activeProducts.has(productKey);
     const configured = fact?.configured === true; const tested = fact?.tested === true; const deployed = fact?.deployed === true;
@@ -301,6 +348,7 @@ async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Pro
   });
   const readiness = {
     businessProfile,
+    launchPreferences: tenant.preferencesComplete,
     productSelected: selectedProducts.length > 0,
     activeAccess: activeProducts.size > 0,
     selectedProducts,
@@ -311,7 +359,13 @@ async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Pro
   };
   const { checklist, primaryAction } = buildOnboardingChecklist(readiness);
   return {
-    ...tenant,
+    tenant_id: tenant.tenant_id, business_name: tenant.business_name, slug: tenant.slug,
+    locale: tenant.locale, timezone: tenant.timezone,
+    preferences: {
+      businessGoal: tenant.businessGoal, industry: tenant.industry,
+      firstProduct: tenant.firstProduct, launchChannel: tenant.launchChannel,
+      complete: tenant.preferencesComplete,
+    },
     stage,
     readiness,
     checklist,
@@ -354,6 +408,31 @@ export class TenantWorkspaceStore {
         WHERE tenant_id = ${context.tenantId}::uuid
       `;
       return record;
+    });
+  }
+
+  async updateOnboardingPreferences(context: TenantContext, input: Readonly<{
+    businessGoal: "answer_questions" | "capture_leads" | "recommend_products" | "book_appointments" | "customer_support";
+    industry: "retail" | "services" | "restaurant" | "education" | "property" | "health" | "other";
+    firstProduct: OnboardingProductKey;
+  }>) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ tenantId: string }[]>`UPDATE tenancy.tenant_onboarding SET
+        business_goal = ${input.businessGoal}, industry = ${input.industry},
+        first_product = ${input.firstProduct}, launch_channel = 'website',
+        preferences_completed_at = COALESCE(preferences_completed_at, now()), updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid RETURNING tenant_id AS "tenantId"`;
+      if (!rows[0]) return { status: "not_found" as const };
+      await sql`INSERT INTO tenancy.audit_logs (
+        tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id,
+        request_id, result, metadata
+      ) VALUES (
+        ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+        'tenant.onboarding_preferences_updated', 'tenant', ${context.tenantId}, ${context.requestId},
+        'succeeded', ${sql.json(input)}
+      )`;
+      const onboarding = await onboardingRecord(sql, context.tenantId);
+      return onboarding ? { status: "updated" as const, onboarding } : { status: "not_found" as const };
     });
   }
 

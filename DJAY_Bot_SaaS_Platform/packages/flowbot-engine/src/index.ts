@@ -1,4 +1,4 @@
-import { flowNodeEntitlementIssue, type FlowEntitlements, type FlowExecutionState, type FlowInput, type FlowNode, type FlowSnapshot } from "@djay/flowbot-domain";
+import { flowNodeEntitlementIssue, type FlowEntitlements, type FlowExecutionState, type FlowInput, type FlowNode, type FlowSnapshot, type PublicFlowInput } from "@djay/flowbot-domain";
 
 export type FlowMessage = Readonly<{
   type: "text" | "media" | "card" | "carousel" | "actions" | "options" | "form" | "system";
@@ -23,6 +23,24 @@ export type FlowEngineRequest = Readonly<{
 export type FlowEngineResult = Readonly<{
   nextState: FlowExecutionState; messages: readonly FlowMessage[];
   commands: readonly FlowCommand[]; events: readonly FlowEvent[];
+}>;
+
+export type FlowSimulationRequest = Readonly<{
+  snapshot: FlowSnapshot;
+  authority: FlowEntitlements;
+  language: "th" | "en";
+  inputs: readonly PublicFlowInput[];
+  startNodeId?: string;
+  businessOpen: boolean;
+  now: string;
+}>;
+export type FlowSimulationTurn = Readonly<{
+  input: FlowInput;
+  result: FlowEngineResult;
+}>;
+export type FlowSimulationResult = Readonly<{
+  turns: readonly FlowSimulationTurn[];
+  finalState: FlowExecutionState;
 }>;
 
 type MutableResult = { state: FlowExecutionState; messages: FlowMessage[]; commands: FlowCommand[]; events: FlowEvent[] };
@@ -98,6 +116,35 @@ export function advanceFlow(request: FlowEngineRequest): FlowEngineResult {
     return runAutomatic(request, result, request.input.payload.success ? current.nextNodeId : current.failureNodeId);
   }
   throw new FlowRuntimeError("unsupported_input");
+}
+
+/**
+ * Executes a draft with the production engine but without persistence or command dispatch. The
+ * caller decides which safe portions of emitted commands may be shown outside the trust boundary.
+ */
+export function simulateFlow(request: FlowSimulationRequest): FlowSimulationResult {
+  if (request.startNodeId && !request.snapshot.nodes[request.startNodeId]) {
+    throw new FlowRuntimeError("preview_start_node_missing");
+  }
+  const snapshot = request.startNodeId
+    ? { ...request.snapshot, rootNodeId: request.startNodeId }
+    : request.snapshot;
+  let state: FlowExecutionState = {
+    currentNodeId: null, status: "active", lang: request.language, variables: {}, subflowStack: [],
+  };
+  const inputs: FlowInput[] = [{ type: "start", payload: {} }, ...request.inputs];
+  const turns: FlowSimulationTurn[] = [];
+  for (const [index, input] of inputs.entries()) {
+    const result = advanceFlow({
+      tenantId: "preview", deploymentId: "preview", executionId: "preview",
+      flowVersionId: snapshot.flowVersionId, sequence: index + 1,
+      inputId: `preview-${index + 1}`, input, snapshot, state, authority: request.authority,
+      environment: { now: request.now, isBusinessOpen: () => request.businessOpen },
+    });
+    turns.push({ input, result });
+    state = result.nextState;
+  }
+  return { turns, finalState: state };
 }
 
 function runAutomatic(request: FlowEngineRequest, result: MutableResult, startingNodeId: string): FlowEngineResult {

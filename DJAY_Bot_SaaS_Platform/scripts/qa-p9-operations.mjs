@@ -155,6 +155,7 @@ async function mockPlatform(page, role, recoveryMode, delayedReadMs = 0, roleAft
 
 async function inspect(name, role, viewport, recoveryMode = "ready", delayedReadMs = 0, roleAfterReview = null) {
   const context = await browser.newContext({ viewport });
+  await context.addInitScript(() => localStorage.setItem("djay-ui-locale", "en"));
   const page = await context.newPage();
   page.on("pageerror", (error) => failures.push(`${name}: page error ${error.message}`));
   page.on("console", (entry) => {

@@ -15,6 +15,67 @@ export class PlatformSupportStore {
     `);
   }
 
+  async tenant360(context: PlatformContext, tenantId: string) {
+    return withPlatformTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ overview: Record<string, unknown> | null }[]>`
+        SELECT platform.get_tenant_360(${tenantId}::uuid) AS overview
+      `;
+      return rows[0]?.overview ?? null;
+    });
+  }
+
+  async incidentBoard(context: PlatformContext, input: Readonly<{ tenantId?: string; status?: "open" | "investigating" | "monitoring" | "resolved" }>) {
+    return withPlatformTransaction(this.client, context, async ({ sql }) => {
+      const [incidents, tenants, operators] = await Promise.all([
+        sql<{ result: readonly Record<string, unknown>[] }[]>`
+          SELECT platform.get_tenant_incidents(${input.tenantId ?? null}::uuid, ${input.status ?? null}::text) AS result
+        `,
+        sql<{ result: readonly { id: string; businessName: string }[] }[]>`
+          SELECT platform.get_incident_tenants() AS result
+        `,
+        sql<{ result: readonly { id: string; displayName: string; role: string }[] }[]>`
+          SELECT platform.get_incident_operators() AS result
+        `,
+      ]);
+      return Object.freeze({ incidents: incidents[0]?.result ?? [], tenants: tenants[0]?.result ?? [], operators: operators[0]?.result ?? [] });
+    });
+  }
+
+  async openIncident(context: PlatformContext, input: Readonly<{
+    tenantId: string; category: string; severity: string; affectedProduct: string; summary: string; idempotencyKey: string;
+  }>) {
+    return withPlatformTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ id: string }[]>`
+        SELECT platform.open_tenant_incident(${input.tenantId}::uuid, ${input.category},
+          ${input.severity}, ${input.affectedProduct}, ${input.summary}, ${input.idempotencyKey}::uuid) AS id
+      `;
+      return { status: "opened" as const, incidentId: rows[0]!.id };
+    });
+  }
+
+  async transitionIncident(context: PlatformContext, input: Readonly<{
+    incidentId: string; status: "investigating" | "monitoring" | "resolved"; note: string;
+  }>) {
+    return withPlatformTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ status: string }[]>`
+        SELECT platform.transition_tenant_incident(${input.incidentId}::uuid, ${input.status}, ${input.note}) AS status
+      `;
+      return { status: rows[0]!.status };
+    });
+  }
+
+  async assignIncident(context: PlatformContext, input: Readonly<{
+    incidentId: string; ownerPlatformUserId: string; note: string;
+  }>) {
+    return withPlatformTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ ownerPlatformUserId: string }[]>`
+        SELECT platform.assign_tenant_incident(${input.incidentId}::uuid,
+          ${input.ownerPlatformUserId}::uuid, ${input.note}) AS "ownerPlatformUserId"
+      `;
+      return { status: "assigned" as const, ownerPlatformUserId: rows[0]!.ownerPlatformUserId };
+    });
+  }
+
   async listGrants(context: PlatformContext) {
     return withPlatformTransaction(this.client, context, async ({ sql }) => sql<{
       id: string; tenantId: string; businessName: string; requestedByPlatformUserId: string;

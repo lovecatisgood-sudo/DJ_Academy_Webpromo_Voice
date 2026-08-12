@@ -48,8 +48,8 @@ export function WebsiteDeploymentForm({
   const describedBy = (field: keyof WebsiteDeploymentFormInput) => error?.field === field ? errorId : undefined;
   return (
     <form className={className} onSubmit={submit} noValidate>
-      <label>Deployment name<input name="name" {...websiteDeploymentFieldConstraints.name} required aria-invalid={error?.field === "name" || undefined} aria-describedby={describedBy("name")} onInput={() => setError(null)} /></label>
-      <label>Exact allowed website origin<input name="origin" type="url" placeholder="https://www.example.com" {...websiteDeploymentFieldConstraints.origin} required aria-invalid={error?.field === "origin" || undefined} aria-describedby={describedBy("origin")} onInput={() => setError(null)} /></label>
+      <label>ชื่อการติดตั้ง<input name="name" {...websiteDeploymentFieldConstraints.name} required aria-invalid={error?.field === "name" || undefined} aria-describedby={describedBy("name")} onInput={() => setError(null)} /></label>
+      <label>ต้นทางเว็บไซต์ที่อนุญาตแบบตรงกันทุกตัวอักษร<input name="origin" type="url" placeholder="https://www.example.com" {...websiteDeploymentFieldConstraints.origin} required aria-invalid={error?.field === "origin" || undefined} aria-describedby={describedBy("origin")} onInput={() => setError(null)} /></label>
       {error ? <p id={errorId} className="inline-message error" role="alert">{error.message}</p> : null}
       <button type="submit" disabled={working}>{working ? "Creating…" : submitLabel}</button>
     </form>

@@ -84,6 +84,12 @@ export const flowKeywordSchema = z.object({
 export const flowSnapshotSchema = z.object({
   schemaVersion: z.literal(1), flowVersionId: z.uuid(), rootNodeId: z.uuid(),
   nodes: z.record(z.uuid(), flowNodeSchema), keywords: z.array(flowKeywordSchema).max(2000).default([]),
+  editor: z.object({
+    positions: z.record(z.uuid(), z.object({
+      x: z.number().finite().min(-1_000_000).max(1_000_000),
+      y: z.number().finite().min(-1_000_000).max(1_000_000),
+    }).strict()).default({}),
+  }).strict().optional(),
   embeddedSubflows: z.record(z.uuid(), z.object({
     rootNodeId: z.uuid(), nodes: z.record(z.uuid(), flowNodeSchema),
     keywords: z.array(flowKeywordSchema).max(2000).default([]),

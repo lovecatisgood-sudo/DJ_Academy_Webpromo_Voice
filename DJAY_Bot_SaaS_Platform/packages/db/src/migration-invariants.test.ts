@@ -69,6 +69,20 @@ const flowbotSocialWorkersMigration = readFileSync(resolve(import.meta.dirname, 
 const flowbotSocialDeliveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0069_flowbot_social_delivery.sql"), "utf8");
 const flowbotSocialFundingMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0070_flowbot_social_usage_funding.sql"), "utf8");
 const purchaseIntentsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0079_purchase_intents.sql"), "utf8");
+const customerSupportCenterMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0088_customer_support_center.sql"), "utf8");
+const goalFirstOnboardingMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0089_goal_first_onboarding.sql"), "utf8");
+const supportClosureFeedbackMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0090_support_closure_feedback.sql"), "utf8");
+const appointmentStatusTimelineMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0091_appointment_status_timeline.sql"), "utf8");
+const supportAttachmentScanningMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0092_support_attachment_scanning.sql"), "utf8");
+const supportServiceNotificationsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0093_support_service_notifications.sql"), "utf8");
+const botRegressionEvidenceMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0094_bot_regression_evidence.sql"), "utf8");
+const customerJourneyValueMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0095_customer_journey_value_callbacks.sql"), "utf8");
+const tenantNotificationCenterMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0096_tenant_notification_center.sql"), "utf8");
+const platformTenant360Migration = readFileSync(resolve(import.meta.dirname, "../migrations/0097_platform_tenant_360.sql"), "utf8");
+const tenantIncidentOperationsMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0098_tenant_incident_operations.sql"), "utf8");
+const notificationSourceCoverageMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0099_notification_source_coverage.sql"), "utf8");
+const appointmentCalendarReconciliationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0100_appointment_calendar_reconciliation.sql"), "utf8");
+const appointmentRecoveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0101_appointment_recovery_and_repeat_reschedule.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -79,6 +93,137 @@ const tenantTables = [
   "audit_logs",
   "outbox",
 ];
+
+describe("Merchant experience migration invariants", () => {
+  it("keeps appointment recovery independently reviewed, bounded, optimistic, and replay-safe", () => {
+    expect(appointmentRecoveryMigration).toContain("request_appointment_dead_letter_replay");
+    expect(appointmentRecoveryMigration).toContain("review_dead_letter_replay_v2");
+    expect(appointmentRecoveryMigration).toContain("requested_by_platform_user_id = actor_id");
+    expect(appointmentRecoveryMigration).toContain("expected_recovery_generation");
+    expect(appointmentRecoveryMigration).toContain("recovery_generation < 3");
+    expect(appointmentRecoveryMigration).toContain("recovery_generation = recovery_generation + 1");
+    expect(appointmentRecoveryMigration).toContain("depends_on_job_id");
+    expect(appointmentRecoveryMigration).toContain("dependency.status = 'confirmed'");
+    expect(appointmentRecoveryMigration).toContain("UNIQUE (tenant_id, scheduling_job_id, recovery_generation, attempt_number)");
+    expect(appointmentRecoveryMigration).toContain("enqueue_repeated_appointment_reschedule");
+    expect(appointmentRecoveryMigration).toContain("'rescheduled', 'rescheduled'");
+    expect(appointmentRecoveryMigration).toContain("REVOKE ALL ON FUNCTION platform.review_dead_letter_replay_v2(uuid,text) FROM PUBLIC");
+  });
+
+  it("keeps Tenant 360 behind a narrow role-checked, audited function without secret fields", () => {
+    expect(platformTenant360Migration).toContain("SECURITY DEFINER");
+    expect(platformTenant360Migration).toContain("session_user <> 'djay_platform'");
+    expect(platformTenant360Migration).toContain("actor_role NOT IN ('platform_owner', 'platform_support', 'platform_finance')");
+    expect(platformTenant360Migration).toContain("'tenant_360.viewed'");
+    expect(platformTenant360Migration).toContain("REVOKE ALL ON FUNCTION platform.get_tenant_360(uuid) FROM PUBLIC");
+    for (const secretField of ["deployment_key_hash", "password_hash", "resolved_json", "scope_json", "metadata"]) {
+      expect(platformTenant360Migration).not.toContain(`'${secretField}'`);
+    }
+  });
+
+  it("keeps tenant incidents role-scoped, tenant-linked, bounded, audited, and append-only", () => {
+    expect(tenantIncidentOperationsMigration).toContain("tenant_id uuid NOT NULL REFERENCES tenancy.tenants(id)");
+    expect(tenantIncidentOperationsMigration).toContain("platform_tenant_incident_history_immutable");
+    expect(tenantIncidentOperationsMigration).toContain("session_user <> 'djay_platform'");
+    expect(tenantIncidentOperationsMigration).toContain("actor_role NOT IN ('platform_owner','platform_support','platform_ai_operations')");
+    expect(tenantIncidentOperationsMigration).toContain("LIMIT 500");
+    expect(tenantIncidentOperationsMigration).toContain("'tenant_incident.opened'");
+    expect(tenantIncidentOperationsMigration).toContain("'tenant_incident.transitioned'");
+    expect(tenantIncidentOperationsMigration).toContain("tenant_incident_transition_not_allowed");
+    expect(tenantIncidentOperationsMigration).toContain("platform_tenant_incidents_idempotency_idx");
+    expect(tenantIncidentOperationsMigration).toContain("pg_advisory_xact_lock");
+    expect(tenantIncidentOperationsMigration).toContain("tenant_incident_idempotency_conflict");
+    expect(tenantIncidentOperationsMigration).toContain("platform.assign_tenant_incident");
+    expect(tenantIncidentOperationsMigration).toContain("'tenant_incident.assigned'");
+    expect(tenantIncidentOperationsMigration).toContain("REVOKE ALL ON platform.tenant_incidents, platform.tenant_incident_history FROM PUBLIC");
+    expect(tenantIncidentOperationsMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+tenant_incident/i);
+  });
+
+  it("keeps support records tenant-scoped, message-author bound, immutable, and forced through RLS", () => {
+    for (const table of ["support_tickets", "support_ticket_messages"]) {
+      expect(customerSupportCenterMigration).toContain(`ALTER TABLE tenancy.${table} FORCE ROW LEVEL SECURITY`);
+      expect(customerSupportCenterMigration).toContain(`REVOKE ALL ON tenancy.support_tickets, tenancy.support_ticket_messages FROM PUBLIC`);
+    }
+    expect(customerSupportCenterMigration).toContain("FOREIGN KEY (tenant_id, created_by_membership_id)");
+    expect(customerSupportCenterMigration).toContain("FOREIGN KEY (tenant_id, author_membership_id)");
+    expect(customerSupportCenterMigration).toContain("tenancy_support_ticket_messages_immutable");
+    expect(customerSupportCenterMigration).toContain("author_kind = 'customer'");
+    expect(customerSupportCenterMigration).toContain("author_kind = 'platform'");
+  });
+
+  it("stores complete goal-first preferences against authoritative tenant onboarding", () => {
+    expect(goalFirstOnboardingMigration).toContain("ALTER TABLE tenancy.tenant_onboarding");
+    expect(goalFirstOnboardingMigration).toContain("tenant_onboarding_preferences_complete");
+    for (const field of ["business_goal", "industry", "first_product", "launch_channel", "preferences_completed_at"]) {
+      expect(goalFirstOnboardingMigration).toContain(field);
+    }
+    expect(goalFirstOnboardingMigration).toContain("launch_channel = 'website'");
+  });
+
+  it("keeps support closure feedback tenant-scoped, immutable, and bounded", () => {
+    expect(supportClosureFeedbackMigration).toContain("FORCE ROW LEVEL SECURITY");
+    expect(supportClosureFeedbackMigration).toContain("tenancy_support_ticket_feedback_immutable");
+    expect(supportClosureFeedbackMigration).toContain("rating BETWEEN 1 AND 5");
+    expect(supportClosureFeedbackMigration).toContain("UNIQUE (tenant_id, ticket_id)");
+    expect(supportClosureFeedbackMigration).toContain("FOREIGN KEY (tenant_id, submitted_by_membership_id)");
+  });
+
+  it("captures every appointment status change in an append-only tenant timeline", () => {
+    expect(appointmentStatusTimelineMigration).toContain("AFTER INSERT OR UPDATE OF status");
+    expect(appointmentStatusTimelineMigration).toContain("SECURITY DEFINER");
+    expect(appointmentStatusTimelineMigration).toContain("SET search_path = pg_catalog, tenancy");
+    expect(appointmentStatusTimelineMigration).toContain("FORCE ROW LEVEL SECURITY");
+    expect(appointmentStatusTimelineMigration).toContain("tenancy_appointment_status_history_immutable");
+    expect(appointmentStatusTimelineMigration).not.toMatch(/GRANT INSERT[^;]+TO djay_runtime/i);
+  });
+
+  it("binds merchant-confirmed value to closed tenant leads and keeps callback history immutable", () => {
+    expect(customerJourneyValueMigration).toContain("lead.status = 'closed_deal'");
+    expect(customerJourneyValueMigration).toContain("lead.contact_id = target_contact_id");
+    expect(customerJourneyValueMigration).toContain("tenancy_customer_value_events_immutable");
+    expect(customerJourneyValueMigration).toContain("tenancy_voice_callback_status_history_immutable");
+    expect(customerJourneyValueMigration).toContain("AFTER INSERT OR UPDATE OF status");
+    expect(customerJourneyValueMigration).toContain("transition_voice_callback_request");
+    expect(customerJourneyValueMigration).toContain("membership.status = 'active'");
+    expect(customerJourneyValueMigration).toContain("FORCE ROW LEVEL SECURITY");
+    expect(customerJourneyValueMigration).not.toMatch(/GRANT (INSERT|UPDATE|DELETE)[^;]+customer_value_events TO djay_runtime/i);
+    expect(customerJourneyValueMigration).not.toMatch(/GRANT UPDATE[^;]+voice_callback_requests TO djay_runtime/i);
+  });
+
+  it("centralizes authoritative lifecycle events without mutable or arbitrary tenant writes", () => {
+    for (const source of ["appointment_status_history", "voice_callback_status_history", "customer_value_events",
+      "support_ticket_notifications", "customer_billing_notifications", "usage_alert_deliveries",
+      "membership_invitations", "bot_regression_runs"]) expect(tenantNotificationCenterMigration).toContain(source);
+    expect(tenantNotificationCenterMigration).toContain("UNIQUE (tenant_id, event_key)");
+    expect(tenantNotificationCenterMigration).toContain("tenancy_tenant_notifications_immutable");
+    expect(tenantNotificationCenterMigration).toContain("membership.status = 'active'");
+    expect(tenantNotificationCenterMigration).toContain("FORCE ROW LEVEL SECURITY");
+    expect(tenantNotificationCenterMigration).not.toMatch(/GRANT (INSERT|UPDATE|DELETE)[^;]+tenant_notifications TO djay_runtime/i);
+  });
+
+  it("extends notifications from authoritative setup, deployment, privacy, ownership, and support-access sources", () => {
+    for (const source of ["tenant_onboarding", "flow_deployments", "ai_deployments", "voice_deployments",
+      "privacy_jobs", "ownership_transfers", "support_access_grants"]) {
+      expect(notificationSourceCoverageMigration).toContain(source);
+    }
+    expect(notificationSourceCoverageMigration).toContain("tenancy.queue_tenant_notification");
+    expect(notificationSourceCoverageMigration).toContain("SECURITY DEFINER SET search_path = pg_catalog, tenancy");
+    expect(notificationSourceCoverageMigration).toContain("REVOKE ALL ON FUNCTION tenancy.capture_setup_security_notification() FROM PUBLIC");
+    expect(notificationSourceCoverageMigration).not.toMatch(/GRANT (INSERT|UPDATE|DELETE)[^;]+tenant_notifications TO djay_runtime/i);
+  });
+
+  it("separates local appointment state from provider-confirmed synchronization and immutable retry evidence", () => {
+    expect(appointmentCalendarReconciliationMigration).toContain("'rescheduled'");
+    expect(appointmentCalendarReconciliationMigration).toContain("claim_appointment_sync_job");
+    expect(appointmentCalendarReconciliationMigration).toContain("finish_appointment_sync_job");
+    expect(appointmentCalendarReconciliationMigration).toContain("app.service', true) <> 'appointment_sync_worker'");
+    expect(appointmentCalendarReconciliationMigration).toContain("FOR UPDATE SKIP LOCKED");
+    expect(appointmentCalendarReconciliationMigration).toContain("tenancy_appointment_sync_attempts_immutable");
+    expect(appointmentCalendarReconciliationMigration).toContain("external_reference_sha256");
+    expect(appointmentCalendarReconciliationMigration).toContain("appointment.sync_");
+    expect(appointmentCalendarReconciliationMigration).not.toMatch(/GRANT (INSERT|UPDATE|DELETE)[^;]+voice_scheduling_jobs TO djay_worker/i);
+  });
+});
 
 describe("BILL-01 Stripe billing foundation invariants", () => {
   it("binds Checkout to accepted contracts and verified server-side price authority", () => {
@@ -153,6 +298,35 @@ describe("BILL-01 Stripe billing foundation invariants", () => {
     expect(stripeFinancialEventReconciliationMigration).toContain("billing.reject_financial_evidence_change()");
     expect(stripeFinancialEventReconciliationMigration).toContain("different_reviewer_required");
     expect(stripeFinancialEventReconciliationMigration).not.toMatch(/UPDATE billing\.(payment_events|refund_events|credit_note_documents)/i);
+  });
+
+  it("quarantines support attachments behind forced RLS and worker-only scanning", () => {
+    for (const table of ["support_ticket_attachments", "support_attachment_scan_jobs"]) {
+      expect(supportAttachmentScanningMigration).toContain(`ALTER TABLE tenancy.${table} FORCE ROW LEVEL SECURITY`);
+    }
+    expect(supportAttachmentScanningMigration).toContain("support_attachment_worker_authority_required");
+    expect(supportAttachmentScanningMigration).toContain("attachment.status = 'scanning' AND attachment.declared_size = target_size");
+    expect(supportAttachmentScanningMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+support_attachment_scan_jobs[^;]+TO djay_runtime/i);
+    expect(supportAttachmentScanningMigration).not.toMatch(/GRANT (INSERT|UPDATE|DELETE)[^;]+support_ticket_attachments[^;]+TO djay_runtime/i);
+  });
+
+  it("separates support service classes and keeps customer updates durable and tenant-scoped", () => {
+    expect(supportServiceNotificationsMigration).toContain("customer_commitment boolean NOT NULL DEFAULT false");
+    expect(supportServiceNotificationsMigration).toContain("tenancy_support_ticket_notifications_immutable");
+    for (const table of ["support_ticket_notifications", "support_ticket_notification_reads"]) {
+      expect(supportServiceNotificationsMigration).toContain(`ALTER TABLE tenancy.${table} FORCE ROW LEVEL SECURITY`);
+    }
+    expect(supportServiceNotificationsMigration).toContain("UNIQUE (tenant_id, event_key)");
+    expect(supportServiceNotificationsMigration).not.toMatch(/GRANT (INSERT|UPDATE|DELETE)[^;]+support_ticket_notifications[^;]+TO djay_runtime/i);
+  });
+
+  it("binds immutable regression evidence to a current published tenant artifact", () => {
+    expect(botRegressionEvidenceMigration).toContain("tenancy_bot_regression_runs_immutable");
+    expect(botRegressionEvidenceMigration).toContain("ALTER TABLE tenancy.bot_regression_runs FORCE ROW LEVEL SECURITY");
+    expect(botRegressionEvidenceMigration).toContain("bot.current_published_version_id = version.id");
+    expect(botRegressionEvidenceMigration).toContain("agent.current_published_playbook_version_id = version.id");
+    expect(botRegressionEvidenceMigration).toContain("membership.user_id = NULLIF(current_setting('app.user_id', true), '')::uuid");
+    expect(botRegressionEvidenceMigration).not.toMatch(/GRANT (INSERT|UPDATE|DELETE)[^;]+bot_regression_runs[^;]+TO djay_runtime/i);
   });
 });
 

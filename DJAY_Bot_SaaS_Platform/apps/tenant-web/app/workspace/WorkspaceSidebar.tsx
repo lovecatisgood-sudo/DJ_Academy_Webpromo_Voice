@@ -18,8 +18,8 @@ export type WorkspaceSummary = Readonly<{
 
 export type WorkspaceArea =
   | "overview" | "setup" | "settings" | "flowbot" | "ai_chat" | "voice"
-  | "inbox" | "contacts" | "leads" | "knowledge" | "operations"
-  | "data" | "team" | "usage" | "security";
+  | "inbox" | "contacts" | "leads" | "appointments" | "knowledge" | "operations"
+  | "data" | "team" | "usage" | "security" | "support" | "test_center" | "notifications" | "reports";
 
 type NavItem = Readonly<{
   area: WorkspaceArea;
@@ -32,9 +32,13 @@ type NavItem = Readonly<{
 const workspaceNavigation: readonly NavItem[] = [
   { area: "overview", href: "/workspace", label: { en: "Overview", th: "ภาพรวม" }, permission: "tenant.read", group: "get_live" },
   { area: "setup", href: "/workspace/setup", label: { en: "Setup", th: "เริ่มใช้งาน" }, permission: "tenant.read", group: "get_live" },
+  { area: "test_center", href: "/workspace/test-center", label: { en: "Test center", th: "ศูนย์ทดสอบ" }, permission: "flowbot.read", group: "get_live" },
   { area: "inbox", href: "/workspace/inbox", label: { en: "Inbox", th: "กล่องข้อความ" }, permission: "conversations.read", group: "customers" },
   { area: "contacts", href: "/workspace/contacts", label: { en: "Contacts", th: "ข้อมูลติดต่อ" }, permission: "contacts.read", group: "customers" },
   { area: "leads", href: "/workspace/leads", label: { en: "Leads", th: "ผู้สนใจ" }, permission: "leads.read", group: "customers" },
+  { area: "appointments", href: "/workspace/appointments", label: { en: "Appointments", th: "นัดหมาย" }, permission: "leads.read", group: "customers" },
+  { area: "notifications", href: "/workspace/notifications", label: { en: "Notifications", th: "การแจ้งเตือน" }, permission: "contacts.read", group: "customers" },
+  { area: "reports", href: "/workspace/reports", label: { en: "Reports", th: "รายงาน" }, permission: "leads.read", group: "customers" },
   { area: "flowbot", href: "/workspace/flowbot", label: { en: "FlowBot", th: "FlowBot" }, permission: "flowbot.read", group: "products" },
   { area: "ai_chat", href: "/workspace/ai-chat", label: { en: "AI Chat", th: "แชต AI" }, permission: "ai_chat.read", group: "products" },
   { area: "voice", href: "/workspace/voice", label: { en: "Voice", th: "ระบบเสียง" }, permission: "voice.read", group: "products" },
@@ -45,6 +49,7 @@ const workspaceNavigation: readonly NavItem[] = [
   { area: "usage", href: "/workspace/usage", label: { en: "Usage", th: "การใช้งานและแผน" }, permission: "usage.read", group: "workspace" },
   { area: "data", href: "/workspace/data", label: { en: "Data controls", th: "การจัดการข้อมูล" }, permission: "privacy.manage", group: "workspace" },
   { area: "security", href: "/workspace/security", label: { en: "Security", th: "ความปลอดภัย" }, permission: "security.sessions.read", group: "workspace" },
+  { area: "support", href: "/workspace/support", label: { en: "Help & support", th: "ช่วยเหลือและสนับสนุน" }, permission: "support.read", group: "workspace" },
 ];
 
 const groupLabels = {
@@ -171,6 +176,9 @@ export function WorkspaceSidebar({
         ) : null}
         <button className="quiet-command" type="button" onClick={onLogout}>{labels.signOut}</button>
       </aside>
+      <a className="workspace-help-launcher" href="/workspace/support" aria-label={locale === "th" ? "เปิดศูนย์ช่วยเหลือและติดต่อทีมสนับสนุน" : "Open help and contact support"}>
+        <span className="workspace-help-icon" aria-hidden="true">?</span><span className="workspace-help-label">{locale === "th" ? "ขอความช่วยเหลือ" : "Get help"}</span>
+      </a>
     </div>
   );
 }

@@ -176,8 +176,8 @@ export class AiChatStore {
       if (!authority || authority.accessMode !== "active" || authority.entitlements["ai.text"] !== true
         || authority.entitlements["knowledge.enabled"] !== true) return { status: "not_entitled" as const };
       if (!(await aiResourceWritable(sql, agentId))) return { status: "resource_read_only" as const };
-      const drafts = await sql<{ definition: unknown; knowledgeRevisionIds: string[] }[]>`
-        SELECT definition_json AS definition, knowledge_revision_ids AS "knowledgeRevisionIds"
+      const drafts = await sql<{ definition: unknown; knowledgeRevisionIds: string[]; basedOnVersionId: string | null }[]>`
+        SELECT definition_json AS definition, knowledge_revision_ids AS "knowledgeRevisionIds", based_on_version_id AS "basedOnVersionId"
         FROM tenancy.ai_playbook_drafts WHERE tenant_id = ${context.tenantId}::uuid AND agent_id = ${agentId}::uuid FOR UPDATE
       `;
       if (!drafts[0]) return { status: "not_found" as const };
@@ -190,10 +190,10 @@ export class AiChatStore {
       const serialized = JSON.stringify(playbook);
       await sql`
         INSERT INTO tenancy.ai_playbook_versions (
-          id, tenant_id, agent_id, version, status, playbook_json, playbook_sha256, published_by_membership_id
+          id, tenant_id, agent_id, version, status, playbook_json, playbook_sha256, source_version_id, published_by_membership_id
         ) VALUES (
           ${versionId}::uuid, ${context.tenantId}::uuid, ${agentId}::uuid, ${version}, 'published',
-          ${sql.json(playbook)}, ${createHash("sha256").update(serialized).digest()}, ${context.membershipId}::uuid
+          ${sql.json(playbook)}, ${createHash("sha256").update(serialized).digest()}, ${drafts[0].basedOnVersionId}::uuid, ${context.membershipId}::uuid
         )
       `;
       for (const revisionId of drafts[0].knowledgeRevisionIds) await sql`
@@ -209,6 +209,54 @@ export class AiChatStore {
           definition_json = ${sql.json(playbook)}, revision = revision + 1, updated_at = now()
         WHERE tenant_id = ${context.tenantId}::uuid AND agent_id = ${agentId}::uuid
       `;
+      await sql`INSERT INTO tenancy.audit_logs (tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id, request_id, result, metadata)
+        VALUES (${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid, 'ai_chat.published', 'ai_playbook_version', ${versionId}, ${context.requestId}, 'succeeded', ${sql.json({ agentId, version, planKey: authority.planKey })})`;
+      return { status: "published" as const, playbookVersionId: versionId, version };
+    });
+  }
+
+  async listVersions(context: TenantContext, agentId: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
+      id: string; version: number; sourceVersionId: string | null; publishedAt: Date; knowledgeCount: number;
+    }[]>`SELECT version.id, version.version, version.source_version_id AS "sourceVersionId",
+      version.published_at AS "publishedAt", count(pin.source_revision_id)::int AS "knowledgeCount"
+      FROM tenancy.ai_playbook_versions version
+      LEFT JOIN tenancy.ai_playbook_knowledge pin ON pin.tenant_id = version.tenant_id AND pin.playbook_version_id = version.id
+      WHERE version.tenant_id = ${context.tenantId}::uuid AND version.agent_id = ${agentId}::uuid
+      GROUP BY version.id ORDER BY version.version DESC`);
+  }
+
+  async rollback(context: TenantContext, agentId: string, sourceVersionId: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const authority = await this.authority(sql, context.tenantId);
+      if (!authority || authority.accessMode !== "active" || authority.entitlements["ai.text"] !== true
+        || authority.entitlements["knowledge.enabled"] !== true) return { status: "not_entitled" as const };
+      if (!(await aiResourceWritable(sql, agentId))) return { status: "resource_read_only" as const };
+      const sources = await sql<{ playbook: unknown; knowledgeRevisionIds: string[] }[]>`SELECT version.playbook_json AS playbook,
+        COALESCE(array_agg(pin.source_revision_id ORDER BY pin.source_revision_id) FILTER (WHERE pin.source_revision_id IS NOT NULL), '{}')::uuid[] AS "knowledgeRevisionIds"
+        FROM tenancy.ai_playbook_versions version
+        LEFT JOIN tenancy.ai_playbook_knowledge pin ON pin.tenant_id = version.tenant_id AND pin.playbook_version_id = version.id
+        WHERE version.tenant_id = ${context.tenantId}::uuid AND version.agent_id = ${agentId}::uuid AND version.id = ${sourceVersionId}::uuid
+        GROUP BY version.id`;
+      if (!sources[0]) return { status: "not_found" as const };
+      const knowledgeLimit = authority.limits.knowledge_documents;
+      if (typeof knowledgeLimit === "number" && sources[0].knowledgeRevisionIds.length > knowledgeLimit) return { status: "limit_reached" as const };
+      const versionId = randomUUID();
+      const playbook = aiPlaybookSchema.parse({ ...(sources[0].playbook as object), playbookVersionId: versionId });
+      const versionRows = await sql<{ version: number }[]>`SELECT COALESCE(max(version), 0)::int + 1 AS version
+        FROM tenancy.ai_playbook_versions WHERE tenant_id = ${context.tenantId}::uuid AND agent_id = ${agentId}::uuid`;
+      const version = versionRows[0]!.version;
+      await sql`INSERT INTO tenancy.ai_playbook_versions
+        (id, tenant_id, agent_id, version, status, playbook_json, playbook_sha256, source_version_id, published_by_membership_id)
+        VALUES (${versionId}::uuid, ${context.tenantId}::uuid, ${agentId}::uuid, ${version}, 'published', ${sql.json(playbook)},
+          ${createHash("sha256").update(JSON.stringify(playbook)).digest()}, ${sourceVersionId}::uuid, ${context.membershipId}::uuid)`;
+      for (const revisionId of sources[0].knowledgeRevisionIds) await sql`INSERT INTO tenancy.ai_playbook_knowledge
+        (tenant_id, agent_id, playbook_version_id, source_revision_id) VALUES
+        (${context.tenantId}::uuid, ${agentId}::uuid, ${versionId}::uuid, ${revisionId}::uuid)`;
+      await sql`UPDATE tenancy.ai_agents SET status = 'active', current_published_playbook_version_id = ${versionId}::uuid, updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${agentId}::uuid`;
+      await sql`INSERT INTO tenancy.audit_logs (tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id, request_id, result, metadata)
+        VALUES (${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid, 'ai_chat.rollback_published', 'ai_playbook_version', ${versionId}, ${context.requestId}, 'succeeded', ${sql.json({ agentId, version, sourceVersionId, planKey: authority.planKey })})`;
       return { status: "published" as const, playbookVersionId: versionId, version };
     });
   }
@@ -261,10 +309,15 @@ export class AiChatStore {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await this.authority(sql, context.tenantId);
       if (!authority || authority.accessMode !== "active" || authority.entitlements["ai.text"] !== true) return null;
-      const drafts = await sql<{ playbook: unknown; knowledgeRevisionIds: string[] }[]>`
-        SELECT definition_json AS playbook, knowledge_revision_ids AS "knowledgeRevisionIds"
-        FROM tenancy.ai_playbook_drafts
-        WHERE tenant_id = ${context.tenantId}::uuid AND agent_id = ${agentId}::uuid
+      const drafts = await sql<{ playbook: unknown; knowledgeRevisionIds: string[]; publishedVersionId: string | null }[]>`
+        SELECT draft.definition_json AS playbook, draft.knowledge_revision_ids AS "knowledgeRevisionIds",
+          CASE WHEN draft.based_on_version_id = agent.current_published_playbook_version_id
+            AND draft.definition_json = version.playbook_json THEN version.id END AS "publishedVersionId"
+        FROM tenancy.ai_playbook_drafts draft
+        JOIN tenancy.ai_agents agent ON agent.tenant_id = draft.tenant_id AND agent.id = draft.agent_id
+        LEFT JOIN tenancy.ai_playbook_versions version ON version.tenant_id = agent.tenant_id
+          AND version.agent_id = agent.id AND version.id = agent.current_published_playbook_version_id
+        WHERE draft.tenant_id = ${context.tenantId}::uuid AND draft.agent_id = ${agentId}::uuid
       `;
       const draft = drafts[0];
       if (!draft) return null;
@@ -277,7 +330,7 @@ export class AiChatStore {
           AND source_revision_id = ANY(${draft.knowledgeRevisionIds}::uuid[])
         ORDER BY source_revision_id, sequence
       ` : [];
-      return { playbook: draft.playbook, knowledgeChunks: chunks };
+      return { playbook: draft.playbook, knowledgeChunks: chunks, publishedVersionId: draft.publishedVersionId };
     });
   }
 

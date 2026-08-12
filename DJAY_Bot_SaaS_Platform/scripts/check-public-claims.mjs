@@ -12,7 +12,7 @@
  * to describe what the product does rather than what it achieves.
  *
  * This checker therefore rejects quantified claims in user-visible strings and requires that
- * every advertised product/channel carry an explicit availability state.
+ * every advertised product or channel carry an explicit availability state.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -116,15 +116,15 @@ for (const entry of ALLOWED_CLAIMS) {
 }
 
 /**
- * The landing page must keep declaring availability per product and per channel. A single
- * channel *count* is what produced the false "Channels 4" figure, so the count form is banned.
+ * The landing page must keep declaring availability per advertised product. If a channel list
+ * is present, every channel also needs a state. A deferred channel does not need to be advertised.
  */
 const landing = readFileSync(resolve(root, "apps/public-site/app/page.tsx"), "utf8");
 
 if (!/availabilityLabels/.test(landing)) {
   errors.push("apps/public-site/app/page.tsx must declare availabilityLabels so every advertised capability shows an explicit state");
 }
-for (const list of ["productPillars", "channelStates"]) {
+for (const list of ["productPillars"]) {
   const block = landing.match(new RegExp(`const ${list}\\s*=\\s*\\[([\\s\\S]*?)\\n\\];`));
   if (!block) {
     errors.push(`apps/public-site/app/page.tsx must declare ${list}`);
@@ -140,6 +140,14 @@ for (const list of ["productPillars", "channelStates"]) {
     if (!AVAILABILITY_STATES.includes(value)) {
       errors.push(`apps/public-site/app/page.tsx ${list}: unknown availability state ${JSON.stringify(value)} (expected ${AVAILABILITY_STATES.join(", ")})`);
     }
+  }
+}
+const channelBlock = landing.match(/const channelStates\s*=\s*\[([\s\S]*?)\n\];/);
+if (channelBlock) {
+  const entries = channelBlock[1].match(/title:/g) ?? [];
+  const states = channelBlock[1].match(/availability:\s*"([a-z]+)"/g) ?? [];
+  if (entries.length !== states.length) {
+    errors.push(`apps/public-site/app/page.tsx channelStates: ${entries.length} entries but ${states.length} availability states - every advertised channel needs one`);
   }
 }
 

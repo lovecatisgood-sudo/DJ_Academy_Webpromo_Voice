@@ -64,6 +64,285 @@ export class SharedDomainStore {
     `);
   }
 
+  async getCustomerJourney(context: TenantContext, contactId: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const contacts = await sql<{
+        id: string; displayName: string; locale: string; consentStatus: string; createdAt: Date; updatedAt: Date;
+        conversationCount: number; openLeadCount: number; appointmentCount: number; openCallbackCount: number;
+      }[]>`
+        SELECT contact.id, contact.display_name AS "displayName", contact.locale,
+          contact.consent_status AS "consentStatus", contact.created_at AS "createdAt",
+          contact.updated_at AS "updatedAt",
+          (SELECT count(*)::int FROM tenancy.conversations conversation
+            WHERE conversation.tenant_id = contact.tenant_id AND conversation.contact_id = contact.id) AS "conversationCount",
+          (SELECT count(*)::int FROM tenancy.leads lead
+            WHERE lead.tenant_id = contact.tenant_id AND lead.contact_id = contact.id
+              AND lead.status NOT IN ('closed_deal','disqualified')) AS "openLeadCount",
+          (SELECT count(*)::int FROM tenancy.appointment_requests appointment
+            JOIN tenancy.leads lead ON lead.tenant_id = appointment.tenant_id AND lead.id = appointment.lead_id
+            WHERE appointment.tenant_id = contact.tenant_id AND lead.contact_id = contact.id) AS "appointmentCount",
+          (SELECT count(*)::int FROM tenancy.voice_callback_requests callback
+            JOIN tenancy.conversations conversation ON conversation.tenant_id = callback.tenant_id AND conversation.id = callback.conversation_id
+            WHERE callback.tenant_id = contact.tenant_id AND conversation.contact_id = contact.id
+              AND callback.status = 'pending') AS "openCallbackCount"
+        FROM tenancy.contacts contact
+        WHERE contact.tenant_id = ${context.tenantId}::uuid AND contact.id = ${contactId}::uuid
+          AND contact.status = 'active'
+      `;
+      const contact = contacts[0];
+      if (!contact) return null;
+      const [leads, conversations, values, events] = await Promise.all([
+        sql<{ id: string; title: string; source: string; status: string; createdAt: Date; updatedAt: Date }[]>`
+          SELECT id, title, source, status, created_at AS "createdAt", updated_at AS "updatedAt"
+          FROM tenancy.leads WHERE tenant_id = ${context.tenantId}::uuid AND contact_id = ${contactId}::uuid
+          ORDER BY updated_at DESC, id DESC`,
+        sql<{ id: string; leadId: string | null; productKey: string; channelKind: string; status: string; startedAt: Date }[]>`
+          SELECT id, lead_id AS "leadId", product_key AS "productKey", channel_kind AS "channelKind",
+            status, started_at AS "startedAt" FROM tenancy.conversations
+          WHERE tenant_id = ${context.tenantId}::uuid AND contact_id = ${contactId}::uuid
+          ORDER BY started_at DESC, id DESC`,
+        sql<{ currency: string; amountMinor: string }[]>`
+          SELECT currency, sum(amount_minor)::text AS "amountMinor" FROM tenancy.customer_value_events
+          WHERE tenant_id = ${context.tenantId}::uuid AND contact_id = ${contactId}::uuid
+          GROUP BY currency ORDER BY currency`,
+        sql<{
+          id: string; kind: string; title: string; detail: string | null; occurredAt: Date;
+          leadId: string | null; conversationId: string | null; productKey: string | null;
+          channelKind: string | null; amountMinor: string | null; currency: string | null;
+        }[]>`
+          SELECT * FROM (
+            SELECT 'contact:' || contact.id::text AS id, 'contact_created'::text AS kind,
+              'Customer record created'::text AS title, contact.consent_status::text AS detail,
+              contact.created_at AS "occurredAt", NULL::uuid AS "leadId", NULL::uuid AS "conversationId",
+              NULL::text AS "productKey", NULL::text AS "channelKind", NULL::text AS "amountMinor", NULL::text AS currency
+            FROM tenancy.contacts contact WHERE contact.tenant_id = ${context.tenantId}::uuid AND contact.id = ${contactId}::uuid
+            UNION ALL
+            SELECT 'lead:' || lead.id::text, 'lead_created', 'Lead created', lead.title || ' · ' || lead.source,
+              lead.created_at, lead.id, NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::text
+            FROM tenancy.leads lead WHERE lead.tenant_id = ${context.tenantId}::uuid AND lead.contact_id = ${contactId}::uuid
+            UNION ALL
+            SELECT 'lead-status:' || history.id::text, 'lead_status', 'Lead status: ' || replace(history.to_status, '_', ' '),
+              history.source_action, history.created_at, lead.id, NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::text
+            FROM tenancy.lead_status_history history JOIN tenancy.leads lead
+              ON lead.tenant_id = history.tenant_id AND lead.id = history.lead_id
+            WHERE history.tenant_id = ${context.tenantId}::uuid AND lead.contact_id = ${contactId}::uuid
+            UNION ALL
+            SELECT 'conversation:' || conversation.id::text, 'conversation_started', 'Conversation started',
+              conversation.product_key || ' · ' || conversation.channel_kind, conversation.started_at,
+              conversation.lead_id, conversation.id, conversation.product_key, conversation.channel_kind, NULL::text, NULL::text
+            FROM tenancy.conversations conversation WHERE conversation.tenant_id = ${context.tenantId}::uuid AND conversation.contact_id = ${contactId}::uuid
+            UNION ALL
+            SELECT 'message:' || message.id::text, 'message',
+              CASE WHEN message.direction = 'inbound' THEN 'Customer message' WHEN message.direction = 'internal' THEN 'Private team note' ELSE 'Team or bot reply' END,
+              left(COALESCE(message.content_json->>'text', message.content_json::text), 240), message.created_at,
+              conversation.lead_id, conversation.id, conversation.product_key, conversation.channel_kind, NULL::text, NULL::text
+            FROM tenancy.messages message JOIN tenancy.conversations conversation
+              ON conversation.tenant_id = message.tenant_id AND conversation.id = message.conversation_id
+            WHERE message.tenant_id = ${context.tenantId}::uuid AND conversation.contact_id = ${contactId}::uuid
+            UNION ALL
+            SELECT 'appointment:' || history.id::text, 'appointment_status',
+              'Appointment: ' || replace(history.to_status, '_', ' '), appointment.notes,
+              history.changed_at, lead.id, appointment.conversation_id, conversation.product_key, conversation.channel_kind, NULL::text, NULL::text
+            FROM tenancy.appointment_status_history history
+            JOIN tenancy.appointment_requests appointment ON appointment.tenant_id = history.tenant_id AND appointment.id = history.appointment_request_id
+            JOIN tenancy.leads lead ON lead.tenant_id = appointment.tenant_id AND lead.id = appointment.lead_id
+            LEFT JOIN tenancy.conversations conversation ON conversation.tenant_id = appointment.tenant_id AND conversation.id = appointment.conversation_id
+            WHERE history.tenant_id = ${context.tenantId}::uuid AND lead.contact_id = ${contactId}::uuid
+            UNION ALL
+            SELECT 'callback:' || history.id::text, 'callback_status',
+              'Callback: ' || replace(history.to_status, '_', ' '),
+              CASE WHEN callback.due_at < now() AND callback.status = 'pending' THEN 'Overdue' ELSE 'Due ' || callback.due_at::text END,
+              history.changed_at, callback.lead_id, callback.conversation_id, conversation.product_key, conversation.channel_kind, NULL::text, NULL::text
+            FROM tenancy.voice_callback_status_history history
+            JOIN tenancy.voice_callback_requests callback ON callback.tenant_id = history.tenant_id AND callback.id = history.callback_request_id
+            JOIN tenancy.conversations conversation ON conversation.tenant_id = callback.tenant_id AND conversation.id = callback.conversation_id
+            WHERE history.tenant_id = ${context.tenantId}::uuid AND conversation.contact_id = ${contactId}::uuid
+            UNION ALL
+            SELECT 'value:' || value.id::text, 'deal_value', 'Merchant-confirmed deal value', NULL::text,
+              value.recorded_at, value.lead_id, value.conversation_id, conversation.product_key, conversation.channel_kind,
+              value.amount_minor::text, value.currency
+            FROM tenancy.customer_value_events value LEFT JOIN tenancy.conversations conversation
+              ON conversation.tenant_id = value.tenant_id AND conversation.id = value.conversation_id
+            WHERE value.tenant_id = ${context.tenantId}::uuid AND value.contact_id = ${contactId}::uuid
+          ) journey ORDER BY "occurredAt" DESC, id DESC LIMIT 300
+        `,
+      ]);
+      return { contact, leads, conversations, values, events, truncated: events.length === 300 };
+    });
+  }
+
+  async recordCustomerDealValue(context: TenantContext, input: Readonly<{
+    contactId: string; leadId: string; conversationId?: string; amountMinor: number;
+    currency: string; idempotencyKey: string;
+  }>) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ id: string | null }[]>`SELECT tenancy.record_customer_deal_value(
+        ${input.contactId}::uuid, ${input.leadId}::uuid, ${input.conversationId ?? null}::uuid,
+        ${input.amountMinor}::bigint, ${input.currency}, ${context.membershipId}::uuid,
+        ${input.idempotencyKey}::uuid
+      ) AS id`;
+      return rows[0]?.id ? { status: "recorded" as const, valueEventId: rows[0].id } : { status: "not_found_or_invalid" as const };
+    });
+  }
+
+  async listCallbacks(context: TenantContext) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
+      id: string; contactId: string; contactName: string; leadId: string; leadTitle: string;
+      conversationId: string; dueAt: Date; status: string; createdAt: Date; completedAt: Date | null;
+      history: { id: string; fromStatus: string | null; toStatus: string; changedAt: Date }[];
+    }[]>`
+      SELECT callback.id, contact.id AS "contactId", contact.display_name AS "contactName",
+        lead.id AS "leadId", lead.title AS "leadTitle", callback.conversation_id AS "conversationId",
+        callback.due_at AS "dueAt", callback.status, callback.created_at AS "createdAt",
+        callback.completed_at AS "completedAt",
+        (SELECT COALESCE(jsonb_agg(jsonb_build_object('id', history.id, 'fromStatus', history.from_status,
+          'toStatus', history.to_status, 'changedAt', history.changed_at) ORDER BY history.changed_at, history.id), '[]'::jsonb)
+          FROM tenancy.voice_callback_status_history history
+          WHERE history.tenant_id = callback.tenant_id AND history.callback_request_id = callback.id) AS history
+      FROM tenancy.voice_callback_requests callback
+      JOIN tenancy.leads lead ON lead.tenant_id = callback.tenant_id AND lead.id = callback.lead_id
+      JOIN tenancy.contacts contact ON contact.tenant_id = lead.tenant_id AND contact.id = lead.contact_id
+      WHERE callback.tenant_id = ${context.tenantId}::uuid
+      ORDER BY CASE WHEN callback.status = 'pending' AND callback.due_at < now() THEN 0
+        WHEN callback.status = 'pending' THEN 1 ELSE 2 END, callback.due_at, callback.id
+      LIMIT 500
+    `);
+  }
+
+  async operationsReport(context: TenantContext, input: Readonly<{ days: number; productKey?: "flowbot" | "ai_chat" | "voice" }>) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const productKey = input.productKey ?? null;
+      const [summary] = await sql<{
+        conversations: number; leads: number; appointments: number; callbacks: number;
+        completedAppointments: number; completedCallbacks: number;
+      }[]>`
+        SELECT
+          (SELECT count(*)::int FROM tenancy.conversations conversation
+            WHERE conversation.tenant_id = ${context.tenantId}::uuid
+              AND conversation.started_at >= now() - (${input.days}::text || ' days')::interval
+              AND (${productKey}::text IS NULL OR conversation.product_key = ${productKey}::text)) AS conversations,
+          (SELECT count(*)::int FROM tenancy.leads lead
+            WHERE lead.tenant_id = ${context.tenantId}::uuid
+              AND lead.created_at >= now() - (${input.days}::text || ' days')::interval
+              AND (${productKey}::text IS NULL OR EXISTS (SELECT 1 FROM tenancy.conversations conversation
+                WHERE conversation.tenant_id = lead.tenant_id AND conversation.lead_id = lead.id
+                  AND conversation.product_key = ${productKey}::text))) AS leads,
+          (SELECT count(*)::int FROM tenancy.appointment_requests appointment
+            WHERE appointment.tenant_id = ${context.tenantId}::uuid
+              AND appointment.created_at >= now() - (${input.days}::text || ' days')::interval
+              AND (${productKey}::text IS NULL OR EXISTS (SELECT 1 FROM tenancy.conversations conversation
+                WHERE conversation.tenant_id = appointment.tenant_id AND conversation.lead_id = appointment.lead_id
+                  AND conversation.product_key = ${productKey}::text))) AS appointments,
+          (SELECT count(*)::int FROM tenancy.voice_callback_requests callback
+            JOIN tenancy.conversations conversation ON conversation.tenant_id = callback.tenant_id AND conversation.id = callback.conversation_id
+            WHERE callback.tenant_id = ${context.tenantId}::uuid
+              AND callback.created_at >= now() - (${input.days}::text || ' days')::interval
+              AND (${productKey}::text IS NULL OR conversation.product_key = ${productKey}::text)) AS callbacks,
+          (SELECT count(*)::int FROM tenancy.appointment_requests appointment
+            WHERE appointment.tenant_id = ${context.tenantId}::uuid AND appointment.status = 'completed'
+              AND appointment.created_at >= now() - (${input.days}::text || ' days')::interval
+              AND (${productKey}::text IS NULL OR EXISTS (SELECT 1 FROM tenancy.conversations conversation
+                WHERE conversation.tenant_id = appointment.tenant_id AND conversation.lead_id = appointment.lead_id
+                  AND conversation.product_key = ${productKey}::text))) AS "completedAppointments",
+          (SELECT count(*)::int FROM tenancy.voice_callback_requests callback
+            JOIN tenancy.conversations conversation ON conversation.tenant_id = callback.tenant_id AND conversation.id = callback.conversation_id
+            WHERE callback.tenant_id = ${context.tenantId}::uuid AND callback.status = 'completed'
+              AND callback.created_at >= now() - (${input.days}::text || ' days')::interval
+              AND (${productKey}::text IS NULL OR conversation.product_key = ${productKey}::text)) AS "completedCallbacks"
+      `;
+      const [values, outcomes, products, daily] = await Promise.all([
+        sql<{ currency: string; amountMinor: string; events: number }[]>`
+          SELECT value.currency, sum(value.amount_minor)::text AS "amountMinor", count(*)::int AS events
+          FROM tenancy.customer_value_events value
+          WHERE value.tenant_id = ${context.tenantId}::uuid
+            AND value.recorded_at >= now() - (${input.days}::text || ' days')::interval
+            AND (${productKey}::text IS NULL OR EXISTS (SELECT 1 FROM tenancy.conversations conversation
+              WHERE conversation.tenant_id = value.tenant_id
+                AND (conversation.id = value.conversation_id OR conversation.lead_id = value.lead_id)
+                AND conversation.product_key = ${productKey}::text))
+          GROUP BY value.currency ORDER BY value.currency`,
+        sql<{ status: string; leads: number }[]>`
+          SELECT lead.status, count(*)::int AS leads FROM tenancy.leads lead
+          WHERE lead.tenant_id = ${context.tenantId}::uuid
+            AND lead.created_at >= now() - (${input.days}::text || ' days')::interval
+            AND (${productKey}::text IS NULL OR EXISTS (SELECT 1 FROM tenancy.conversations conversation
+              WHERE conversation.tenant_id = lead.tenant_id AND conversation.lead_id = lead.id
+                AND conversation.product_key = ${productKey}::text))
+          GROUP BY lead.status ORDER BY leads DESC, lead.status`,
+        sql<{ productKey: string; conversations: number }[]>`
+          SELECT conversation.product_key AS "productKey", count(*)::int AS conversations
+          FROM tenancy.conversations conversation WHERE conversation.tenant_id = ${context.tenantId}::uuid
+            AND conversation.started_at >= now() - (${input.days}::text || ' days')::interval
+            AND (${productKey}::text IS NULL OR conversation.product_key = ${productKey}::text)
+          GROUP BY conversation.product_key ORDER BY conversations DESC, conversation.product_key`,
+        sql<{ date: string; conversations: number; leads: number; appointments: number; callbacks: number }[]>`
+          SELECT event_date::text AS date, sum(conversations)::int AS conversations, sum(leads)::int AS leads,
+            sum(appointments)::int AS appointments, sum(callbacks)::int AS callbacks
+          FROM (
+            SELECT conversation.started_at::date AS event_date, 1 AS conversations, 0 AS leads, 0 AS appointments, 0 AS callbacks
+              FROM tenancy.conversations conversation WHERE conversation.tenant_id = ${context.tenantId}::uuid
+                AND conversation.started_at >= now() - (${input.days}::text || ' days')::interval
+                AND (${productKey}::text IS NULL OR conversation.product_key = ${productKey}::text)
+            UNION ALL SELECT lead.created_at::date, 0, 1, 0, 0 FROM tenancy.leads lead
+              WHERE lead.tenant_id = ${context.tenantId}::uuid AND lead.created_at >= now() - (${input.days}::text || ' days')::interval
+                AND (${productKey}::text IS NULL OR EXISTS (SELECT 1 FROM tenancy.conversations conversation WHERE conversation.tenant_id = lead.tenant_id AND conversation.lead_id = lead.id AND conversation.product_key = ${productKey}::text))
+            UNION ALL SELECT appointment.created_at::date, 0, 0, 1, 0 FROM tenancy.appointment_requests appointment
+              WHERE appointment.tenant_id = ${context.tenantId}::uuid AND appointment.created_at >= now() - (${input.days}::text || ' days')::interval
+                AND (${productKey}::text IS NULL OR EXISTS (SELECT 1 FROM tenancy.conversations conversation WHERE conversation.tenant_id = appointment.tenant_id AND conversation.lead_id = appointment.lead_id AND conversation.product_key = ${productKey}::text))
+            UNION ALL SELECT callback.created_at::date, 0, 0, 0, 1 FROM tenancy.voice_callback_requests callback
+              JOIN tenancy.conversations conversation ON conversation.tenant_id = callback.tenant_id AND conversation.id = callback.conversation_id
+              WHERE callback.tenant_id = ${context.tenantId}::uuid AND callback.created_at >= now() - (${input.days}::text || ' days')::interval
+                AND (${productKey}::text IS NULL OR conversation.product_key = ${productKey}::text)
+          ) events GROUP BY event_date ORDER BY event_date
+      `,
+      ]);
+      return Object.freeze({ asOf: new Date(), days: input.days, productKey, summary: summary!, values, outcomes, products, daily });
+    });
+  }
+
+  async listTenantNotifications(context: TenantContext) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
+      id: string; category: string; severity: string; eventKind: string; entityType: string;
+      entityId: string; deepLink: string; occurredAt: Date; read: boolean;
+    }[]>`
+      SELECT notification.id, notification.category, notification.severity,
+        notification.event_kind AS "eventKind", notification.entity_type AS "entityType",
+        notification.entity_id AS "entityId", notification.deep_link AS "deepLink",
+        notification.occurred_at AS "occurredAt", (receipt.notification_id IS NOT NULL) AS read
+      FROM tenancy.tenant_notifications notification
+      LEFT JOIN tenancy.tenant_notification_reads receipt
+        ON receipt.tenant_id = notification.tenant_id AND receipt.notification_id = notification.id
+        AND receipt.membership_id = ${context.membershipId}::uuid
+      WHERE notification.tenant_id = ${context.tenantId}::uuid
+      ORDER BY (receipt.notification_id IS NULL) DESC,
+        CASE notification.category WHEN 'action_needed' THEN 0 WHEN 'product_health' THEN 1
+          WHEN 'usage_cost' THEN 2 WHEN 'billing' THEN 3 WHEN 'team_security' THEN 4 ELSE 5 END,
+        notification.occurred_at DESC, notification.id DESC LIMIT 200
+    `);
+  }
+
+  async markTenantNotificationRead(context: TenantContext, notificationId: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ accepted: boolean }[]>`SELECT tenancy.mark_tenant_notification_read(
+        ${notificationId}::uuid, ${context.membershipId}::uuid
+      ) AS accepted`;
+      return rows[0]?.accepted ? { status: "accepted" as const } : { status: "not_found" as const };
+    });
+  }
+
+  async updateCallback(context: TenantContext, callbackId: string, status: "completed" | "cancelled") {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ result: "accepted" | "replayed" | "not_found" | "invalid_transition" }[]>`
+        SELECT tenancy.transition_voice_callback_request(
+          ${callbackId}::uuid, ${status}, ${context.membershipId}::uuid
+        ) AS result`;
+      const result = rows[0]?.result ?? "not_found";
+      return result === "accepted" ? { status: "accepted" as const, replayed: false as const }
+        : result === "replayed" ? { status: "accepted" as const, replayed: true as const }
+          : { status: result as "not_found" | "invalid_transition" };
+    });
+  }
+
   async updateContactMetadata(context: TenantContext, contactId: string, input: Readonly<{
     tags: readonly Readonly<{ key: string; label: string; color: string }>[];
     attributes: readonly Readonly<{ key: string; label: string; valueType: "text" | "number" | "boolean" | "date"; value: string }>[];
@@ -234,6 +513,150 @@ export class SharedDomainStore {
       ORDER BY lead.updated_at DESC, lead.id DESC
       LIMIT 500
     `);
+  }
+
+  async updateLeadStatus(context: TenantContext, leadId: string, status: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ status: string }[]>`
+        SELECT status FROM tenancy.leads
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${leadId}::uuid
+        FOR UPDATE
+      `;
+      const previous = rows[0]?.status;
+      if (!previous) return { status: "not_found" as const };
+      if (previous === status) return { status: "accepted" as const, replayed: true as const };
+      await sql`
+        UPDATE tenancy.leads
+        SET status = ${status}, updated_at = now(),
+            closed_at = CASE WHEN ${status} IN ('closed_deal', 'disqualified') THEN now() ELSE NULL END
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${leadId}::uuid
+      `;
+      await sql`
+        INSERT INTO tenancy.lead_status_history (
+          tenant_id, lead_id, from_status, to_status, source_action,
+          actor_membership_id, request_id
+        ) VALUES (
+          ${context.tenantId}::uuid, ${leadId}::uuid, ${previous}, ${status},
+          'lead.update', ${context.membershipId}::uuid, ${context.requestId}
+        )
+      `;
+      await sql`
+        INSERT INTO tenancy.audit_logs (
+          tenant_id, actor_user_id, actor_membership_id, action, target_type,
+          target_id, request_id, result, metadata
+        ) VALUES (
+          ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+          'lead.status.updated', 'lead', ${leadId}, ${context.requestId}, 'succeeded',
+          ${sql.json({ fromStatus: previous, toStatus: status })}
+        )
+      `;
+      return { status: "accepted" as const, replayed: false as const };
+    });
+  }
+
+  async listAppointments(context: TenantContext) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
+      id: string; leadId: string; leadTitle: string; contactName: string; status: string; timezone: string;
+      notes: string | null; createdAt: Date; updatedAt: Date; calendarSyncStatus: string;
+      calendarSyncOperation: string | null; calendarSyncErrorCode: string | null;
+      options: { id: string; startAt: Date; endAt: Date; preferenceOrder: number; verificationStatus: string }[];
+      history: { id: string; fromStatus: string | null; toStatus: string; changedAt: Date }[];
+    }[]>`SELECT request.id, request.lead_id AS "leadId", lead.title AS "leadTitle",
+      contact.display_name AS "contactName", request.status, request.timezone, request.notes,
+      request.created_at AS "createdAt", request.updated_at AS "updatedAt",
+      CASE WHEN sync.id IS NULL THEN CASE WHEN EXISTS (
+        SELECT 1 FROM tenancy.voice_scheduling_profiles profile
+        WHERE profile.tenant_id = request.tenant_id AND profile.status = 'active'
+      ) THEN 'ready' ELSE 'not_configured' END
+        WHEN sync.status = 'pending' THEN 'pending'
+        WHEN sync.status = 'processing' THEN 'synchronizing'
+        WHEN sync.status = 'confirmed' THEN 'synchronized'
+        WHEN sync.status = 'dead_letter' THEN 'action_required'
+        WHEN sync.status = 'failed' THEN 'failed'
+        ELSE sync.status END AS "calendarSyncStatus",
+      sync.operation AS "calendarSyncOperation", sync.safe_error_code AS "calendarSyncErrorCode",
+      (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'id', history.id, 'fromStatus', history.from_status, 'toStatus', history.to_status,
+        'changedAt', history.changed_at
+      ) ORDER BY history.changed_at, history.id), '[]'::jsonb)
+        FROM tenancy.appointment_status_history history
+        WHERE history.tenant_id = request.tenant_id AND history.appointment_request_id = request.id) AS history,
+      COALESCE(jsonb_agg(jsonb_build_object('id', option.id, 'startAt', option.start_at,
+        'endAt', option.end_at, 'preferenceOrder', option.preference_order,
+        'verificationStatus', option.verification_status) ORDER BY option.preference_order)
+        FILTER (WHERE option.id IS NOT NULL), '[]'::jsonb) AS options
+      FROM tenancy.appointment_requests request
+      JOIN tenancy.leads lead ON lead.tenant_id = request.tenant_id AND lead.id = request.lead_id
+      JOIN tenancy.contacts contact ON contact.tenant_id = lead.tenant_id AND contact.id = lead.contact_id
+      LEFT JOIN tenancy.appointment_time_options option ON option.tenant_id = request.tenant_id
+        AND option.appointment_request_id = request.id
+      LEFT JOIN LATERAL (
+        SELECT job.id, job.status, job.operation, job.safe_error_code
+        FROM tenancy.voice_scheduling_jobs job
+        WHERE job.tenant_id = request.tenant_id AND job.appointment_request_id = request.id
+        ORDER BY job.created_at DESC, job.id DESC LIMIT 1
+      ) sync ON true
+      WHERE request.tenant_id = ${context.tenantId}::uuid
+      GROUP BY request.id, lead.id, contact.id, sync.id, sync.status, sync.operation, sync.safe_error_code
+      ORDER BY CASE request.status WHEN 'requested' THEN 0 WHEN 'pending_confirmation' THEN 1 WHEN 'confirmed' THEN 2 WHEN 'rescheduled' THEN 2 ELSE 3 END,
+        request.updated_at DESC, request.id DESC LIMIT 500`);
+  }
+
+  async updateAppointment(context: TenantContext, appointmentId: string, input: Readonly<{
+    status: "pending_confirmation" | "confirmed" | "rescheduled" | "completed" | "cancelled" | "rejected" | "no_show";
+    optionId?: string; notes?: string;
+  }>) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ status: string; leadId: string }[]>`SELECT status, lead_id AS "leadId"
+        FROM tenancy.appointment_requests WHERE tenant_id = ${context.tenantId}::uuid AND id = ${appointmentId}::uuid FOR UPDATE`;
+      const current = rows[0]; if (!current) return { status: "not_found" as const };
+      const allowed: Readonly<Record<string, readonly string[]>> = {
+        requested: ["pending_confirmation", "confirmed", "cancelled", "rejected"],
+        pending_confirmation: ["confirmed", "cancelled", "rejected"],
+        confirmed: ["rescheduled", "completed", "cancelled", "no_show"],
+        rescheduled: ["completed", "cancelled", "no_show"],
+      };
+      if (current.status === input.status) {
+        if (input.status !== "rescheduled" || !input.optionId) {
+          return { status: "accepted" as const, replayed: true as const };
+        }
+        const selected = await sql<{ id: string; verificationStatus: string }[]>`
+          SELECT id, verification_status AS "verificationStatus" FROM tenancy.appointment_time_options
+          WHERE tenant_id = ${context.tenantId}::uuid AND appointment_request_id = ${appointmentId}::uuid
+            AND id = ${input.optionId}::uuid`;
+        if (!selected[0]) return { status: "not_found" as const };
+        if (selected[0].verificationStatus === "confirmed") {
+          return { status: "accepted" as const, replayed: true as const };
+        }
+        await sql`UPDATE tenancy.appointment_time_options
+          SET verification_status = CASE WHEN id = ${input.optionId}::uuid THEN 'confirmed' ELSE 'unavailable' END
+          WHERE tenant_id = ${context.tenantId}::uuid AND appointment_request_id = ${appointmentId}::uuid`;
+        await sql`UPDATE tenancy.appointment_requests
+          SET notes = COALESCE(${input.notes?.trim() || null}, notes), updated_at = now()
+          WHERE tenant_id = ${context.tenantId}::uuid AND id = ${appointmentId}::uuid`;
+        await sql`INSERT INTO tenancy.audit_logs (tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id, request_id, result, metadata)
+          VALUES (${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid, 'appointment.rescheduled_again',
+            'appointment_request', ${appointmentId}, ${context.requestId}, 'succeeded', ${sql.json({ optionId: input.optionId })})`;
+        return { status: "accepted" as const, replayed: false as const };
+      }
+      if (!(allowed[current.status] ?? []).includes(input.status)) return { status: "invalid_transition" as const };
+      if (input.status === "confirmed" || input.status === "rescheduled") {
+        if (!input.optionId) return { status: "validation_failed" as const };
+        const options = await sql<{ id: string }[]>`SELECT id FROM tenancy.appointment_time_options
+          WHERE tenant_id = ${context.tenantId}::uuid AND appointment_request_id = ${appointmentId}::uuid AND id = ${input.optionId}::uuid`;
+        if (!options[0]) return { status: "not_found" as const };
+        await sql`UPDATE tenancy.appointment_time_options SET verification_status = CASE WHEN id = ${input.optionId}::uuid THEN 'confirmed' ELSE 'unavailable' END
+          WHERE tenant_id = ${context.tenantId}::uuid AND appointment_request_id = ${appointmentId}::uuid`;
+      }
+      await sql`UPDATE tenancy.appointment_requests SET status = ${input.status}, notes = COALESCE(${input.notes?.trim() || null}, notes), updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${appointmentId}::uuid`;
+      if (input.status === "confirmed" || input.status === "rescheduled") await sql`UPDATE tenancy.leads SET status = 'appointment_made', updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${current.leadId}::uuid`;
+      await sql`INSERT INTO tenancy.audit_logs (tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id, request_id, result, metadata)
+        VALUES (${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid, 'appointment.status_changed',
+          'appointment_request', ${appointmentId}, ${context.requestId}, 'succeeded', ${sql.json({ from: current.status, to: input.status, optionId: input.optionId ?? null })})`;
+      return { status: "accepted" as const };
+    });
   }
 
   async listInbox(context: TenantContext, input: Readonly<{ q?: string }> = {}) {
@@ -561,11 +984,11 @@ export class SharedDomainStore {
       id: string; name: string; sourceKind: string; status: string;
       version: number; revisionId: string; revisionCreatedAt: Date;
     }[]>`
-      SELECT source.id, source.name, source.source_kind AS "sourceKind", source.status,
+      SELECT source.id, source.name, source.source_kind AS "sourceKind", revision.status,
              revision.version, revision.id AS "revisionId", revision.created_at AS "revisionCreatedAt"
       FROM tenancy.knowledge_sources source
       JOIN LATERAL (
-        SELECT id, version, created_at FROM tenancy.knowledge_source_revisions candidate
+        SELECT id, version, status, created_at FROM tenancy.knowledge_source_revisions candidate
         WHERE candidate.tenant_id = source.tenant_id AND candidate.source_id = source.id
         ORDER BY version DESC LIMIT 1
       ) revision ON true

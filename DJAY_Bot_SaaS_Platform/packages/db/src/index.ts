@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0079_purchase_intents";
+export const currentSchemaVersion = "0101_appointment_recovery_and_repeat_reschedule";
 
 export { PostgresAuthStore } from "./auth-store";
 export { AccountingReconciliationWorkerStore, AccountingSyncWorkerStore, BillingWebhookRecoveryWorkerStore, BillingWebhookStore, FinancialEventReconciliationWorkerStore, FinancialReconciliationWorkerStore, SubscriptionLifecycleWorkerStore } from "./billing-webhook-store";
@@ -42,6 +42,12 @@ export {
 } from "./billing-notification-store";
 export { PostgresPlatformAuthStore } from "./platform-auth-store";
 export { PlatformSupportStore } from "./platform-support-store";
+export {
+  PlatformSupportTicketStore, TenantSupportTicketStore, SupportAttachmentWorkerStore,
+  type SupportTicketCategory, type SupportTicketPriority, type SupportTicketStatus,
+  type SupportAttachmentMediaType, type SupportAttachmentScanClaim,
+} from "./support-ticket-store";
+export { TenantBotRegressionStore, type RegressionProductKey, type RegressionSuiteKey } from "./bot-regression-store";
 export { PlatformRecoveryStore, type RecoverableQueueKind } from "./platform-recovery-store";
 export {
   PlatformOperationsStore,
@@ -55,6 +61,7 @@ export { TenantWorkspaceStore, type OnboardingStage, type OnboardingChecklistSte
 export { KnowledgeIngestionWorkerStore, TenantKnowledgeIngestionStore, type KnowledgeIngestionClaim, type KnowledgeMediaType } from "./knowledge-ingestion-store";
 export { AiIntegrationWorkerStore, TenantAiOperationsStore, type AiIntegrationClaim, type AiIntegrationEvent, type AiIntegrationKind } from "./ai-operations-store";
 export { PlatformVoiceCarrierStore, TenantVoiceTelephonyStore } from "./voice-telephony-store";
+export { AppointmentSyncWorkerStore, type AppointmentSyncClaim } from "./appointment-sync-store";
 export { PlatformSharedSaasOperationsStore, TenantSharedSaasOperationsStore, type AddOnKey, type ServiceKind } from "./shared-saas-operations-store";
 export { EntitlementChangeWorkerStore, TenantResourceBoundaryStore } from "./resource-boundary-store";
 export { VoiceRuntimeStore } from "./voice-runtime-store";

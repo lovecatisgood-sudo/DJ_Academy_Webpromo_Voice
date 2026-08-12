@@ -19,6 +19,16 @@ describe("server-derived onboarding stage", () => {
 });
 
 describe("server-derived onboarding checklist links", () => {
+  it("keeps the goal-first choice ahead of profile and product setup", () => {
+    const { checklist, primaryAction } = buildOnboardingChecklist({
+      launchPreferences: false, businessProfile: true, productSelected: false,
+      activeAccess: false, launchReadyProducts: [], productStates: [],
+    });
+    expect(checklist.find((step) => step.key === "goal")).toMatchObject({
+      complete: false, nextHref: "/workspace/setup", nextLabel: "Choose business goal",
+    });
+    expect(primaryAction).toEqual({ href: "/workspace/setup", label: "Choose business goal" });
+  });
   it("links incomplete profile and product steps to working destinations", () => {
     const { checklist, primaryAction } = buildOnboardingChecklist({
       businessProfile: false,

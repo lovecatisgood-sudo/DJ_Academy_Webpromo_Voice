@@ -602,14 +602,35 @@ const thaiUi: Readonly<Record<string, string>> = {
   "Messenger connected. Copy the callback URL now; its key is shown once.": "เชื่อมต่อ Messenger แล้ว โปรดคัดลอก URL callback ตอนนี้ เพราะระบบจะแสดงกุญแจเพียงครั้งเดียว",
   "Fix the Advanced JSON before selecting a recipient.": "แก้ไข JSON ขั้นสูงให้ถูกต้องก่อนเลือกผู้รับ", "Sign out could not be confirmed. Your current session remains open.": "ยืนยันการออกจากระบบไม่สำเร็จ เซสชันปัจจุบันยังคงเปิดอยู่",
   "Support access request could not be created.": "สร้างคำขอสิทธิ์เข้าถึงเพื่อให้การสนับสนุนไม่สำเร็จ",
+  "All systems operational": "ทุกระบบทำงานตามปกติ",
 };
 
 const ambiguousCustomerValues = new Set(["Contact", "No", "Yes", "Unknown", "unknown"]);
+const englishUi = new Map<string, string>();
+for (const [english, thai] of Object.entries(thaiUi)) {
+  if (!englishUi.has(thai)) englishUi.set(thai, english);
+}
+// Approved Thai-first variants used by newer public surfaces. Keep these explicit so
+// customer-authored Thai prose is never translated heuristically.
+englishUi.set("สร้างพื้นที่ทำงาน", "Create workspace");
+englishUi.set("ลองอีกครั้ง", "Try again");
+englishUi.set("ข้อกำหนดบริการ", "Service Terms");
 
 export function translateThaiUi(value: string): string {
   const trimmed = value.trim();
   if (ambiguousCustomerValues.has(trimmed)) return value;
   const translated = thaiUi[trimmed];
+  if (!translated) return value;
+  const start = value.indexOf(trimmed);
+  return `${value.slice(0, start)}${translated}${value.slice(start + trimmed.length)}`;
+}
+
+/** Reverse an exact translated UI string for the English presentation boundary.
+ * Inputs, textareas, and explicitly unlocalized customer content are excluded by the
+ * browser boundary before this function is called. */
+export function translateEnglishUi(value: string): string {
+  const trimmed = value.trim();
+  const translated = englishUi.get(trimmed);
   if (!translated) return value;
   const start = value.indexOf(trimmed);
   return `${value.slice(0, start)}${translated}${value.slice(start + trimmed.length)}`;

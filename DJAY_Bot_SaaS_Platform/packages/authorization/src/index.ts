@@ -55,6 +55,8 @@ export const tenantPermissions = [
   "ai_chat.channels.manage",
   "voice.read",
   "voice.deploy",
+  "support.read",
+  "support.write",
 ] as const;
 
 export type TenantPermission = (typeof tenantPermissions)[number];
@@ -95,6 +97,8 @@ const rolePermissions: Readonly<Record<TenantRole, ReadonlySet<TenantPermission>
     "ai_chat.channels.manage",
     "voice.read",
     "voice.deploy",
+    "support.read",
+    "support.write",
   ]),
   tenant_operator: new Set([
     "tenant.read", "team.read", "onboarding.read", "subscriptions.read", "usage.read",
@@ -103,7 +107,7 @@ const rolePermissions: Readonly<Record<TenantRole, ReadonlySet<TenantPermission>
     "knowledge.read", "actions.execute",
     "flowbot.read",
     "ai_chat.read",
-    "voice.read",
+    "voice.read", "support.read", "support.write",
   ]),
   tenant_conversation_manager: new Set([
     "tenant.read", "team.read", "onboarding.read", "subscriptions.read", "usage.read",
@@ -112,31 +116,31 @@ const rolePermissions: Readonly<Record<TenantRole, ReadonlySet<TenantPermission>
     "knowledge.read", "knowledge.write", "actions.execute",
     "flowbot.read", "flowbot.author",
     "ai_chat.read", "ai_chat.author",
-    "voice.read",
+    "voice.read", "support.read", "support.write",
   ]),
   tenant_human_agent: new Set([
     "tenant.read", "team.read", "onboarding.read", "subscriptions.read",
     "contacts.read", "contacts.write", "leads.read", "leads.write",
     "conversations.read", "conversations.reply", "conversations.assign",
-    "knowledge.read", "flowbot.read", "ai_chat.read", "voice.read",
+    "knowledge.read", "flowbot.read", "ai_chat.read", "voice.read", "support.read", "support.write",
   ]),
   tenant_analyst: new Set([
     "tenant.read", "onboarding.read", "subscriptions.read", "usage.read",
     "contacts.read", "leads.read", "conversations.read", "knowledge.read",
     "flowbot.read",
     "ai_chat.read",
-    "voice.read",
+    "voice.read", "support.read", "support.write",
   ]),
   tenant_billing_manager: new Set([
     "tenant.read", "team.read", "subscriptions.read", "usage.read",
     "billing.checkout", "billing.portal", "billing.tax.manage",
     "billing.overage.manage", "billing.packs.purchase", "billing.plan.change",
-    "billing.cancel",
+    "billing.cancel", "support.read", "support.write",
   ]),
   tenant_readonly_support: new Set([
     "tenant.read", "team.read", "onboarding.read", "subscriptions.read", "usage.read",
     "contacts.read", "leads.read", "conversations.read", "knowledge.read",
-    "flowbot.read", "ai_chat.read", "voice.read",
+    "flowbot.read", "ai_chat.read", "voice.read", "support.read", "support.write",
   ]),
 };
 
@@ -195,6 +199,10 @@ export const platformPermissions = [
   "platform.catalog.read",
   "platform.fulfillment.read",
   "platform.fulfillment.manage",
+  "platform.support_tickets.read",
+  "platform.support_tickets.manage",
+  "platform.incidents.read",
+  "platform.incidents.manage",
 ] as const;
 
 export type PlatformPermission = (typeof platformPermissions)[number];
@@ -208,6 +216,8 @@ const platformRolePermissions: Readonly<Record<PlatformRole, ReadonlySet<Platfor
     "platform.routing.change",
     "platform.recovery.read",
     "platform.recovery.request",
+    "platform.incidents.read",
+    "platform.incidents.manage",
   ]),
   platform_support: new Set([
     "platform.health.read",
@@ -218,6 +228,10 @@ const platformRolePermissions: Readonly<Record<PlatformRole, ReadonlySet<Platfor
     "platform.recovery.request",
     "platform.fulfillment.read",
     "platform.fulfillment.manage",
+    "platform.support_tickets.read",
+    "platform.support_tickets.manage",
+    "platform.incidents.read",
+    "platform.incidents.manage",
   ]),
   platform_finance: new Set([
     "platform.health.read",

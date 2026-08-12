@@ -21,6 +21,13 @@ type Onboarding = {
   locale: string;
   timezone: string;
   slug: string;
+  preferences: {
+    businessGoal: "answer_questions" | "capture_leads" | "recommend_products" | "book_appointments" | "customer_support" | null;
+    industry: "retail" | "services" | "restaurant" | "education" | "property" | "health" | "other" | null;
+    firstProduct: "flowbot" | "ai_chat" | "voice" | null;
+    launchChannel: "website" | null;
+    complete: boolean;
+  };
   readiness: {
     businessProfile: boolean;
     productSelected: boolean;
@@ -54,7 +61,7 @@ type Deployment = {
   allowedOrigins: string[];
 };
 
-type WizardStepId = "profile" | "access" | "configure" | "deploy" | "test" | "celebrate";
+type WizardStepId = "goal" | "profile" | "access" | "configure" | "deploy" | "test" | "celebrate";
 
 const commonTimezones = [
   "Asia/Bangkok",
@@ -65,15 +72,24 @@ const commonTimezones = [
   "UTC",
 ] as const;
 
-function flowbotState(onboarding: Onboarding | null) {
-  return onboarding?.readiness.productStates.find((state) => state.productKey === "flowbot") ?? null;
+function focusProductState(onboarding: Onboarding | null) {
+  const key = onboarding?.preferences.firstProduct ?? "flowbot";
+  return onboarding?.readiness.productStates.find((state) => state.productKey === key) ?? null;
+}
+
+function productStudio(productKey: "flowbot" | "ai_chat" | "voice") {
+  return productKey === "ai_chat" ? { href: "/workspace/ai-chat", title: "AI Text Bot" }
+    : productKey === "voice" ? { href: "/workspace/voice", title: "AI Voice Bot" }
+      : { href: "/workspace/flowbot", title: "Flow Bot" };
 }
 
 function resolveActiveStep(input: Readonly<{
+  preferencesComplete: boolean;
   businessProfile: boolean;
-  flowbot: ReturnType<typeof flowbotState>;
+  flowbot: ReturnType<typeof focusProductState>;
   launchReady: boolean;
 }>): WizardStepId {
+  if (!input.preferencesComplete) return "goal";
   if (!input.businessProfile) return "profile";
   if (!input.flowbot?.activeAccess) return "access";
   if (!input.flowbot.configured) return "configure";
@@ -111,11 +127,14 @@ export default function SetupWizardPage() {
   const canRefresh = activeWorkspace
     ? tenantRoleAllows(activeWorkspace.role as TenantRole, "onboarding.update")
     : false;
-  const canMutateSetup = canAuthor || canPublish || canDeploy || canUpdateProfile;
-  const flowbot = flowbotState(onboarding);
+  const canMutateSetup = canAuthor || canPublish || canDeploy || canUpdateProfile || canRefresh;
+  const firstProduct = onboarding?.preferences.firstProduct ?? "flowbot";
+  const selectedProduct = productStudio(firstProduct);
+  const flowbot = focusProductState(onboarding);
   const launchReady = Boolean(flowbot?.launchReady)
     || Boolean(onboarding?.readiness.launchReadyProducts.includes("flowbot"));
   const derivedStep = resolveActiveStep({
+    preferencesComplete: Boolean(onboarding?.preferences.complete),
     businessProfile: Boolean(onboarding?.readiness.businessProfile),
     flowbot,
     launchReady,
@@ -127,13 +146,14 @@ export default function SetupWizardPage() {
     : "";
 
   const steps = useMemo(() => ([
+    { id: "goal" as const, label: chrome.stepGoal, complete: Boolean(onboarding?.preferences.complete) },
     { id: "profile" as const, label: chrome.stepProfile, complete: Boolean(onboarding?.readiness.businessProfile) },
     { id: "access" as const, label: chrome.stepAccess, complete: Boolean(flowbot?.activeAccess) },
     { id: "configure" as const, label: chrome.stepConfigure, complete: Boolean(flowbot?.configured) },
     { id: "deploy" as const, label: chrome.stepDeploy, complete: Boolean(flowbot?.deployed) },
     { id: "test" as const, label: chrome.stepTest, complete: Boolean(flowbot?.tested) },
     { id: "celebrate" as const, label: chrome.stepCelebrate, complete: launchReady },
-  ]), [chrome, flowbot, launchReady, onboarding?.readiness.businessProfile]);
+  ]), [chrome, flowbot, launchReady, onboarding?.preferences.complete, onboarding?.readiness.businessProfile]);
 
   async function loadEvidence() {
     const [onboardingResponse, profileResponse, botsResponse] = await Promise.all([
@@ -216,6 +236,31 @@ export default function SetupWizardPage() {
       setMessage("Evidence could not be refreshed.");
     }
     setRefreshing(false);
+  }
+
+  async function savePreferences(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canRefresh) return;
+    const form = new FormData(event.currentTarget);
+    setWorking(true); setMessage(""); setTone(null);
+    const businessGoal = String(form.get("businessGoal"));
+    const response = await safeMutationFetch("/tenant/onboarding", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "save_preferences", businessGoal,
+        industry: String(form.get("industry")), firstProduct: String(form.get("firstProduct")),
+      }),
+    });
+    const result = await response.json().catch(() => null);
+    if (response.ok && result?.onboarding) {
+      setOnboarding(result.onboarding);
+      setTemplateKind(businessGoal === "capture_leads" || businessGoal === "book_appointments" ? "lead" : "greeting");
+      setManualStep("profile"); setTone("success");
+      setMessage("บันทึกเป้าหมายแล้ว ระบบเลือกเทมเพลตเริ่มต้นที่เหมาะสมให้ คุณเปลี่ยนภายหลังได้");
+    } else {
+      setTone("error"); setMessage("บันทึกเป้าหมายไม่สำเร็จ โปรดตรวจตัวเลือกแล้วลองอีกครั้ง");
+    }
+    setWorking(false);
   }
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
@@ -407,7 +452,7 @@ export default function SetupWizardPage() {
 
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) {
-    return <main className="workspace-loading">Loading setup…</main>;
+    return <main className="workspace-loading">กำลังโหลดการตั้งค่าเริ่มต้น…</main>;
   }
   if (loadError) {
     return (
@@ -434,7 +479,7 @@ export default function SetupWizardPage() {
         onLogout={() => void session.logout()}
         chromeLocale={chromeLocale}
       />
-      <section className="workspace-main">
+      <section id="workspace-main" className="workspace-main" tabIndex={-1}>
         <header className="workspace-header">
           <div>
             <p>FlowBot Basic</p>
@@ -458,7 +503,7 @@ export default function SetupWizardPage() {
         <p className="setup-subtitle">{chrome.subtitle}</p>
         {!canMutateSetup ? <WorkspaceViewOnly>{chrome.readOnly}</WorkspaceViewOnly> : null}
 
-        <nav className="setup-stepper" aria-label="Setup steps">
+        <nav className="setup-stepper" aria-label="ขั้นตอนการตั้งค่า">
           {steps.map((step, index) => (
             <button
               key={step.id}
@@ -483,10 +528,23 @@ export default function SetupWizardPage() {
           </p>
         ) : null}
 
+        {activeStep === "goal" ? (
+          <section className="tool-band setup-panel" aria-labelledby="setup-goal">
+            <div className="band-heading"><div><p>เริ่มที่ผลลัพธ์</p><h2 id="setup-goal">{chrome.stepGoal}</h2></div><a className="secondary-link" href="/workspace/support?from=/workspace/setup">ขอความช่วยเหลือ</a></div>
+            <p className="control-copy">{chrome.goalHelp}</p>
+            <form className="setup-goal-form" onSubmit={(event) => void savePreferences(event)}>
+              <label>ต้องการให้ Bot ช่วยเรื่องใดมากที่สุด?<select name="businessGoal" defaultValue={onboarding?.preferences.businessGoal ?? "capture_leads"} disabled={!canRefresh} required><option value="capture_leads">เก็บข้อมูลลูกค้าที่สนใจและให้ทีมติดต่อกลับ</option><option value="answer_questions">ตอบคำถามที่พบบ่อย</option><option value="recommend_products">แนะนำสินค้าและบริการ</option><option value="book_appointments">รับคำขอนัดหมาย</option><option value="customer_support">คัดกรองและส่งต่อฝ่ายบริการลูกค้า</option></select></label>
+              <label>ประเภทธุรกิจ<select name="industry" defaultValue={onboarding?.preferences.industry ?? "services"} disabled={!canRefresh} required><option value="retail">ร้านค้าและค้าปลีก</option><option value="services">ธุรกิจบริการ</option><option value="restaurant">อาหารและร้านอาหาร</option><option value="education">การศึกษา</option><option value="property">อสังหาริมทรัพย์</option><option value="health">สุขภาพและความงาม</option><option value="other">อื่น ๆ</option></select></label>
+              <label>Bot ตัวแรกที่ต้องการเปิดใช้<select name="firstProduct" defaultValue={onboarding?.preferences.firstProduct ?? "flowbot"} disabled={!canRefresh} required><option value="flowbot">Flow Bot: กำหนดคำตอบและเส้นทางแบบแน่นอน</option><option value="ai_chat">AI Text Bot: ตอบจากข้อมูลธุรกิจอย่างยืดหยุ่น</option><option value="voice">AI Voice Bot: สนทนาด้วยเสียงบนเว็บไซต์</option></select><span className="field-help">แผนเปิดใช้ปัจจุบันรองรับเว็บไซต์ คุณเปลี่ยน Bot เริ่มต้นได้ภายหลัง</span></label>
+              {canRefresh ? <button disabled={working}>{working ? chrome.working : chrome.saveGoal}</button> : null}
+            </form>
+          </section>
+        ) : null}
+
         {activeStep === "profile" ? (
           <section className="tool-band setup-panel" aria-labelledby="setup-profile">
             <div className="band-heading">
-              <div><p>Step A</p><h2 id="setup-profile">{chrome.stepProfile}</h2></div>
+              <div><p>ขั้นตอน A</p><h2 id="setup-profile">{chrome.stepProfile}</h2></div>
             </div>
             <p className="control-copy">{chrome.profileHelp}</p>
             {profile ? (
@@ -499,7 +557,7 @@ export default function SetupWizardPage() {
                   Language
                   <select name="locale" defaultValue={profile.locale === "en" ? "en" : "th"} disabled={!canUpdateProfile}>
                     <option value="en">English</option>
-                    <option value="th">Thai</option>
+                    <option value="th">ไทย</option>
                   </select>
                 </label>
                 <label>
@@ -526,7 +584,7 @@ export default function SetupWizardPage() {
         {activeStep === "access" ? (
           <section className="tool-band setup-panel" aria-labelledby="setup-access">
             <div className="band-heading">
-              <div><p>Step</p><h2 id="setup-access">{chrome.stepAccess}</h2></div>
+              <div><p>ขั้นตอน</p><h2 id="setup-access">{chrome.stepAccess}</h2></div>
               <a className="primary-link" href="/workspace/usage">{chrome.accessCta}</a>
             </div>
             <p className="control-copy">{chrome.accessHelp}</p>
@@ -536,11 +594,17 @@ export default function SetupWizardPage() {
         {activeStep === "configure" ? (
           <section className="tool-band setup-panel" aria-labelledby="setup-configure">
             <div className="band-heading">
-              <div><p>Steps B–C</p><h2 id="setup-configure">{chrome.stepConfigure}</h2></div>
-              <a className="secondary-link" href="/workspace/flowbot">{chrome.openStudio}</a>
+              <div><p>ตั้งค่าและเผยแพร่</p><h2 id="setup-configure">{chrome.stepConfigure}</h2></div>
+              <a className="secondary-link" href={selectedProduct.href}>เปิด {selectedProduct.title}</a>
             </div>
             <p className="control-copy">{chrome.configureHelp}</p>
-            {bots.length === 0 ? (
+            {firstProduct !== "flowbot" ? (
+              <div className="setup-guided-handoff">
+                <h3>ตั้งค่า {selectedProduct.title} ใน Studio</h3>
+                <p>ระบบจะตรวจเวอร์ชันที่เผยแพร่จากเซิร์ฟเวอร์อัตโนมัติ เมื่อเสร็จแล้วกลับมาหน้านี้เพื่อดำเนินการต่อ</p>
+                <a className="primary-link" href={selectedProduct.href}>ไปที่ {selectedProduct.title}</a>
+              </div>
+            ) : bots.length === 0 ? (
               <form className="record-form" onSubmit={(event) => void createBot(event)}>
                 <label>
                   {chrome.botName}
@@ -550,7 +614,7 @@ export default function SetupWizardPage() {
                   {chrome.defaultLanguage}
                   <select name="defaultLanguage" defaultValue={chromeLocale} disabled={!canAuthor}>
                     <option value="en">English</option>
-                    <option value="th">Thai</option>
+                    <option value="th">ไทย</option>
                   </select>
                 </label>
                 {canAuthor ? (
@@ -570,7 +634,7 @@ export default function SetupWizardPage() {
                   </select>
                 </label>
                 <fieldset className="setup-template-fieldset">
-                  <legend>Template</legend>
+                  <legend>เทมเพลต</legend>
                   <label>
                     <input
                       type="radio"
@@ -612,18 +676,24 @@ export default function SetupWizardPage() {
         {activeStep === "deploy" ? (
           <section className="tool-band setup-panel" aria-labelledby="setup-deploy">
             <div className="band-heading">
-              <div><p>Step D</p><h2 id="setup-deploy">{chrome.stepDeploy}</h2></div>
+              <div><p>ติดตั้งบนเว็บไซต์</p><h2 id="setup-deploy">{chrome.stepDeploy}</h2></div>
             </div>
             <p className="control-copy">{chrome.deployHelp}</p>
-            {!selectedBotId ? (
-              <p className="control-copy">Create and publish a bot before deploying.</p>
+            {firstProduct !== "flowbot" ? (
+              <div className="setup-guided-handoff">
+                <h3>สร้าง Website deployment สำหรับ {selectedProduct.title}</h3>
+                <p>เพิ่มต้นทางเว็บไซต์ที่อนุญาตและคัดลอกโค้ดติดตั้งจาก Studio ของ Bot ที่เลือก</p>
+                <a className="primary-link" href={selectedProduct.href}>เปิดการติดตั้ง {selectedProduct.title}</a>
+              </div>
+            ) : !selectedBotId ? (
+              <p className="control-copy">สร้างและเผยแพร่บอตก่อนติดตั้ง</p>
             ) : (
               <>
                 {canDeploy ? (
                   <WebsiteDeploymentForm
                     className="record-form"
                     working={working}
-                    submitLabel="Create deployment"
+                    submitLabel="สร้างการติดตั้ง"
                     onCreate={createDeployment}
                   />
                 ) : null}
@@ -637,8 +707,8 @@ export default function SetupWizardPage() {
                   {deployments.filter((item) => item.status === "active").map((deployment) => (
                     <li key={deployment.id}>
                       <div>
-                        <strong>{deployment.name}</strong>
-                        <span>{deployment.allowedOrigins[0] || "No origin"}</span>
+                        <strong data-no-localize>{deployment.name}</strong>
+                        <span data-no-localize>{deployment.allowedOrigins[0] || "No origin"}</span>
                       </div>
                       {canDeploy ? (
                         <button type="button" disabled={working} onClick={() => void requestInstallCheck(deployment)}>
@@ -656,32 +726,33 @@ export default function SetupWizardPage() {
         {activeStep === "test" ? (
           <section className="tool-band setup-panel" aria-labelledby="setup-test">
             <div className="band-heading">
-              <div><p>Step E</p><h2 id="setup-test">{chrome.stepTest}</h2></div>
-              {canRefresh ? (
+              <div><p>ตรวจเส้นทางลูกค้า</p><h2 id="setup-test">{chrome.stepTest}</h2></div>
+              <div className="setup-test-actions"><a className="secondary-link" href="/workspace/test-center">เปิดศูนย์ทดสอบ</a>{canRefresh ? (
                 <button type="button" disabled={refreshing} onClick={() => void refreshEvidence()}>
                   {refreshing ? chrome.refreshing : chrome.refresh}
                 </button>
-              ) : null}
+              ) : null}</div>
             </div>
             <p className="control-copy">{chrome.testHelp}</p>
             <ol className="setup-test-list">
-              <li>Confirm the snippet is on the exact allowed origin.</li>
-              <li>Open that site, start the widget, and finish one greeting or lead journey on the current published version.</li>
-              <li>Return here and refresh evidence. Install checks alone do not set launch ready.</li>
+              <li>ยืนยันว่าโค้ดอยู่บนต้นทางเว็บไซต์ที่อนุญาตตรงกันทุกตัวอักษร</li>
+              <li>เปิดเว็บไซต์นั้น เริ่มวิดเจ็ต และสนทนาให้จบหนึ่งเส้นทางด้วยเวอร์ชันที่เผยแพร่ปัจจุบัน</li>
+              <li>กลับมาที่หน้านี้แล้วรีเฟรชหลักฐาน การตรวจการติดตั้งเพียงอย่างเดียวไม่ทำให้ระบบพร้อมเปิดใช้</li>
             </ol>
+            {firstProduct !== "flowbot" ? <a className="secondary-link" href={selectedProduct.href}>เปิดเครื่องมือทดสอบ {selectedProduct.title}</a> : null}
           </section>
         ) : null}
 
         {activeStep === "celebrate" ? (
           <section className="tool-band setup-panel setup-celebrate" aria-labelledby="setup-celebrate">
             <div className="band-heading">
-              <div><p>Step F</p><h2 id="setup-celebrate">{chrome.celebrateTitle}</h2></div>
+              <div><p>พร้อมดูแลลูกค้า</p><h2 id="setup-celebrate">{chrome.celebrateTitle}</h2></div>
             </div>
             <p className="control-copy">{chrome.celebrateBody}</p>
             <div className="setup-action-row">
               <a className="primary-link" href="/workspace">{chrome.navOverview}</a>
               <a className="secondary-link" href="/workspace/team">{chrome.inviteTeam}</a>
-              <a className="secondary-link" href="/workspace/flowbot">{chrome.openStudio}</a>
+              <a className="secondary-link" href={selectedProduct.href}>เปิด {selectedProduct.title}</a>
             </div>
           </section>
         ) : null}
@@ -692,7 +763,7 @@ export default function SetupWizardPage() {
               {refreshing ? chrome.refreshing : chrome.refresh}
             </button>
           ) : null}
-          <a className="secondary-link" href="/workspace/flowbot">{chrome.openStudio}</a>
+          <a className="secondary-link" href={selectedProduct.href}>เปิด {selectedProduct.title}</a>
         </footer>
       </section>
     </main>

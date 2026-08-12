@@ -54,9 +54,10 @@ health and reports unknown when evidence cannot be verified. Deterministic
 email replay, stale queue recovery, bounded database readiness, and local pool
 exhaustion now pass executable drills. Public, tenant, and restricted Platform
 surfaces now share an accessible brand foundation and permission-derived
-navigation, with an automated axe WCAG 2.2 A/AA scan and production-browser
-coverage for every rendered route at desktop and mobile breakpoints and every
-tenant and Platform role. All four web realms also share an enforced browser
+navigation. Source checks, type checks, and the browser acceptance harness cover
+the shared recovery and navigation contracts; the current release still requires
+a fresh authorized axe WCAG 2.2 A/AA and desktop/mobile production-browser run.
+All four web realms also share an enforced browser
 security-header policy, and the resolved dependency graph has no known registry
 advisories. Every browser mutation is statically required to validate its
 origin, and Public, Tenant, Platform, API, widget, webhook, and internal-service
@@ -207,6 +208,11 @@ scripts/use-node24.sh pnpm run qa:release-artifacts
 scripts/use-node24.sh pnpm run dev
 ```
 
+`pnpm dev` loads `.env` and optional `.env.local`, then starts the three web
+applications and API used for page and workflow development. `pnpm dev:full`
+also starts workers and the AI/Voice provider gateways and therefore requires
+their complete local provider configuration.
+
 Development applications:
 
 ```text
@@ -214,7 +220,9 @@ Public site:      http://localhost:3100
 Tenant workspace: http://localhost:3101
 Platform Master:  http://localhost:3102
 API:              http://localhost:3103
-Voice gateway:    http://localhost:8080
+Workers:          http://localhost:3104
+Voice gateway:    http://localhost:3105
+AI gateway:       http://localhost:3106
 ```
 
 Use `.env.example` only as a field inventory in the deployment

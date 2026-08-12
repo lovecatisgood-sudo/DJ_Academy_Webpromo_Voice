@@ -59,7 +59,7 @@ async function mockTenant(page, counters) {
 }
 
 async function inspectDashboard(viewport, suffix) {
-  const context = await browser.newContext({ viewport }); const page = await context.newPage();
+  const context = await browser.newContext({ viewport }); await context.addInitScript(() => localStorage.setItem("djay-ui-locale", "en")); const page = await context.newPage();
   const counters = { deploymentCreates: 0, draftUpdates: 0, draftBodies: [], publishes: 0 };
   page.on("pageerror", (error) => failures.push(`dashboard-${suffix}: ${error.message}`));
   page.on("console", (entry) => { if (entry.type() === "error") failures.push(`dashboard-${suffix}: console ${entry.text()}`); });
@@ -143,7 +143,7 @@ if (scope !== "widget") {
 }
 
 async function inspectWidget() {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } }); const page = await context.newPage();
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } }); await context.addInitScript(() => localStorage.setItem("djay-ui-locale", "en")); const page = await context.newPage();
   const widgetSource = readFileSync(resolve(import.meta.dirname, "../packages/ai-chat-widget/dist/index.js"), "utf8");
   let messageCalls = 0; let humanReply = false;
   await page.route("https://merchant.example/", (route) => route.fulfill({ status: 200, contentType: "text/html", body: `<!doctype html><body><main>Merchant</main><script type="module">import { mountAiChatWidget } from "https://widget.example/index.js"; mountAiChatWidget({ deploymentKey: "djay_ai_abcdefghijklmnopqrstuvwxyzABCDEFG", apiBaseUrl: "https://api.example", openOnLoad: true, language: "en" });</script></body>` }));

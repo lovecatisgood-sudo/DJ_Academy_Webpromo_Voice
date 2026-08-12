@@ -62,7 +62,7 @@ async function mockFlowbot(page, planKey, counters) {
 }
 
 async function inspectPlan(planKey, viewport, suffix) {
-  const context = await browser.newContext({ viewport }); const page = await context.newPage();
+  const context = await browser.newContext({ viewport }); await context.addInitScript(() => localStorage.setItem("djay-ui-locale", "en")); const page = await context.newPage();
   const counters = { deploymentCreates: 0, draftPatches: 0, scheduleSaves: 0, routingTeamSaves: 0, scheduleBody: null, routingTeamBody: null };
   page.on("pageerror", (error) => failures.push(`${planKey}-${suffix}: ${error.message}`));
   page.on("console", (entry) => { if (entry.type() === "error") failures.push(`${planKey}-${suffix}: console ${entry.text()}`); });
@@ -188,7 +188,7 @@ if (scope !== "widget") {
 }
 
 async function inspectWidget() {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } }); const page = await context.newPage();
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } }); await context.addInitScript(() => localStorage.setItem("djay-ui-locale", "en")); const page = await context.newPage();
   let started = false; let humanReply = false;
   const widgetSource = readFileSync(resolve(import.meta.dirname, "../packages/flowbot-widget/dist/index.js"), "utf8");
   await page.route("https://merchant.example/", (route) => route.fulfill({ status: 200, contentType: "text/html", body: `<!doctype html><body><main>Merchant</main><script type="module">import { mountFlowbotWidget } from "https://widget.example/index.js"; mountFlowbotWidget({ deploymentKey: "djay_flow_abcdefghijklmnopqrstuvwxyzABCDEFG", apiBaseUrl: "https://api.example", openOnLoad: true });</script></body>` }));

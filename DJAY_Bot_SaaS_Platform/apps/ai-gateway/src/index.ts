@@ -5,7 +5,7 @@ import { createAiGatewayHandler } from "./server";
 
 const env = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().min(1).max(65_535).default(8080),
+  PORT: z.coerce.number().int().min(1).max(65_535).default(3106),
   AI_TEXT_GATEWAY_SERVICE_TOKEN: z.string().min(32),
   OPENAI_API_KEY: z.string().min(20),
   OPENAI_RESPONSES_MODEL: z.string().trim().min(2).max(160),

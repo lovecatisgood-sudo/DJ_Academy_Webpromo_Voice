@@ -7,7 +7,7 @@
 | Product authority | `docs/product/djay-bots-v1-market-release-prd.md` |
 | Experience authority | `docs/design/djay-bots-v1-ui-ux-and-user-flows.md` |
 | Architecture authority | `docs/architecture/djay-bots-v1-market-release-architecture.md` |
-| Current PRD baseline | 291 normative requirements in 36 requirement families |
+| Current PRD baseline | 297 normative requirements in 35 requirement families |
 | Delivery approach | Dependency-ordered vertical slices with package-by-package sellability gates |
 
 ## 1. Purpose
@@ -52,11 +52,11 @@ The commercial offer remains authoritative. Existing P1-P9 documents describe de
 | `FLS`, `FLA` | 32 | Flow Starter and Advanced |
 | `AIT`, `KNO`, `ATS`, `ATA` | 40 | AI behavior, knowledge, Text Starter and Advanced |
 | `VOI`, `VOS`, `VOA`, `TEL` | 34 | Voice runtime, Starter, Advanced and telephone behavior |
-| `CHN`, `INT`, `SOC`, `WEB` | 28 | Website, social channels, integrations and actions |
+| `CHN`, `INT`, `SOC`, `WEB` | 34 | Website, social channels, integrations and actions |
 | `BIL`, `FIN` | 17 | Stripe lifecycle, invoices, credits and accounting |
 | `ANA`, `REL`, `UX` | 25 | Analytics, reliability, performance and accessibility |
 | `EXP`, `ONB`, `OPS`, `PLT` | 41 | Public purchase, onboarding, merchant operations and Platform Master |
-| **Total** | **291** | Complete market-release baseline |
+| **Total** | **297** | Complete market-release baseline |
 
 ### 3.2 Executable requirement registry
 
@@ -256,7 +256,7 @@ Relative size is planning complexity, not a time commitment: M, L and XL indicat
 
 **Deliver:**
 
-- Create the 291-record YAML registry and JSON Schema.
+- Create the 297-record YAML registry and JSON Schema.
 - Add parser/check script and `pnpm` lint command.
 - Map existing tests/evidence without claiming missing features complete.
 - Add package-to-requirement rules for all six plans and shared requirements.
@@ -963,7 +963,7 @@ Before paid GA:
 
 | Risk | Impact | Mitigation/decision gate |
 | --- | --- | --- |
-| Scope hidden behind earlier “delivered” phase labels | Missing advertised features | 291-ID registry and sellability gate |
+| Scope hidden behind earlier “delivered” phase labels | Missing advertised features | 297-ID registry and sellability gate |
 | Telephony/provider approval delay | Voice Advanced blocked | Select/contract early; adapter contract/test harness; do not fake acceptance |
 | Thai tax/FlowAccount ambiguity | Cannot invoice compliantly | Accountant/legal and official sandbox before FIN finalization |
 | Provider or social policy/quotas | Channel cannot launch reliably | Account review, live test, health/recovery and explicit non-sellable state |
@@ -997,7 +997,7 @@ With fewer people, preserve dependency order and gates; do not compress scope by
 
 Start in this exact order:
 
-1. `CTRL-01`: create the 291-requirement registry, schema, checker and CI/report.
+1. `CTRL-01`: create the 297-requirement registry, schema, checker and CI/report.
 2. `CTRL-02`: record and assign every open commercial/vendor/legal decision; begin telephony, FlowAccount and CRM validation immediately.
 3. `COM-01`: implement immutable exact catalogue, promotion and contract snapshots; seed all package/add-on/pack/service values with `sellable=false`.
 4. `CORE-01`: add billing permissions/MFA policy and finish new-data isolation scaffolding.
@@ -1011,7 +1011,7 @@ Start in this exact order:
 
 The V1 Market Release implementation program is complete only when:
 
-- All 291 PRD requirements are `accepted` with current evidence.
+- All 297 PRD requirements are `accepted` with current evidence.
 - Every six-package sellability checklist passes independently.
 - Public purchase, merchant onboarding/operation, website/social/telephone customer experience and Platform exception workflows pass end to end.
 - Stripe, OpenAI, LINE/Meta, carrier, CRM/Sheets, email and FlowAccount production integrations are validated and reconciled.

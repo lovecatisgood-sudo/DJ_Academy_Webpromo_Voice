@@ -42,13 +42,14 @@ describe("withTenantMutation", () => {
         bodySchema: z.object({ planKey: z.string() }),
       },
       async () => new Response("ok"),
-      { resolve: async () => null },
+      { resolve: async () => null, trustedOrigin: async () => true },
     );
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ status: "not_found" });
   });
 
   it("returns 404 when Origin is untrusted", async () => {
+    const resolve = vi.fn(async () => baseResolved);
     const response = await withTenantMutation(
       request(),
       {
@@ -59,11 +60,12 @@ describe("withTenantMutation", () => {
       },
       async () => new Response("ok"),
       {
-        resolve: async () => baseResolved,
+        resolve,
         trustedOrigin: async () => false,
       },
     );
     expect(response.status).toBe(404);
+    expect(resolve).not.toHaveBeenCalled();
   });
 
   it("returns 403 when recent assurance is missing", async () => {

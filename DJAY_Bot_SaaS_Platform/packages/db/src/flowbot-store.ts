@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createOpaqueToken, hashOpaqueToken } from "@djay/auth";
-import { flowBusinessScheduleSchema, flowbotDowngradeBlockers, flowSnapshotSchema, validateFlowForPublish, type FlowEntitlements, type FlowSnapshot, type FlowValidationIssue } from "@djay/flowbot-domain";
+import { flowBusinessScheduleSchema, flowbotDowngradeBlockers, flowSnapshotSchema, validateFlowForPublish, type FlowEntitlements, type FlowSnapshot, type FlowValidationIssue, type PublicFlowInput } from "@djay/flowbot-domain";
+import { FlowRuntimeError, simulateFlow } from "@djay/flowbot-engine";
 import {
   flowbotRoutingTeamFormError,
   flowbotScheduleFormError,
@@ -215,6 +216,63 @@ export class FlowBotStore {
       `;
       const row = rows[0];
       return row ? { botId: row.bot_id, revision: row.revision, basedOnVersionId: row.based_on_version_id, definition: row.definition_json, updatedAt: row.updated_at } : null;
+    });
+  }
+
+  async previewDraft(context: TenantContext, botId: string, input: Readonly<{
+    language: "th" | "en";
+    inputs: readonly PublicFlowInput[];
+    startNodeId?: string;
+    businessOpen: boolean;
+  }>) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const authority = await this.authority(sql, context.tenantId);
+      if (!authority || authority.accessMode !== "active" || authority.entitlements["ai.enabled"] !== false) {
+        return { status: "not_entitled" as const };
+      }
+      const rows = await sql<{ definition_json: unknown; published_version_id: string | null }[]>`
+        SELECT draft.definition_json,
+          CASE WHEN draft.based_on_version_id = bot.current_published_version_id
+            AND draft.definition_json = version.snapshot_json THEN version.id END AS published_version_id
+        FROM tenancy.flow_drafts draft
+        JOIN tenancy.flow_bots bot ON bot.tenant_id = draft.tenant_id AND bot.id = draft.bot_id
+        LEFT JOIN tenancy.flow_versions version ON version.tenant_id = bot.tenant_id
+          AND version.bot_id = bot.id AND version.id = bot.current_published_version_id
+        WHERE draft.tenant_id = ${context.tenantId}::uuid AND draft.bot_id = ${botId}::uuid
+          AND bot.status <> 'archived'
+      `;
+      if (!rows[0]) return { status: "not_found" as const };
+      const parsed = flowSnapshotSchema.parse(rows[0].definition_json);
+      const snapshot = await this.embedSubflows(sql, context.tenantId, parsed);
+      let simulation;
+      try {
+        simulation = simulateFlow({
+          snapshot, authority, language: input.language, inputs: input.inputs,
+          ...(input.startNodeId ? { startNodeId: input.startNodeId } : {}),
+          businessOpen: input.businessOpen, now: new Date().toISOString(),
+        });
+      } catch (error) {
+        if (error instanceof FlowRuntimeError) return { status: "validation_failed" as const };
+        throw error;
+      }
+      return {
+        status: "previewed" as const,
+        publishedVersionId: rows[0].published_version_id,
+        preview: {
+          state: {
+            status: simulation.finalState.status,
+            currentNodeId: simulation.finalState.currentNodeId,
+          },
+          turns: simulation.turns.map((turn, index) => ({
+            sequence: index + 1,
+            messages: turn.result.messages,
+            trace: turn.result.events
+              .filter((event) => event.type === "node_entered" && event.nodeId)
+              .map((event) => event.nodeId!),
+            commands: turn.result.commands.map((command) => ({ type: command.type })),
+          })),
+        },
+      };
     });
   }
 

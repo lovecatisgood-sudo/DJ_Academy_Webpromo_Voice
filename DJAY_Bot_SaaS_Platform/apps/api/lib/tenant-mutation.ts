@@ -36,7 +36,7 @@ export type TenantMutationDeps = Readonly<{
 
 /**
  * Shared guard stack for tenant browser mutations:
- * authz → trusted Origin → optional reauth/MFA assurance → rate limit → Zod body.
+ * trusted Origin → authz → optional reauth/MFA assurance → rate limit → Zod body.
  * Failures use non-revealing 404 for authz/origin, 403 for assurance, 429 for rate limits.
  */
 export async function withTenantMutation<TBody = undefined>(
@@ -58,11 +58,11 @@ export async function withTenantMutation<TBody = undefined>(
   const assurance = deps.assurance ?? hasSensitiveTenantAssurance;
   const readBody = deps.readBody ?? readJson;
 
-  const resolved = await resolve(request);
-  if (!resolved || !tenantRoleAllows(resolved.context.role, options.permission)) {
+  if (!(await trustedOrigin(request))) {
     return safeJson({ status: "not_found" }, 404);
   }
-  if (!(await trustedOrigin(request))) {
+  const resolved = await resolve(request);
+  if (!resolved || !tenantRoleAllows(resolved.context.role, options.permission)) {
     return safeJson({ status: "not_found" }, 404);
   }
   if ((options.assurance ?? "none") !== "none" && !assurance(resolved.session)) {

@@ -101,12 +101,12 @@ export default function SecurityPage() {
   }
 
   if (workspaceSession.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
-  if (workspaceSession.loading || !workspaceSession.selectedTenantId) return <main className="workspace-loading">Loading security...</main>;
+  if (workspaceSession.loading || !workspaceSession.selectedTenantId) return <main className="workspace-loading">กำลังโหลดข้อมูลความปลอดภัย...</main>;
   if (!workspaceSession.allows("security.sessions.read")) {
     return (
       <WorkspaceAccessDenied
         active="security"
-        title="Security"
+        title="ความปลอดภัย"
         workspaces={workspaceSession.workspaces}
         selectedTenantId={workspaceSession.selectedTenantId}
         onSelect={(tenantId) => void workspaceSession.selectWorkspace(tenantId)}
@@ -118,7 +118,7 @@ export default function SecurityPage() {
     return (
       <WorkspacePageLoadError
         active="security"
-        title="Security"
+        title="ความปลอดภัย"
         resource="account security"
         workspaces={workspaceSession.workspaces}
         selectedTenantId={workspaceSession.selectedTenantId}
@@ -140,17 +140,17 @@ export default function SecurityPage() {
       />
       <section id="workspace-main" className="workspace-main" tabIndex={-1}>
         <header className="workspace-header">
-          <div><p>Account</p><h1>Security</h1></div>
+          <div><p>บัญชี</p><h1>ความปลอดภัย</h1></div>
           <span className="role-label">{activeWorkspace?.businessName}</span>
         </header>
         <section className="tool-band">
           <div className="band-heading">
-            <div><p>Authentication</p><h2>Multi-factor authentication</h2></div>
+            <div><p>การยืนยันตัวตน</p><h2>การยืนยันตัวตนหลายขั้นตอน</h2></div>
             <span>{workspaceSession.mfaVerifiedAt ? "Verified" : "Not verified"}</span>
           </div>
           {recoveryCodes.length ? (
             <div className="recovery-codes" role="status">
-              <strong>Recovery codes</strong>
+              <strong>รหัสกู้คืน</strong>
               {recoveryCodes.map((code) => <code key={code}>{code}</code>)}
               <button type="button" className="secondary-command" onClick={downloadRecoveryCodes}>
                 Download recovery codes
@@ -160,14 +160,14 @@ export default function SecurityPage() {
             <form className="mfa-enrollment" onSubmit={verifyMfa}>
               <div className="mfa-qr">
                 <img src={enrollment.qrDataUrl} width={196} height={196} alt="Authenticator QR code" />
-                <p className="field-help">Scan with your authenticator app, or enter the setup key manually.</p>
+                <p className="field-help">สแกนด้วยแอปยืนยันตัวตนหรือกรอก setup key ด้วยตนเอง</p>
               </div>
               <label>Setup key<input readOnly value={enrollment.secret} /></label>
               <label>
                 Authenticator code
                 <input inputMode="numeric" pattern="[0-9]{6}" maxLength={6} name="code" autoComplete="one-time-code" required />
               </label>
-              <button type="submit">Verify MFA</button>
+              <button type="submit">ยืนยัน MFA</button>
             </form>
           ) : (
             <button className="secondary-command mfa-command" type="button" onClick={() => void startMfaEnrollment()}>
@@ -178,10 +178,10 @@ export default function SecurityPage() {
         </section>
         <section className="tool-band">
           <div className="band-heading">
-            <div><p>Sessions</p><h2>Signed-in devices</h2></div>
+            <div><p>เซสชัน</p><h2>อุปกรณ์ที่เข้าสู่ระบบ</h2></div>
             <span>{sessions.length}</span>
           </div>
-          <div className="data-table" role="table" aria-label="Active sessions">
+          <div className="data-table" role="table" aria-label="เซสชันที่ใช้งานอยู่">
             {sessions.map((session) => (
               <div className="data-row session-row" role="row" key={session.sessionId}>
                 <div>

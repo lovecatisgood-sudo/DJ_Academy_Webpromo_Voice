@@ -84,6 +84,32 @@ describe.runIf(enabled)("P4 FlowBot authoring repository", () => {
       [form]: { id: form, type: "form", title: "Contact", prompt: { th: "ข้อมูล", en: "Details" }, fields: [{ key: "email", label: { th: "อีเมล", en: "Email" }, type: "email", required: true }], nextNodeId: end },
       [end]: { id: end, type: "end", title: "Done", message: { th: "ขอบคุณ", en: "Thank you" } },
     } } });
+    const sideEffectsBefore = await adminClient!<{ leads: number; executions: number }[]>`
+      SELECT
+        (SELECT count(*)::int FROM tenancy.leads WHERE tenant_id = ${contextA.tenantId}::uuid) AS leads,
+        (SELECT count(*)::int FROM tenancy.flow_executions WHERE tenant_id = ${contextA.tenantId}::uuid) AS executions
+    `;
+    await expect(store.previewDraft(contextA, basic.botId, {
+      language: "en", businessOpen: true,
+      inputs: [{ type: "form", payload: { nodeId: form, data: { email: "preview@example.test" } } }],
+    })).resolves.toMatchObject({
+      status: "previewed",
+      preview: {
+        state: { status: "completed" },
+        turns: [
+          { messages: [{ type: "text", content: { text: "Welcome" } }, { type: "form" }], trace: [root, form] },
+          { messages: [{ type: "text", content: { text: "Thank you" } }], commands: [{ type: "lead.create" }], trace: [end] },
+        ],
+      },
+    });
+    await expect(store.previewDraft(contextB, basic.botId, { language: "en", businessOpen: true, inputs: [] }))
+      .resolves.toEqual({ status: "not_found" });
+    const sideEffectsAfter = await adminClient!<{ leads: number; executions: number }[]>`
+      SELECT
+        (SELECT count(*)::int FROM tenancy.leads WHERE tenant_id = ${contextA.tenantId}::uuid) AS leads,
+        (SELECT count(*)::int FROM tenancy.flow_executions WHERE tenant_id = ${contextA.tenantId}::uuid) AS executions
+    `;
+    expect(sideEffectsAfter[0]).toEqual(sideEffectsBefore[0]);
     const first = await store.publish(contextA, basic.botId); expect(first.status).toBe("published"); if (first.status !== "published") throw new Error("Expected publish.");
     await expect(store.createDeployment(contextA, basic.botId, {
       name: "Invalid website", allowedOrigins: ["https://merchant.example/path"],

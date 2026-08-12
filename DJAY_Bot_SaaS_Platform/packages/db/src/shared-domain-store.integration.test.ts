@@ -16,8 +16,8 @@ describe.runIf(enabled)("P3 shared domain repositories", () => {
   it("keeps contacts, conversations, actions, knowledge, and privacy tenant-scoped and idempotent", async () => {
     const contextA = createTenantContext({
       tenantId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10",
-      userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
-      membershipId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa11",
+      userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+      membershipId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa12",
       sessionId: randomUUID(), role: "tenant_master_admin", requestId: "shared-domain-a",
     });
     const contextB = createTenantContext({
@@ -141,6 +141,84 @@ describe.runIf(enabled)("P3 shared domain repositories", () => {
         AND idempotency_key = ${appointmentAction.idempotencyKey}
     `;
     expect(appointment[0]?.status).toBe("requested");
+    const appointments = await store.listAppointments(contextA);
+    expect(appointments).toHaveLength(1);
+    expect(await store.listAppointments(contextB)).toHaveLength(0);
+    const appointmentRecord = appointments[0]!; const option = appointmentRecord.options[0]!;
+    await expect(store.updateAppointment(contextB, appointmentRecord.id, { status: "confirmed", optionId: option.id })).resolves.toEqual({ status: "not_found" });
+    await expect(store.updateAppointment(contextA, appointmentRecord.id, { status: "confirmed", optionId: option.id, notes: "Confirmed by phone" })).resolves.toEqual({ status: "accepted" });
+    await expect(store.updateAppointment(contextA, appointmentRecord.id, { status: "completed" })).resolves.toEqual({ status: "accepted" });
+    await expect(store.updateAppointment(contextA, appointmentRecord.id, { status: "cancelled" })).resolves.toEqual({ status: "invalid_transition" });
+    expect((await store.listAppointments(contextA))[0]).toMatchObject({
+      status: "completed", notes: "Confirmed by phone",
+      history: [
+        { fromStatus: null, toStatus: "requested" },
+        { fromStatus: "requested", toStatus: "confirmed" },
+        { fromStatus: "confirmed", toStatus: "completed" },
+      ],
+    });
+
+    await expect(store.updateLeadStatus(contextA, lead.leadId, "closed_deal")).resolves.toMatchObject({ status: "accepted" });
+    expect((await store.listLeads(contextA)).find((item) => item.id === lead.leadId)).toMatchObject({
+      contactId: contactA.contactId, status: "closed_deal",
+    });
+    const valueAuthority = await tenantClient!.begin(async (sql) => {
+      await sql`SELECT set_config('app.tenant_id', ${contextA.tenantId}, true),
+        set_config('app.user_id', ${contextA.userId}, true),
+        set_config('app.membership_id', ${contextA.membershipId}, true)`;
+      return sql<{ membership: boolean; closedLead: boolean }[]>`SELECT
+        EXISTS (SELECT 1 FROM tenancy.memberships membership WHERE membership.tenant_id = tenancy.current_tenant_id()
+          AND membership.id = ${contextA.membershipId}::uuid AND membership.user_id = ${contextA.userId}::uuid
+          AND membership.status = 'active') AS membership,
+        EXISTS (SELECT 1 FROM tenancy.leads candidate JOIN tenancy.contacts contact
+          ON contact.tenant_id = candidate.tenant_id AND contact.id = candidate.contact_id
+          WHERE candidate.tenant_id = tenancy.current_tenant_id() AND candidate.id = ${lead.leadId}::uuid
+            AND candidate.contact_id = ${contactA.contactId}::uuid AND candidate.status = 'closed_deal'
+            AND contact.status = 'active') AS "closedLead"`;
+    });
+    expect(valueAuthority[0]).toEqual({ membership: true, closedLead: true });
+    const valueInput = {
+      contactId: contactA.contactId, leadId: lead.leadId,
+      amountMinor: 125_000, currency: "THB", idempotencyKey: randomUUID(),
+    };
+    const value = await store.recordCustomerDealValue(contextA, valueInput);
+    expect(value).toMatchObject({ status: "recorded" });
+    await expect(store.recordCustomerDealValue(contextA, valueInput)).resolves.toEqual(value);
+    await expect(store.recordCustomerDealValue(contextB, valueInput)).resolves.toEqual({ status: "not_found_or_invalid" });
+    const revokedContext = createTenantContext({
+      tenantId: contextA.tenantId, userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      membershipId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa11", sessionId: randomUUID(),
+      role: "tenant_admin", requestId: `revoked-value-${randomUUID()}`,
+    });
+    await expect(store.recordCustomerDealValue(revokedContext, { ...valueInput, idempotencyKey: randomUUID() }))
+      .resolves.toEqual({ status: "not_found_or_invalid" });
+    const journey = await store.getCustomerJourney(contextA, contactA.contactId);
+    expect(journey).toMatchObject({
+      contact: { id: contactA.contactId, conversationCount: 1, appointmentCount: 1 },
+      values: [{ currency: "THB", amountMinor: "125000" }],
+    });
+    expect(journey?.events.some((event) => event.kind === "deal_value" && event.amountMinor === "125000")).toBe(true);
+    expect(journey?.events.some((event) => event.kind === "appointment_status" && event.title === "Appointment: completed")).toBe(true);
+    await expect(store.getCustomerJourney(contextB, contactA.contactId)).resolves.toBeNull();
+    const report = await store.operationsReport(contextA, { days: 30 });
+    expect(report).toMatchObject({
+      productKey: null,
+      summary: { conversations: 1, leads: 1, appointments: 1, completedAppointments: 1 },
+      values: [{ currency: "THB", amountMinor: "125000", events: 1 }],
+      products: [{ productKey: "ai_chat", conversations: 1 }],
+    });
+    await expect(store.operationsReport(contextA, { days: 30, productKey: "ai_chat" })).resolves.toMatchObject({
+      summary: { conversations: 1, leads: 1, appointments: 1 },
+      values: [{ currency: "THB", amountMinor: "125000", events: 1 }],
+    });
+    await expect(store.operationsReport(contextA, { days: 30, productKey: "flowbot" })).resolves.toMatchObject({
+      summary: { conversations: 0, leads: 0, appointments: 0, callbacks: 0 }, values: [],
+    });
+    await expect(store.operationsReport(contextB, { days: 30 })).resolves.toMatchObject({
+      summary: { conversations: 0, leads: 0, appointments: 0, callbacks: 0 }, values: [],
+    });
+    if (value.status !== "recorded") throw new Error("Expected value evidence.");
+    await expect(adminClient!`UPDATE tenancy.customer_value_events SET amount_minor = 1 WHERE id = ${value.valueEventId}::uuid`).rejects.toThrow(/immutable/i);
 
     const privacyKey = `privacy-${randomUUID()}`;
     const privacy = await store.requestPrivacyJob(contextA, {

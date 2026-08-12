@@ -46,6 +46,7 @@ async function mockTenant(page, mutationEvidence) {
       if (route.request().method() !== "GET" && mutationEvidence) mutationEvidence.retentionMutations += 1;
       return json(route, route.request().method() === "GET" ? { policy: { transcriptDays: 90, recordingDays: 0, voicePlanMaximumDays: 365, updatedAt: new Date().toISOString() } } : { status: "updated", transcriptDays: 90, recordingDays: 0, maximumDays: 365 });
     }
+    if (path === "/tenant/legal-holds") return json(route, { holds: [] });
     return json(route, { status: "not_found" }, 404);
   });
 }
@@ -91,6 +92,7 @@ async function mockPlatform(page, incidentEvidence) {
 
 async function inspect(url, name, viewport, mock, check) {
   const context = await browser.newContext({ viewport });
+  await context.addInitScript(() => localStorage.setItem("djay-ui-locale", "en"));
   const page = await context.newPage();
   page.on("pageerror", (error) => failures.push(`${name}: page error: ${error.message}`));
   page.on("console", (entry) => {
@@ -111,7 +113,7 @@ async function inspect(url, name, viewport, mock, check) {
   if (!name.startsWith("platform-") && restricted.test(result.bodyText)) failures.push(`${name}: restricted provider/model term visible`);
   if (name.startsWith("inbox-") && !result.bodyText.includes("The customer requested a callback.")) failures.push(`${name}: Voice outcome summary missing`);
   if (name.startsWith("data-") && !result.bodyText.includes("Transcript retention")) failures.push(`${name}: retention controls missing`);
-  if (name.startsWith("platform-") && (!result.bodyText.includes("Runtime admission and recovery") || !result.bodyText.includes("Second-Generation route governance") || !result.bodyText.includes("Production admission") || !result.bodyText.includes("there is no fallback"))) failures.push(`${name}: Voice operations control missing`);
+  if (name.startsWith("platform-voice") && (!result.bodyText.includes("Runtime admission and recovery") || !result.bodyText.includes("Second-Generation route governance") || !result.bodyText.includes("Production admission") || !result.bodyText.includes("there is no fallback"))) failures.push(`${name}: Voice operations control missing`);
   if (check) await check(page);
   await page.screenshot({ path: `/tmp/djay-p3-${name}.png`, fullPage: true });
   await context.close();
@@ -127,24 +129,27 @@ for (const pageName of pages) {
 }
 const privacyEvidence = { mutations: 0, bodies: [], retentionMutations: 0 };
 await inspect(`${tenantUrl}/workspace/data`, "data-privacy-scope", desktop, (page) => mockTenant(page, privacyEvidence), async (page) => {
-  await page.getByLabel("Request").selectOption("erasure");
-  if (await page.getByLabel("Contact").locator("option").first().textContent() !== "Select a contact to erase") failures.push("data-privacy-scope: erasure retained the workspace-wide export option");
-  await page.getByRole("button", { name: "Submit request" }).click();
+  const requestType = page.locator('select[name="jobType"]');
+  const contactScope = page.locator('select[name="contactId"]');
+  const submitPrivacyRequest = page.locator("form.privacy-form button[type=submit]");
+  await requestType.selectOption("erasure");
+  if (await contactScope.locator("option").first().getAttribute("value") !== "") failures.push("data-privacy-scope: erasure retained the workspace-wide export option");
+  await submitPrivacyRequest.click();
   await page.getByRole("alert").getByText("Select the specific contact", { exact: false }).waitFor();
   if (privacyEvidence.mutations !== 0) failures.push("data-privacy-scope: unscoped erasure reached the API");
   try {
     await page.waitForFunction(() => document.activeElement?.id === "privacy-contact");
   } catch { failures.push("data-privacy-scope: missing contact scope did not receive focus"); }
-  await page.getByLabel("Contact").selectOption(contact.id);
+  await contactScope.selectOption(contact.id);
   let dismissedMessage = "";
   page.once("dialog", async (dialog) => { dismissedMessage = dialog.message(); await dialog.dismiss(); });
-  await page.getByRole("button", { name: "Submit request" }).click();
+  await submitPrivacyRequest.click();
   if (!dismissedMessage.includes(contact.displayName) || privacyEvidence.mutations !== 0) failures.push("data-privacy-scope: dismissed named erasure confirmation changed data");
   page.once("dialog", async (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Submit request" }).click();
+  await submitPrivacyRequest.click();
   await page.getByText("Privacy request accepted for processing.", { exact: true }).waitFor();
   if (privacyEvidence.mutations !== 1 || privacyEvidence.bodies[0]?.jobType !== "erasure" || privacyEvidence.bodies[0]?.contactId !== contact.id) failures.push("data-privacy-scope: scoped erasure did not send one exact request");
-  if (await page.getByLabel("Request").inputValue() !== "export" || await page.getByLabel("Contact").inputValue() !== "") failures.push("data-privacy-scope: accepted request did not reset to safe export defaults");
+  if (await requestType.inputValue() !== "export" || await contactScope.inputValue() !== "") failures.push("data-privacy-scope: accepted request did not reset to safe export defaults");
   await page.getByRole("button", { name: "Save retention" }).click();
   const retentionSection = page.locator(".tool-band").filter({ hasText: "Transcript retention" });
   await retentionSection.getByRole("status").getByText("Retention policy saved", { exact: false }).waitFor();
@@ -171,15 +176,15 @@ await inspect(`${tenantUrl}/workspace/inbox`, "inbox-reply-retry", desktop, (pag
   const reply = page.getByLabel("Reply");
   await reply.fill("Please retry this message.");
   await page.getByRole("button", { name: "Send reply" }).click();
-  await page.getByRole("alert").getByText("Reply could not be sent. Your text is still available to retry.", { exact: true }).waitFor();
+  await page.getByRole("alert").getByText("Reply could not be saved. Your text is still available to retry.", { exact: true }).waitFor();
   if (replyFailureEvidence.messageMutations !== 1 || await reply.inputValue() !== "Please retry this message.") failures.push("inbox-reply-retry: failed reply did not preserve one exact retryable draft");
   if (!await page.getByRole("button", { name: "Send reply" }).isEnabled()) failures.push("inbox-reply-retry: failed reply left the composer busy");
 });
 await inspect(platformUrl, "platform-desktop", desktop, mockPlatform);
 await inspect(platformUrl, "platform-mobile", mobile, mockPlatform);
 const voiceActionEvidence = { mutations: 0, bodies: [], runtimeMutations: 0, runtimeBodies: [] };
-await inspect(platformUrl, "platform-voice-action-reasons", desktop, (page) => mockPlatform(page, voiceActionEvidence), async (page) => {
-  const runtimeReason = page.locator(".voice-control-band").getByLabel("Operational reason");
+await inspect(`${platformUrl}/operations/voice`, "platform-voice-action-reasons", desktop, (page) => mockPlatform(page, voiceActionEvidence), async (page) => {
+  const runtimeReason = page.locator("#voice-runtime-reason");
   await runtimeReason.fill("   ");
   await page.getByRole("button", { name: "Resume admission", exact: true }).click();
   await page.getByRole("alert").getByText("Operational reason must be 3–200 characters after removing leading and trailing spaces.", { exact: true }).waitFor();
@@ -193,7 +198,7 @@ await inspect(platformUrl, "platform-voice-action-reasons", desktop, (page) => m
     || voiceActionEvidence.runtimeBodies[0]?.mode !== "running"
     || voiceActionEvidence.runtimeBodies[0]?.reasonCode !== "reviewed recovery") failures.push("platform-voice-action-reasons: corrected runtime reason did not send one normalized command");
 
-  const actionReason = page.getByLabel("Action reason");
+  const actionReason = page.locator("#voice-routing-action-reason");
   await actionReason.fill("   ");
   await page.getByRole("button", { name: "Promote", exact: true }).click();
   await page.getByRole("alert").getByText("Action reason must be 12–500 characters after removing leading and trailing spaces.", { exact: true }).waitFor();
@@ -209,7 +214,7 @@ await inspect(platformUrl, "platform-voice-action-reasons", desktop, (page) => m
     || voiceActionEvidence.bodies[0]?.reason !== "Promote after reviewed evidence") failures.push("platform-voice-action-reasons: corrected routing reason did not send one normalized command");
 });
 const incidentEvidence = { mutations: 0, bodies: [] };
-await inspect(platformUrl, "platform-incident-resolution", desktop, (page) => mockPlatform(page, incidentEvidence), async (page) => {
+await inspect(`${platformUrl}/operations/voice`, "platform-incident-resolution", desktop, (page) => mockPlatform(page, incidentEvidence), async (page) => {
   await page.getByRole("button", { name: "Resolve", exact: true }).click();
   const resolution = page.getByLabel("Resolution for minor incident");
   await resolution.fill("Draft recovery evidence");
@@ -234,7 +239,7 @@ await inspect(platformUrl, "platform-incident-resolution", desktop, (page) => mo
   } catch { failures.push("platform-incident-resolution: accepted resolution form remained open"); }
 });
 const incidentFailureEvidence = { mutations: 0, bodies: [], failResolution: true };
-await inspect(platformUrl, "platform-incident-resolution-retry", mobile, (page) => mockPlatform(page, incidentFailureEvidence), async (page) => {
+await inspect(`${platformUrl}/operations/voice`, "platform-incident-resolution-retry", mobile, (page) => mockPlatform(page, incidentFailureEvidence), async (page) => {
   await page.getByRole("button", { name: "Resolve", exact: true }).click();
   const resolution = page.getByLabel("Resolution for minor incident");
   const retryableDraft = "Route stays paused while recovery evidence is reviewed.";

@@ -1,18 +1,18 @@
 import { WorkspaceSidebar, type WorkspaceArea, type WorkspaceSummary } from "./WorkspaceSidebar";
 
 export function WorkspaceViewOnly({ children }: Readonly<{ children: string }>) {
-  return <div className="workspace-access-note" role="status"><strong>View-only access</strong><span>{children}</span></div>;
+  return <div className="workspace-access-note" role="status"><strong>สิทธิ์ดูอย่างเดียว</strong><span>{children}</span></div>;
 }
 
 export function WorkspaceSessionLoadError({ onRetry }: Readonly<{ onRetry: () => void }>) {
   return (
     <main className="workspace-session-error">
-      <header><span className="mark" aria-hidden="true">D</span><strong>DJAY BOT</strong><span className="realm">Workspace</span></header>
+      <header><span className="mark" aria-hidden="true">D</span><strong>DJAY BOT</strong><span className="realm">เวิร์กสเปซ</span></header>
       <section aria-labelledby="workspace-session-error-title" role="alert">
-        <p>Temporarily unavailable</p>
-        <h1 id="workspace-session-error-title">We couldn’t load your workspace</h1>
-        <p className="control-copy">Your account and saved data have not changed. Check your connection and try again.</p>
-        <button type="button" onClick={onRetry}>Try again</button>
+        <p>ไม่พร้อมใช้งานชั่วคราว</p>
+        <h1 id="workspace-session-error-title">โหลดเวิร์กสเปซไม่สำเร็จ</h1>
+        <p className="control-copy">บัญชีและข้อมูลที่บันทึกไว้ไม่ถูกเปลี่ยน โปรดตรวจการเชื่อมต่อแล้วลองใหม่</p>
+        <button type="button" onClick={onRetry}>ลองใหม่</button>
       </section>
     </main>
   );
@@ -39,11 +39,11 @@ export function WorkspaceAccessDenied({
     <main className="workspace-shell">
       <WorkspaceSidebar active={active} workspaces={workspaces} selectedTenantId={selectedTenantId} onSelect={onSelect} onLogout={onLogout} />
       <section className="workspace-main">
-        <header className="workspace-header"><div><p>Workspace</p><h1>{title}</h1></div><span className="role-label">{workspace?.businessName}</span></header>
+        <header className="workspace-header"><div><p>เวิร์กสเปซ</p><h1>{title}</h1></div><span className="role-label">{workspace?.businessName}</span></header>
         <section className="tool-band workspace-access-denied" role="alert">
-          <div className="band-heading"><div><p>Restricted</p><h2>You don’t have access to this area</h2></div></div>
-          <p className="control-copy">Your current workspace role does not include this permission. Ask a workspace owner to change your role if you need access.</p>
-          <a className="primary-link" href="/workspace">Return to overview</a>
+          <div className="band-heading"><div><p>จำกัดสิทธิ์</p><h2>คุณไม่มีสิทธิ์เข้าถึงส่วนนี้</h2></div></div>
+          <p className="control-copy">บทบาทปัจจุบันไม่มีสิทธิ์นี้ หากจำเป็นต้องใช้งาน โปรดขอเจ้าของเวิร์กสเปซเปลี่ยนบทบาทให้</p>
+          <a className="primary-link" href="/workspace">กลับหน้าภาพรวม</a>
         </section>
       </section>
     </main>
@@ -75,11 +75,11 @@ export function WorkspacePageLoadError({
     <main className="workspace-shell">
       <WorkspaceSidebar active={active} workspaces={workspaces} selectedTenantId={selectedTenantId} onSelect={onSelect} onLogout={onLogout} />
       <section className="workspace-main">
-        <header className="workspace-header"><div><p>Workspace</p><h1>{title}</h1></div><span className="role-label">{workspace?.businessName}</span></header>
+        <header className="workspace-header"><div><p>เวิร์กสเปซ</p><h1>{title}</h1></div><span className="role-label">{workspace?.businessName}</span></header>
         <section className="tool-band workspace-load-error" role="alert">
-          <div className="band-heading"><div><p>Temporarily unavailable</p><h2>We couldn’t load {resource}</h2></div></div>
-          <p className="control-copy">Your saved data has not changed. Check your connection and try again.</p>
-          <button className="secondary-command" type="button" onClick={onRetry}>Try again</button>
+          <div className="band-heading"><div><p>ไม่พร้อมใช้งานชั่วคราว</p><h2>We couldn’t load {resource}</h2></div></div>
+          <p className="control-copy">ข้อมูลที่บันทึกไว้ไม่ถูกเปลี่ยน โปรดตรวจการเชื่อมต่อแล้วลองใหม่</p>
+          <button className="secondary-command" type="button" onClick={onRetry}>ลองใหม่</button>
         </section>
       </section>
     </main>

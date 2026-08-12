@@ -53,7 +53,7 @@ export function LegalDocumentClient({ kind }: { kind: LegalKind }) {
     </section>
     <section className="legal-content" aria-labelledby="legal-title" aria-busy={stage === "loading"}>
       {stage === "loading" ? <div className="legal-state" role="status">กำลังโหลดเอกสารฉบับอนุมัติปัจจุบัน...</div> : null}
-      {stage === "error" ? <div className="legal-state error" role="alert"><div><strong>เอกสารนี้ไม่พร้อมใช้งานชั่วคราว</strong><span>การสมัครจะหยุดไว้จนกว่าจะตรวจสอบเวอร์ชันที่อนุมัติได้</span></div><button type="button" onClick={() => void load()}>ลองอีกครั้ง</button></div> : null}
+      {stage === "error" ? <div className="legal-state error" role="alert"><div><strong>เอกสารนี้ไม่พร้อมใช้งานชั่วคราว</strong><span>การสมัครจะหยุดไว้จนกว่าจะตรวจสอบเวอร์ชันที่อนุมัติได้ (Registration remains paused.)</span></div><button type="button" onClick={() => void load()}>ลองอีกครั้ง</button></div> : null}
       {stage === "ready" && document ? <article className="legal-document">
         <div className="legal-meta"><span>เวอร์ชัน {document.version}</span><span>มีผลวันที่ {document.effectiveDate}</span></div>
         {document.sections.map((section, index) => <section key={section.heading + index}>

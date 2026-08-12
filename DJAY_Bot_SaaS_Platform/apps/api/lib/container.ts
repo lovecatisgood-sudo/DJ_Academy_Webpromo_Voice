@@ -33,6 +33,7 @@ import {
   PlatformRecoveryStore,
   PlatformVoiceOperationsStore,
   PlatformSupportStore,
+  PlatformSupportTicketStore,
   PostgresAuthStore,
   PostgresCatalogStore,
   PostgresPlatformAuthStore,
@@ -48,6 +49,8 @@ import {
   VoiceDeploymentStore,
   TenantVoiceTelephonyStore,
   TenantSharedSaasOperationsStore,
+  TenantSupportTicketStore,
+  TenantBotRegressionStore,
   PlatformSharedSaasOperationsStore,
 } from "@djay/db";
 import { createPlatformAuthService } from "@djay/platform-auth";
@@ -112,6 +115,7 @@ const envSchema = z.object({
   OPERATIONS_INGEST_TOKEN: z.string().min(32).optional(),
   LEGAL_DOCUMENTS_FILE: z.string().trim().min(1).optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  SOCIAL_CHANNELS_RELEASE_ENABLED: z.enum(["true", "false"]).default("false"),
 });
 
 export type Services = Awaited<ReturnType<typeof buildServices>>;
@@ -119,6 +123,7 @@ let servicesPromise: Promise<Services> | undefined;
 
 async function buildServices() {
   const env = envSchema.parse(process.env);
+  const socialReleaseEnabled = env.SOCIAL_CHANNELS_RELEASE_ENABLED === "true";
   assertNoProductionPlaceholders(env.NODE_ENV, env);
   assertApiProductionUrlPolicy(env);
   const client = createDatabaseClient(env.AUTH_DATABASE_URL);
@@ -129,8 +134,8 @@ async function buildServices() {
   if (env.NODE_ENV === "production" && !env.FLOWBOT_DATABASE_URL) throw new Error("FLOWBOT_DATABASE_URL is required in production.");
   if (env.NODE_ENV === "production" && !env.FLOWBOT_INTEGRATION_ENVELOPE_KEY) throw new Error("FLOWBOT_INTEGRATION_ENVELOPE_KEY is required in production.");
   if (env.NODE_ENV === "production" && !env.FLOWBOT_NOTIFICATION_ENVELOPE_KEY) throw new Error("FLOWBOT_NOTIFICATION_ENVELOPE_KEY is required in production.");
-  if (env.NODE_ENV === "production" && !env.FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY) throw new Error("FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY is required in production.");
-  if (env.NODE_ENV === "production" && !env.FLOWBOT_SOCIAL_SUBJECT_HASH_KEY) throw new Error("FLOWBOT_SOCIAL_SUBJECT_HASH_KEY is required in production.");
+  if (env.NODE_ENV === "production" && socialReleaseEnabled && !env.FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY) throw new Error("FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY is required when the social release is enabled.");
+  if (env.NODE_ENV === "production" && socialReleaseEnabled && !env.FLOWBOT_SOCIAL_SUBJECT_HASH_KEY) throw new Error("FLOWBOT_SOCIAL_SUBJECT_HASH_KEY is required when the social release is enabled.");
   if (env.NODE_ENV === "production" && !env.AI_DATABASE_URL) throw new Error("AI_DATABASE_URL is required in production.");
   if (env.NODE_ENV === "production" && !env.AI_TEXT_GATEWAY_ENDPOINT) throw new Error("AI_TEXT_GATEWAY_ENDPOINT is required in production.");
   if (env.NODE_ENV === "production" && !env.AI_TEXT_GATEWAY_SERVICE_TOKEN) throw new Error("AI_TEXT_GATEWAY_SERVICE_TOKEN is required in production.");
@@ -138,10 +143,10 @@ async function buildServices() {
   if (env.NODE_ENV === "production" && !env.AI_INTEGRATION_ENVELOPE_KEY) throw new Error("AI_INTEGRATION_ENVELOPE_KEY is required in production.");
   if (env.NODE_ENV === "production" && !env.USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY) throw new Error("USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY is required in production.");
   if (env.NODE_ENV === "production" && env.BILLING_DATABASE_URL && !env.BILLING_NOTIFICATION_ENVELOPE_KEY) throw new Error("BILLING_NOTIFICATION_ENVELOPE_KEY is required when commerce is enabled.");
-  if (env.NODE_ENV === "production" && !env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY) throw new Error("AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY is required in production.");
+  if (env.NODE_ENV === "production" && socialReleaseEnabled && !env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY) throw new Error("AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY is required when the social release is enabled.");
   if (env.NODE_ENV === "production" && !env.VOICE_TELEPHONY_ENVELOPE_KEY) throw new Error("VOICE_TELEPHONY_ENVELOPE_KEY is required in production.");
   if (env.NODE_ENV === "production" && !env.KNOWLEDGE_OBJECT_BUCKET) throw new Error("KNOWLEDGE_OBJECT_BUCKET is required in production.");
-  if (env.NODE_ENV === "production" && !env.AI_SOCIAL_SUBJECT_HASH_KEY) throw new Error("AI_SOCIAL_SUBJECT_HASH_KEY is required in production.");
+  if (env.NODE_ENV === "production" && socialReleaseEnabled && !env.AI_SOCIAL_SUBJECT_HASH_KEY) throw new Error("AI_SOCIAL_SUBJECT_HASH_KEY is required when the social release is enabled.");
   if (env.VOICE_RUNTIME_ENABLED === "true" && (!env.VOICE_DATABASE_URL || !env.VOICE_GATEWAY_URL || !env.VOICE_AUTHORIZATION_SERVICE_TOKEN)) {
     throw new Error("Voice database, gateway, and authorization configuration is required in production.");
   }
@@ -155,13 +160,13 @@ async function buildServices() {
   const aiRuntimeStore = env.AI_DATABASE_URL
     ? new AiChatRuntimeStore(createDatabaseClient(env.AI_DATABASE_URL))
     : null;
-  const aiSocialCredentialKey = env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY
+  const aiSocialCredentialKey = socialReleaseEnabled && env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY
     ? parse32ByteSecret(env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY, "AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY") : null;
-  const aiSocialSubjectHashKey = env.AI_SOCIAL_SUBJECT_HASH_KEY
+  const aiSocialSubjectHashKey = socialReleaseEnabled && env.AI_SOCIAL_SUBJECT_HASH_KEY
     ? parse32ByteSecret(env.AI_SOCIAL_SUBJECT_HASH_KEY, "AI_SOCIAL_SUBJECT_HASH_KEY") : null;
-  const flowSocialCredentialKey = env.FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY
+  const flowSocialCredentialKey = socialReleaseEnabled && env.FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY
     ? parse32ByteSecret(env.FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY, "FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY") : null;
-  const flowSocialSubjectHashKey = env.FLOWBOT_SOCIAL_SUBJECT_HASH_KEY
+  const flowSocialSubjectHashKey = socialReleaseEnabled && env.FLOWBOT_SOCIAL_SUBJECT_HASH_KEY
     ? parse32ByteSecret(env.FLOWBOT_SOCIAL_SUBJECT_HASH_KEY, "FLOWBOT_SOCIAL_SUBJECT_HASH_KEY") : null;
   const aiGateway = env.AI_TEXT_GATEWAY_ENDPOINT && env.AI_TEXT_GATEWAY_SERVICE_TOKEN
     ? createHttpTextProviderGateway({
@@ -229,6 +234,8 @@ async function buildServices() {
     voiceDeployments: new VoiceDeploymentStore(tenantClient),
     tenantVoiceTelephony: new TenantVoiceTelephonyStore(tenantClient),
     tenantSharedOperations: new TenantSharedSaasOperationsStore(tenantClient),
+    tenantSupportTickets: new TenantSupportTicketStore(tenantClient),
+    tenantBotRegression: new TenantBotRegressionStore(tenantClient),
     voiceTelephonyEnvelopeKey: env.VOICE_TELEPHONY_ENVELOPE_KEY
       ? parse32ByteSecret(env.VOICE_TELEPHONY_ENVELOPE_KEY, "VOICE_TELEPHONY_ENVELOPE_KEY") : null,
     aiTextGateway: aiGateway,
@@ -242,6 +249,7 @@ async function buildServices() {
     platformRecovery: new PlatformRecoveryStore(platformClient),
     platformVoiceOperations: new PlatformVoiceOperationsStore(platformClient),
     platformSupport: new PlatformSupportStore(platformClient),
+    platformSupportTickets: new PlatformSupportTicketStore(platformClient),
     platformFlowbotIntegrations: new PlatformFlowbotIntegrationStore(platformClient),
     platformSharedOperations: new PlatformSharedSaasOperationsStore(platformClient),
     flowbotIntegrationEnvelopeKey: env.FLOWBOT_INTEGRATION_ENVELOPE_KEY

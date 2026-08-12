@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { countFlowTopics, flowbotDowngradeBlockers, flowCtaNodeTypes, flowGraphAdvisories, flowNodeEdges, flowNodeSchema, flowNodeTypes, isWithinFlowBusinessSchedule, validateFlowForPublish, type FlowEntitlements, type FlowNode, type FlowNodeType, type FlowSnapshot } from "./index";
+import { countFlowTopics, flowbotDowngradeBlockers, flowCtaNodeTypes, flowGraphAdvisories, flowNodeEdges, flowNodeSchema, flowNodeTypes, flowSnapshotSchema, isWithinFlowBusinessSchedule, validateFlowForPublish, type FlowEntitlements, type FlowNode, type FlowNodeType, type FlowSnapshot } from "./index";
 
 const root = randomUUID();
 const premium = randomUUID();
@@ -12,6 +12,12 @@ const basic: FlowEntitlements = { planKey: "flowbot_basic", accessMode: "active"
 const premiumAuthority: FlowEntitlements = { planKey: "flowbot_premium", accessMode: "active", entitlements: { "ai.enabled": false, "flow.nodes.advanced": true, "flow.delays": true, "flow.webhook": "approved", "flow.team_routing": true, "branding.remove": true }, limits: { active_bots: 5, flow_nodes_per_bot: 500 } };
 
 describe("FlowBot plan validation", () => {
+  it("accepts bounded editor positions without changing the runtime graph", () => {
+    const positioned = { ...snapshot, editor: { positions: { [root]: { x: 120, y: -40 } } } };
+    expect(flowSnapshotSchema.safeParse(positioned).success).toBe(true);
+    expect(flowNodeEdges(positioned.nodes[root]!)).toEqual([{ targetNodeId: premium, kind: "next" }]);
+    expect(flowSnapshotSchema.safeParse({ ...positioned, editor: { positions: { [root]: { x: Number.POSITIVE_INFINITY, y: 0 } } } }).success).toBe(false);
+  });
   it("rejects Premium nodes for Basic and accepts them for Premium", () => {
     expect(validateFlowForPublish(snapshot, basic)).toContainEqual({ code: "premium_node_not_entitled", nodeId: premium, detail: "delay" });
     expect(validateFlowForPublish(snapshot, premiumAuthority)).toEqual([]);

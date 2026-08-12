@@ -23,6 +23,11 @@ type Conversation = {
   callbackStatus: string | null; callbackDueAt: string | null;
 };
 type Message = { id: string; sequence: number; actorType: string; direction: string; text: string; createdAt: string };
+const quickReplies = [
+  "Thanks for contacting us. I’m checking this for you now.",
+  "Could you share a little more detail so I can help you correctly?",
+  "Thank you. We have received your request and will follow up shortly.",
+] as const;
 
 export default function InboxPage() {
   const session = useWorkspaceSession();
@@ -36,6 +41,8 @@ export default function InboxPage() {
   const [messageLoadError, setMessageLoadError] = useState(false);
   const [searchDraft, setSearchDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [draft, setDraft] = useState("");
+  const [composeMode, setComposeMode] = useState<"reply" | "note">("reply");
   const selected = conversations.find((conversation) => conversation.id === selectedId) || null;
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canReply = session.allows("conversations.reply");
@@ -50,7 +57,9 @@ export default function InboxPage() {
       const result = await response.json();
       const next = result.conversations || [];
       setConversations(next);
-      setSelectedId((current) => current && next.some((item: Conversation) => item.id === current) ? current : next[0]?.id || null);
+      const requestedConversation = typeof window === "undefined" ? null : new URL(window.location.href).searchParams.get("conversation");
+      setSelectedId((current) => requestedConversation && next.some((item: Conversation) => item.id === requestedConversation)
+        ? requestedConversation : current && next.some((item: Conversation) => item.id === current) ? current : next[0]?.id || null);
       setLoadError(false);
     } catch { setLoadError(true); }
   }
@@ -65,7 +74,7 @@ export default function InboxPage() {
   }
 
   useEffect(() => { if (session.selectedTenantId) void loadInbox(); }, [session.selectedTenantId, searchQuery]);
-  useEffect(() => { setNotice(""); if (selectedId) void loadMessages(selectedId); else setMessages([]); }, [selectedId]);
+  useEffect(() => { setNotice(""); setDraft(""); setComposeMode("reply"); if (selectedId) void loadMessages(selectedId); else setMessages([]); }, [selectedId]);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -92,19 +101,20 @@ export default function InboxPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         actorType: "human",
-        direction: "outbound",
+        direction: composeMode === "note" ? "internal" : "outbound",
         text: normalizeConversationMessageText(data.get("text")),
       }),
     });
     setWorking(false);
     if (!response.ok) {
       setNoticeTone("error");
-      setNotice(response.status === 409 ? "Take over this conversation before replying." : "Reply could not be sent. Your text is still available to retry.");
+      setNotice(response.status === 409 ? "Take over this conversation before replying." : `${composeMode === "note" ? "Private note" : "Reply"} could not be saved. Your text is still available to retry.`);
       return;
     }
     form.reset();
+    setDraft("");
     setNoticeTone("success");
-    setNotice("Reply sent.");
+    setNotice(composeMode === "note" ? "Private note saved. Customers cannot see it." : "Reply sent.");
     await Promise.all([loadMessages(selectedId), loadInbox()]);
   }
 
@@ -125,12 +135,12 @@ export default function InboxPage() {
   }
 
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
-  if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">Loading inbox...</main>;
+  if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">กำลังโหลดกล่องข้อความ...</main>;
   if (loadError) {
     return (
       <WorkspacePageLoadError
         active="inbox"
-        title="Inbox"
+        title="กล่องข้อความ"
         resource="conversations"
         workspaces={session.workspaces}
         selectedTenantId={session.selectedTenantId}
@@ -153,24 +163,24 @@ export default function InboxPage() {
       <section id="workspace-main" className="workspace-main inbox-page" tabIndex={-1}>
         <WorkspaceSupportBanner tenantId={session.selectedTenantId} />
         <header className="workspace-header">
-          <div><p>Conversations</p><h1>Inbox</h1></div>
+          <div><p>การสนทนา</p><h1>กล่องข้อความ</h1></div>
           <span data-no-localize className="role-label">{workspace?.businessName}</span>
         </header>
         {!canReply && !canAssign ? (
-          <WorkspaceViewOnly>You can review conversations and outcomes. An operator or administrator can take over and reply.</WorkspaceViewOnly>
+          <WorkspaceViewOnly>คุณดูการสนทนาและผลลัพธ์ได้ ผู้ปฏิบัติงานหรือผู้ดูแลเป็นผู้รับช่วงและตอบกลับ</WorkspaceViewOnly>
         ) : null}
         <form className="inbox-search" onSubmit={submitSearch} role="search">
           <label>
-            <span className="visually-hidden">Search contacts</span>
+            <span className="visually-hidden">ค้นหาข้อมูลติดต่อ</span>
             <input
               value={searchDraft}
               onChange={(event) => setSearchDraft(event.target.value)}
-              placeholder="Search name, phone, or email"
+              placeholder="ค้นหาชื่อ โทรศัพท์ หรืออีเมล"
               maxLength={120}
               autoComplete="off"
             />
           </label>
-          <button type="submit">Search</button>
+          <button type="submit">ค้นหา</button>
           {searchQuery ? (
             <button type="button" className="secondary-command" onClick={() => { setSearchDraft(""); setSearchQuery(""); }}>
               Clear
@@ -178,7 +188,7 @@ export default function InboxPage() {
           ) : null}
         </form>
         <div className="inbox-layout">
-          <div className="conversation-list" aria-label="Conversations">
+          <div className="conversation-list" aria-label="การสนทนา">
             {conversations.map((conversation) => (
               <button
                 className={conversation.id === selectedId ? "selected" : ""}
@@ -200,7 +210,7 @@ export default function InboxPage() {
               </div>
             ) : null}
           </div>
-          <section className="conversation-panel" aria-label="Selected conversation">
+          <section className="conversation-panel" aria-label="การสนทนาที่เลือก">
             {selected ? (
               <>
                 <header>
@@ -211,15 +221,15 @@ export default function InboxPage() {
                   <div>
                     {canAssign && selected.status === "open"
                       ? selected.automationMode === "human"
-                        ? <button type="button" className="secondary-command" disabled={working} onClick={() => void transition("release")}>Release automation</button>
-                        : <button type="button" className="secondary-command" disabled={working} onClick={() => void transition("takeover")}>Take over</button>
+                        ? <button type="button" className="secondary-command" disabled={working} onClick={() => void transition("release")}>ระบบเผยแพร่อัตโนมัติ</button>
+                        : <button type="button" className="secondary-command" disabled={working} onClick={() => void transition("takeover")}>รับช่วงการสนทนา</button>
                       : null}
                   </div>
                 </header>
                 {selected.productKey === "voice" ? (
-                  <section className="voice-call-summary" aria-label="Voice call outcome">
+                  <section className="voice-call-summary" aria-label="ผลลัพธ์ของสาย">
                     <div>
-                      <span>Outcome</span>
+                      <span>ผลลัพธ์</span>
                       <strong>
                         {selected.voiceOutcome
                           ? humanizeToken(selected.voiceOutcome)
@@ -229,14 +239,14 @@ export default function InboxPage() {
                       </strong>
                     </div>
                     <div>
-                      <span>Call usage</span>
+                      <span>การใช้งานสาย</span>
                       <strong>
                         {selected.voiceMinutes ?? 0} min
                         {selected.voiceDurationSeconds !== null ? ` / ${selected.voiceDurationSeconds}s` : ""}
                       </strong>
                     </div>
                     <div>
-                      <span>Callback</span>
+                      <span>ติดต่อกลับ</span>
                       <strong>
                         {selected.callbackStatus
                           ? `${humanizeToken(selected.callbackStatus)}${selected.callbackDueAt ? ` · ${new Date(selected.callbackDueAt).toLocaleString(currentIntlLocale())}` : ""}`
@@ -249,7 +259,7 @@ export default function InboxPage() {
                 <div className="message-stream">
                   {messages.map((message) => (
                     <div className={`message-bubble ${message.direction}`} key={message.id}>
-                      <span>{humanizeToken(message.actorType)}</span>
+                      <span>{message.direction === "internal" ? "Private team note" : humanizeToken(message.actorType)}</span>
                       <p data-no-localize>{message.text}</p>
                       <time>{new Date(message.createdAt).toLocaleString(currentIntlLocale())}</time>
                     </div>
@@ -257,24 +267,30 @@ export default function InboxPage() {
                 </div>
                 {messageLoadError ? (
                   <div className="inline-message inline-retry" role="alert">
-                    <span>Messages could not be loaded.</span>
-                    <button className="secondary-command" type="button" onClick={() => void loadMessages(selected.id)}>Retry messages</button>
+                    <span>โหลดข้อความไม่สำเร็จ</span>
+                    <button className="secondary-command" type="button" onClick={() => void loadMessages(selected.id)}>ลองส่งข้อความใหม่</button>
                   </div>
                 ) : null}
                 {selected.status === "closed" ? (
-                  <div className="closed-line">This conversation is closed.</div>
-                ) : selected.automationMode !== "human" ? (
-                  <div className="closed-line">{canAssign ? "Take over before replying." : "This conversation is currently automated."}</div>
+                  <div className="closed-line">การสนทนานี้ปิดแล้ว</div>
                 ) : canReply ? (
                   <form className="reply-form" onSubmit={reply} noValidate>
+                    <div className="composer-tabs" role="group" aria-label="Message type">
+                      <button type="button" className={composeMode === "reply" ? "active" : ""} onClick={() => setComposeMode("reply")} disabled={selected.automationMode !== "human"}>Reply to customer</button>
+                      <button type="button" className={composeMode === "note" ? "active" : ""} onClick={() => setComposeMode("note")}>Private note</button>
+                    </div>
+                    {selected.automationMode !== "human" ? <div className="closed-line">Automation is active. Add a private note, or {canAssign ? "take over to reply." : "ask a manager to take over before replying."}</div> : null}
+                    {composeMode === "reply" && selected.automationMode === "human" ? <div className="quick-replies" aria-label="Quick replies">{quickReplies.map((text) => <button type="button" className="secondary-command" key={text} onClick={() => setDraft(text)}>{text.split(".")[0]}</button>)}</div> : null}
                     <label>
-                      <span className="visually-hidden">Reply</span>
+                      <span className="visually-hidden">{composeMode === "note" ? "Private note" : "Reply"}</span>
                       <textarea
                         name="text"
                         rows={3}
                         {...conversationMessageFieldConstraints}
-                        placeholder="Write a reply"
+                        placeholder={composeMode === "note" ? "Write a private note for your team" : "Write a reply to the customer"}
                         required
+                        value={draft}
+                        onChange={(event) => setDraft(event.target.value)}
                         aria-describedby="inbox-reply-guidance"
                         onInput={(event) => {
                           event.currentTarget.setCustomValidity("");
@@ -285,17 +301,17 @@ export default function InboxPage() {
                     <span className="visually-hidden" id="inbox-reply-guidance">
                       Replies cannot be blank and may contain up to 20,000 characters.
                     </span>
-                    <button type="submit" disabled={working}>{working ? "Sending..." : "Send reply"}</button>
+                    <button type="submit" disabled={working || (composeMode === "reply" && selected.automationMode !== "human")}>{working ? "Saving..." : composeMode === "note" ? "Save private note" : "Send reply"}</button>
                   </form>
                 ) : (
-                  <div className="closed-line">View-only access does not include sending replies.</div>
+                  <div className="closed-line">สิทธิ์ดูอย่างเดียวไม่สามารถส่งข้อความตอบกลับ</div>
                 )}
                 {notice ? <p className={`inline-message ${noticeTone}`} role={noticeTone === "error" ? "alert" : "status"}>{notice}</p> : null}
               </>
             ) : (
               <div className="inbox-empty">
-                <strong>Select a conversation</strong>
-                <span>Messages are ordered and tenant scoped.</span>
+                <strong>เลือกการสนทนา</strong>
+                <span>ข้อความเรียงตามลำดับและแยกตามเวิร์กสเปซ</span>
               </div>
             )}
           </section>

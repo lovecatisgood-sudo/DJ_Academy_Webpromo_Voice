@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { ZodError } from "zod";
 import { hasTrustedOrigin, readJson, safeJson } from "../../../lib/http";
 import { resolveTenantRequest } from "../../../lib/tenant-context";
+import { csvResponse } from "../../../lib/csv";
 
 export async function GET(request: NextRequest) {
   const resolved = await resolveTenantRequest(request);
@@ -12,6 +13,17 @@ export async function GET(request: NextRequest) {
     resolved.services.sharedDomain.listContacts(resolved.context),
     resolved.services.sharedDomain.listIdentityReviewCandidates(resolved.context),
   ]);
+  if (request.nextUrl.searchParams.get("format") === "csv") {
+    return csvResponse("djay-customers.csv", [
+      ["contact_id", "name", "locale", "consent_status", "email", "phone", "tags", "lead_count", "updated_at"],
+      ...contacts.map((contact) => [
+        contact.id, contact.displayName, contact.locale, contact.consentStatus,
+        contact.identities.filter((identity) => identity.kind === "email").map((identity) => identity.value).join("; "),
+        contact.identities.filter((identity) => identity.kind === "phone").map((identity) => identity.value).join("; "),
+        contact.tags.map((tag) => tag.label).join("; "), contact.leadCount, contact.updatedAt.toISOString(),
+      ]),
+    ]);
+  }
   return safeJson({ contacts, identityReviewCandidates });
 }
 
