@@ -4,9 +4,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONTAINER="djay-saas-pg-test-$$"
 TEST_DB_PORT="${TEST_DB_PORT:-55432}"
+E2E_WORKSPACE=""
 
 cleanup() {
   docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+  if [[ -n "$E2E_WORKSPACE" && "$E2E_WORKSPACE" == /tmp/djay-signup-e2e.* ]]; then
+    rm -rf "$E2E_WORKSPACE"
+  fi
 }
 trap cleanup EXIT
 
@@ -123,6 +127,35 @@ docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -c "ALTER ROLE djay_voice_runtime LOGIN PASSWORD 'djay_voice_test'" >/dev/null
 docker exec "$CONTAINER" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
   -c "ALTER ROLE djay_migrator LOGIN PASSWORD 'djay_migrator_test'" >/dev/null
+
+if [[ "${SIGNUP_ONBOARDING_E2E_ONLY:-false}" == "true" ]]; then
+  echo "Running isolated signup and one-time onboarding browser journey."
+  E2E_WORKSPACE="$(mktemp -d /tmp/djay-signup-e2e.XXXXXX)"
+  mkdir -p "$E2E_WORKSPACE/apps"
+  cp "$ROOT_DIR/package.json" "$ROOT_DIR/pnpm-lock.yaml" "$ROOT_DIR/pnpm-workspace.yaml" "$ROOT_DIR/turbo.json" "$ROOT_DIR/tsconfig.base.json" "$E2E_WORKSPACE/"
+  cp -a "$ROOT_DIR/config" "$ROOT_DIR/packages" "$ROOT_DIR/scripts" "$E2E_WORKSPACE/"
+  rsync -a --exclude=.next "$ROOT_DIR/apps/public-site/" "$E2E_WORKSPACE/apps/public-site/"
+  rsync -a --exclude=.next "$ROOT_DIR/apps/tenant-web/" "$E2E_WORKSPACE/apps/tenant-web/"
+  rsync -a --exclude=.next "$ROOT_DIR/apps/api/" "$E2E_WORKSPACE/apps/api/"
+  ln -s "$ROOT_DIR/node_modules" "$E2E_WORKSPACE/node_modules"
+  E2E_SECRET="MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+  AUTH_DATABASE_URL="postgresql://djay_auth_runtime:djay_auth_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  PLATFORM_DATABASE_URL="postgresql://djay_platform:djay_platform_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  PUBLIC_APP_URL="http://localhost:3110" TENANT_APP_URL="http://localhost:3111" \
+  PLATFORM_APP_URL="http://localhost:3112" API_APP_URL="http://localhost:3113" \
+  NEXT_PUBLIC_PUBLIC_APP_URL="http://localhost:3110" NEXT_PUBLIC_API_APP_URL="http://localhost:3113" \
+  AUTH_REQUEST_HASH_KEY="$E2E_SECRET" AUTH_EMAIL_ENVELOPE_KEY="$E2E_SECRET" \
+  AUTH_RATE_LIMIT_KEY="$E2E_SECRET" AUTH_MFA_ENCRYPTION_KEY="$E2E_SECRET" \
+  AUTH_MFA_RECOVERY_HASH_KEY="$E2E_SECRET" PLATFORM_MFA_ENCRYPTION_KEY="$E2E_SECRET" \
+  PLATFORM_RECOVERY_HASH_KEY="$E2E_SECRET" SOCIAL_CHANNELS_RELEASE_ENABLED=false \
+  E2E_APP_WORKSPACE="$E2E_WORKSPACE" \
+  LEGAL_DOCUMENTS_FILE="$ROOT_DIR/docs/compliance/djay-legal-documents.user-approved.th.json" \
+    "$ROOT_DIR/scripts/use-node24.sh" node "$ROOT_DIR/scripts/qa-signup-onboarding-e2e.mjs"
+  echo "Isolated signup and one-time onboarding browser journey passed."
+  exit 0
+fi
 
 if [[ "${BILLING_ONLY:-false}" == "true" ]]; then
   echo "Running focused Stripe billing lifecycle integration test."

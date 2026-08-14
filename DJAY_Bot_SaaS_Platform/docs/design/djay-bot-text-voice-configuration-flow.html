@@ -764,6 +764,7 @@
     .flow-canvas-wires { position: absolute; z-index: 0; inset: 0; width: 1080px; height: 650px; pointer-events: none; }
     .flow-canvas-wires path { fill: none; stroke: #8ba89d; stroke-width: 2; }
     .flow-canvas-wires path.option { stroke: #537f70; }
+    .flow-canvas-wires path.connecting { stroke: var(--yellow); stroke-width: 3; stroke-dasharray: 7 5; }
     .flow-node-demo { position: absolute; z-index: 1; width: 190px; min-height: 96px; padding: 12px; cursor: grab; user-select: none; text-align: left; border: 1px solid #a9bdb5; border-radius: 11px; background: #fff; box-shadow: 0 8px 20px rgba(15,57,44,.08); }
     .flow-node-demo:active { cursor: grabbing; }
     .flow-node-demo.selected { border: 2px solid var(--primary); box-shadow: 0 0 0 4px rgba(18,97,73,.1); }
@@ -773,6 +774,17 @@
     .flow-node-demo header b { display: grid; width: 20px; height: 20px; place-items: center; color: var(--forest); border-radius: 6px; background: var(--yellow); font-size: 10px; }
     .flow-node-demo strong { display: block; margin: 11px 0 5px; color: var(--forest); font-size: 14px; }
     .flow-node-demo small { display: block; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .flow-input-port, .flow-output-port { position: absolute; z-index: 3; display: grid; width: 18px; height: 18px; place-items: center; padding: 0; border: 2px solid #fff; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 1px #71998a, 0 3px 8px rgba(15,57,44,.2); }
+    .flow-input-port { left: -10px; top: 39px; }
+    .flow-output-ports { position: absolute; z-index: 3; top: 37px; right: -10px; display: grid; gap: 5px; }
+    .flow-output-port { position: relative; inset: auto; cursor: crosshair; }
+    .flow-output-port::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+    .flow-output-port.unconnected { background: #fff; box-shadow: 0 0 0 2px var(--danger), 0 3px 8px rgba(15,57,44,.16); }
+    .flow-output-port.unconnected::after { background: var(--danger); }
+    .flow-output-port.connecting { background: var(--yellow); box-shadow: 0 0 0 3px rgba(242,193,78,.35); }
+    .flow-input-port.connection-target { transform: scale(1.25); background: var(--yellow); box-shadow: 0 0 0 4px rgba(242,193,78,.28); }
+    .flow-connection-help { margin: 0 0 10px; padding: 10px 12px; color: #3f554d; border: 1px solid #bed3ca; border-radius: 9px; background: #f0f7f4; font-size: 11px; }
+    .flow-connection-help strong { color: var(--forest); }
     .flow-right-panel { display: grid; grid-template-rows: auto 1fr; min-width: 0; border-left: 1px solid var(--line); background: #fff; }
     .flow-right-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 10px; border-bottom: 1px solid var(--line); background: #f7f9f8; }
     .flow-right-tabs button { min-height: 38px; border-radius: 8px; font-weight: 800; }
@@ -1593,6 +1605,7 @@
     let flowPublishedDraft = JSON.parse(JSON.stringify(flowDraft));
     let flowUndoStack = [];
     let flowRedoStack = [];
+    let flowConnection = null;
     try {
       const savedFlow = JSON.parse(localStorage.getItem(flowStorageKey) || 'null');
       if (savedFlow?.draft) {
@@ -1991,7 +2004,11 @@
       if (new Set(ids).size !== ids.length) errors.push('Every step must have a unique ID.');
       flowDraft.nodes.forEach(node => {
         if (!String(node.title || '').trim()) errors.push('Every step needs a title.');
-        const targets = [...(node.next ? [node.next] : []),...(node.options || []).map(option => option.target)];
+        if (node.needsConnection && !node.next) errors.push(`${node.title || node.id} needs a destination or an explicit End path.`);
+        (node.options || []).forEach(option => {
+          if (!option.target) errors.push(`${node.title || node.id}: “${option.label || 'Option'}” needs a destination.`);
+        });
+        const targets = [...(node.next ? [node.next] : []),...(node.options || []).map(option => option.target).filter(Boolean)];
         targets.forEach(target => { if (!ids.includes(target)) errors.push(`${node.title || node.id} points to a missing step.`); });
         if (node.type === 'options' && !(node.options || []).length) errors.push(`${node.title || node.id} needs at least one option.`);
         if (node.type === 'form' && !(node.fields || []).length) errors.push(`${node.title || node.id} needs at least one form field.`);
@@ -2045,7 +2062,7 @@
 
     function flowMapSection() {
       return flowPageHead('Build the customer journey','Select, drag, connect through the step editor, and test the real draft. Warnings are advisory; broken references are not publishable.',`${flowDraft.nodes.length} steps`) +
-        `<section class="flow-studio-panel"><div class="flow-map-toolbar"><button class="btn btn-green" id="flowAddNode">Add message</button><button class="btn" id="flowDuplicateNode">Duplicate selected</button><button class="btn" id="flowDeleteNode">Remove selected</button><div class="spacer"></div><button class="btn" id="flowFitMap">Fit map</button><button class="btn" id="flowOpenTest">Test selected path</button></div><div class="flow-canvas-shell-demo" id="flowCanvasShell"><div class="flow-canvas-stage-demo" id="flowCanvasStage"></div></div></section>` +
+        `<section class="flow-studio-panel"><div class="flow-map-toolbar"><button class="btn btn-green" id="flowAddNode">Add message</button><button class="btn" id="flowDuplicateNode">Duplicate selected</button><button class="btn" id="flowDeleteNode">Remove selected</button><div class="spacer"></div><button class="btn" id="flowFitMap">Fit map</button><button class="btn" id="flowOpenTest">Test selected path</button></div><p class="flow-connection-help"><strong>Connect steps:</strong> drag a dot on the right side of a step to the dot on the left of another step. Drag an existing output again to reconnect it. You can also click an output, then click a destination input.</p><div class="flow-canvas-shell-demo" id="flowCanvasShell"><div class="flow-canvas-stage-demo" id="flowCanvasStage"></div></div></section>` +
         `<section class="flow-studio-panel"><div class="row between"><div><h2>Draft checks</h2><p>Technical errors must be repaired. Suggestions never force you to review or test.</p></div><span class="badge">${flowStructuralErrors().length} errors · ${flowWarnings().length} suggestions</span></div><ul class="flow-check-list">${flowStructuralErrors().map(item => `<li><b class="warn">!</b><span>${escapeHtml(item)}</span></li>`).join('') || '<li><b>✓</b><span>All step references are structurally valid.</span></li>'}${flowWarnings().map(item => `<li><b class="warn">!</b><span>${escapeHtml(item)}</span></li>`).join('')}</ul></section>`;
     }
 
@@ -2083,24 +2100,74 @@
       const lines = [];
       const byId = Object.fromEntries(flowDraft.nodes.map(node => [node.id,node]));
       flowDraft.nodes.forEach(node => {
-        const targets = [...(node.next ? [{target:node.next,kind:'next'}] : []),...(node.options || []).map(option => ({target:option.target,kind:'option'}))];
+        const targets = [...(node.next ? [{target:node.next,kind:'next',index:0}] : []),...(node.options || []).map((option,index) => ({target:option.target,kind:'option',index}))];
         targets.forEach(edge => {
           const target = byId[edge.target];
           if (!target) return;
-          const x1 = node.x + 190, y1 = node.y + 48, x2 = target.x, y2 = target.y + 48;
+          const x1 = node.x + 190, y1 = node.y + (edge.kind === 'option' ? 46 + edge.index * 23 : 48), x2 = target.x, y2 = target.y + 48;
           const control = Math.max(40,Math.abs(x2 - x1) * .42);
           lines.push(`<path class="${edge.kind}" d="M${x1} ${y1} C ${x1 + control} ${y1}, ${x2 - control} ${y2}, ${x2} ${y2}"/>`);
         });
       });
-      stage.innerHTML = `<svg class="flow-canvas-wires" aria-hidden="true">${lines.join('')}</svg>` + flowDraft.nodes.map(node => `<button class="flow-node-demo ${flowState.selectedNodeId === node.id ? 'selected' : ''} ${flowState.testNodeId === node.id ? 'test-active' : ''}" data-flow-node="${escapeHtml(node.id)}" style="left:${Number(node.x)}px;top:${Number(node.y)}px"><header><span>${escapeHtml(node.type.replaceAll('_',' '))}${node.id === flowDraft.entryId ? ' · entry' : ''}</span><b>${node.type === 'options' ? '▦' : node.type === 'form' ? '□' : node.type === 'handover' ? 'H' : node.type === 'end' ? '✓' : 'T'}</b></header><strong>${escapeHtml(node.title)}</strong><small>${escapeHtml((node.en || '').slice(0,70))}</small></button>`).join('');
+      const nodeHtml = flowDraft.nodes.map(node => {
+        const outputPorts = node.type === 'options'
+          ? (node.options || []).map((option,index) => `<button class="flow-output-port ${option.target ? '' : 'unconnected'} ${flowConnection?.sourceId === node.id && flowConnection?.kind === 'option' && flowConnection?.optionIndex === index ? 'connecting' : ''}" data-flow-output-port data-flow-output-kind="option" data-flow-output-index="${index}" title="${option.target ? 'Drag to reconnect' : 'Drag to connect'}: ${escapeHtml(option.label)}" aria-label="${option.target ? 'Reconnect' : 'Connect'} ${escapeHtml(option.label)}"></button>`).join('')
+          : ['end','handover'].includes(node.type) ? ''
+            : `<button class="flow-output-port ${node.next ? '' : 'unconnected'} ${flowConnection?.sourceId === node.id && flowConnection?.kind === 'next' ? 'connecting' : ''}" data-flow-output-port data-flow-output-kind="next" data-flow-output-index="0" title="${node.next ? 'Drag to reconnect next step' : 'Drag to connect next step'}" aria-label="${node.next ? 'Reconnect' : 'Connect'} next step"></button>`;
+        return `<article class="flow-node-demo ${flowState.selectedNodeId === node.id ? 'selected' : ''} ${flowState.testNodeId === node.id ? 'test-active' : ''}" data-flow-node="${escapeHtml(node.id)}" style="left:${Number(node.x)}px;top:${Number(node.y)}px" tabindex="0"><button class="flow-input-port ${flowConnection && flowConnection.sourceId !== node.id ? 'connection-target' : ''}" data-flow-input-port title="Connect into ${escapeHtml(node.title)}" aria-label="Connect into ${escapeHtml(node.title)}"></button><header><span>${escapeHtml(node.type.replaceAll('_',' '))}${node.id === flowDraft.entryId ? ' · entry' : ''}</span><b>${node.type === 'options' ? '▦' : node.type === 'form' ? '□' : node.type === 'handover' ? 'H' : node.type === 'end' ? '✓' : 'T'}</b></header><strong>${escapeHtml(node.title)}</strong><small>${escapeHtml((node.en || '').slice(0,70))}</small>${outputPorts ? `<span class="flow-output-ports">${outputPorts}</span>` : ''}</article>`;
+      }).join('');
+      stage.innerHTML = `<svg class="flow-canvas-wires" aria-hidden="true">${lines.join('')}<path id="flowConnectingWire" class="connecting" hidden></path></svg>${nodeHtml}`;
       bindFlowNodeDragging();
+    }
+
+    function completeFlowConnection(targetId) {
+      if (!flowConnection || targetId === flowConnection.sourceId) return;
+      const source = flowDraft.nodes.find(node => node.id === flowConnection.sourceId);
+      if (!source || !flowDraft.nodes.some(node => node.id === targetId)) return;
+      rememberFlowDraft();
+      if (flowConnection.kind === 'option' && source.options?.[flowConnection.optionIndex]) source.options[flowConnection.optionIndex].target = targetId;
+      else { source.next = targetId; source.needsConnection = false; }
+      flowConnection = null;
+      markFlowChanged();
+      renderFlowStudio();
+      showToast('Connection updated in the Flow draft.');
+    }
+
+    function startFlowConnection(button,event) {
+      const sourceNode = button.closest('[data-flow-node]');
+      if (!sourceNode) return;
+      event.preventDefault(); event.stopPropagation();
+      flowConnection = {sourceId:sourceNode.dataset.flowNode,kind:button.dataset.flowOutputKind,optionIndex:Number(button.dataset.flowOutputIndex),dragging:false};
+      button.classList.add('connecting');
+      const move = moveEvent => {
+        flowConnection.dragging = true;
+        const source = flowDraft.nodes.find(node => node.id === flowConnection.sourceId);
+        const stage = $('#flowCanvasStage'); const wire = $('#flowConnectingWire');
+        if (!source || !stage || !wire) return;
+        const rect = stage.getBoundingClientRect();
+        const x1 = source.x + 190;
+        const y1 = source.y + (flowConnection.kind === 'option' ? 46 + flowConnection.optionIndex * 23 : 48);
+        const x2 = moveEvent.clientX - rect.left, y2 = moveEvent.clientY - rect.top;
+        const control = Math.max(40,Math.abs(x2 - x1) * .42);
+        wire.hidden = false;
+        wire.setAttribute('d',`M${x1} ${y1} C ${x1 + control} ${y1}, ${x2 - control} ${y2}, ${x2} ${y2}`);
+      };
+      const up = upEvent => {
+        window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up);
+        const target = document.elementFromPoint(upEvent.clientX,upEvent.clientY)?.closest('[data-flow-input-port],[data-flow-node]');
+        const targetNode = target?.closest('[data-flow-node]');
+        if (targetNode && targetNode.dataset.flowNode !== flowConnection?.sourceId) completeFlowConnection(targetNode.dataset.flowNode);
+        else { renderFlowMap(); showToast('Choose a destination port to finish the connection.'); }
+      };
+      window.addEventListener('pointermove',move); window.addEventListener('pointerup',up,{once:true});
     }
 
     function bindFlowNodeDragging() {
       $$('[data-flow-node]').forEach(button => {
-        button.addEventListener('click',() => { flowState.selectedNodeId = button.dataset.flowNode; flowState.panel = 'edit'; renderFlowStudio(); });
+        button.addEventListener('click',event => { if (event.target.closest('[data-flow-input-port],[data-flow-output-port]')) return; flowState.selectedNodeId = button.dataset.flowNode; flowState.panel = 'edit'; $('#flowStudioDemo').classList.add('flow-panel-open'); renderFlowStudio(); });
+        button.addEventListener('keydown',event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); flowState.selectedNodeId = button.dataset.flowNode; flowState.panel = 'edit'; $('#flowStudioDemo').classList.add('flow-panel-open'); renderFlowStudio(); } });
         button.addEventListener('pointerdown',event => {
-          if (event.button !== 0) return;
+          if (event.button !== 0 || event.target.closest('[data-flow-input-port],[data-flow-output-port]')) return;
           const node = flowDraft.nodes.find(item => item.id === button.dataset.flowNode);
           if (!node) return;
           flowState.selectedNodeId = node.id;
@@ -2119,6 +2186,15 @@
           button.addEventListener('pointermove',move); button.addEventListener('pointerup',up);
         });
       });
+      $$('[data-flow-output-port]').forEach(port => {
+        port.addEventListener('pointerdown',event => startFlowConnection(port,event));
+        port.addEventListener('click',event => { event.preventDefault(); event.stopPropagation(); });
+      });
+      $$('[data-flow-input-port]').forEach(port => port.addEventListener('click',event => {
+        event.preventDefault(); event.stopPropagation();
+        const targetNode = port.closest('[data-flow-node]');
+        if (flowConnection && targetNode) completeFlowConnection(targetNode.dataset.flowNode);
+      }));
     }
 
     function selectedFlowNode() { return flowDraft.nodes.find(node => node.id === flowState.selectedNodeId) || null; }
@@ -2127,7 +2203,7 @@
       const node = selectedFlowNode();
       if (!node) return '<div class="flow-inspector-empty"><strong>Select a step on the map</strong><p>Edit its message, buttons, destinations, keywords, or form fields here.</p></div>';
       const destinationOptions = flowDraft.nodes.filter(item => item.id !== node.id).map(item => `<option value="${escapeHtml(item.id)}" ${node.next === item.id ? 'selected' : ''}>${escapeHtml(item.title)}</option>`).join('');
-      const options = (node.options || []).map((option,index) => `<div><input data-flow-option-label="${index}" value="${escapeHtml(option.label)}" aria-label="Option label"><select data-flow-option-target="${index}" aria-label="Option destination">${flowDraft.nodes.filter(item => item.id !== node.id).map(item => `<option value="${escapeHtml(item.id)}" ${option.target === item.id ? 'selected' : ''}>${escapeHtml(item.title)}</option>`).join('')}</select><button class="btn" data-flow-remove-option="${index}">×</button></div>`).join('');
+      const options = (node.options || []).map((option,index) => `<div><input data-flow-option-label="${index}" value="${escapeHtml(option.label)}" aria-label="Option label"><select data-flow-option-target="${index}" aria-label="Option destination"><option value="" ${!option.target ? 'selected' : ''}>Not connected</option>${flowDraft.nodes.filter(item => item.id !== node.id).map(item => `<option value="${escapeHtml(item.id)}" ${option.target === item.id ? 'selected' : ''}>${escapeHtml(item.title)}</option>`).join('')}</select><button class="btn" data-flow-remove-option="${index}">×</button></div>`).join('');
       const formFields = (node.fields || []).map((field,index) => `<div class="flow-settings-row"><label>Label<input data-flow-node-field-label="${index}" value="${escapeHtml(field.label)}"></label><label>Type<select data-flow-node-field-type="${index}">${optionList(['text','email','tel','textarea'],field.type)}</select></label><button class="btn" data-flow-node-remove-field="${index}">Remove</button></div>`).join('');
       return `<div class="flow-inspector-head"><span class="eyebrow">Selected ${escapeHtml(node.type)} step</span><h2>${escapeHtml(node.title)}</h2><p class="help">Changes save to the draft only.</p></div><div class="flow-inspector-fields"><label>Step type<select data-flow-node-type>${optionList(['message','options','input','form','card','handover','end'],node.type)}</select></label><label>Step title<input data-flow-node-title value="${escapeHtml(node.title)}"></label><label>English customer message<textarea data-flow-node-en>${escapeHtml(node.en || '')}</textarea></label><label>ข้อความภาษาไทย<textarea data-flow-node-th>${escapeHtml(node.th || '')}</textarea></label>${node.type === 'options' ? `<label>Buttons and destinations</label><div class="flow-option-editor">${options || '<span class="help">No buttons yet.</span>'}<button class="btn" id="flowNodeAddOption">Add button</button></div>` : ''}${node.type === 'form' ? `<label>Form fields</label><div class="flow-settings-list">${formFields}<button class="btn" id="flowNodeAddField">Add form field</button></div>` : ''}${!['options','end','handover'].includes(node.type) ? `<label>Next step<select data-flow-node-next><option value="">End path here</option>${destinationOptions}</select></label>` : ''}<label>Typed-message keywords<input data-flow-node-keywords value="${escapeHtml((node.keywords || []).join(', '))}" placeholder="price, pricing, ราคา"></label><label class="consent-row"><input type="checkbox" data-flow-entry ${flowDraft.entryId === node.id ? 'checked' : ''}><span>Use as starting step</span></label><button class="btn btn-green" id="flowTestFromNode">Test from this step</button></div>`;
     }
@@ -2182,7 +2258,7 @@
         if ($('[data-flow-node-title]')) $('[data-flow-node-title]').addEventListener('change',event => updateNode(() => node.title = event.target.value.trim() || 'Untitled step'));
         if ($('[data-flow-node-en]')) $('[data-flow-node-en]').addEventListener('change',event => updateNode(() => node.en = event.target.value));
         if ($('[data-flow-node-th]')) $('[data-flow-node-th]').addEventListener('change',event => updateNode(() => node.th = event.target.value));
-        if ($('[data-flow-node-next]')) $('[data-flow-node-next]').addEventListener('change',event => updateNode(() => node.next = event.target.value || null));
+        if ($('[data-flow-node-next]')) $('[data-flow-node-next]').addEventListener('change',event => updateNode(() => { node.next = event.target.value || null; node.needsConnection = false; }));
         if ($('[data-flow-node-keywords]')) $('[data-flow-node-keywords]').addEventListener('change',event => updateNode(() => node.keywords = event.target.value.split(',').map(item => item.trim()).filter(Boolean)));
         if ($('[data-flow-entry]')) $('[data-flow-entry]').addEventListener('change',event => updateNode(() => { if (event.target.checked) flowDraft.entryId = node.id; }));
         $$('[data-flow-option-label]').forEach(input => input.addEventListener('change',event => updateNode(() => node.options[Number(event.target.dataset.flowOptionLabel)].label = event.target.value.trim() || 'Option')));
@@ -2233,17 +2309,26 @@
       }));
       if ($('[data-flow-widget-open]')) $('[data-flow-widget-open]').addEventListener('change',event => { rememberFlowDraft(); flowDraft.widget.openOnLoad = event.target.checked; markFlowChanged(); renderFlowStudio(); });
       if ($('#flowAddNode')) $('#flowAddNode').addEventListener('click',() => {
-        rememberFlowDraft(); const id = `step_${Date.now()}`; flowDraft.nodes.push(flowNode(id,'message','New message','New customer message','ข้อความใหม่',120 + flowDraft.nodes.length * 35,420)); flowState.selectedNodeId = id; markFlowChanged(); renderFlowStudio();
+        rememberFlowDraft(); const id = `step_${Date.now()}`; flowDraft.nodes.push(flowNode(id,'message','New message','New customer message','ข้อความใหม่',120 + flowDraft.nodes.length * 35,420,{needsConnection:true})); flowState.selectedNodeId = id; flowState.panel = 'edit'; $('#flowStudioDemo').classList.add('flow-panel-open'); markFlowChanged(); renderFlowStudio();
       });
       if ($('#flowDuplicateNode')) $('#flowDuplicateNode').addEventListener('click',() => {
         const node = selectedFlowNode(); if (!node) return; rememberFlowDraft(); const copyNode = clone(node); copyNode.id = `step_${Date.now()}`; copyNode.title += ' copy'; copyNode.x = Math.min(870,node.x + 35); copyNode.y = Math.min(535,node.y + 110); copyNode.next = null; copyNode.options = (copyNode.options || []).map(option => ({...option})); flowDraft.nodes.push(copyNode); flowState.selectedNodeId = copyNode.id; markFlowChanged(); renderFlowStudio();
       });
       if ($('#flowDeleteNode')) $('#flowDeleteNode').addEventListener('click',() => {
         const node = selectedFlowNode(); if (!node) return;
-        if (node.id === flowDraft.entryId) { showToast('Choose another starting step before removing this one.'); return; }
-        const incoming = flowDraft.nodes.filter(item => item.next === node.id || (item.options || []).some(option => option.target === node.id));
-        if (incoming.length) { showToast(`Rewire ${incoming.length} incoming connection${incoming.length === 1 ? '' : 's'} before removing this step.`); return; }
-        rememberFlowDraft(); flowDraft.nodes = flowDraft.nodes.filter(item => item.id !== node.id); flowState.selectedNodeId = flowDraft.entryId; markFlowChanged(); renderFlowStudio();
+        rememberFlowDraft();
+        let disconnected = 0;
+        flowDraft.nodes.forEach(item => {
+          if (item.next === node.id) { item.next = null; item.needsConnection = true; disconnected += 1; }
+          (item.options || []).forEach(option => { if (option.target === node.id) { option.target = ''; disconnected += 1; } });
+        });
+        flowDraft.nodes = flowDraft.nodes.filter(item => item.id !== node.id);
+        if (flowDraft.entryId === node.id) flowDraft.entryId = flowDraft.nodes[0]?.id || null;
+        if (flowState.testNodeId === node.id) flowState.testNodeId = null;
+        flowState.selectedNodeId = flowDraft.entryId || flowDraft.nodes[0]?.id || null;
+        flowConnection = null;
+        markFlowChanged(); renderFlowStudio();
+        showToast(disconnected ? `Message removed. ${disconnected} incoming connection${disconnected === 1 ? '' : 's'} left unconnected.` : 'Message removed from the Flow draft.');
       });
       if ($('#flowFitMap')) $('#flowFitMap').addEventListener('click',() => { const shell = $('#flowCanvasShell'); shell.scrollTo({left:0,top:0,behavior:'smooth'}); });
       if ($('#flowOpenTest')) $('#flowOpenTest').addEventListener('click',() => { flowState.panel = 'test'; $('#flowStudioDemo').classList.add('flow-panel-open'); flowTestStart(flowState.selectedNodeId || flowDraft.entryId); });
