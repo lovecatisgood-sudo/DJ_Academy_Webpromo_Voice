@@ -3,9 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Status | Target experience specification for V1 Market Release |
-| Date | 2026-07-18 |
+| Date | 2026-08-13 |
 | Product authority | `docs/product/djay-bots-v1-market-release-prd.md` |
 | Architecture authority | `docs/architecture/djay-bots-v1-market-release-architecture.md` |
+| Experience contract | `docs/design/djay-bots-approved-experience-contract.md` |
+| Approved visual reference | `docs/design/djay-bot-text-voice-configuration-flow.html` |
 | Primary audiences | Prospects, subscribed businesses, their customers, and DJAI operators |
 | Primary locales | Thai and English |
 | Primary business timezone | Asia/Bangkok |
@@ -64,7 +66,7 @@ The design preserves the existing security rules, realm separation, RLS, fail-cl
 
 1. **State before action.** Every screen must clearly communicate current authoritative state before offering a mutation.
 2. **One primary job per view.** Dense operational information is appropriate, but unrelated setup tasks must not compete in one long page.
-3. **Progress is evidence.** A checklist completes only from server-observed facts, never a browser checkbox.
+3. **State is evidence; quality remains the merchant's decision.** Server-observed facts control access, publication integrity, deployment and external actions. `Needs attention`, `Not reviewed` and `Not tested` are advisory and never forced checklist gates.
 4. **Commercial truth everywhere.** Public pricing, checkout, workspace entitlements, usage, invoices, and support see the same catalogue contract.
 5. **Separate setup from operations.** Onboarding helps launch; the regular workspace helps run the business.
 6. **Preview is not production.** Draft preview, published test, and live deployment are visually and technically distinct.
@@ -123,8 +125,7 @@ not_subscribed
  -> checkout_processing
  -> entitled_unconfigured
  -> draft_in_progress
- -> published_not_tested
- -> tested_not_deployed
+ -> published
  -> deployed_verification_pending
  -> live_healthy
  -> live_attention
@@ -157,7 +158,7 @@ Each subscribed family has its own lifecycle. A tenant can have Flow live, AI Te
 /status
 ```
 
-The first screen is the usable product/pricing experience, not a separate marketing splash. The public site may retain the brand and concise value proposition, but package selection, exact prices, comparison, and next action must be available without navigating through a long campaign page.
+The first screen is the approved business-outcome landing page. It presents all three families and leads to `/pricing`; it does not contain registration. Pricing then keeps all families visible and owns family, package and subscribe/trial selection. Exact prices and renewal are one clear action from Landing, not buried behind a campaign funnel.
 
 ### 6.2 Tenant workspace
 
@@ -196,25 +197,45 @@ Workspace settings
 
 Navigation is entitlement- and role-aware. A non-subscribed product may appear only as a clearly labeled “Explore” destination for owners/billing managers, never as a broken operational page. Operators and analysts should not see purchase controls they cannot use.
 
+Inside the approved current-product merchant dashboard, the compact navigation is:
+
+```text
+Operate
+  Overview
+  Conversations
+  Contacts
+  Leads and follow-up
+  Appointments
+  Analytics
+
+Your bot
+  Configuration
+  Usage and plan
+```
+
+Configuration opens the full-page Studio; it is not an inline dashboard panel. The global workspace may later add Billing, Team, Connections, Data and Security without changing this current-product operating path.
+
 On mobile, use a stable top bar with workspace switcher and a drawer/bottom destination mechanism. Do not compress the desktop sidebar until labels become unreadable.
 
 ### 6.3 Product workspace pattern
 
-Each product uses the same top-level structure:
+Each product uses a dashboard-to-Studio relationship:
 
 ```text
-Product overview
-Bots/agents
-Builder or playbook
-Knowledge/content (when applicable)
-Actions and handover
-Channels/deployments
-Test
-Analytics
-Settings and versions
+Merchant dashboard
+  Operations pages
+  Configuration -> full-page product Studio
+  Usage and plan
+
+Product Studio
+  Dashboard return
+  Role/template-specific section navigation
+  Main editable task surface
+  Expandable edit/test panel
+  Publish/install release section
 ```
 
-The selected bot/agent persists across these views. The header shows name, plan, lifecycle status, published version, live channels, usage status, and one context-appropriate primary command.
+The selected bot/agent persists across these views. The header shows name, product/role or template, plan/lifecycle, published version, save state and relevant actions. The dashboard is reachable even while `Not configured`; the Studio is reachable again from every dashboard page.
 
 ### 6.4 Platform Master
 
@@ -241,7 +262,7 @@ Platform Master must move from one long anchor page to route-based operational w
 
 ### 7.1 Entry and package discovery
 
-The public product chooser asks one optional business-oriented question: “How do customers contact you?” with options guided website steps, open text questions, phone/voice, or multiple. This can recommend a family but must not hide other packages.
+The landing page introduces Flow Bot, AI Text Bot and AI Voice Bot together, explains the merchant/customer outcome, and routes the prospect to Packages. The Packages page keeps all three family tabs visible. The visitor chooses the bot family first, then Starter or Advanced. Business-goal and role questions do not appear before that commercial choice.
 
 Each family view shows:
 
@@ -252,6 +273,7 @@ Each family view shows:
 - Third-party exclusions directly beside channel/telephone claims.
 - Optional setup services separated from subscription inclusions.
 - “Choose [package]” and “Talk to DJAI” actions.
+- An eligible `Start 30-day free trial` action for Flow Bot and AI Text Bot; Voice remains subscription-only.
 
 Do not default-select the most expensive plan or use visual tricks that obscure renewal price. “Recommended” may be used only when driven by stated needs or an approved general recommendation with clear reasoning.
 
@@ -315,6 +337,18 @@ The return page never assumes success from its URL. It polls/reloads local check
 
 An abandoned checkout appears on workspace Overview as “Finish checkout” until expired. Expired sessions are replaced server-side. Email reminders require consent/commercial policy and stop immediately after payment/cancel/expiry.
 
+### 7.7 Trial selection and activation
+
+The same package page exposes approved trials without merging them into paid checkout:
+
+| Product | Trial presentation |
+| --- | --- |
+| Flow Bot | 30 fixed days, Starter settings, website only, 5,000 conversations, no card |
+| AI Text Bot | 30 fixed days, Starter settings, website only, 500 AI replies, card required, owner warning in platform and email at 100 replies remaining |
+| AI Voice Bot | Subscription only |
+
+The account page repeats the selected trial terms before activation. Trial time starts when the trial workspace entitlement is successfully provisioned, not when the visitor merely opens Pricing. Exhaustion or expiry stops new trial service and shows a paid-plan action. The UI must not promise automatic paid conversion because that policy is not approved.
+
 ## 8. First session after subscription
 
 ### 8.1 Subscription success landing
@@ -332,18 +366,18 @@ Do not drop the customer into a complex builder. The primary action is “Set up
 
 ### 8.2 Onboarding shell
 
-Every product onboarding uses a persistent step navigator and a main task surface. Desktop uses a narrow left progress rail; mobile uses a current-step header and step list drawer. Each step has:
+The product-specific onboarding before Studio is intentionally short. It uses a visible current-step header/progress indicator, back/continue without data loss, and one primary decision per page. Flow has three pages; Text and Voice each have four. The full Configuration Studio then uses a narrow left section navigator on desktop and a current-section drawer on mobile. Each configuration section has:
 
 - One outcome-oriented title.
 - Current authoritative status.
 - Required fields first; advanced settings collapsed into named groups.
 - Save-and-exit.
 - Back and continue without losing valid draft data.
-- Preview/test where meaningful.
+- An expandable right-side preview/test where meaningful.
 - Error summary linked to fields.
 - “Get setup help” that creates a scoped support/professional-services request.
 
-The onboarding shell records evidence but never permits manual completion. Returning customers resume the first incomplete or attention step. Users can navigate completed steps without being forced through the wizard again.
+The Studio navigation is the sole configuration guide; do not add a second readiness panel that repeats it. Users can open, skip, revisit, save and publish from any section. Server evidence controls actual entitlements, safe external actions, version integrity, origin verification and live state. Advisory quality/review/test statuses never force completion.
 
 ### 8.3 Shared prerequisite steps
 
@@ -358,20 +392,13 @@ If multiple products are purchased, shared steps are completed once and referenc
 
 ### 9.1 Flow Starter path
 
-1. **Choose a starting point**
-   Select blank bot or an industry template. Preview template topics before copying.
-2. **Name and greeting**
-   Bot name, Thai/English/default language, welcome message, fallback/handover message.
-3. **Build topics**
-   Visual topic list plus canvas/step editor. Create FAQ, message, buttons, image/card, form, CTA, branch, and handover steps.
-4. **Capture leads**
-   Choose fields, required/optional state, consent, lead title/source, notification recipient.
-5. **Test conversation**
-   Test panel beside builder on desktop and full-screen mode on mobile. Test evidence must use the published candidate revision without creating billable customer usage.
-6. **Install on website**
-   Add allowed website origin, choose appearance/position, copy installation snippet, run automated install check, then open real-site test.
-7. **Launch**
-   Publish immutable version and activate deployment only after graph validation, current-version test, origin check, and entitlement.
+1. **Choose a starting journey.** Select and preview FAQ and contact, Capture leads, Appointment request, Product or service guide, Support routing, or Start from blank. The chosen template is copied into a fully editable tenant draft.
+2. **Set identity and website experience.** Edit bot name, default language, English/Thai greetings, brand colour, launcher position, business hours, handover contact and privacy URL while seeing the widget preview.
+3. **Choose the next workspace.** The prepared summary shows template, name and editable-step count, then offers Open Dashboard or Open Flow Studio.
+4. **Configure in Flow Studio.** Use Bot identity, Flow map, Lead capture, Fallback and handover, Widget appearance, and Publish/install sections in any order.
+5. **Test optionally.** The expandable right panel can start from the entry or selected step and exercise buttons, forms, typed keywords, language and fallback without billable usage or external effects.
+6. **Publish explicitly.** Advisory warnings and unrun tests do not block publication. Broken entry/references, duplicate IDs, empty option lists/forms, entitlement, safety and security invariants do.
+7. **Install and launch separately.** Copy snippet, enter/verify the HTTPS origin, explicitly Go live, and then enter the dashboard. Publication never silently installs or activates traffic.
 
 ### 9.2 Flow Advanced additions
 
@@ -386,11 +413,11 @@ If multiple products are purchased, shared steps are completed once and referenc
 
 ### 9.3 Flow builder interaction model
 
-- Left: topics and reusable blocks.
-- Center: stable graph/canvas with zoom, selection, keyboard alternatives, validation markers.
-- Right: selected-step settings using the appropriate control: text editor, media picker, button list, field list, condition builder, routing menu, integration action.
-- Bottom/right preview: optional, resizable, never covering node controls.
-- Top bar: Draft saved state, Validate, Preview, Publish. Publish is the only visually primary command.
+- Left: direct Dashboard route followed by Bot identity, Flow map, Lead capture, Fallback and handover, Widget appearance, and Publish/install. Status is advisory except for true invalid state.
+- Center: stable graph/canvas with step add, select, drag, duplicate, remove, entry selection, fit/scroll, connections, keyboard alternative and validation markers.
+- Right: Edit selected step and Test flow tabs. The editor supports message, options, input, form, card, handover and end types; localized copy; destinations; buttons; fields; keywords; and entry choice.
+- Mobile right panel: focused sheet/panel with Return to canvas; it never traps the user away from the map.
+- Top bar: draft/version context, autosave state, Dashboard, Undo, Redo and reset/controlled recovery. Publication remains a separate release section/action.
 - Version conflict opens a compare/reload flow and never silently overwrites another editor.
 - JSON is an advanced import/export/repair surface, not the primary authoring experience.
 
@@ -398,18 +425,13 @@ If multiple products are purchased, shared steps are completed once and referenc
 
 ### 10.1 AI Text Starter path
 
-1. **Agent identity**
-   Agent name, greeting, Thai/English/default language, tone, business role.
-2. **Add business knowledge**
-   Website import, FAQ, PDF, DOCX, TXT, and manual product/service information. Show each source's scan/extract/index state and any excluded pages.
-3. **Set sales behavior**
-   Goals, answer boundaries, recommendation behavior, prohibited claims, escalation, and CTA priorities through structured controls plus concise instruction fields.
-4. **Lead and actions**
-   Contact fields, booking request, call, LINE, and website actions; validate every destination.
-5. **Quality test**
-   Curated suggested questions plus custom questions in Thai and English. Show answer, source coverage, action proposal, confidence/escalation, and whether it would count in production. No external side effect in preview.
-6. **Install and launch**
-   Website origin, appearance, snippet, install check, current-version published test, activation.
+1. **Choose role after product/package selection.** Customer Support, Sales Associate, or Appointment Booking. Sales can still book appointments after discovery/objection handling.
+2. **Supply business information.** Enter an authorized public website URL or describe the business manually.
+3. **Watch truthful preparation progress.** Show public-page validation, reading, fact extraction, role organization and draft preparation; never reveal/fabricate chain-of-thought. Partial crawl offers retry, accessible pages, or manual entry.
+4. **Edit the generated draft.** Business name/type/summary/offers/hours/contact, three agent-behavior fields, source/exclusion context, and every FAQ are editable/addable/removable.
+5. **Configure in the role-specific full-page Studio.** Use the shared business/knowledge foundation plus Support, Sales or Booking sections and Text experience controls.
+6. **Test optionally.** Suggested/custom Thai/English tests and the persistent right tester show response/evidence with no production action. Every customer response is at most 200 visible characters.
+7. **Publish, install and launch separately.** Publish with advisory warnings if desired, then snippet, HTTPS origin verification, explicit Go live, and Enter Dashboard.
 
 ### 10.2 AI Text Advanced additions
 
@@ -429,24 +451,30 @@ Source rows show name, kind, locale, last import, status, pages/items, active re
 
 Upload and crawl progress survives navigation. A failed file/page does not make successful sources appear failed. The UI must never show “Ready” before retrieval index publication completes.
 
+### 10.4 Shared role-specific Studio structure
+
+The selected role changes the left navigation and the configuration form, not just a label:
+
+| Role | Required section order after shared Business profile and identity |
+| --- | --- |
+| Customer Support | Support knowledge and FAQs -> Issue handling behavior -> Customer details and handover -> Text/Voice experience -> Test your bot -> Publish/install |
+| Sales Associate | Products, services and FAQs -> Sales behavior and objections -> Leads and appointments -> Human handover -> Text/Voice experience -> Test your bot -> Publish/install |
+| Appointment Booking | Services and FAQs -> Booking behavior and rules -> Availability and customer details -> Changes, fallback and handover -> Text/Voice experience -> Test your bot -> Publish/install |
+
+Support uses Identify issue -> Collect context -> Check policy -> Guide resolution -> Confirm or escalate. Sales uses Discover need -> Qualify fit -> Recommend -> Handle objection -> Book or hand over. Booking uses Choose service -> Collect details -> Check availability -> Confirm summary -> Create appointment.
+
+Every Studio keeps the right tester expandable while the merchant edits. `Not reviewed`, `Needs attention`, and `Not tested` link back to the relevant section but never disable Publish. The publish review distinguishes advisory warnings from real blockers and confirms that publication creates an immutable version without installation or traffic activation.
+
 ## 11. AI Voice onboarding
 
 ### 11.1 Voice Starter path
 
-1. **Agent and voice**
-   Name, language, approved voice choices presented without provider/model identity, greeting, speaking style.
-2. **Knowledge**
-   Select/create one knowledge base and test spoken answers.
-3. **Conversation behavior**
-   Opening, qualification questions, interruptions, silence handling, maximum duration, callback and appointment-request behavior.
-4. **Privacy and disclosure**
-   AI identity, transcription/recording policy, consent wording, privacy link, retention.
-5. **Lead and callback**
-   Required contact fields, callback recipients/hours, outcomes.
-6. **Voice quality test**
-   Browser microphone test for Thai and English, interruption, silence, noisy input, contact capture, end call, transcript/summary. Display current connected test time without charging customer allowance.
-7. **Website deployment**
-   Origin, appearance, snippet, install/microphone check, concurrency/usage fallback, activate.
+1. Follow the same post-package Role -> Website/manual source -> truthful processing -> editable generated-review sequence as AI Text.
+2. Enter the role-specific full-page Studio using Support, Sales or Booking configuration.
+3. Configure the distinct Voice layer: approved provider-neutral voice label, speaking speed, interruption, silence, readback, maximum duration, disclosure, low-confidence/misunderstanding recovery, transfer fallback and recording consent.
+4. Run optional Thai/English voice quality tests for interruption, silence, contact capture, end call and transcript/summary. The visual design demo simulates voice without requesting a microphone; production requests it only after explicit start.
+5. Validate written response content to no more than 200 visible characters before speech.
+6. Publish, install, verify and explicitly activate the website deployment as separate actions, then enter Dashboard.
 
 ### 11.2 Voice Advanced additions
 
@@ -461,7 +489,7 @@ Upload and crawl progress survives navigation. A failed file/page does not make 
 
 ### 11.3 Voice launch safety
 
-Voice cannot activate until disclosure, maximum call duration, usage cap/fallback, end-call behavior, current-version test, and deployment/number health are verified. If Advanced provider admission is globally paused, the merchant sees “Voice launch temporarily unavailable” with saved setup intact, never provider/model names or a silent downgrade.
+Voice cannot activate until disclosure, maximum call duration, usage cap/fallback, end-call behavior, and deployment/number health are verified. Suggested quality-test completion remains advisory unless a separately approved legal/safety gate explicitly makes a named test mandatory. If Advanced provider admission is globally paused, the merchant sees “Voice launch temporarily unavailable” with saved setup intact, never provider/model names or a silent downgrade.
 
 ## 12. Combined-product onboarding
 
@@ -478,6 +506,8 @@ Shared prerequisites appear once. The owner chooses which product to launch firs
 When products share knowledge, contacts, handover teams, or integrations, the UI shows those relationships and the impact of editing/deleting them. Cross-product resource reuse does not merge usage meters or product lifecycle states.
 
 ## 13. Post-onboarding tenant experience
+
+Dashboard is available before onboarding/configuration completion. The Configuration tab is highlighted as `Not configured`; the top status says configuration is not published; and the merchant can open the relevant full-page Studio. Dashboard and Studio always provide a direct route to each other.
 
 ### 13.1 Overview command center
 
@@ -501,6 +531,8 @@ Filters: assigned to me/unassigned, needs human, product, channel, status, depar
 Timeline renders canonical rich content, transcript/voice summary, bot/human/system actors, delivery state, actions and handover. The context panel shows contact, lead, qualification, tags, score, appointment/callback, consent, source and assignment.
 
 Agent actions: accept/assign, reply where channel window permits, add note, update lead/outcome, schedule callback, resolve/reopen, return to bot if safe. Closed social reply windows disable reply and explain the allowed next action; they do not fail after typing.
+
+For the approved website live-takeover path, the action is available only while the latest committed bot response is less than five minutes old. At exactly five minutes or later, direct takeover is replaced by saved-contact/follow-up. The server revalidates timestamp, tenant, permission and current owner atomically. Human takeover pauses automation; return to Flow restarts at its main menu, while return to Text/Voice starts a safe AI continuation boundary.
 
 ### 13.3 Leads and contacts
 
@@ -847,6 +879,7 @@ Notifications are grouped by Action needed, Product health, Usage and cost, Bill
 - Deployment/channel/integration unhealthy or reauthorization required.
 - Human handover/callback/appointment requiring action.
 - Usage threshold, forecasted exhaustion, anomalous spike, cap reached, pack purchase.
+- AI Text trial threshold at 100 of 500 replies remaining: in-app and account-owner email, once per threshold crossing.
 - Privacy export/erasure completion.
 - Support access requested/approved/active/expiring/revoked.
 - Incident/status communication when customer impact is material.
@@ -863,7 +896,16 @@ Notification text must never claim a payment, deployment, booking, sync or recov
 | Provider/channel degraded | Capability-specific attention and fallback | Entire workspace outage if unrelated areas work |
 | Entitlement denied | State plan requirement and allowed next action | Generic server error or UI-only bypass |
 | Limit reached | Meter/current/reset/pack/upgrade/fallback | Provider/token/model error |
+| Trial ineligible | Preserve account and selection; show paid plan/support path | Reveal abuse-detection criteria or create a second grant |
+| Trial expired/exhausted | Stop new trial service; show allowance/expiry and subscribe action; use merchant fallback for customers | Continue provider spend or imply automatic payment |
+| Website URL invalid/authorization absent | Keep input; require complete HTTP/HTTPS URL and authorization, or offer manual entry | Start a crawl or discard the source page |
+| Crawl partial/blocked | Show accessible/excluded pages; retry, continue accessible pages, or switch to manual | Invent extracted facts or mark all pages ready |
 | Draft conflict | Compare/reload/save copy | Last-write-wins overwrite |
+| Advisory configuration finding | Link to section; allow continue editing or publish with warning | Disable Publish merely because review/test is incomplete |
+| Blocking publication invariant | Name exact graph/security/legal/entitlement problem and repair path | Relabel it as optional or publish an incoherent version |
+| Install verification failed | Preserve snippet/domain; show missing loader/origin and retry | Enable customer traffic |
+| Takeover window expired | Disable takeover and offer saved-contact follow-up | Authorize from a stale browser countdown |
+| Concurrent takeover/owner change | Refresh authoritative actor/owner state | Send as the wrong actor |
 | Import partially failed | Per-source status and retry failed items | Mark entire library empty/ready |
 | External action unknown | Pending/unknown, reconcile | Show confirmed success |
 | Closed social reply window | Disable composer before send; show alternatives | Accept text then fail silently |
@@ -972,7 +1014,8 @@ Instrumentation uses stable event names, lifecycle/product/channel dimensions an
 
 | Priority | View | Purpose |
 | --- | --- | --- |
-| P0 | Product chooser/pricing | Compare and select exact packages |
+| P0 | Business-outcome Landing | Present all three families and lead to packages |
+| P0 | Family/package Pricing | Select family, tier, paid subscription or eligible trial |
 | P0 | Registration/sign-in/verification/recovery | Secure identity lifecycle |
 | P0 | Checkout review/return | Truthful purchase lifecycle |
 | P0 | Terms/privacy/status | Trust and operational disclosure |
@@ -984,11 +1027,12 @@ Instrumentation uses stable event names, lifecycle/product/channel dimensions an
 | Priority | View | Purpose |
 | --- | --- | --- |
 | P0 | Unsubscribed/subscribed Overview | State-driven next action and portfolio health |
-| P0 | Product onboarding shell | Shared evidence-based setup framework |
-| P0 | Flow Builder/Test/Deploy | Complete Flow launch path |
-| P0 | AI Playbook/Knowledge/Test/Deploy | Complete AI Text launch path |
-| P0 | Voice Studio/Test/Deploy | Complete web Voice launch path |
-| P0 | Inbox/Leads/Contacts | Daily customer operation |
+| P0 | Flow three-page onboarding | Starting journey, identity/preview, Dashboard-or-Studio summary |
+| P0 | Separate Text and Voice four-page onboarding | Role, source, truthful processing, editable generated review |
+| P0 | Flow full-page Studio | Deterministic map, lead/handover/widget, optional tester, publish/install |
+| P0 | AI Text full-page Studio | Role-specific configuration, Text controls/tester, publish/install |
+| P0 | AI Voice full-page Studio | Role-specific configuration, Voice controls/tester, publish/install |
+| P0 | Dashboard/Conversations/Contacts/Leads/Appointments/Analytics | Daily customer operation and five-minute takeover |
 | P0 | Usage/Billing | Cost and contract control |
 | P0 | Team/Security/Data | SaaS administration and compliance |
 | P1 | Channels/Integrations | Advanced connections and health |
@@ -1017,10 +1061,11 @@ Instrumentation uses stable event names, lifecycle/product/channel dimensions an
 2. Register, verify, return to preserved selection.
 3. Complete Stripe payment; delayed webhook shows processing, then active.
 4. Enter Flow onboarding, copy a template, customize greeting/topics/form/CTA.
-5. Publish candidate, complete current-version test.
-6. Add origin/script, automated install check, activate.
-7. Website visitor completes Flow and creates one lead/one conversation meter event.
-8. Merchant receives lead, handles optional handover and sees usage/analytics.
+5. Open Dashboard before completion and verify Configuration is highlighted, then return to the full-page Flow Studio.
+6. Exercise the optional selected-path tester; publish with one advisory warning.
+7. Add origin/script, automated install check, explicitly activate, then use Enter Dashboard.
+8. Website visitor completes Flow and creates one lead/one conversation meter event.
+9. Merchant receives lead, handles optional handover and sees usage/analytics.
 
 ### Journey B: AI Text Advanced with LINE
 
@@ -1032,6 +1077,23 @@ Instrumentation uses stable event names, lifecycle/product/channel dimensions an
 6. Customer asks an unanticipated question; one reply is generated/metered/delivered.
 7. Low confidence routes to department handover; staff sees reply-window deadline and responds.
 8. Lead/contact/summary/CRM sync and reconciliation appear accurately.
+
+### Journey B0: AI Text website trial to quota boundary
+
+1. Select AI Text, then Starter/Advanced comparison, then the 30-day trial; verify Voice has no trial and role has not yet been asked.
+2. Complete account/legal/card evidence and provision exactly one website-only Starter trial with 500 replies and a fixed expiry.
+3. Choose Sales Associate, supply an authorized website, exercise partial-crawl recovery, and edit business profile, three behavior fields and FAQs.
+4. Configure role-specific sections, leave one section not reviewed and one suggested test unrun, then publish with advisory warnings.
+5. Install, verify and explicitly Go live; enter Dashboard and return to Configuration.
+6. Commit the 400th reply and verify one in-app and one account-owner email threshold notification at 100 remaining.
+7. Exhaust the 500th reply and verify new AI replies stop, customer fallback is merchant-approved, and the merchant sees Subscribe without provider/internal details or automatic charge.
+
+### Journey B1: AI Text/Voice role distinction
+
+1. Repeat onboarding for Support, Sales, and Booking and verify the left sections, generated behavior, suggested tests and actions differ as specified.
+2. Verify Sales can offer booking after discovery/objection handling without becoming a booking-only bot.
+3. Change role in a draft; shared information remains, role sections become attention states, and the published/live version is unchanged.
+4. Verify Text uses a 200-character message tester and Voice uses the distinct voice controls with written content capped before speech.
 
 ### Journey C: Voice Advanced telephone appointment and transfer
 
@@ -1050,6 +1112,7 @@ Instrumentation uses stable event names, lifecycle/product/channel dimensions an
 3. AI Text onboarding progresses independently while Flow remains live.
 4. Website uses one launcher with Flow/Text chooser; meters remain distinct.
 5. Overview and billing show both contracts, lifecycle states, usage and renewal correctly.
+6. Take over a website conversation at 4:59, verify automation pauses and actor changes; reject takeover at 5:00; return Flow to its main menu.
 
 ### Journey E: DJAI finance/support exception
 
@@ -1093,9 +1156,12 @@ The following current patterns require redesign:
 8. Website widget setup must support one-launcher multi-product arbitration and real host verification.
 9. Social UX is currently AI-oriented; deterministic Flow social execution and merchant/customer/handover states need equal treatment.
 10. Voice deployment must add telephone-number, carrier, transfer, scheduling and cost workflows without exposing provider routing.
+11. The implemented product must follow the approved page order, three separate onboarding branches, non-blocking advisory review, dedicated Configuration/Dashboard navigation, and explicit publish/install/go-live sequence in the 2026-08-13 experience contract.
 
 ## 29. Related documents
 
+- `docs/design/djay-bots-approved-experience-contract.md`
+- `docs/design/djay-bot-text-voice-configuration-flow.html`
 - `docs/product/djay-bots-v1-market-release-prd.md`
 - `docs/architecture/djay-bots-v1-market-release-architecture.md`
 - `docs/implementation/djay-bots-v1-detailed-implementation-plan.md`

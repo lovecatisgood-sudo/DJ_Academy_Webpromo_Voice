@@ -5,16 +5,23 @@
 | Date | 2026-08-11 |
 | Status | Implementation in progress; core website vertical slices pass local gates and sellability remains fail-closed |
 | Runtime authority | `DJAY_Bot_SaaS_Platform` |
+| Experience authority | `docs/design/djay-bots-approved-experience-contract.md` |
 | Protected reference | `FlowBot_V1_App` remains read-only |
 | Initial release target | Flow Bot Starter, AI Text Bot Starter, and AI Voice Bot Starter on the website channel |
 | Deferred scope | LINE, Messenger, WhatsApp, Instagram, social OAuth, social webhooks, social delivery, and social add-ons |
+
+> **2026-08-13 experience reconciliation:** This plan predates the approved package-first merchant
+> journey. Statements about the 2026-08-11 goal-first implementation are historical evidence, not
+> target UX authority. New work must follow Landing -> Pricing -> bot family -> package -> Subscribe
+> or eligible Free trial -> account/provisioning -> family-specific onboarding. AI Text and AI Voice
+> role selection follows the product/package decision.
 
 ## Core implementation checkpoint
 
 The first core implementation checkpoint was reached on 2026-08-11. It does not complete every deliverable in this plan. The authoritative checkpoint record is
 `docs/validation/non-social-production-readiness-2026-08-11.md`.
 
-- Goal-first website onboarding, legal acceptance, support access, public decision pages, and Platform support operations are implemented.
+- The legacy goal-first website preference capture, legal acceptance, support access, public decision pages, and Platform support operations are implemented. The preference capture still requires reconciliation behind the approved package-first journey.
 - Flow Bot has synchronized guided and editable infinite-canvas authoring with safe autosave, conflict recovery, immutable publish history, and rollback.
 - AI Text Bot has guided playbook authoring, website-only merchant presentation, immutable version history, rollback-as-new-version, and current-session pinning.
 - Voice Studio protects unsaved work; its runtime retains fail-closed admission, disclosure-first media, interruption, reconnect, exact settlement, capacity controls, and provider confidentiality.
@@ -28,9 +35,9 @@ The first core implementation checkpoint was reached on 2026-08-11. It does not 
 Deliver one production SaaS in which a non-technical Thai merchant can:
 
 1. Understand the exact offer and current availability.
-2. Register, verify email, accept current legal documents, and create a tenant safely.
-3. Select a business goal and complete guided setup.
-4. Configure Flow Bot, AI Text Bot, or AI Voice Bot without provider jargon.
+2. Review all three bot families and their packages on Pricing, then choose the bot family and package before onboarding.
+3. Choose Subscribe or an eligible Free trial, then register, verify email, accept current legal documents, and provision the tenant safely.
+4. Complete the selected family-specific onboarding: deterministic template setup for Flow Bot, or role-guided setup for AI Text Bot and AI Voice Bot.
 5. Test the bot in a safe environment that creates no customer side effects or billable usage.
 6. Publish and install the bot on an approved website origin.
 7. Receive conversations, leads, appointment requests, and handovers.
@@ -212,23 +219,22 @@ Before feature work continues:
 - Meter events reconcile exactly to customer allowance and restricted native usage.
 - A real test purchase, refund, failed payment, Portal change, and receipt pass before any live transaction.
 
-## 8. Phase 4: goal-first onboarding and support
+## 8. Phase 4: package-first acquisition, family-specific onboarding, and support
 
 ### Deliverables
 
-1. Finish migration `0089_goal_first_onboarding` and its repository/API/UI tests.
-2. Collect only product-configuration preferences needed to recommend setup:
-   - Primary business goal.
-   - Industry.
-   - First website bot product.
-3. Recommend a reversible template and next action from those choices.
-4. Derive progress from server-authoritative facts. Never let a browser button mark setup complete.
-5. Provide skip, back, save-and-exit, resume, and change-later behavior.
-6. Keep support access visible on every onboarding screen.
-7. Finish migration `0088_customer_support_center` and its ticket repository, tenant API, platform API, merchant UI, and operator UI.
-8. Add support-board guides for registration, billing, each bot, website installation, testing, publishing, leads, privacy, and troubleshooting.
-9. Add in-app support conversation updates, attachments with malware scanning, ownership, priority, SLA state, notifications, audit, and closure feedback.
-10. Route technical detail into optional expandable guidance. Default copy remains task-oriented.
+1. Preserve migration `0089_goal_first_onboarding` as historical preference storage while adapting its API/UI behind the approved package-first sequence.
+2. Carry the chosen bot family, package, and purchase/trial intent from Pricing into account creation and successful provisioning; never ask for business goals before this decision.
+3. Route Flow Bot to deterministic template setup. Route AI Text Bot and AI Voice Bot to role selection, then website/manual business learning, safe processing, editable review, and the full-page Studio.
+4. Treat role-specific goals and behavior as editable configuration guidance, not as a second product selector.
+5. Recommend a reversible template and next action from the selected family and role.
+6. Derive progress from server-authoritative facts. Never let a browser button mark setup complete.
+7. Provide skip, back, save-and-exit, resume, and change-later behavior. Suggestions, testing, and review are advisory; only structural or safety invariants block publishing.
+8. Keep support access visible on every onboarding screen.
+9. Finish migration `0088_customer_support_center` and its ticket repository, tenant API, platform API, merchant UI, and operator UI.
+10. Add support-board guides for registration, billing, each bot, website installation, testing, publishing, leads, privacy, and troubleshooting.
+11. Add in-app support conversation updates, attachments with malware scanning, ownership, priority, SLA state, notifications, audit, and closure feedback.
+12. Route technical detail into optional expandable guidance. Default copy remains task-oriented.
 
 ### Acceptance
 

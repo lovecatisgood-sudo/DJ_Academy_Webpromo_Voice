@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { currentIntlLocale } from "@djay/shared";
+import { BrandLockup } from "../PublicHeader";
 
 type PublicStatus = {
   asOf: string;
@@ -51,7 +52,7 @@ export default function StatusPageClient() {
   return (
     <main className="status-page">
       <header className="status-header">
-        <a className="status-brand" href="/" aria-label="หน้าแรก DJAY Bot"><span className="brand-mark" aria-hidden="true">D</span><strong>DJAY BOT</strong></a>
+        <a className="status-brand" href="/" aria-label="หน้าแรก DJAY Bot"><BrandLockup /></a>
         <nav aria-label="ลิงก์บัญชี"><a href="/login">เข้าสู่ระบบ</a><a className="status-primary-link" href="/">สร้างพื้นที่ทำงาน</a></nav>
       </header>
       <section className={`status-hero status-${overall}`} aria-labelledby="status-title">

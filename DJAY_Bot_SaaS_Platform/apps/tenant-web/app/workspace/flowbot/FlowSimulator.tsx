@@ -28,6 +28,7 @@ export function FlowSimulator(props: Readonly<{
   startNodeTitle: string | null;
   disabled?: boolean;
   onTrace: (nodeIds: readonly string[]) => void;
+  onPreviewComplete?: () => void;
 }>) {
   const copy = flowCanvasCopy(props.locale);
   const [inputs, setInputs] = useState<PreviewInput[]>([]);
@@ -53,6 +54,7 @@ export function FlowSimulator(props: Readonly<{
     if (!result.preview) { setError(true); return; }
     setInputs(nextInputs); setPreview(result.preview);
     props.onTrace(result.preview.turns.flatMap((turn) => turn.trace));
+    props.onPreviewComplete?.();
   }
 
   const messages = useMemo(() => preview?.turns.flatMap((turn) => turn.messages) ?? [], [preview]);

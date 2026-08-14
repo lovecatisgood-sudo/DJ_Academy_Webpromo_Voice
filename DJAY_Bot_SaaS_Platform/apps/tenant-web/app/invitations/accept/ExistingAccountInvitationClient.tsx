@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type MouseEvent } from "react";
 import { clearBrowserOneTimeValues, retainBrowserOneTimeValues, safeMutationFetch } from "@djay/shared";
+import { BrandLockup, LocaleSwitch } from "../../BrandChrome";
 
 const invitationStorage = "djay.invitation";
 const invitationPath = "/invitations/accept";
@@ -72,9 +73,9 @@ export function ExistingAccountInvitationClient({ token: initialToken }: Readonl
 
   return (
     <main>
-      <header><span className="mark">D</span><strong>DJAY BOT</strong><span className="realm">Invitation</span></header>
+      <header><BrandLockup /><LocaleSwitch /><span className="realm">Invitation</span></header>
       <section className="acceptance-panel" aria-labelledby="existing-invitation-title">
-        <span className="mark">D</span>
+        <BrandLockup />
         <p>Workspace invitation</p>
         <h1 id="existing-invitation-title">Accept with your existing account</h1>
         {sessionError ? (

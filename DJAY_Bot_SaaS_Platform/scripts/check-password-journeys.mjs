@@ -12,7 +12,7 @@ for (const marker of ["minLength: 12", "maxLength: 128", "passwordConfirmationEr
 }
 
 for (const path of [
-  "apps/public-site/app/page.tsx",
+  "apps/public-site/app/register/page.tsx",
   "apps/public-site/app/invitations/accept/InvitationAcceptanceClient.tsx",
   "apps/tenant-web/app/recovery/complete/RecoveryCompleteClient.tsx",
 ]) {

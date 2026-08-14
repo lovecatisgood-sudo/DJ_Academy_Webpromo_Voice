@@ -16,7 +16,7 @@ for (const marker of [
   if (!resend.includes(marker)) failures.push(`Verification resend flow is missing ${marker}`);
 }
 
-const registration = read("apps/public-site/app/page.tsx");
+const registration = read("apps/public-site/app/register/page.tsx");
 for (const marker of [
   'status === "accepted" ? "Check your email"',
   "<VerificationResendForm initialEmail={registeredEmail}",

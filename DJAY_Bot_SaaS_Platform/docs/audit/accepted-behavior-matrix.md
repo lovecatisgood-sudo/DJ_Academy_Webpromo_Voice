@@ -1,6 +1,6 @@
 # Accepted Behavior Matrix
 
-Status: P0 acceptance baseline. `Accepted` means preserve through tests or an explicitly versioned change. It does not mean copy the current implementation.
+Status: P0 acceptance baseline, reconciled with the approved experience contract on 2026-08-13. `Accepted` means preserve through tests or an explicitly versioned change. It does not mean copy the current implementation. Page order and UX details defer to `docs/design/djay-bots-approved-experience-contract.md`.
 
 ## FlowBot
 
@@ -11,7 +11,7 @@ Status: P0 acceptance baseline. `Accepted` means preserve through tests or an ex
 | Lock-before-idempotency | runtime and processed-input uniqueness | Accepted | Concurrent duplicate `inputId` creates one transition and returns the stored result |
 | Atomic form + lead | FlowBot hard rule and message transaction | Accepted | Failure creates neither partial form state nor lead; retry creates one lead |
 | Durable replay + live handoff | stream/sync routes and SSE smoke | Accepted | Reconnect replays ordered decimal cursors without loss/duplicate at backlog/live boundary |
-| Admin takeover/reply/release | conversation routes and dashboard | Accepted | Bot stops during takeover; idempotent staff reply; release resumes allowed behavior |
+| Admin takeover/reply/release | conversation routes, dashboard and approved experience contract | Accepted with five-minute boundary | Server permits takeover only when latest bot response is less than five minutes old, atomically rechecks owner/time, pauses bot, attributes staff reply, and releases Flow to main menu or AI to a safe continuation |
 | Contact matching is suggest-only | schema indexes and CRM service | Accepted | Shared phone/email proposes candidates and never silently merges |
 | Notification outbox | `flowbot_notification_outbox`, jobs | Accepted | Business commit succeeds independently; worker retries with dedupe |
 | Privacy export/erasure | privacy routes/service/smoke | Accepted | Export is tenant-scoped; erasure covers all PII stores and leaves audit-safe tombstone |
@@ -31,6 +31,8 @@ Status: P0 acceptance baseline. `Accepted` means preserve through tests or an ex
 | Tenant provider/model controls | admin settings/channels | Rejected | Tenant DTO/schema/UI contains no restricted routing fields; platform realm only |
 | Global daily session cap | `/api/session` reservation query | Rejected | Tenant/product entitlement and usage reservation settle exactly once |
 | Voice Basic/Advanced generations | target plan | Accepted | Basic resolves `voice_gen1`; Advanced resolves `voice_gen2`; no silent gen2 downgrade |
+| Customer-facing reply length | approved experience contract | Accepted | Written Voice response is at most 200 visible characters before speech; the limit is not 200 words |
+| Role-led configuration | approved experience contract | Accepted | Product/package precedes Support/Sales/Booking role; role changes behavior sections while Voice modality remains separate |
 
 ## AI Chatbot
 
@@ -42,6 +44,8 @@ Status: P0 acceptance baseline. `Accepted` means preserve through tests or an ex
 | Direct provider invocation in route | current chat route | Rejected as public contract | Route uses internal provider gateway; public output is allow-listed and provider-neutral |
 | AI Basic channel scope | target catalog | Accepted | Web binding allowed; LINE/WhatsApp/Messenger binding denied server-side |
 | AI Premium channel scope | target catalog | Accepted | Web plus approved LINE/WhatsApp/Messenger adapters; normalized event/render tests pass |
+| Customer-facing reply length | approved experience contract | Accepted | Every committed AI Text response is at most 200 visible characters; the limit is not 200 words |
+| Role-led configuration | approved experience contract | Accepted | Product/package precedes Support/Sales/Booking role; Sales retains booking as a supporting action |
 
 ## Shared admin workspace
 
@@ -66,4 +70,5 @@ Status: P0 acceptance baseline. `Accepted` means preserve through tests or an ex
 | One active Tenant Master Admin per tenant initially | Accepted | Constraint/transaction tests cover signup, deactivation, demotion, and transfer |
 | SME self-registers on public SaaS site | Accepted | Verified idempotent signup creates user, tenant, owner membership, onboarding, audit, outbox |
 | Platform staff do not create merchant passwords | Accepted | No platform route/command accepts or returns tenant credentials |
-
+| Flow/Text trials and Voice exclusion | Accepted 2026-08-13 | Flow: 30 days/5,000 website conversations/no card; Text: 30 days/500 website replies/card and owner platform/email warning at 100 remaining; Voice: no trial; no automatic charge without later approval |
+| Advisory review and testing | Accepted 2026-08-13 | Not reviewed/not tested/needs attention never block publication; true technical/security/legal/entitlement/external-action invariants still do |

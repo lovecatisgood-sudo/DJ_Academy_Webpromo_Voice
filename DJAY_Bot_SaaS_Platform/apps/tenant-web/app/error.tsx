@@ -1,9 +1,11 @@
 "use client";
 
+import { BrandLockup, LocaleSwitch } from "./BrandChrome";
+
 export default function ErrorPage({ reset }: Readonly<{ error: Error & { digest?: string }; reset: () => void }>) {
   return (
     <main className="recovery-page">
-      <header className="recovery-header"><span className="recovery-mark" aria-hidden="true">D</span><strong>DJAY BOT</strong><span className="recovery-realm">Workspace</span></header>
+      <header className="recovery-header"><BrandLockup /><LocaleSwitch /><span className="recovery-realm">Workspace</span></header>
       <section className="recovery-content" aria-labelledby="error-title" role="alert">
         <p className="recovery-kicker">Workspace page unavailable</p>
         <h1 id="error-title">This workspace page needs another try.</h1>

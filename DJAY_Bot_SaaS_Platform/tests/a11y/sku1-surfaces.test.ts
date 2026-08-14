@@ -69,10 +69,8 @@ type Surface = Readonly<{ name: string; path: string; app: "public" | "tenant"; 
 
 // Routes verified by listing each app's page.tsx files — not assumed.
 const surfaces: readonly Surface[] = [
-  // The landing page IS the registration surface — apps/public-site/app/page.tsx exports
-  // RegistrationPage and renders the account form inline at #start. Scanning "/" therefore
-  // covers public registration; a separate /register route does not exist.
-  { name: "public landing and registration", path: "/", app: "public", authenticated: false },
+  { name: "public landing", path: "/", app: "public", authenticated: false },
+  { name: "public registration", path: "/register", app: "public", authenticated: false },
   // public-site /login is intentionally absent: it is a bare server-side redirect to
   // tenantAppUrl (app/login/page.tsx calls redirect()), so it renders no markup to scan.
   // The tenant app's own entry is covered by the workspace surfaces below.

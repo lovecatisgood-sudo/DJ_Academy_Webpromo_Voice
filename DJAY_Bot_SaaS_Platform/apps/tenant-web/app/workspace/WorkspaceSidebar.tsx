@@ -8,6 +8,7 @@ import {
   humanizeTenantRole,
   studioHiddenRoles,
 } from "../../lib/workspace-labels";
+import { BrandLockup, LocaleSwitch } from "../BrandChrome";
 
 export type WorkspaceSummary = Readonly<{
   tenantId: string;
@@ -117,6 +118,13 @@ export function WorkspaceSidebar({
       items: navigation.filter((item) => item.group === group),
     }))
     .filter((group) => group.items.length > 0);
+  const primaryAreas = new Set<WorkspaceArea>(["overview", "inbox", "contacts", "flowbot", "reports", "support"]);
+  const primaryItems = navigation.filter((item) => primaryAreas.has(item.area));
+  const moreGroups = groups.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !primaryAreas.has(item.area)),
+  })).filter((group) => group.items.length > 0);
+  const moreOpen = !primaryAreas.has(active);
 
   return (
     <div className="workspace-chrome">
@@ -132,6 +140,7 @@ export function WorkspaceSidebar({
           {drawerOpen ? labels.close : labels.menu}
         </button>
         <strong className="workspace-mobile-title">{activeWorkspace?.businessName || "DJAY BOT"}</strong>
+        <LocaleSwitch className="workspace-mobile-language" />
       </div>
       {drawerOpen ? (
         <button
@@ -142,7 +151,7 @@ export function WorkspaceSidebar({
         />
       ) : null}
       <aside id={drawerId} className={drawerOpen ? "workspace-drawer open" : "workspace-drawer"}>
-        <div className="workspace-brand"><span className="mark">D</span><strong>DJAY BOT</strong></div>
+        <div className="workspace-brand"><BrandLockup /><LocaleSwitch /></div>
         <label className="workspace-select-label">
           {labels.workspace}
           <select value={selectedTenantId} onChange={(event) => onSelect(event.target.value)}>
@@ -152,10 +161,19 @@ export function WorkspaceSidebar({
           </select>
         </label>
         <nav className="workspace-nav" aria-label={labels.navigation}>
-          {groups.map((group) => (
-            <div className="workspace-nav-group" key={group.id}>
-              <p className="workspace-nav-group-label">{group.label}</p>
-              {group.items.map((item) => {
+          <div className="workspace-nav-group">
+            <p className="workspace-nav-group-label">{locale === "th" ? "งานหลัก" : "Main"}</p>
+            {primaryItems.map((item) => {
+              const label = item.label[locale];
+              return <a aria-current={active === item.area ? "page" : undefined} className={active === item.area ? "active" : ""} href={item.href} key={item.area}>{label}</a>;
+            })}
+          </div>
+          {moreGroups.length ? <details className="workspace-nav-more" open={moreOpen}>
+            <summary>{locale === "th" ? "เครื่องมือเพิ่มเติม" : "More tools"}</summary>
+            {moreGroups.map((group) => (
+              <div className="workspace-nav-group" key={group.id}>
+                <p className="workspace-nav-group-label">{group.label}</p>
+                {group.items.map((item) => {
                 const label = item.label[locale];
                 return (
                   <a
@@ -167,9 +185,10 @@ export function WorkspaceSidebar({
                     {label}
                   </a>
                 );
-              })}
-            </div>
-          ))}
+                })}
+              </div>
+            ))}
+          </details> : null}
         </nav>
         {tenantRoles.includes(role as TenantRole) ? (
           <p className="workspace-role">{humanizeTenantRole(role)} {labels.access}</p>

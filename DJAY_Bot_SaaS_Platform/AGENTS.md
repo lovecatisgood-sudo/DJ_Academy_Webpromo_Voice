@@ -23,6 +23,9 @@ Build the multi-tenant DJAY Bot SaaS Platform phase by phase. Preserve the exist
 - Cache keys, queue jobs, object paths, events, logs, and usage records always carry tenant scope.
 - Cross-tenant resource substitution returns a non-revealing not-found result and changes no data.
 - No product becomes sellable until P1 and P2 isolation and entitlement gates pass.
+- For target product experience, follow `docs/design/djay-bots-approved-experience-contract.md`; use `docs/design/djay-bot-text-voice-configuration-flow.html` as its visual reference and never let older HTML demos, dated onboarding plans, or current implementation override it.
+- Preserve the approved sequence: Landing and Packages show all three families; family/package precedes role; Flow uses template-led deterministic onboarding; Text and Voice use separate Support/Sales/Booking onboarding; review/testing are advisory; Configuration is full-page and dashboard-accessible; publish, install, verify and Go live are separate.
+- Do not invent product behavior. A product-flow change remains `Proposed` until the product owner explicitly approves the exact change and the PRD, experience contract, architecture, UX, implementation plan and executable registry are reconciled together.
 
 ## Development rules
 
@@ -31,4 +34,3 @@ Build the multi-tenant DJAY Bot SaaS Platform phase by phase. Preserve the exist
 - Changes must identify phase, requirements, non-goals, schema/API/event impact, migration, rollback, tests, security, observability, and provider-confidentiality impact.
 - Add tenant-isolation and authorization-negative tests before or with each tenant-owned feature.
 - Do not claim a gate passed unless its commands and evidence are recorded in `docs/validation/`.
-

@@ -21,6 +21,9 @@ const allowedEnglishPhrases = new Set([
   "AI Voice Bot",
   "Unified Workspace",
   "Thai / English",
+  "Flow Bot · AI Text Bot",
+  "Flow Bot · AI Text Bot · AI Voice Bot",
+  "AI Text Bot · AI Voice Bot",
 ]);
 
 function collect(directory) {
@@ -52,6 +55,20 @@ function isImportOrExportLiteral(node) {
   return ts.isImportDeclaration(node.parent)
     || ts.isExportDeclaration(node.parent)
     || ts.isExternalModuleReference(node.parent);
+}
+
+function isExplicitEnglishTranslation(node) {
+  const parent = node.parent;
+  if (ts.isPropertyAssignment(parent) && ts.isIdentifier(parent.name) && /En$|^en$/.test(parent.name.text)) return true;
+  let ancestor = parent;
+  while (ancestor) {
+    if (ts.isVariableDeclaration(ancestor) && ts.isIdentifier(ancestor.name) && /^english/.test(ancestor.name.text)) return true;
+    ancestor = ancestor.parent;
+  }
+  if (!ts.isCallExpression(parent)) return false;
+  const callee = parent.expression.getText();
+  const index = parent.arguments.indexOf(node);
+  return (callee === "localeText" && index === 2) || (callee === "t" && index === 1);
 }
 
 function isNonCopyLiteral(node) {
@@ -86,7 +103,7 @@ for (const file of sourceFiles) {
     if (ts.isJsxText(node) && isEnglishProse(node.getText(source))) {
       failures.push(`${sourcePosition(source, node)} visible JSX text: ${node.getText(source).replace(/\s+/g, " ").trim()}`);
     }
-    if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && !isImportOrExportLiteral(node) && !isNonCopyLiteral(node) && isEnglishProse(node.text)) {
+    if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && !isImportOrExportLiteral(node) && !isNonCopyLiteral(node) && !isExplicitEnglishTranslation(node) && isEnglishProse(node.text)) {
       failures.push(`${sourcePosition(source, node)} string literal: ${node.text}`);
     }
     ts.forEachChild(node, visit);

@@ -3,6 +3,8 @@
 **Date:** 2026-07-26 · **Status:** Proposed (pre-implementation) · **Owner:** DJAI Academy
 **Relationship to prior specs:** generalises `2026-07-24-meta-self-serve-messenger-design.md`, which remains correct for Messenger and is subsumed as the `oauth_provider` mode below.
 
+> **Authority note (2026-08-13):** This is a deferred social-connection design only. It does not define the public, trial, website onboarding, Configuration Studio, publishing or dashboard sequence. `docs/design/djay-bots-approved-experience-contract.md` wins for those surfaces. Social release remains gated and disabled by default.
+
 ---
 
 ## 1. Problem

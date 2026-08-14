@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { LegalDocument } from "@djay/shared/legal-documents";
+import { BrandLockup } from "./PublicHeader";
 
 type LegalKind = "terms" | "privacy";
 
@@ -43,7 +44,7 @@ export function LegalDocumentClient({ kind }: { kind: LegalKind }) {
 
   return <main className="legal-page">
     <header className="legal-header">
-      <a className="status-brand" href="/"><span className="brand-mark" aria-hidden="true">D</span><strong>DJAY BOT</strong></a>
+      <a className="status-brand" href="/" aria-label="หน้าแรก DJBOT"><BrandLockup /></a>
       <nav aria-label="เมนูสาธารณะ"><a href="/">สร้างพื้นที่ทำงาน</a><a href="/status">สถานะบริการ</a></nav>
     </header>
     <section className="legal-hero">

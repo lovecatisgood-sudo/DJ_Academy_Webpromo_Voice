@@ -3,9 +3,10 @@
 | Field | Value |
 | --- | --- |
 | Status | Target architecture for implementation and production release |
-| Date | 2026-07-18 |
+| Date | 2026-08-13 |
 | Product authority | `docs/product/djay-bots-v1-market-release-prd.md` |
-| Experience authority | `docs/design/djay-bots-v1-ui-ux-and-user-flows.md` |
+| Experience authority | `docs/design/djay-bots-approved-experience-contract.md` |
+| Detailed UX | `docs/design/djay-bots-v1-ui-ux-and-user-flows.md` |
 | Implementation plan | `docs/implementation/djay-bots-v1-detailed-implementation-plan.md` |
 | Primary cloud | Google Cloud Platform |
 | GCP project | `master-deck-476811-a8` |
@@ -133,6 +134,9 @@ Required application services/read models:
 - **Operational command views:** inbox/customer/lead/action, product health, usage/billing and attention queues (`OPS-*`).
 - **Platform operations views:** cross-tenant queues and Tenant 360 with role-specific projections and masked sensitive fields (`PLT-*`).
 - **Widget manifest:** product-neutral public configuration, theme, allowed modes, disclosure, fallback and session endpoints (`WEB-*`).
+- **Trial offer and lifecycle:** eligibility, Starter capability snapshot, website-only channel scope, fixed start/expiry, allowance, threshold-delivery state and upgrade action (`TRL-*`).
+- **Configuration Studio:** product-specific section definitions, draft/published version state, advisory findings, technical blockers, autosave/conflict state and test-session evidence.
+- **Merchant operations:** product-aware conversations, contacts, leads, appointments, analytics and five-minute takeover capability derived from authoritative event/ownership state.
 
 These are projections over domain truth, not new systems of record. Projection freshness and source state are returned explicitly so a failed secondary panel cannot become a false zero/healthy state.
 
@@ -143,6 +147,33 @@ Implement the route inventory in `docs/design/djay-bots-v1-ui-ux-and-user-flows.
 Route guards resolve session, selected workspace, role, entitlement and resource before rendering. Deep links preserve the intended task through same-origin validated continuation paths. Mobile stacked routes and desktop split panes share the same server action/read contracts.
 
 The authorization model must add a billing-management job boundary. It may initially be a permission bundle on owner/admin, but purchase, tax, payment, overage/cap, plan-change and cancellation endpoints require explicit billing permissions and recent authentication independently of navigation visibility.
+
+### 6.3 Approved experience composition
+
+The route/application composition MUST implement the sequence defined by the approved experience contract:
+
+```text
+Public Landing
+ -> Packages (all three families)
+ -> choose family
+ -> choose Starter/Advanced
+ -> paid subscription or eligible trial
+ -> Account/authoritative provisioning
+ -> Flow template onboarding OR Text/Voice role onboarding
+ -> full-page product Configuration Studio
+ -> optional draft test/review
+ -> immutable publish
+ -> snippet installation
+ -> origin verification
+ -> explicit Go live
+ -> Merchant Dashboard <-> Configuration Studio
+```
+
+The product selector owns `product_family` before a bot role exists. Flow drafts use `starting_template`; AI Text and Voice drafts use `agent_role` with `support`, `sales`, or `booking`. Role is bot configuration, not subscription or entitlement authority.
+
+The server returns separate step schemas/read models for Flow, Text and Voice. A shared frontend shell may render navigation, save state, dialogs and right-panel testing, but it MUST NOT merge Flow template onboarding with the AI role/source/generation workflow or reuse Text modality controls for Voice.
+
+Dashboard routing is independent of configuration completion. Lifecycle projections expose `not_configured`, `draft_changes`, `published_install_pending`, `verified_traffic_off`, and `live` labels; they do not redirect an authenticated merchant into forced onboarding. Configuration remains a dedicated product route reachable from every dashboard view.
 
 ## 7. Catalogue and entitlement architecture
 
@@ -260,6 +291,26 @@ product_lifecycle_projection
   next_action_code, blockers[], calculated_at, projection_version
 ```
 
+Additional approved experience records:
+
+```text
+trial_grants
+  id, tenant_id, workspace_id, product_family, catalogue_version_id,
+  starts_at, expires_at, allowance, consumed, channel_scope,
+  card_requirement_satisfied, eligibility_decision_id, state
+
+configuration_findings
+  id, tenant_id, bot_draft_id, subject_version, finding_code,
+  severity(advisory|blocking), section_key, details_json, observed_at, resolved_at
+
+bot_test_sessions
+  id, tenant_id, bot_draft_id, product_family, role_or_template,
+  locale, started_from_step nullable, mode(text|voice|flow),
+  billable=false, external_effects=false, evidence_digest, created_by, created_at
+```
+
+`configuration_findings` separates content/readiness advice from actual invariants. Unreviewed sections and unrun suggested tests are `advisory`; entitlement denial, malformed graphs, unsafe external actions, invalid deployment origin, and applicable legal/safety controls are `blocking`. Publication APIs accept advisory findings only with an explicit acknowledgement snapshot and audit record.
+
 Evidence examples are verified profile, notification/handover destination, disclosure/retention policy, usage protection, current published revision, current-version test, deployment install/channel/two-way/telephone test, and live health. Evidence invalidates when its subject changes: a test against version 4 does not prove version 5; a revoked deployment does not remain launch evidence.
 
 The onboarding coordinator returns plan- and product-specific step definitions with status, required permissions, allowed actions and deep links. The browser cannot mark a step complete. Shared evidence is referenced across products, while publication, test, deployment and live health remain family/bot specific (`ONB-*`).
@@ -274,6 +325,9 @@ Product lifecycle is a projection, not a single writable enum. It combines subsc
 - Validate graph reachability, missing targets, cycles requiring explicit bounded loops, field types, secret/action references, topic count, payload size, channel capability, and entitlements.
 - Save immutable revisions. Draft changes use optimistic concurrency. Publication transactionally sets one active revision and emits cache-invalidation/CDN events.
 - Templates are copied into a tenant draft with source/version attribution; later template changes do not mutate published tenant flows.
+- The approved Starter template registry contains FAQ and contact, Capture leads, Appointment request, Product or service guide, Support routing, and Blank. Each registry version carries localized nodes, preview metadata and a checksum; copying always produces a fully editable tenant draft.
+- The authoring API supports message, options, input, form, card, handover and end steps in the approved baseline; add/duplicate/remove, entry selection, localized copy, keywords, option targets, form fields and layout positions use optimistic draft mutations with undo/redo history.
+- Publication MUST reject only invalid/coherence/security/entitlement conditions. Missing optional form/handover content, incomplete language coverage, unrun tests and other quality suggestions remain advisory and may be acknowledged at publish time.
 
 ### 10.2 Deterministic execution
 
@@ -291,6 +345,10 @@ website/social event
 ```
 
 Execution state stores current node, typed variables, collected fields, tag/attribute references, awaiting-input schema, and bounded action results. A Flow session pins its revision to prevent mid-session graph changes. No LLM path is present in ordinary Flow execution (`FLS-015`, `FLA-005`).
+
+Configured typed-message keywords resolve deterministically. Unmatched text invokes the versioned fallback/handover path. The interpreter enforces a bounded transition count and produces an explicit safe terminal error for missing/unbounded execution instead of invoking AI.
+
+Draft Flow testing uses the same interpreter against an unpublished revision under `billable=false` and `external_effects=false`. It supports entry-node or selected-node start, localized paths, forms and typed fallback. Production publication, deployment verification and live traffic remain separate records and commands.
 
 ### 10.3 Rich media
 
@@ -323,6 +381,8 @@ Cloud Tasks invokes private worker endpoints with OIDC. Separate queues control 
 - Respect access policy/robots and customer authorization, cap depth/pages/bytes/time, canonicalize URLs, and rate-limit hosts.
 - Store fetch status, content hash, redirects, last modified/ETag, extraction result, and exclusions.
 - Advanced scheduled crawl detects changed/deleted pages. Starter website import supports bounded explicit sources and weekly refresh.
+- Onboarding website learning explicitly excludes authenticated/account, checkout, form-submission, private and unrelated pages. Crawl jobs emit customer-safe stage events for validation, accessible-page discovery, extraction, fact organization and draft generation. These events describe completed/running work and never expose hidden model reasoning.
+- Partial success preserves accessible-page results and exclusion reasons. The coordinator supports retry, accept accessible public pages, or switch to manual business input without discarding already entered identity/role state.
 
 ### 11.3 Retrieval
 
@@ -346,6 +406,8 @@ canonical inbound message
  -> commit customer-facing reply and usage exactly once
  -> async summary, analytics, quality and notification work
 ```
+
+Before commit/delivery, the application validates the customer-facing response to no more than 200 visible characters. Grapheme-aware validation occurs outside the model and produces a safe concise retry/truncation/fallback without splitting a user-visible character or exposing the limit as a provider failure.
 
 ### 12.2 Structured output contract
 
@@ -379,6 +441,8 @@ browser widget
  -> terminal finalize exactly once
  -> transcript/summary/outcome jobs + usage reconciliation
 ```
+
+The Voice configuration service combines the same role/business/knowledge contracts used by AI Text with a distinct provider-neutral modality record for voice, speed, interruption, silence, readback, maximum duration, disclosure, low-confidence recovery, misunderstanding recovery, transfer fallback and recording consent. The validated written response is capped at 200 visible characters before speech synthesis/realtime output.
 
 Cloud Run supports WebSockets but requests remain subject to service timeout and instance termination. The widget must reconnect with a short-lived resume token; session coordination and concurrency live outside instance memory in PostgreSQL plus a low-latency shared lease mechanism if load tests require it. Session affinity is an optimization only.
 
@@ -497,6 +561,8 @@ This prevents concurrent requests from exceeding a hard cap (`OVR-006`, `OVR-007
 
 A scheduled worker calculates simple pace early in a period and weighted recent/day-of-week pace when sufficient history exists. Store method, inputs, confidence band, projected units/cost, and generated time. Threshold state is edge-triggered and deduplicated; material forecast changes can re-alert after a cooldown. UI labels estimates and shows reset/mitigation.
 
+The AI Text trial has an approved deterministic threshold at 100 remaining replies. The usage transaction/outbox creates one threshold event per grant/threshold crossing; notification policy routes it to the account owner's in-app feed and email. Retries use the same event/idempotency key. Flow trial usage remains visible but has no approved 20%-remaining email rule.
+
 ### 16.4 Reconciliation
 
 Daily and on-demand jobs compare raw events, aggregates, reservations, pack lots, subscription entitlement, provider usage/cost, voice call records, and billed Stripe quantities. Differences create immutable reconciliation items assigned to an operator; fixes produce adjustments, never edits.
@@ -547,6 +613,29 @@ Create short-lived portal sessions server-side for authorized billing managers. 
 Maintain an explicit customer-safe projection for no checkout, open, expired/abandoned, processing, active, past-due/grace, restricted, cancel-scheduled and ended states. It combines local checkout/subscription/service policy and exposes safe next actions without provider internals. Processing pages poll with bounded backoff and can be closed safely; email/in-app activation follows durable state change. Workspace access never derives from URL/sessionStorage state (`EXP-008`, `ONB-001`).
 
 One Stripe Customer may have compatible Flow, AI Text and Voice contracts. Local subscription contracts remain family/workspace scoped so their entitlement, renewal, cancellation and lifecycle are independent. Same-family upgrades replace/schedule the base contract under the commercial policy rather than stacking duplicate limits.
+
+### 17.6 Trial provisioning
+
+Trials use a separate server-authoritative provisioning command rather than a zero-price paid subscription assumption:
+
+```text
+eligible Flow/Text trial selection
+ -> opaque trial_intent
+ -> account verification and legal acceptance
+ -> eligibility + repeat/abuse policy decision
+ -> Text card-requirement evidence when applicable
+ -> atomic tenant/workspace + Starter trial grant
+ -> starts_at and expires_at written in one transaction
+ -> onboarding continuation for selected family
+```
+
+Flow grants `5,000 flow_conversation_started`; Text grants `500 ai_customer_reply_committed`. Both grant website deployment only for 30 fixed days. Voice rejects trial creation. No job may auto-charge or auto-convert a Text trial until a separately approved commercial/consent design exists.
+
+### 17.7 Five-minute conversation takeover
+
+Conversation ownership is an explicit state machine: `bot_active -> human_active -> bot_active|closed`. The takeover command locks the conversation/session row and verifies tenant permission, channel capability, latest committed bot-response time `< now - 5 minutes` is false, and current owner is still the bot. At exactly five minutes it fails with a customer-safe expired-window result.
+
+While `human_active`, automated replies are suppressed. Merchant messages are stored with a human actor and audited assignment. Release to Flow creates a deterministic return-to-main-menu transition; release to AI creates a new safe continuation boundary with the published agent. Browser timers only display eligibility and never authorize it.
 
 ## 18. Invoice, credit-note, and FlowAccount architecture
 
@@ -1011,6 +1100,9 @@ Shared-webhook modes resolve routing key → tenant + connection from an unauthe
 - Every onboarding failure names the specific condition the merchant must change; a connection becomes `active` only after end-to-end reachability has been proven, not merely configured.
 
 ## 32. Authoritative technical references
+
+- Approved experience contract: `docs/design/djay-bots-approved-experience-contract.md`
+- Approved clickable visual reference: `docs/design/djay-bot-text-voice-configuration-flow.html`
 
 - OpenAI Structured Outputs: <https://developers.openai.com/api/docs/guides/structured-outputs>
 - OpenAI Realtime API: <https://developers.openai.com/api/docs/guides/realtime>

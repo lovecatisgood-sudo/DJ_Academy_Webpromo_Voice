@@ -20,7 +20,7 @@ for (const marker of ["!config.legalVersions", "parsed.termsVersion !== config.l
   if (!registration.includes(marker)) failures.push(`registration version binding is missing ${marker}`);
 }
 
-const publicPage = read("apps/public-site/app/page.tsx");
+const publicPage = read("apps/public-site/app/register/page.tsx");
 for (const marker of ["/public/legal", 'href="/terms"', 'href="/privacy"', "legalStage !== \"ready\"", "termsVersion: legal.terms.version", "privacyVersion: legal.privacy.version"]) {
   if (!publicPage.includes(marker)) failures.push(`public registration is missing ${marker}`);
 }

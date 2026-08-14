@@ -3,11 +3,12 @@
 | Field | Value |
 | --- | --- |
 | Status | Execution plan for the V1 Market Release |
-| Date | 2026-07-18 |
+| Date | 2026-08-13 |
 | Product authority | `docs/product/djay-bots-v1-market-release-prd.md` |
-| Experience authority | `docs/design/djay-bots-v1-ui-ux-and-user-flows.md` |
+| Experience authority | `docs/design/djay-bots-approved-experience-contract.md` |
+| Detailed UX | `docs/design/djay-bots-v1-ui-ux-and-user-flows.md` |
 | Architecture authority | `docs/architecture/djay-bots-v1-market-release-architecture.md` |
-| Current PRD baseline | 297 normative requirements in 35 requirement families |
+| Current PRD baseline | 322 normative requirements in 36 requirement families |
 | Delivery approach | Dependency-ordered vertical slices with package-by-package sellability gates |
 
 ## 1. Purpose
@@ -39,6 +40,8 @@ The commercial offer remains authoritative. Existing P1-P9 documents describe de
 13. No task is closed without negative tests for role, tenant substitution, entitlement denial, duplicate/reordered delivery, and dependency failure where applicable.
 14. No production provider is enabled from a sandbox-only test. Live credentials, account modes, quotas, callbacks, terms, and reconciliation must be verified.
 15. Do not modify or migrate behavior inside `../FlowBot_V1_App/`; use it only as a protected behavior reference.
+16. Implement the approved page order and product separation exactly: family/package before role; Flow template onboarding; separate Text and Voice role onboarding; optional review/testing; full-page Configuration; explicit publish, install, verify and Go live; dashboard access before completion.
+17. No implementation task may convert an advisory `Needs attention`, `Not reviewed`, or `Not tested` finding into a publication blocker unless the PRD identifies a technical, security, legal, entitlement, origin or external-action invariant.
 
 ## 3. Scope control and traceability
 
@@ -46,17 +49,17 @@ The commercial offer remains authoritative. Existing P1-P9 documents describe de
 
 | Family | Count | Principal scope |
 | --- | ---: | --- |
-| `COM`, `ADD`, `MET`, `OVR` | 37 | Catalogue, prices, contracts, add-ons, meters, packs, forecasts and caps |
+| `COM`, `TRL`, `ADD`, `MET`, `OVR` | 46 | Catalogue, prices, contracts, trials, add-ons, meters, packs, forecasts and caps |
 | `IDN`, `TEN`, `SEC` | 17 | Identity, tenancy, roles, isolation, security and compliance |
 | `BOT`, `LEAD`, `NOT`, `SUP`, `PRO` | 20 | Shared bot lifecycle, customers, notifications, support and professional services |
 | `FLS`, `FLA` | 32 | Flow Starter and Advanced |
-| `AIT`, `KNO`, `ATS`, `ATA` | 40 | AI behavior, knowledge, Text Starter and Advanced |
-| `VOI`, `VOS`, `VOA`, `TEL` | 34 | Voice runtime, Starter, Advanced and telephone behavior |
+| `AIT`, `KNO`, `ATS`, `ATA` | 42 | AI behavior, 200-character output, knowledge, Text Starter and Advanced |
+| `VOI`, `VOS`, `VOA`, `TEL` | 36 | Voice runtime, 200-character written output, Starter, Advanced and telephone behavior |
 | `CHN`, `INT`, `SOC`, `WEB` | 34 | Website, social channels, integrations and actions |
 | `BIL`, `FIN` | 17 | Stripe lifecycle, invoices, credits and accounting |
-| `ANA`, `REL`, `UX` | 25 | Analytics, reliability, performance and accessibility |
-| `EXP`, `ONB`, `OPS`, `PLT` | 41 | Public purchase, onboarding, merchant operations and Platform Master |
-| **Total** | **297** | Complete market-release baseline |
+| `ANA`, `REL`, `UX` | 31 | Analytics, reliability, performance, approved experience order and accessibility |
+| `EXP`, `ONB`, `OPS`, `PLT` | 47 | Public purchase, product-specific onboarding, dashboard/takeover operations and Platform Master |
+| **Total** | **322** | Complete reconciled market-release baseline |
 
 ### 3.2 Executable requirement registry
 
@@ -205,6 +208,7 @@ All product/commerce/operations slices
 | `COM-01` | Immutable catalogue, promotion and contract snapshots | CTRL-01/02 | L | COM, ADD |
 | `COM-02` | Entitlements, resources, downgrade and multi-product contracts | COM-01, CORE-01 | L | COM, ADD, BOT, TEN |
 | `COM-03` | Meter ledger, allowance periods, reservations, packs and reconciliation | COM-01/02 | XL | MET, OVR, BIL |
+| `COM-04` | Flow/Text trial intent, eligibility, quota, threshold and expiry lifecycle | COM-01/02/03, CORE-01 | L | TRL |
 | `BILL-01` | Purchase intents, Stripe Checkout and webhook application | COM-01/02, CORE-01 | XL | EXP, BIL, COM |
 | `BILL-02` | Portal, renewal, dunning, plan/add-on changes and cancellation | BILL-01, COM-03 | L | BIL, OPS, ADD |
 | `FIN-01` | Immutable invoices, credits, payments/refunds/disputes | BILL-01 | XL | FIN, BIL, SEC |
@@ -256,7 +260,7 @@ Relative size is planning complexity, not a time commitment: M, L and XL indicat
 
 **Deliver:**
 
-- Create the 297-record YAML registry and JSON Schema.
+- Reconcile and maintain the 322-record YAML registry and JSON Schema.
 - Add parser/check script and `pnpm` lint command.
 - Map existing tests/evidence without claiming missing features complete.
 - Add package-to-requirement rules for all six plans and shared requirements.
@@ -303,7 +307,7 @@ Create an owner, deadline, evidence and fallback for each decision:
 
 ### CORE-02: Lifecycle, onboarding and read models
 
-**Schema:** onboarding definitions/evidence/blockers, product lifecycle projection, install/test evidence, purchase continuation references, projection version/freshness.
+**Schema:** onboarding definitions/evidence/findings, product lifecycle projection, trial grants, install/test evidence, purchase continuation references, projection version/freshness.
 
 **Services:**
 
@@ -312,6 +316,9 @@ Create an owner, deadline, evidence and fallback for each decision:
 - Invalidation on publication/deployment/entitlement/health changes.
 - Transactional launch preflight.
 - Task-oriented public/tenant/platform read models with partial-panel availability.
+- Separate Flow template definitions and Text/Voice role/source/generated-review definitions.
+- Advisory-versus-blocking finding classification and explicit warning acknowledgement on publish.
+- Dashboard access state independent of configuration completion.
 
 **APIs:** portfolio lifecycle, onboarding steps/status/allowed commands, refresh/recalculate, product blockers, next action. Browser may request refresh but cannot set completion.
 
@@ -324,7 +331,10 @@ Create an owner, deadline, evidence and fallback for each decision:
 - Route-based public, tenant and Platform information architecture from the UX plan.
 - Shared authenticated shell, mobile navigation, product context and workspace switcher.
 - Loading/empty/unavailable/partial/denied/conflict/pending/success components.
-- Onboarding shell and product portfolio component.
+- Approved Landing -> Packages -> family -> package -> subscribe/trial -> account composition.
+- Short product-specific onboarding shells: three Flow pages and four separate Text/Voice pages.
+- Full-page Configuration shell with Dashboard route, section navigator, autosave/conflict recovery and responsive expandable right tester.
+- Product portfolio and merchant dashboard shell with Overview, Conversations/detail, Contacts, Leads, Appointments, Analytics, Configuration and Usage.
 - Notification/activity center.
 - Standard table/filter/detail/split-pane patterns.
 - Thai/English locale, currency/date/time and long-label behavior.
@@ -333,6 +343,8 @@ Create an owner, deadline, evidence and fallback for each decision:
 **Migration:** retain old routes with safe redirect/deep-link mapping until replacement acceptance. Split large Studio pages incrementally behind shared services.
 
 **Exit:** full route/role/state matrix passes desktop/mobile accessibility and no-overlap checks.
+
+The UI acceptance matrix MUST prove that family/package selection precedes role, all three families remain visible on Landing/Packages, Flow never receives AI role onboarding, Text/Voice never receive the Flow template editor, advisory states permit publication, and Configuration/Dashboard routes work in both directions before and after publication.
 
 ## 8. Commercial, billing and finance work packages
 
@@ -375,6 +387,16 @@ Create an owner, deadline, evidence and fallback for each decision:
 **Reconciliation:** raw events, aggregates, reservations, contract, packs, provider units, carrier CDR and Stripe quantities.
 
 **Tests:** duplicates/reordering, period boundary/Bangkok time, concurrent cap race, session rounding, retry/refusal exclusions, pack ordering/expiry, adjustments, forecast fixtures and reconciliation repair.
+
+### COM-04: Free-trial lifecycle
+
+**Schema/services:** opaque trial intents, eligibility decisions, Starter entitlement snapshot, fixed start/expiry, website-only channel grant, product meter allowance, card-requirement evidence, threshold events and terminal state.
+
+**Implement:** Flow 30 days/5,000 conversations/no card; Text 30 days/500 replies/card; no Voice trial; owner in-app/email warning at 100 Text replies remaining; exhaustion/expiry stop and subscribe/fallback behavior; no social grant and no automatic paid conversion.
+
+**Decision boundaries:** leave repeat-trial/abuse thresholds, trial-data retention, extra recipients and auto-charge unimplemented until approved. Internal eligibility signals never appear in customer errors.
+
+**Tests:** concurrent/replayed trial creation, fixed clock, family/allowance/channel/card boundaries, threshold dedupe, expiry and exhaustion races, customer fallback, upgrade continuation, tenant isolation and absence of Voice/social entitlement.
 
 ### BILL-01: Purchase, Checkout and webhook lifecycle
 
@@ -462,13 +484,13 @@ Create an owner, deadline, evidence and fallback for each decision:
 
 ### FLOW-02: Builder and onboarding
 
-Replace raw JSON primary editing with topic list, canvas, node palette, settings inspector, condition builder, media picker, form/CTA/action configuration, validation markers, preview, publish and version history/rollback.
+Implement the six approved starting journeys and three onboarding pages, then the full-page Studio with Dashboard route; Bot identity, Flow map, Lead capture, Fallback/handover, Widget and Release sections; canvas add/select/drag/duplicate/remove/entry/undo/redo; selected-step editor; responsive Edit/Test right panel; publish and version history/rollback.
 
-Support keyboard alternative, optimistic conflicts, autosave status, templates, Thai/English content, Starter/Advanced controls and onboarding sequence from the UX plan.
+Support message/options/input/form/card/handover/end nodes, keyboard alternative, optimistic conflicts, autosave status, Thai/English content, keywords, fields/destinations, Starter/Advanced controls and exact advisory/blocking classifications. Testing is optional and runs the real draft from entry or selected node without billing/external effects.
 
 ### FLOW-03: Website launch
 
-Implement complete Flow rendering, forms/actions/handover/completion/restart, deployment origin/theme/snippet/install check, current-version E2E test and lifecycle evidence.
+Implement complete Flow rendering, forms/actions/handover/completion/restart, deployment origin/theme/snippet/install check, explicit Go live/traffic off, Enter Dashboard and independent lifecycle evidence. Publishing MUST NOT install or activate.
 
 ### FLOW-04: Social Flow
 
@@ -494,11 +516,13 @@ Implement tags/attributes, qualification, quotation/appointment/booking/order te
 
 Upgrade provider adapter from JSON mode to strict Responses Structured Outputs generated from the Sales Core schema. Handle refusal/incomplete/invalid output explicitly.
 
-Build retrieval filters/ranking, language/model policy, safety identifier, prompt trust separation, grounded evidence, confidence/escalation, typed CTA/action, verified tool result, safe fallback, usage reservation/finalization and provider cost telemetry.
+Build retrieval filters/ranking, language/model policy, safety identifier, prompt trust separation, grounded evidence, confidence/escalation, typed CTA/action, verified tool result, safe fallback, usage reservation/finalization and provider cost telemetry. Add grapheme-aware validation to at most 200 visible characters before every committed customer reply.
 
 ### AI-03: Text Studio/onboarding/widget
 
-Implement agent identity/tone/instructions, knowledge binding, lead/CTA configuration, low-confidence policy, Thai/English quality test, no-side-effect preview, website theme/origin/install/publish/activate and customer widget behavior.
+Implement separate Role -> Website/manual source -> task-progress -> editable generated-review onboarding. Generated review includes all business-profile fields, agent objective/behavior/boundaries and editable FAQs with crawl exclusions/recovery.
+
+Implement the full-page role-specific Studio: Support, Sales and Booking section sets; shared identity/knowledge; Text controls; leads/appointments/handover; expandable no-side-effect Thai/English tester; role-change impact; advisory publish; separate website snippet/origin verification/Go live; and Dashboard return. Sales retains booking as a supporting action.
 
 ### AI-04: Advanced intelligence/actions
 
@@ -526,7 +550,9 @@ Conversation/customer summary revisions/correction, question/intent/unanswered/k
 
 ### VOICE-02: Voice Studio/onboarding/widget
 
-Implement provider-neutral voice choice, greeting/personality, languages, knowledge, qualification, silence/interrupt/duration, disclosure/retention, callback/appointment request, test suite, website deployment/install and stable permission/connection/listening/speaking/mute/end/reconnect/action/transfer/warning states.
+Reuse the approved role/source/progress/editable-review structure without merging the Voice flow into Text. Implement the same role-specific business sections plus provider-neutral voice choice, speed, interruption, silence, readback, duration, disclosure/retention, low-confidence/misunderstanding/transfer fallback, recording consent, callback/appointment request, and grapheme-aware 200-character written-output validation before speech.
+
+Implement an expandable Voice tester distinct from Text, optional suggested tests, website deployment/install/explicit activation, Dashboard return and stable permission/connection/listening/speaking/mute/end/reconnect/action/transfer/warning states.
 
 ### VOICE-03: Telephony
 
@@ -550,7 +576,9 @@ Checkpoint raw seconds, finalize rounded session minutes once, release concurren
 
 ### OPS-01: Unified Inbox and handover
 
-Canonical cross-product conversation list/timeline/context; filters/assignment/unread/attention; rich events; Voice outcome; accept/reassign/reply/note/resolve/reopen/release; reply-window validation; bot suppression; mobile routed layout; delivery failure recovery.
+Canonical cross-product conversation list/timeline/context; search and approved filters; assignment/unread/attention; rich events; Flow pinned path/version/fallback and Voice outcome; accept/reassign/reply/note/star/lead-stage/resolve/reopen/release; reply-window validation; bot suppression; mobile routed layout; delivery failure recovery.
+
+Implement server-authoritative website takeover only when the latest committed bot response is less than five minutes old. Lock/revalidate owner and age, enter `human_active`, label merchant actor, suppress automation, reject the exact-five-minute boundary, and explicitly return Flow to main menu or AI to a safe continuation boundary.
 
 ### OPS-02: Contacts, leads and appointments
 
@@ -558,7 +586,7 @@ Contact identities/consent/history/tags/attributes/summaries; suggestion-only ma
 
 ### OPS-03: Merchant control center
 
-State-driven Overview, independent product lifecycles, attention queue, usage/cost, billing/contracts, add-ons/packs, team/seat limits, workspace switching, privacy/security and plan changes.
+State-driven Overview, Conversations/detail, Contacts, Leads/follow-up, Appointments, Analytics, Usage/plan and full-page Configuration route; independent product lifecycles; attention queue; usage/cost; billing/contracts; add-ons/packs; team/seat limits; workspace switching; privacy/security and plan changes. Allow entry while unconfigured and highlight Configuration as `Not configured`.
 
 ### OPS-04: Notifications, support and professional setup
 
@@ -722,7 +750,7 @@ scripts/use-node24.sh pnpm run qa:p9-restore
 scripts/use-node24.sh pnpm run qa:release-artifacts
 ```
 
-Add new gates for requirements registry, commerce lifecycle, onboarding/multi-product, knowledge ingestion, complete Flow rich/social, AI structured output/actions, telephony, finance/FlowAccount, widgets/multi-product, Platform queues, GCP deployed smoke and package acceptance.
+Add new gates for the 322-requirement registry, paid/trial commerce lifecycle, approved page order and three onboarding branches, optional-warning publication, Configuration/Dashboard routing, five-minute takeover, knowledge ingestion, complete Flow rich/social, 200-character Text/Voice output, AI structured output/actions, telephony, finance/FlowAccount, widgets/multi-product, Platform queues, GCP deployed smoke and package acceptance.
 
 ### 17.2 Test matrix for every package
 
@@ -963,7 +991,7 @@ Before paid GA:
 
 | Risk | Impact | Mitigation/decision gate |
 | --- | --- | --- |
-| Scope hidden behind earlier “delivered” phase labels | Missing advertised features | 297-ID registry and sellability gate |
+| Scope hidden behind earlier “delivered” phase labels | Missing advertised features | 322-ID registry and sellability gate |
 | Telephony/provider approval delay | Voice Advanced blocked | Select/contract early; adapter contract/test harness; do not fake acceptance |
 | Thai tax/FlowAccount ambiguity | Cannot invoice compliantly | Accountant/legal and official sandbox before FIN finalization |
 | Provider or social policy/quotas | Channel cannot launch reliably | Account review, live test, health/recovery and explicit non-sellable state |
@@ -997,12 +1025,12 @@ With fewer people, preserve dependency order and gates; do not compress scope by
 
 Start in this exact order:
 
-1. `CTRL-01`: create the 297-requirement registry, schema, checker and CI/report.
+1. `CTRL-01`: reconcile/create the 322-requirement registry, schema, checker and CI/report.
 2. `CTRL-02`: record and assign every open commercial/vendor/legal decision; begin telephony, FlowAccount and CRM validation immediately.
 3. `COM-01`: implement immutable exact catalogue, promotion and contract snapshots; seed all package/add-on/pack/service values with `sellable=false`.
 4. `CORE-01`: add billing permissions/MFA policy and finish new-data isolation scaffolding.
 5. `COM-02` and `COM-03`: complete entitlement/resource and usage/cap foundations.
-6. `BILL-01`: implement the real purchase/Checkout/webhook/provisioning lifecycle.
+6. `BILL-01` and `COM-04`: implement paid Checkout/webhook provisioning and the separate approved trial lifecycle.
 7. `CORE-02` and `CORE-03`: implement lifecycle/onboarding read models and the new route shell.
 8. Begin Flow completion (`FLOW-01`/`FLOW-02`) while shared `WEB-01`, `CHAN-01`, `INT-01`, GCP and finance foundations proceed according to dependency.
 9. Do not start a public package pilot until the package-specific checklist, shared commerce/operations, and GCP staging gates pass together.
@@ -1011,7 +1039,7 @@ Start in this exact order:
 
 The V1 Market Release implementation program is complete only when:
 
-- All 297 PRD requirements are `accepted` with current evidence.
+- All 322 PRD requirements are `accepted` with current evidence.
 - Every six-package sellability checklist passes independently.
 - Public purchase, merchant onboarding/operation, website/social/telephone customer experience and Platform exception workflows pass end to end.
 - Stripe, OpenAI, LINE/Meta, carrier, CRM/Sheets, email and FlowAccount production integrations are validated and reconciled.
@@ -1024,6 +1052,8 @@ The V1 Market Release implementation program is complete only when:
 
 ## 28. Related documents
 
+- `docs/design/djay-bots-approved-experience-contract.md`
+- `docs/design/djay-bot-text-voice-configuration-flow.html`
 - `docs/product/djay-bots-v1-market-release-prd.md`
 - `docs/design/djay-bots-v1-ui-ux-and-user-flows.md`
 - `docs/architecture/djay-bots-v1-market-release-architecture.md`

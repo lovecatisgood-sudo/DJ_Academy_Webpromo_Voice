@@ -601,7 +601,7 @@ export class PostgresAuthStore implements AuthStore {
   }
 
   async resolveSession(tokenHash: Buffer, now: Date) {
-    const sessions = await this.client<{
+    const rows = await this.client<{
       session_id: string;
       family_id: string;
       user_id: string;
@@ -610,45 +610,62 @@ export class PostgresAuthStore implements AuthStore {
       absolute_expires_at: Date;
       reauthenticated_at: Date;
       mfa_verified_at: Date | null;
+      tenant_id: string | null;
+      tenant_slug: string | null;
+      business_name: string | null;
+      membership_id: string | null;
+      membership_role: TenantRole | null;
     }[]>`
+      WITH valid_session AS (
+        UPDATE identity.auth_sessions session
+        SET last_seen_at = ${now}
+        FROM identity.users app_user
+        WHERE session.token_hash = ${tokenHash}
+          AND session.revoked_at IS NULL
+          AND session.idle_expires_at > ${now}
+          AND session.absolute_expires_at > ${now}
+          AND app_user.id = session.user_id
+          AND app_user.status = 'active'
+          AND app_user.deleted_at IS NULL
+        RETURNING
+          session.id AS session_id,
+          session.family_id,
+          session.user_id,
+          session.selected_tenant_id,
+          session.idle_expires_at,
+          session.absolute_expires_at,
+          session.reauthenticated_at,
+          session.mfa_verified_at
+      )
       SELECT
-        session.id AS session_id,
+        session.session_id,
         session.family_id,
         session.user_id,
         session.selected_tenant_id,
         session.idle_expires_at,
-        session.absolute_expires_at
-        , session.reauthenticated_at, session.mfa_verified_at
-      FROM identity.auth_sessions session
-      JOIN identity.users app_user ON app_user.id = session.user_id
-      WHERE session.token_hash = ${tokenHash}
-        AND session.revoked_at IS NULL
-        AND session.idle_expires_at > ${now}
-        AND session.absolute_expires_at > ${now}
-        AND app_user.status = 'active'
-        AND app_user.deleted_at IS NULL
-      LIMIT 1
+        session.absolute_expires_at,
+        session.reauthenticated_at,
+        session.mfa_verified_at,
+        workspace.tenant_id,
+        workspace.tenant_slug,
+        workspace.business_name,
+        workspace.membership_id,
+        workspace.membership_role
+      FROM valid_session session
+      LEFT JOIN LATERAL identity.active_memberships_for_user(session.user_id) workspace ON true
     `;
-    const session = sessions[0];
+    const session = rows[0];
     if (!session) return null;
-    const workspaces = await this.client<{
-      tenant_id: string;
-      tenant_slug: string;
-      business_name: string;
-      membership_id: string;
-      membership_role: TenantRole;
-    }[]>`SELECT * FROM identity.active_memberships_for_user(${session.user_id}::uuid)`;
-    const mapped = workspaces.map((workspace) => ({
-      tenantId: workspace.tenant_id,
-      slug: workspace.tenant_slug,
-      businessName: workspace.business_name,
-      membershipId: workspace.membership_id,
-      role: workspace.membership_role,
-    }));
-    await this.client`
-      UPDATE identity.auth_sessions SET last_seen_at = ${now}
-      WHERE id = ${session.session_id}::uuid AND revoked_at IS NULL
-    `;
+    const mapped = rows.flatMap((workspace) => workspace.tenant_id && workspace.tenant_slug
+      && workspace.business_name && workspace.membership_id && workspace.membership_role
+      ? [{
+          tenantId: workspace.tenant_id,
+          slug: workspace.tenant_slug,
+          businessName: workspace.business_name,
+          membershipId: workspace.membership_id,
+          role: workspace.membership_role,
+        }]
+      : []);
     return {
       sessionId: session.session_id,
       familyId: session.family_id,

@@ -1,6 +1,16 @@
 # DJAY Bot SaaS Platform State
 
-Last updated: 2026-07-23
+Last updated: 2026-08-13
+
+## Approved experience reconciliation (2026-08-13)
+
+The page-by-page public, onboarding, configuration, launch and merchant-dashboard design is approved and recorded in `docs/design/djay-bots-approved-experience-contract.md`, with `docs/design/djay-bot-text-voice-configuration-flow.html` as its clickable visual reference.
+
+This is a specification checkpoint, not a claim that production already implements the redesigned flow. The authoritative sequence is Landing -> Packages -> bot family -> package -> subscribe or eligible trial -> account -> separate product onboarding -> full-page Configuration Studio -> optional test/review -> immutable publish -> snippet/origin verification -> explicit Go live -> Dashboard. Flow uses six editable deterministic starting journeys. Text and Voice separately use Support, Sales or Booking role selection, website/manual business learning, truthful processing, editable generated business/behavior/FAQ review, and role-specific configuration. Dashboard remains available while unconfigured, and live website takeover is server-authorized only when the latest bot response is less than five minutes old.
+
+The approved trial baseline is Flow: 30 days, 5,000 website conversations, no card; Text: 30 days, 500 website AI replies, card required, account-owner platform/email warning at 100 remaining; Voice: no trial. Text and Voice customer-facing written responses are capped at 200 visible characters. Testing, section review and `Needs attention` findings are advisory; only technical/security/legal/entitlement/external-action invariants block the applicable operation.
+
+The PRD now contains 322 normative requirements in 36 families. The executable registry must be synchronized before validation; all six packages remain `sellable: false`. Earlier HTML maps and dated onboarding plans are historical/current-state references and cannot override the approved experience contract.
 
 ## Active implementation program (SKU1)
 

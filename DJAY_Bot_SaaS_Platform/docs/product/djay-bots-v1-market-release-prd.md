@@ -5,19 +5,21 @@
 | Product | DJay Bots by DJAI |
 | Version | V1 Market Release |
 | Status | Approved product scope; implementation and production validation pending |
-| Date | 2026-07-18 |
+| Date | 2026-08-13 |
 | Product owner | DJAI |
 | Primary market | Thailand |
 | Languages | Thai and English on all plans; additional supported languages on Advanced AI plans |
 | Billing currency | Thai baht (THB) |
-| Source of truth | The commercial offer supplied by the product owner, followed by this PRD |
+| Source of truth | This PRD for commercial and normative requirements; the approved experience contract for page and interaction behavior |
 
 ## 1. Purpose and authority
 
-> **Document authority (resolved 2026-07-26).** Two PRDs existed and disagreed on pricing and channel packaging. Resolution:
+> **Document authority (reconciled 2026-08-13).** Earlier product and onboarding documents disagreed on pricing, channel packaging, and setup order. Resolution:
 > - **This document is authoritative** for commercial catalogue, prices, billing period, meters, and all normative `XXX-nnn` requirements.
 > - `PRD_CLAUDE_26JUL.md` (repo root) is authoritative for **product strategy and SKU release sequencing** only. Where it states prices or packaging, this document wins.
-> - `docs/superpowers/specs/2026-07-26-omnichannel-onboarding-design.md` is authoritative for **onboarding mechanics**.
+> - `docs/design/djay-bots-approved-experience-contract.md` is authoritative for **public page order, trial UX, onboarding mechanics, Configuration Studio behavior, publishing/install separation, dashboard navigation, and five-minute takeover**.
+> - `docs/design/djay-bot-text-voice-configuration-flow.html` is the approved clickable visual reference. Its sample data and simulated integrations are not production policy.
+> - `docs/superpowers/specs/2026-07-26-omnichannel-onboarding-design.md` remains a historical/deferred social-channel design and cannot override the approved website-first experience contract.
 > - Billing is **annual only** (§6.1). Social packaging is **one included channel + paid extras** (`CHN-004`, `CHN-005`).
 
 This PRD converts the complete DJay Bots commercial offer into testable product requirements. Every capability advertised in the offer is committed V1 scope unless this document explicitly labels it as an optional paid service, add-on, third-party dependency, or Enterprise capability. The implementation must satisfy the offer; the offer must not be reduced to fit the current implementation.
@@ -123,6 +125,18 @@ The displayed first-year price is authoritative. Each subscription is paid annua
 - `COM-017` Tax-inclusive or tax-exclusive presentation, VAT invoice requirements, and withholding-tax handling MUST be approved by Thai accounting/legal review before paid GA.
 - `COM-018` A tenant MUST be able to hold compatible Flow, AI Text, and AI Voice subscriptions together. At most one base package per bot family/workspace is active unless an approved Enterprise contract says otherwise; upgrading within a family replaces that family's base package without removing other families.
 
+### 6.4 Free trials
+
+- `TRL-001` New members MUST be offered a 30-fixed-day website-only Flow Bot Starter trial with 5,000 customer conversations and no payment card requirement.
+- `TRL-002` New members MUST be offered a 30-fixed-day website-only AI Text Bot Starter trial with 500 AI-generated replies, equal to 25% of the 2,000-reply Starter allowance, and a payment card requirement.
+- `TRL-003` AI Voice Bot MUST NOT advertise or provision a free trial under the approved V1 experience.
+- `TRL-004` The trial request begins from the public package page. The fixed trial clock MUST begin only after authoritative account/workspace trial entitlement provisioning succeeds; onboarding, configuration, publication, and website installation then occur inside that period.
+- `TRL-005` Trial entitlements MUST exclude social channels, telephone channels, paid add-ons, overage, and Advanced-only features.
+- `TRL-006` At 100 AI Text trial replies remaining, equal to 20% of the trial allowance, the platform MUST notify the account owner in-product and by email. Delivery MUST be deduplicated and auditable.
+- `TRL-007` At trial allowance exhaustion or fixed-period expiry, the affected bot MUST stop accepting new trial-metered service and present the merchant with a paid-plan action. The customer-facing experience MUST use the merchant-approved unavailable/contact fallback and MUST NOT expose provider, token, model, or internal quota identifiers.
+- `TRL-008` Flow trial usage MUST be tracked as deterministic customer conversations and MUST NOT consume AI reply credits.
+- `TRL-009` Automatic paid conversion/charging, repeat-trial policy, abuse-prevention thresholds, trial-data retention, and additional warning recipients remain unapproved decision gates. Card collection for the Text trial MUST NOT be treated as authority to invent those rules.
+
 ## 7. Meter definitions
 
 - `MET-001` A **Flow conversation topic** is an independently addressable, named, top-level published entry journey. Nodes, buttons, branches, reusable fragments, translations, and draft revisions do not each count as topics.
@@ -225,6 +239,8 @@ The displayed first-year price is authoritative. Each subscription is paid annua
 - `AIT-006` Prevent cross-tenant retrieval, prompt injection from documents, tool misuse, secret disclosure, and unapproved external actions.
 - `AIT-007` Support configurable personality, business tone, sales instructions, prohibited claims, escalation instructions, and CTA priorities.
 - `AIT-008` Answers MUST never claim that an appointment, order, payment, transfer, or external update succeeded unless the corresponding tool returns a verified success record.
+- `AIT-009` Every customer-facing AI Text reply MUST be validated to a maximum of 200 visible characters before delivery. The limit is characters, not words, and MUST be applied without exposing internal validation or model details.
+- `AIT-010` AI Text onboarding MUST begin with Customer Support, Sales Associate, or Appointment Booking role selection after the merchant has already selected the AI Text family/package. Sales Associate MUST retain appointment booking as a supporting action after discovery and objection handling.
 
 ### 10.2 Knowledge ingestion
 
@@ -279,6 +295,8 @@ The displayed first-year price is authoritative. Each subscription is paid annua
 - `VOI-006` Display and/or play appropriate AI disclosure, recording/transcription notice, emergency limitation, and consent wording approved for the channel and jurisdiction.
 - `VOI-007` Enforce tenant, plan, per-agent, and global concurrency before allocating provider resources.
 - `VOI-008` A voice agent MUST fail safely on provider outage, silence, abusive input, unsafe request, tool failure, or handover failure.
+- `VOI-009` Voice responses MUST be generated and validated as customer-facing written content of no more than 200 visible characters before speech output. The limit is characters, not words.
+- `VOI-010` AI Voice onboarding MUST begin with Customer Support, Sales Associate, or Appointment Booking role selection after the merchant has already selected the AI Voice family/package. The selected role determines behavior configuration; Voice settings remain a separate modality layer.
 
 ### 11.2 AI Voice Starter
 
@@ -423,21 +441,21 @@ Requests exceeding 100,000 Flow conversations, 10,000 AI replies, 500 voice minu
 
 ### 19.1 Evaluate and subscribe
 
-1. Visitor compares all six packages and exact first-year/renewal prices.
-2. Visitor creates or signs into an account, identifies the business, and selects the package.
-3. Server creates a Stripe Checkout Session with the authoritative price and promotion.
-4. Customer reviews annual term, renewal, tax, overage policy, third-party exclusions, and terms before payment.
-5. Signed webhook confirms payment; local processing provisions the tenant and entitlements exactly once.
-6. Customer receives confirmation and enters a plan-specific onboarding checklist.
+1. Visitor starts on a landing page that presents all three product families and proceeds to package comparison.
+2. Visitor chooses Flow Bot, AI Text Bot, or AI Voice Bot first, then chooses Starter or Advanced. No role/business-goal question precedes the product selection.
+3. Visitor chooses paid subscription or, for eligible Flow/Text selections, the approved 30-day Starter trial.
+4. Visitor creates or signs into an account and reviews the selected product, access type, due-now amount, renewal/trial limits, channel scope, and legal terms.
+5. Paid purchase uses an authoritative Stripe Checkout Session and signed webhook. Trial provisioning uses an authoritative, eligibility-checked, idempotent entitlement command.
+6. Provisioning creates the tenant/workspace/access exactly once and routes the merchant to that product's separate onboarding.
 
 ### 19.2 Build and publish
 
-1. Administrator creates a bot within the limit.
-2. Administrator configures content/knowledge, identity, instructions, CTAs, handover, consent, and allowed origin/channel.
-3. System validates completeness, entitlement, security, and channel credentials.
-4. Administrator tests a draft without consuming customer billable usage.
-5. Administrator publishes an immutable revision and installs/connects the channel.
-6. Health and first real conversation are verified; rollback remains available.
+1. Flow Bot starts with one of six editable templates or blank; Text/Voice starts with role selection, website/manual business learning, transparent task progress, and editable generated business/behavior/FAQ material.
+2. Administrator enters the full-page product Configuration Studio and may open, skip, or revisit any section while draft autosave preserves work.
+3. The expandable right panel tests the current draft without billable customer usage or external side effects. Testing and reviewing every section are recommended but optional.
+4. Content-quality and incomplete-review findings are advisory. Only technical, security, legal, entitlement, or external-action invariants may block the affected operation.
+5. Administrator explicitly publishes an immutable revision. Publication does not install the widget or enable traffic.
+6. Administrator copies the website snippet, supplies/validates the HTTPS origin, verifies installation, and explicitly chooses Go live. Rollback and traffic-off controls remain available.
 
 ### 19.3 Operate and improve
 
@@ -467,6 +485,12 @@ Requests exceeding 100,000 Flow conversations, 10,000 AI replies, 500 voice minu
 - `UX-010` Product setup MUST use job-oriented, resumable steps; complex product Studios MUST NOT require editing raw JSON as the primary workflow.
 - `UX-011` The authenticated tenant product MUST use compact, work-focused layouts with stable navigation, tables, split panes, and tool surfaces rather than decorative marketing composition.
 - `UX-012` UI visibility MUST follow role and entitlement, but every backing route/service MUST independently enforce the same authorization and commercial boundary.
+- `UX-013` The public landing and package page MUST show all three product families; the merchant MUST select bot family and package before a role or bot-specific configuration question.
+- `UX-014` Flow Bot MUST use template-led deterministic onboarding. AI Text and AI Voice MUST use separate role-led onboarding with Customer Support, Sales Associate, and Appointment Booking choices.
+- `UX-015` The product Configuration Studio MUST remain a dedicated full-page surface with a direct Dashboard route and an expandable real-draft tester. Dashboard access MUST remain available before configuration completion and MUST highlight Configuration as `Not configured` until publication.
+- `UX-016` `Needs attention`, `Not reviewed`, and `Not tested` states MUST remain advisory. The UI MUST NOT force completion of all categories, all review actions, or all suggested tests before publication.
+- `UX-017` Publication, snippet installation, origin verification, and Go live MUST be separate explicit states and commands.
+- `UX-018` Processing status for website learning MAY use friendly varied task copy but MUST describe observable pipeline stages and MUST NOT reveal or fabricate hidden chain-of-thought.
 
 ## 21. Security, privacy, and compliance
 
@@ -569,6 +593,7 @@ These decisions choose how to fulfill the offer; they do not remove requirements
 6. Approve overage opt-in defaults, grace thresholds, minimum safety cap, pack expiry/consumption ordering, proration, refund, and downgrade policies.
 7. Approve data retention by artifact: account, lead, transcript, audio if enabled, document, audit, webhook, invoice, and backup.
 8. Confirm LINE, Meta, email, telephony, OpenAI, Stripe, FlowAccount, and Google production accounts, reviews, quotas, and support contacts.
+9. Approve automatic-conversion/charge policy, repeat-trial/abuse rules, trial-data retention, and any Text-trial warning recipients beyond the account owner. Until approved, no automatic conversion/charge or additional recipient is permitted.
 
 ## 27. Traceability and change control
 
@@ -592,21 +617,25 @@ These decisions choose how to fulfill the offer; they do not remove requirements
 - `EXP-007` Checkout review MUST identify the charged workspace, package, first-term total, regular renewal, billing period, allowance, overage/pack mode, add-ons/cadence, taxes, business details, and third-party exclusions before redirecting to Stripe.
 - `EXP-008` The checkout-return view MUST resolve authoritative local/provider state and support processing, active, action-required, expired/canceled, and unavailable outcomes without provisioning from the return URL.
 - `EXP-009` An open checkout MUST be resumable and duplicate-safe. An expired checkout MUST be replaced from the preserved intent; unknown payment result MUST be reconciled before a customer is asked to pay again.
+- `EXP-010` The acquisition sequence MUST be Landing -> Packages -> Bot family -> Package -> Subscribe or eligible trial -> Account -> product-specific onboarding. All three families MUST remain visible on Landing and Packages.
+- `EXP-011` Flow and AI Text trial presentation and enforcement MUST follow `TRL-001` through `TRL-009`; AI Voice MUST show subscription-only.
 
 ### 28.2 Post-subscription and product onboarding
 
 - `ONB-001` After active payment, the customer MUST see package, paid term, renewal, allowance, usage-protection state, invoice/receipt state, and a primary product-specific setup action.
-- `ONB-002` Onboarding MUST be resumable, role-aware, and evidence-derived with save-and-exit, back/continue, per-field error recovery, test state, and scoped setup-help entry.
+- `ONB-002` Onboarding MUST be resumable and evidence-derived with back/continue, saved draft state, per-field error recovery, and scoped setup-help entry. Role awareness applies to AI Text and AI Voice; Flow uses template choice instead.
 - `ONB-003` Shared prerequisites MUST cover business profile, language/timezone/business hours, lead/handover destination, privacy/disclosure/retention, and usage thresholds/overage/safety cap.
-- `ONB-004` Flow Starter onboarding MUST cover template/blank choice, identity/greeting, topic/step building, lead capture, current-version test, website origin/install verification, publish, and activation.
+- `ONB-004` Flow Starter onboarding MUST offer the six approved starting journeys, editable identity/widget preview, visual step map, lead capture, fallback/handover, optional real-draft test, publish, website origin/install verification, and explicit activation.
 - `ONB-005` Flow Advanced onboarding MUST additionally cover rich content, advanced logic/customer state, business hours/departments, business workflows, integrations, selected social channel, capability fallback preview, and goals/analytics.
-- `ONB-006` AI Text Starter onboarding MUST cover agent identity, supported knowledge sources, structured sales behavior, lead/typed CTAs, Thai/English grounded quality test, website install verification, publication, and activation.
+- `ONB-006` AI Text Starter onboarding MUST follow Role -> Website or manual business source -> transparent processing -> editable generated business/behavior/FAQ review -> role-specific full-page Configuration Studio -> optional Thai/English grounded test -> publication -> website verification -> explicit activation.
 - `ONB-007` AI Text Advanced onboarding MUST additionally cover multiple agents/collections/catalogues, additional validated languages, qualification/segments/tags/scores, routing, CRM/Sheets/webhooks, selected social channel, summaries, and monthly knowledge review.
-- `ONB-008` Voice Starter onboarding MUST cover provider-neutral voice selection, knowledge, conversation/interrupt/silence behavior, disclosure/retention, lead/callback, Thai/English microphone test, website install verification, publication, and activation.
+- `ONB-008` Voice Starter onboarding MUST follow the same role/source/processing/editable-review structure as AI Text, then provide role-specific configuration plus provider-neutral Voice settings, optional Thai/English voice test, publication, website verification, and explicit activation.
 - `ONB-009` Voice Advanced onboarding MUST additionally cover multiple agents/departments, additional validated languages, telephone number/carrier status, scheduling, live/department transfer and fallback, CRM/Sheets/webhooks, reporting, carrier fees, and real inbound test call.
 - `ONB-010` A tenant with multiple product families MUST see independent entitlement, configuration, current-version test, deployment, and live-health state for each family. One product MUST be launchable while another remains processing or incomplete.
 - `ONB-011` Shared knowledge, team, customer, or integration resources MUST show all product bindings and change/delete impact; reuse MUST NOT merge product meters or readiness.
 - `ONB-012` Preview and current-version test activity MUST not consume customer allowance or create production external side effects; internal provider cost MUST remain separately observable.
+- `ONB-013` Website learning MUST exclude login/account, checkout, private, form-submission, and unrelated pages; expose partial/failure recovery; and allow every generated business field, agent objective/behavior/boundary, and FAQ to be edited or removed.
+- `ONB-014` The Configuration Studio section navigator MUST be the primary guide. A second readiness panel MUST NOT repeat the same checklist. Merchants MUST be able to skip, revisit, or publish with advisory warnings.
 
 ### 28.3 Post-onboarding business operations
 
@@ -620,6 +649,8 @@ These decisions choose how to fulfill the offer; they do not remove requirements
 - `OPS-008` Upgrade MUST show effective entitlement, charge/proration, and renewal. Downgrade MUST run preflight and preserve excess data as disabled/read-only rather than deleting it. Cancellation MUST disclose access end and export/deletion dates.
 - `OPS-009` Team UX MUST show included/used/invited/add-on administrator seats and prevent an invitation beyond entitlement unless an authorized add-on is purchased.
 - `OPS-010` Product analytics MUST answer business outcome questions and always show period, timezone, filters, denominator, freshness, and entitlement-appropriate depth.
+- `OPS-011` The merchant dashboard MUST be directly accessible before bot configuration is complete and MUST expose Overview, Conversations, Contacts, Leads and follow-up, Appointments, Analytics, Configuration, and Usage and plan.
+- `OPS-012` A merchant MAY take over a website bot conversation only while the latest bot response is less than five minutes old. The server MUST revalidate recency and ownership atomically; once in human mode automation pauses until explicit return. Flow returns to its main menu, while AI returns under the safe AI continuation policy.
 
 ### 28.4 Customer-facing website experience
 
@@ -659,6 +690,8 @@ These decisions choose how to fulfill the offer; they do not remove requirements
 
 ## 30. Related project documents
 
+- `docs/design/djay-bots-approved-experience-contract.md`
+- `docs/design/djay-bot-text-voice-configuration-flow.html`
 - `docs/audit/commercial-package-feature-gap-2026-07-18.md`
 - `docs/audit/deployment-session-checkpoint-2026-07-18.md`
 - `docs/architecture/djay-bots-v1-market-release-architecture.md`

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 import { clearBrowserOneTimeValues, displayNameFieldConstraints, identityTextError, newPasswordConstraints, normalizeIdentityText, passwordConfirmationError, retainBrowserOneTimeValues, safeMutationFetch } from "@djay/shared";
+import { BrandLockup } from "../../PublicHeader";
 
 const invitationStorage = "djay.invitation";
 
@@ -91,7 +92,7 @@ export function InvitationAcceptanceClient({
 
   return (
     <section className="verification-panel" aria-labelledby="invitation-title">
-      <div className="brand-lockup verification-brand"><span className="brand-mark">D</span><span>DJAY BOT</span></div>
+      <div className="verification-brand"><BrandLockup /></div>
       <p className="step-label">คำเชิญเข้าร่วมทีม</p>
       <h1 id="invitation-title">เข้าร่วมพื้นที่ทำงานของคุณ</h1>
       {status === "accepted" || status === "sign_in" ? (

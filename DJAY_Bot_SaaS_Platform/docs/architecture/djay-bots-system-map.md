@@ -1,7 +1,6 @@
 # DJAY Bot SaaS — System Map, Pages, and User Flows
 
-This is the source-grounded map of the authoritative SaaS implementation in
-`DJAY_Bot_SaaS_Platform`.
+This is the source-grounded map of the approved target experience and the current SaaS implementation in `DJAY_Bot_SaaS_Platform`.
 
 It answers four questions:
 
@@ -20,6 +19,8 @@ It answers four questions:
 Source documents:
 
 - [Market-release architecture](./djay-bots-v1-market-release-architecture.md)
+- [Approved experience contract](../design/djay-bots-approved-experience-contract.md)
+- [Approved clickable visual reference](../design/djay-bot-text-voice-configuration-flow.html)
 - [UI/UX and user-flow plan](../design/djay-bots-v1-ui-ux-and-user-flows.md)
 - [Market-release product requirements](../product/djay-bots-v1-market-release-prd.md)
 - [Current tenant navigation](../../apps/tenant-web/app/workspace/WorkspaceSidebar.tsx)
@@ -196,10 +197,15 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    START["Public product/pricing page"] --> CHOOSE{"Choose a package now?"}
-    CHOOSE -->|"No"| REGISTER["Register workspace\nname, email, business, password, locale, timezone"]
-    CHOOSE -->|"Yes"| INTENT["Create opaque server-side purchase intent\nplan and promotion are not trusted from URL"]
-    INTENT --> REGISTER
+    START["Landing page\nall three families"] --> PACKAGES["Packages\nFlow / AI Text / AI Voice"]
+    PACKAGES --> FAMILY["Choose bot family first"]
+    FAMILY --> PLAN["Choose Starter or Advanced"]
+    PLAN --> ACCESS{"Access choice"}
+    ACCESS -->|"Paid subscription"| INTENT["Create opaque server-side purchase intent\nplan and promotion are not trusted from URL"]
+    ACCESS -->|"Eligible Flow/Text trial"| TRIALINTENT["Create opaque trial intent\nStarter, website only, fixed quota"]
+    ACCESS -->|"Voice"| INTENT
+    INTENT --> REGISTER["Register / sign in\nidentity + exact legal versions"]
+    TRIALINTENT --> REGISTER
     INVITE["Invitation link"] --> INV_ACCEPT["Accept invitation"]
     INV_ACCEPT --> EXISTING{"Existing account?"}
     EXISTING -->|"Yes"| LOGIN["Sign in"]
@@ -213,13 +219,19 @@ flowchart TD
     LOGIN --> SESSION["Authenticated tenant session"]
     PROVISION --> SESSION
 
-    SESSION --> OVERVIEW["/workspace\nPortfolio overview"]
+    SESSION --> KIND{"Paid or trial intent?"}
+    KIND -->|"Paid"| REVIEW["Checkout review\nworkspace, term, renewal, tax, add-ons, exclusions"]
+    KIND -->|"Trial"| ELIGIBILITY["Eligibility + channel + card-requirement check"]
+    ELIGIBILITY -->|"Flow"| FLOWTRIAL["Atomic 30-day grant\n5,000 conversations, no card"]
+    ELIGIBILITY -->|"AI Text"| TEXTTRIAL["Atomic 30-day grant\n500 replies, card evidence"]
+    FLOWTRIAL --> SUCCESS
+    TEXTTRIAL --> SUCCESS
+    SESSION --> OVERVIEW["/workspace\nPortfolio overview available anytime"]
     OVERVIEW --> SUBSCRIBED{"Active subscription?"}
     SUBSCRIBED -->|"No"| UNSUB["Unsubscribed workspace\nBusiness/security setup + package selection"]
     SUBSCRIBED -->|"Yes"| SUCCESS["Subscription-success state\ncontract, allowance, invoice, next setup"]
 
-    UNSUB --> SELECT["Select Flow / AI Text / AI Voice package"]
-    SELECT --> REVIEW["Checkout review\nworkspace, term, renewal, tax, add-ons, exclusions"]
+    UNSUB --> PACKAGES
     REVIEW --> STRIPE["Server creates Stripe Checkout Session"]
     STRIPE --> PAY["Stripe payment"]
     PAY --> WEBHOOK["Signed webhook inbox\norder-tolerant, idempotent reconciliation"]
@@ -233,7 +245,10 @@ flowchart TD
     ACTION_REQUIRED --> REVIEW
     RESUME --> REVIEW
 
-    SUCCESS --> ONBOARD["Product portfolio onboarding"]
+    SUCCESS --> ONBOARD{"Selected family"}
+    ONBOARD --> FLOWSETUP["Flow template onboarding"]
+    ONBOARD --> TEXTSETUP["AI Text role onboarding"]
+    ONBOARD --> VOICESETUP["AI Voice role onboarding"]
 ```
 
 **Current source note:** the current public page already loads the catalog, legal versions, and registration form; the current tenant workspace exposes subscriptions/usage and checkout routes. The complete comparison, checkout-review, return/resume, and lifecycle presentation is still a target UX surface.
@@ -260,22 +275,23 @@ flowchart LR
     HELP["Setup help"] -. "scoped service request" .-> DJAI["DJAI fulfillment queue"]
 ```
 
-Onboarding completion is evidence-based. A merchant cannot simply click “complete” to bypass a missing profile, untested revision, invalid origin, missing disclosure, or unavailable entitlement.
+Onboarding and lifecycle labels are evidence-based, but the dashboard remains available before configuration completion. Missing review and unrun suggested tests are advisory and never forced completion gates. Publication/activation blocks only for applicable technical, security, legal, entitlement, origin, or external-action invariants.
 
 ### 3.3 Flow Bot onboarding
 
 ```mermaid
 flowchart TD
     FLOWSTART["Flow Bot setup"] --> FLOWACCESS["Confirm active Flow entitlement"]
-    FLOWACCESS --> FLOWCHOICE["Blank bot or industry template"]
-    FLOWCHOICE --> FLOWIDENTITY["Bot name, language, greeting, fallback"]
-    FLOWIDENTITY --> FLOWBUILD["Build topics and graph"]
-    FLOWBUILD --> FLOWNODES["Messages, buttons, forms, branches, cards, CTAs, handover"]
+    FLOWACCESS --> FLOWCHOICE["Choose editable start\nFAQ/contact | Leads | Appointment request\nProduct guide | Support routing | Blank"]
+    FLOWCHOICE --> FLOWIDENTITY["Identity + website preview\nname, language, greetings, colour, position, hours, handover, privacy"]
+    FLOWIDENTITY --> READY["Draft prepared\nOpen Dashboard or Flow Studio"]
+    READY --> FLOWBUILD["Full-page Flow Studio"]
+    FLOWBUILD --> FLOWNODES["Bot identity | Flow map | Lead capture\nFallback/handover | Widget | Publish/install"]
     FLOWNODES --> FLOWLEAD["Lead capture fields, consent, notifications"]
-    FLOWLEAD --> FLOWTEST["Test current published candidate\nno production meter"]
-    FLOWTEST --> FLOWDEPLOY["Website origin, appearance, snippet, install check"]
-    FLOWDEPLOY --> FLOWPUBLISH["Validate -> publish immutable version -> activate deployment"]
-    FLOWPUBLISH --> FLOWLIVE["Flow Bot live"]
+    FLOWLEAD --> FLOWTEST["Optional right-panel real-draft test\nentry/selected node, EN/TH, forms, keywords, fallback"]
+    FLOWTEST --> FLOWPUBLISH["Publish immutable version\nmay acknowledge advisory warnings"]
+    FLOWPUBLISH --> FLOWDEPLOY["Copy snippet -> HTTPS origin -> verify"]
+    FLOWDEPLOY --> FLOWLIVE["Explicit Go live\nthen Enter Dashboard"]
 
     FLOWLIVE -. "Advanced" .-> FLOWADV["Business hours, departments, rich content, integrations, social channel, goals"]
     FLOWADV -. "optional connection" .-> LINE["LINE wizard / provider-approved channel flow"]
@@ -289,16 +305,15 @@ Current source pages: `/workspace/setup`, `/workspace/flowbot`, `/workspace/flow
 ```mermaid
 flowchart TD
     TEXTSTART["AI Text Bot setup"] --> TEXTACCESS["Confirm active AI Text entitlement"]
-    TEXTACCESS --> TEXTIDENTITY["Agent name, language, tone, role, greeting"]
-    TEXTIDENTITY --> KNOWLEDGE["Add business knowledge"]
-    KNOWLEDGE --> SOURCES["Website, FAQ, PDF, DOCX, TXT, products/services"]
-    SOURCES --> INGEST["Scan -> extract -> chunk -> index -> publish revision"]
-    INGEST --> BEHAVIOR["Sales behavior\ngoals, approved/prohibited claims, escalation, CTAs"]
-    BEHAVIOR --> ACTIONS["Lead fields + typed actions\nbooking, call, LINE, website, handover"]
-    ACTIONS --> TEXTTEST["Thai + English quality test\nanswer, citations, confidence, proposed action"]
-    TEXTTEST --> TEXTDEPLOY["Website origin, appearance, snippet, install check"]
-    TEXTDEPLOY --> TEXTPUBLISH["Publish current playbook + knowledge bindings -> activate"]
-    TEXTPUBLISH --> TEXTLIVE["AI Text Bot live"]
+    TEXTACCESS --> ROLE["Choose Customer Support / Sales Associate / Appointment Booking"]
+    ROLE --> SOURCE["Website URL + authorization OR manual business information"]
+    SOURCE --> INGEST["Truthful task progress\nvalidate -> read public pages -> extract -> organize -> draft"]
+    INGEST --> REVIEW["Edit business profile, three behavior fields, and FAQs"]
+    REVIEW --> STUDIO["Role-specific full-page Text Configuration Studio"]
+    STUDIO --> TEXTTEST["Optional expandable Thai/English draft tester\n200 visible characters, no external effect"]
+    TEXTTEST --> TEXTPUBLISH["Publish immutable version with advisory warnings allowed"]
+    TEXTPUBLISH --> TEXTDEPLOY["Copy snippet -> HTTPS origin -> verify -> explicit Go live"]
+    TEXTDEPLOY --> TEXTLIVE["Enter Dashboard; Configuration remains full-page"]
 
     TEXTLIVE -. "Advanced" .-> TEXTADV["Multiple agents, collections, extra languages, score/routing, CRM/Sheets/webhook"]
     TEXTADV -. "optional channel" .-> SOCIAL["LINE / Messenger / WhatsApp where admitted"]
@@ -311,14 +326,15 @@ Current source page: `/workspace/ai-chat`. Knowledge is a shared workspace page 
 ```mermaid
 flowchart TD
     VOICESTART["AI Voice Bot setup"] --> VOICEACCESS["Confirm active Voice entitlement + runtime availability"]
-    VOICEACCESS --> VOICEIDENTITY["Agent name, language, approved voice label, greeting"]
-    VOICEIDENTITY --> VOICEKNOWLEDGE["Select published knowledge revision"]
-    VOICEKNOWLEDGE --> VOICEBEHAVIOR["Opening, qualification, interruption, silence, max duration"]
-    VOICEBEHAVIOR --> VOICEDISCLOSURE["AI identity + transcription/recording disclosure + consent"]
-    VOICEDISCLOSURE --> VOICEOUTCOMES["Lead, callback, appointment, transfer, end-call behavior"]
-    VOICEOUTCOMES --> VOICETEST["Thai + English browser quality test\nmicrophone, interruption, capture, end call"]
-    VOICETEST --> WEBSITEVOICE["Website origin, snippet, microphone/install check"]
-    WEBSITEVOICE --> VOICEACTIVATE["Publish + activate website deployment"]
+    VOICEACCESS --> ROLE["Choose Customer Support / Sales Associate / Appointment Booking"]
+    ROLE --> SOURCE["Website URL + authorization OR manual business information"]
+    SOURCE --> REVIEW["Transparent processing, then edit business, behavior, and FAQs"]
+    REVIEW --> VOICESTUDIO["Role-specific full-page Voice Configuration Studio"]
+    VOICESTUDIO --> VOICEBEHAVIOR["Provider-neutral voice, speed, interruption, silence, readback, duration"]
+    VOICEBEHAVIOR --> VOICEDISCLOSURE["AI/transcription/recording disclosure + recovery"]
+    VOICEDISCLOSURE --> VOICETEST["Optional Thai + English voice test\n200-character written response before speech"]
+    VOICETEST --> VOICEACTIVATE["Publish immutable version"]
+    VOICEACTIVATE --> WEBSITEVOICE["Copy snippet -> origin/install/microphone check -> explicit Go live"]
     VOICEACTIVATE --> VOICELIVE["Website Voice live"]
 
     VOICELIVE -. "Advanced telephone path" .-> NUMBER["Operator provisions/assigns number"]
@@ -350,11 +366,32 @@ flowchart LR
 
 ## 4. Merchant page map
 
+### 4.0 Approved page ownership
+
+| Realm | Approved page/surface | Product scope |
+| --- | --- | --- |
+| Public | Landing | All three families |
+| Public | Packages | All three families; family then package then subscribe/trial |
+| Public/identity | Account, legal acceptance, paid checkout or trial provisioning | Selected family/access |
+| Tenant onboarding | Flow starting journey, identity, ready summary | Flow only |
+| Tenant onboarding | Role, source, processing, editable generated review | AI Text only or AI Voice only |
+| Tenant | Flow Configuration Studio | Flow only |
+| Tenant | AI Text Configuration Studio | Text only |
+| Tenant | AI Voice Configuration Studio | Voice only |
+| Tenant | Merchant Dashboard | Shared shell with current product context |
+| Customer | Website widget | Deployed product/mode only |
+
+Dashboard pages are Overview, Conversations, Conversation detail, Contacts, Leads and follow-up, Appointments, Analytics, Configuration, and Usage and plan. Configuration is not a small dashboard panel; it routes back to the relevant full-page Studio. Dashboard access is allowed while Configuration shows `Not configured`.
+
 ### 4.1 Current public and identity pages
 
 | Current path | Page responsibility |
 | --- | --- |
-| `public-site /` | Public product chooser, product pillars, catalog-driven package selection, legal acceptance, registration. |
+| `public-site /` | Business-outcome landing page presenting Flow, AI Text and AI Voice and leading to Packages. Registration is not embedded here. |
+| `public-site /pricing` | Catalog-driven family/package comparison and approved commercial continuation. |
+| `public-site /register` | Account registration after a package/purchase intent or direct account entry. |
+| `public-site /templates` | Business use cases across the product families. |
+| `public-site /help` | Public product help and recovery guidance. |
 | `public-site /login` | Redirects to the tenant login realm. |
 | `public-site /verify-email` | Verify the signup token and continue to the tenant workspace. |
 | `public-site /invitations/accept` | Accept an invitation; routes an existing account to sign-in when needed. |
@@ -395,7 +432,8 @@ The target information architecture also calls for these job-oriented views:
 
 ```text
 Public:
-  Product chooser / pricing
+  Business-outcome Landing
+  Family/package Pricing with paid/trial choice
   Flow Bot family detail
   AI Text Bot family detail
   AI Voice Bot family detail
@@ -407,10 +445,12 @@ Public:
 Tenant:
   Unsubscribed overview
   Subscription-success landing
-  Product onboarding shell
-  Flow product overview / builder / test / deploy / analytics / versions
-  AI Text product overview / playbook / knowledge / test / deploy / analytics
-  Voice product overview / studio / test / deploy / analytics
+  Flow starting-journey / identity / ready onboarding
+  Separate Text and Voice role / source / processing / editable-review onboarding
+  Flow full-page Configuration Studio and right-panel tester
+  AI Text full-page role-specific Configuration Studio and right-panel tester
+  AI Voice full-page role-specific Configuration Studio and Voice tester
+  Merchant Dashboard: Overview / Conversations / Contacts / Leads / Appointments / Analytics / Configuration / Usage
   Channels
   Integrations
   Appointments and callbacks
@@ -505,6 +545,8 @@ sequenceDiagram
 
 Low-confidence answers can route to a human. The customer sees an honest pending/failure/fallback state; retries do not create duplicate replies or usage events.
 
+The committed customer-facing reply is no more than 200 visible characters. At 100 remaining replies in a Text trial, the owner receives the approved in-platform and email warning. At exhaustion/expiry the runtime stops new AI replies and uses the merchant-approved fallback without exposing providers or internal quota identifiers.
+
 ### 5.4 Voice customer path
 
 ```mermaid
@@ -535,6 +577,24 @@ sequenceDiagram
 ```
 
 Voice cannot speak before the required automated-agent disclosure. Reconnect, capacity, time limits, transfer failure, and provider unavailability are explicit states.
+
+The written response is validated to no more than 200 visible characters before speech output.
+
+### 5.6 Merchant live takeover path
+
+```mermaid
+flowchart TD
+    EVENT["Latest committed bot response"] --> AGE{"Age is less than 5 minutes?"}
+    AGE -->|"No; exactly 5 minutes or older"| FOLLOWUP["No live takeover\nuse saved contact/follow-up"]
+    AGE -->|"Yes"| COMMAND["Merchant chooses Take over"]
+    COMMAND --> SERVER["Server locks conversation\nrechecks tenant, permission, age, and current owner"]
+    SERVER -->|"Changed/expired"| REFRESH["Refresh authoritative state\nno message sent"]
+    SERVER -->|"Allowed"| HUMAN["human_active\nautomation paused"]
+    HUMAN --> REPLY["Merchant reply stored with human actor"]
+    HUMAN --> RETURN{"Return control"}
+    RETURN -->|"Flow"| MENU["Resume at Flow main menu"]
+    RETURN -->|"Text/Voice"| AI["Resume at safe AI continuation boundary"]
+```
 
 ### 5.5 Social and human handover path
 
@@ -778,6 +838,7 @@ The local source is a substantial multi-tenant foundation, but the documents int
 - Full telephone Voice provider/number/transfer/scheduling production acceptance.
 - Platform Master split into dedicated route-based queues and Tenant 360 pages rather than one long anchor dashboard.
 - Named-merchant, legal, provider, operational, and paid-GA acceptance evidence.
+- Production implementation of the approved 2026-08-13 end-to-end experience contract, including exact trial state, separate product onboarding, non-blocking advisory review, dedicated Configuration Studios, explicit publish/install/go-live, complete dashboard pages, and server-authoritative five-minute takeover.
 
 The safest mental model is:
 

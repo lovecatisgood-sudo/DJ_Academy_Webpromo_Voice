@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Historical DJBOT merchant architecture demo; superseded as target experience by the approved 2026-08-13 experience contract.">
+  <title>Historical DJBOT Merchant Product Architecture</title>
+  <style>
+    :root {
+      --green: #126149;
+      --forest: #173f35;
+      --dark-green: #0d4d3a;
+      --yellow: #f2c14e;
+      --ink: #171a1f;
+      --muted: #5e6863;
+      --canvas: #f4f6f5;
+      --panel: #ffffff;
+      --line: #d7dfdb;
+      --soft-green: #e7f2ed;
+      --soft-yellow: #fff5d8;
+      --soft-red: #fff0ef;
+      --red: #9c3833;
+      --blue: #315f9d;
+      --soft-blue: #edf3fb;
+      --radius: 14px;
+      --control-radius: 8px;
+      --shadow: 0 18px 48px rgba(18, 49, 40, .10);
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; min-width: 320px; background: var(--canvas); }
+    button, input, select { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 3px solid rgba(18, 97, 73, .28);
+      outline-offset: 2px;
+    }
+    .skip { position: fixed; left: 12px; top: -60px; z-index: 100; padding: 10px 14px; background: #fff; color: var(--green); }
+    .skip:focus { top: 12px; }
+    .topbar {
+      position: sticky; top: 0; z-index: 50; min-height: 68px;
+      display: flex; align-items: center; gap: 16px; padding: 10px 22px;
+      border-bottom: 1px solid var(--line); background: rgba(255,255,255,.96);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 230px; }
+    .brand-mark { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; background: var(--yellow); color: var(--forest); font-weight: 950; }
+    .brand strong { display: block; font-size: 13px; }
+    .brand small { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
+    .top-search { flex: 1; max-width: 660px; margin-left: auto; }
+    .top-search input { width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--control-radius); background: #fff; color: var(--ink); }
+    .menu-button { display: none; min-height: 40px; padding: 0 13px; border: 1px solid var(--line); border-radius: var(--control-radius); background: #fff; color: var(--ink); font-weight: 800; }
+    .shell { display: grid; grid-template-columns: 270px minmax(0, 1fr); }
+    .sidebar { position: sticky; top: 68px; height: calc(100dvh - 68px); overflow: auto; padding: 18px 14px 28px; border-right: 1px solid var(--line); background: #fff; }
+    .scope-note { padding: 12px; border: 1px solid #ecd995; border-radius: 10px; background: var(--soft-yellow); color: #654b0e; font-size: 11px; line-height: 1.5; }
+    .nav { display: grid; gap: 4px; margin-top: 16px; }
+    .nav button { width: 100%; min-height: 40px; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: #52605a; text-align: left; cursor: pointer; }
+    .nav button:hover { background: #f1f5f3; }
+    .nav button.active { background: var(--soft-green); color: var(--green); font-weight: 850; }
+    .nav-count { float: right; min-width: 24px; padding: 2px 6px; border-radius: 6px; background: #eef2f0; color: #65716c; font-size: 9px; text-align: center; }
+    .nav button.active .nav-count { background: #fff; color: var(--green); }
+    main { min-width: 0; padding: clamp(22px, 4vw, 54px); }
+    .view { display: none; max-width: 1540px; margin: 0 auto; }
+    .view.active { display: block; }
+    .page-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 420px); gap: 28px; align-items: end; margin-bottom: 28px; }
+    h1, h2, h3, p { overflow-wrap: anywhere; }
+    h1 { max-width: 900px; margin: 0; font-size: clamp(34px, 5vw, 62px); line-height: 1.02; letter-spacing: -.045em; }
+    h2 { margin: 0; font-size: clamp(23px, 3vw, 34px); line-height: 1.1; letter-spacing: -.025em; }
+    h3 { margin: 0; font-size: 15px; line-height: 1.25; }
+    .lead { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
+    .truth-bar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; overflow: hidden; margin: 20px 0 30px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--line); }
+    .truth-bar div { min-height: 90px; padding: 15px; background: #fff; }
+    .truth-bar strong { display: block; margin-bottom: 7px; font-size: 12px; }
+    .truth-bar span { color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .section { margin-top: 32px; }
+    .section-head { max-width: 780px; margin-bottom: 16px; }
+    .section-head p { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .flow-strip { display: flex; gap: 25px; overflow-x: auto; padding: 4px 4px 18px; scroll-snap-type: x mandatory; }
+    .flow-node { position: relative; flex: 0 0 190px; min-height: 150px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; scroll-snap-align: start; }
+    .flow-node:not(:last-child)::after { content: "→"; position: absolute; right: -20px; top: 61px; color: #87938d; font-size: 18px; font-weight: 900; }
+    .node-no { width: 28px; height: 28px; display: grid; place-items: center; margin-bottom: 13px; border-radius: 8px; background: var(--soft-green); color: var(--green); font-size: 10px; font-weight: 900; }
+    .flow-node strong { display: block; font-size: 12px; }
+    .flow-node p { margin: 7px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .rule { padding: 18px; border-left: 4px solid var(--green); background: #fff; }
+    .rule strong { display: block; color: var(--green); font-size: 13px; }
+    .rule p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .grid { display: grid; gap: 14px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card { min-width: 0; padding: 19px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+    .card p { margin: 8px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .card ul { margin: 12px 0 0; padding-left: 18px; color: #425049; font-size: 11px; line-height: 1.7; }
+    .card li + li { margin-top: 3px; }
+    .status { display: inline-flex; align-items: center; min-height: 25px; padding: 4px 8px; border-radius: 7px; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; }
+    .status.target { background: var(--soft-blue); color: var(--blue); }
+    .status.current { background: var(--soft-green); color: var(--green); }
+    .status.blocked { background: var(--soft-red); color: var(--red); }
+    .status.approval { background: var(--soft-yellow); color: #73530c; }
+    .catalog { width: 100%; border-collapse: separate; border-spacing: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; font-size: 11px; }
+    .catalog th, .catalog td { padding: 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .catalog th { background: #eef3f0; color: #435149; font-size: 10px; }
+    .catalog tr:last-child td { border-bottom: 0; }
+    .catalog strong { display: block; }
+    .catalog small { display: block; margin-top: 4px; color: var(--muted); line-height: 1.45; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
+    .toolbar select, .toolbar input { min-height: 40px; padding: 8px 11px; border: 1px solid var(--line); border-radius: var(--control-radius); background: #fff; color: var(--ink); }
+    .toolbar input { min-width: min(100%, 330px); flex: 1; }
+    .page-list { display: grid; gap: 9px; }
+    .page-row { width: 100%; display: grid; grid-template-columns: 90px minmax(150px, .8fr) minmax(210px, 1.2fr) 120px; gap: 14px; align-items: center; padding: 14px 15px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); text-align: left; cursor: pointer; }
+    .page-row:hover { border-color: #99b7aa; box-shadow: 0 8px 24px rgba(17, 64, 49, .07); }
+    .page-id { color: var(--green); font-size: 10px; font-weight: 900; }
+    .page-row strong { font-size: 12px; }
+    .page-row p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .empty { padding: 28px; border: 1px dashed #aab7b1; border-radius: var(--radius); background: #fff; color: var(--muted); text-align: center; }
+    .matrix-wrap { overflow-x: auto; }
+    .matrix { width: 100%; min-width: 980px; border-collapse: collapse; background: #fff; font-size: 10px; }
+    .matrix th, .matrix td { padding: 11px; border: 1px solid var(--line); vertical-align: top; text-align: left; line-height: 1.45; }
+    .matrix th { background: #eaf0ed; }
+    .lane { display: grid; grid-template-columns: 165px minmax(0, 1fr); border: 1px solid var(--line); border-bottom: 0; background: #fff; }
+    .lane:last-child { border-bottom: 1px solid var(--line); }
+    .lane-title { padding: 16px; border-right: 1px solid var(--line); background: #eff4f1; font-size: 11px; font-weight: 900; }
+    .lane-content { display: flex; gap: 24px; overflow-x: auto; padding: 13px; }
+    .lane-item { position: relative; flex: 0 0 175px; min-height: 90px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
+    .lane-item:not(:last-child)::after { content: "→"; position: absolute; right: -18px; top: 35px; color: #87938d; font-weight: 900; }
+    .lane-item strong { display: block; font-size: 10px; }
+    .lane-item small { display: block; margin-top: 5px; color: var(--muted); font-size: 9px; line-height: 1.4; }
+    dialog { width: min(920px, calc(100% - 28px)); max-height: calc(100dvh - 32px); padding: 0; border: 0; border-radius: 16px; background: #fff; color: var(--ink); box-shadow: 0 30px 90px rgba(11, 38, 30, .26); }
+    dialog::backdrop { background: rgba(12, 28, 23, .62); }
+    .dialog-head { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; gap: 16px; padding: 19px 22px; border-bottom: 1px solid var(--line); background: #fff; }
+    .dialog-head small { display: block; margin-bottom: 4px; color: var(--green); font-weight: 900; }
+    .dialog-head button { width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; }
+    .dialog-body { padding: 22px; }
+    .detail-summary { padding: 15px; border-left: 4px solid var(--green); background: var(--soft-green); color: #29473d; font-size: 12px; line-height: 1.6; }
+    .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+    .detail-block { padding: 15px; border: 1px solid var(--line); border-radius: 10px; }
+    .detail-block.full { grid-column: 1 / -1; }
+    .detail-block h3 { margin-bottom: 8px; }
+    .detail-block ul { margin: 0; padding-left: 17px; color: #445149; font-size: 11px; line-height: 1.65; }
+    .detail-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+    .sources { display: grid; gap: 9px; }
+    .source { padding: 14px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
+    .source strong { display: block; font-size: 11px; }
+    .source code { display: block; margin-top: 6px; color: var(--green); font-size: 10px; white-space: normal; }
+    .source p { margin: 6px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .footnote { margin-top: 34px; padding: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; line-height: 1.6; }
+    @media (max-width: 980px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { position: fixed; inset: 68px auto 0 0; z-index: 40; width: min(310px, 88vw); height: calc(100dvh - 68px); transform: translateX(-105%); transition: transform .2s ease; box-shadow: var(--shadow); }
+      .sidebar.open { transform: translateX(0); }
+      .menu-button { display: inline-flex; align-items: center; }
+      .brand { min-width: auto; }
+      .page-head { grid-template-columns: 1fr; }
+      .truth-bar, .grid.three { grid-template-columns: 1fr; }
+      .page-row { grid-template-columns: 78px minmax(0, 1fr) 110px; }
+      .page-row p { grid-column: 1 / -1; }
+    }
+    @media (max-width: 680px) {
+      .topbar { padding: 9px 12px; flex-wrap: wrap; }
+      .top-search { order: 3; flex-basis: 100%; max-width: none; }
+      .shell { padding-top: 49px; }
+      main { padding: 20px 14px 40px; }
+      .truth-bar, .grid.two, .detail-grid { grid-template-columns: 1fr; }
+      .catalog { min-width: 760px; }
+      .page-row { grid-template-columns: 1fr 100px; }
+      .page-id { grid-column: 1 / -1; }
+      .lane { grid-template-columns: 1fr; }
+      .lane-title { border-right: 0; border-bottom: 1px solid var(--line); }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+  <div style="position:relative;z-index:9999;padding:14px 20px;background:#fff5d8;border-bottom:2px solid #f2c14e;color:#173f35;font:700 14px/1.45 ui-sans-serif,system-ui">Historical design reference only. It is not the current target source of truth. Use <a href="djay-bots-approved-experience-contract.md">the approved experience contract</a> and <a href="djay-bot-text-voice-configuration-flow.html">the approved clickable demo</a>.</div>
+  <a class="skip" href="#content">Skip to content</a>
+  <header class="topbar">
+    <button class="menu-button" id="menuButton" type="button" aria-controls="sidebar" aria-expanded="false">Sections</button>
+    <div class="brand"><span class="brand-mark">D</span><span><strong>DJBOT merchant architecture</strong><small>Complete flow approval specification</small></span></div>
+    <label class="top-search"><span hidden>Search architecture</span><input id="globalSearch" type="search" placeholder="Search pages, features, integrations, states or errors"></label>
+  </header>
+
+  <div class="shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="scope-note"><strong>Design only.</strong><br>This file does not change product behavior. Target, current and blocked states remain visibly separate.</div>
+      <nav class="nav" id="nav" aria-label="Architecture sections"></nav>
+    </aside>
+
+    <main id="content">
+      <section class="view active" id="overview">
+        <div class="page-head"><div><h1>From prospect to a working customer conversation</h1></div><p class="lead">The complete merchant journey begins with a bot and package decision, creates authoritative access, configures that purchased product, proves a live channel, then moves into daily customer operations.</p></div>
+        <div class="truth-bar">
+          <div><strong>Commercial authority</strong><span>Six annual packages. The catalogue controls price, limits, channels, usage and availability.</span></div>
+          <div><strong>Configuration authority</strong><span>The purchased product determines setup. A business goal can recommend relevant starting content, but never removes editing or review.</span></div>
+          <div><strong>Launch authority</strong><span>A browser button never marks launch complete. Published version, test evidence, channel verification and entitlement determine readiness.</span></div>
+        </div>
+        <div class="flow-strip" id="masterFlow"></div>
+
+        <div class="section">
+          <div class="section-head"><h2>The dependency that must never be reversed</h2><p>Bot family and package are chosen before product onboarding. Business outcome is a configuration input inside the purchased product.</p></div>
+          <div class="rule"><strong>Package → product capability → business outcome → editable configuration → test → publish → channel verification → live operation</strong><p>Example: Flow Advanced plus “Book appointments” opens an appointment-capable Flow starting point. The merchant must still edit the wording, questions, required fields, availability source, timezone, confirmation behavior, handover, failure fallback and notifications. Nothing is accepted by a forced “looks right” button.</p></div>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><h2>Three independent product lifecycles</h2><p>A merchant may own multiple families. Each keeps separate configuration, test, deployment, health and usage state.</p></div>
+          <div class="grid three">
+            <article class="card"><span class="status target">Flow Bot</span><h3>Predictable journeys</h3><p>Rules, buttons, branches, forms, lead capture, requests, handover and deterministic execution.</p><ul><li>Starter: website, 1 bot, 150 topics, 50,000 conversations</li><li>Advanced: up to 3 bots, 500 topics, 100,000 conversations, one social channel, advanced logic and integrations</li></ul></article>
+            <article class="card"><span class="status target">AI Text Bot</span><h3>Grounded open-text conversations</h3><p>Approved knowledge, structured sales behavior, citations, actions, qualification and escalation.</p><ul><li>Starter: website, 1 bot, 2,000 replies, Thai and English</li><li>Advanced: up to 3 bots, 10,000 replies, one social channel, routing, integrations and advanced analytics</li></ul></article>
+            <article class="card"><span class="status target">AI Voice Bot</span><h3>Website voice and telephone</h3><p>Disclosure-first voice, grounding, interruption, callbacks, appointments, transcripts and outcomes.</p><ul><li>Starter: web voice, 1 agent, 150 minutes, 1 concurrent session</li><li>Advanced: up to 3 agents, 500 minutes, telephone, transfer, 2 concurrent sessions and integrations</li></ul></article>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><h2>Cross-realm merchant-to-customer chain</h2><p>No page is complete until its downstream authority and recovery behavior are clear.</p></div>
+          <div id="swimlanes"></div>
+        </div>
+      </section>
+
+      <section class="view" id="catalogue">
+        <div class="page-head"><div><h1>Catalogue and package authority</h1></div><p class="lead">The pricing experience must display the exact first-year charge, annual renewal, limits, allowance, channels, support, overage and current availability before checkout.</p></div>
+        <div class="matrix-wrap"><table class="catalog" id="catalogTable"></table></div>
+        <div class="section"><div class="section-head"><h2>Add-ons, packs and professional services</h2><p>These are separate commercial decisions and must never appear included in a base package.</p></div><div class="grid three" id="commercialExtras"></div></div>
+      </section>
+
+      <section class="view" id="trial">
+        <div class="page-head"><div><h1>Thirty-day free-trial branch</h1></div><p class="lead">Flow Bot and AI Text Bot prospects receive two distinct choices on pricing: subscribe or check eligibility for a 30-day website trial. Voice remains subscription-only.</p></div>
+        <div class="truth-bar" id="trialTruth"></div>
+        <div class="section"><div class="section-head"><h2>Trial lifecycle</h2><p>Trial onboarding uses the real selected-product setup path. Trial status changes entitlement and usage, not the ability to edit and test configuration.</p></div><div class="flow-strip" id="trialFlow"></div></div>
+        <div class="section"><div class="section-head"><h2>Rules already requested and rules still requiring approval</h2><p>Tentative values and missing commercial rules stay visibly unresolved.</p></div><div class="matrix-wrap"><table class="matrix" id="trialRuleMatrix"></table></div></div>
+      </section>
+
+      <section class="view" id="pages">
+        <div class="page-head"><div><h1>Every merchant-facing screen</h1></div><p class="lead">Select a row to inspect purpose, entry and exit paths, controls, dialogs, authoritative states, failures, recovery, package rules and downstream effects.</p></div>
+        <div class="toolbar">
+          <label><span hidden>Filter realm</span><select id="realmFilter"><option value="all">All realms</option></select></label>
+          <label><span hidden>Filter product</span><select id="productFilter"><option value="all">All products</option></select></label>
+          <label><span hidden>Filter status</span><select id="statusFilter"><option value="all">All statuses</option><option value="target">Proposed target</option><option value="current">Implemented now</option><option value="blocked">Blocked or deferred</option><option value="approval">Approval required</option></select></label>
+          <input id="pageSearch" type="search" placeholder="Filter page inventory">
+        </div>
+        <p class="lead" id="pageCount" aria-live="polite"></p>
+        <div class="page-list" id="pageList"></div>
+      </section>
+
+      <section class="view" id="onboarding">
+        <div class="page-head"><div><h1>Onboarding logic by purchased product</h1></div><p class="lead">Shared business facts are collected once. Product-specific steps remain separate, editable, resumable and evidenced by real configuration.</p></div>
+        <div id="onboardingFlows"></div>
+        <div class="section"><div class="section-head"><h2>How the selected business goal changes configuration</h2><p>The same named goal opens different controls for each purchased bot family. It recommends an editable starting point only; it never publishes sample content or forces acceptance.</p></div><div class="matrix-wrap"><table class="matrix" id="goalMatrix"></table></div></div>
+      </section>
+
+      <section class="view" id="connections">
+        <div class="page-head"><div><h1>Website, social and external integration flows</h1></div><p class="lead">A connection is not live when credentials are merely saved. Identity, entitlement, reachability, inbound and outbound behavior, fallback and health must all be proven.</p></div>
+        <div class="grid two" id="connectionCards"></div>
+      </section>
+
+      <section class="view" id="customer">
+        <div class="page-head"><div><h1>Merchant bot to end-customer journeys</h1></div><p class="lead">The public widget or channel conversation creates durable conversations, contacts, leads, requests, handovers, outcomes, notifications and usage evidence for the merchant.</p></div>
+        <div id="customerFlows"></div>
+      </section>
+
+      <section class="view" id="dashboard">
+        <div class="page-head"><div><h1>Merchant workspace before and after launch</h1></div><p class="lead">The dashboard is available while configuration is incomplete and highlights Configuration as not configured. Configuration remains a separate full-page workspace that the merchant can reopen at any time.</p></div>
+        <div class="grid three" id="dashboardCards"></div>
+      </section>
+
+      <section class="view" id="features">
+        <div class="page-head"><div><h1>Complete merchant feature ledger</h1></div><p class="lead">Every capability is tied to a product, operating surface and lifecycle. Inclusion here does not override package entitlement or a blocked release gate.</p></div>
+        <div class="matrix-wrap"><table class="matrix" id="featureMatrix"></table></div>
+        <div class="section-head"><h2>AI Text and Voice response-length contract</h2></div>
+        <div class="matrix-wrap"><table class="matrix" id="responseRuleMatrix"></table></div>
+        <div class="section-head"><h2>Role and task visibility</h2></div>
+        <div class="matrix-wrap"><table class="matrix" id="roleMatrix"></table></div>
+      </section>
+
+      <section class="view" id="communications">
+        <div class="page-head"><div><h1>Lifecycle communications</h1></div><p class="lead">The merchant must know what happened, what did not happen, what needs attention and where to continue. External delivery follows the approved channel policy only.</p></div>
+        <div class="matrix-wrap"><table class="matrix" id="communicationMatrix"></table></div>
+      </section>
+
+      <section class="view" id="states">
+        <div class="page-head"><div><h1>Popups, confirmations, errors and recovery</h1></div><p class="lead">Every mutation and external dependency needs a truthful pending, failure and recovery contract. Unknown never means success.</p></div>
+        <div class="matrix-wrap"><table class="matrix" id="stateMatrix"></table></div>
+      </section>
+
+      <section class="view" id="decisions">
+        <div class="page-head"><div><h1>Approval and external decision register</h1></div><p class="lead">These items cannot be completed by visual design or source code alone. They remain visible so the flow does not quietly promise unavailable behavior.</p></div>
+        <div class="grid two" id="decisionCards"></div>
+      </section>
+
+      <section class="view" id="sources">
+        <div class="page-head"><div><h1>Traceability sources</h1></div><p class="lead">The specification is grounded in the product authority, UX plan, onboarding mechanics, catalogue and current implementation inventory.</p></div>
+        <div class="sources" id="sourceList"></div>
+      </section>
+
+      <p class="footnote">This is a design and architecture review artifact. No package is sellable and no free trial is available today. All six catalogue entries remain fail-closed. Proposed pages are not claims of current implementation, approval or production acceptance.</p>
+    </main>
+  </div>
+
+  <dialog id="pageDialog" aria-labelledby="dialogTitle">
+    <div class="dialog-head"><div><small id="dialogId"></small><h2 id="dialogTitle"></h2></div><button id="dialogClose" type="button" aria-label="Close page details">×</button></div>
+    <div class="dialog-body" id="dialogBody"></div>
+  </dialog>
+
+  <script>
+    const sections = [
+      ["overview", "Master merchant flow"], ["catalogue", "Plans and packages"], ["trial", "Free-trial branch"], ["pages", "Page-by-page inventory"],
+      ["onboarding", "Product onboarding"], ["connections", "Connections and integrations"], ["customer", "End-customer flows"],
+      ["dashboard", "Merchant dashboard"], ["features", "Complete feature ledger"], ["communications", "Lifecycle communications"],
+      ["states", "Popups and errors"], ["decisions", "Approval register"], ["sources", "Sources"]
+    ];
+
+    const masterFlow = [
+      ["Discover", "Landing, family education and use cases"], ["Compare", "Six packages with exact annual terms"],
+      ["Select", "Bot family and package, then Subscribe or eligible Free trial"], ["Identity", "Register or sign in, verify email and legal acceptance"],
+      ["Activate", "Paid checkout or server-confirmed trial eligibility"], ["Set up", "Shared prerequisites plus selected-product onboarding"],
+      ["Test", "Draft preview and current-version test with no customer effects"], ["Connect", "Website, eligible social channel or telephone"],
+      ["Verify", "Installation or provider round trip proves reachability"], ["Launch", "Immutable version and active deployment"],
+      ["Serve", "End customer talks to the bot"], ["Operate", "Inbox, leads, appointments, reports, usage and billing"]
+    ];
+
+    const plans = [
+      ["Flow Bot Starter", "THB 2,499", "THB 4,999", "1 bot, 1 admin, 150 topics", "50,000 conversations", "Website", "Standard", "No Flow overage price", "blocked"],
+      ["Flow Bot Advanced", "THB 4,450", "THB 8,900", "3 bots, 3 admins, 500 topics", "100,000 conversations", "Website + 1 social", "Priority", "No Flow overage price", "blocked"],
+      ["AI Text Starter", "THB 5,950", "THB 11,900", "1 bot, 1 admin, 1 knowledge base", "2,000 AI replies", "Website", "Standard", "THB 0.35/reply", "blocked"],
+      ["AI Text Advanced", "THB 12,450", "THB 24,900", "3 bots, 5 admins, multiple knowledge collections", "10,000 AI replies", "Website + 1 social", "Priority", "THB 0.25/reply", "blocked"],
+      ["AI Voice Starter", "THB 14,950", "THB 29,900", "1 agent, 1 admin, 1 concurrent session", "150 connected minutes", "Web voice", "Standard", "THB 6/minute", "blocked"],
+      ["AI Voice Advanced", "THB 29,950", "THB 59,900", "3 agents, 5 admins, 2 concurrent sessions", "500 connected minutes", "Web + inbound telephone", "Priority", "THB 5/minute", "blocked"]
+    ];
+
+    const extras = [
+      ["Monthly add-ons", "Additional social channel THB 299; additional administrator THB 99; additional workspace from THB 299; Starter branding removal THB 199."],
+      ["AI usage packs", "Starter 1,000 replies for THB 299; Advanced 5,000 replies for THB 999. Activation requires approved packs/overage policy."],
+      ["Professional services", "Flow setup/design/automation, knowledge setup, AI sales configuration, Voice setup, telephone integration and custom automation are quoted separately."]
+    ];
+
+    const trialTruth = [
+      ["Eligible products","New members may choose a 30-day website-only free trial for Flow Bot or AI Text Bot. AI Voice has no free-trial offer."],
+      ["Flow Starter trial","No card required. Use Flow Bot Starter features with a trial-specific allowance of 5,000 conversations during the 30-day website trial."],
+      ["AI Text trial quota","Approved at 500 committed AI replies, equal to 25% of AI Text Starter's 2,000 monthly replies."],
+      ["AI Text card and stop rule","A card is required before AI Text trial activation, but automatic charging is not yet approved. At 20% remaining, warn in-platform and by email; at zero, require subscription to continue."]
+    ];
+
+    const trialFlow = [
+      ["Choose product","Flow Bot or AI Text Bot package"],
+      ["Choose action","Subscribe or Free trial"],
+      ["Verify identity","Create/sign in and verify account"],
+      ["Check eligibility","Server checks the approved new-member rule"],
+      ["Text card step","AI Text securely adds a card; Flow skips this step"],
+      ["Establish trial","Record eligibility, product, quota and the approved clock trigger"],
+      ["Onboard","Use the real product-specific editable setup"],
+      ["Test and connect","Website only; social connections remain unavailable"],
+      ["Operate","Customer usage meters against trial allowance"],
+      ["Warn","For AI Text, warn the account owner in-app plus email at 100 replies remaining; Flow shows usage without that email rule"],
+      ["Convert or stop","Subscribe to continue when time or quota ends"],
+      ["Preserve setup","Proposed: keep configuration and resume after paid activation"]
+    ];
+
+    const trialRules = [
+      ["Pricing choices","Approved","Flow Bot and AI Text Bot display two separate actions: Subscribe and Free trial. Voice displays Subscribe only."],
+      ["Trial duration","Approved","Fixed 30-day duration. The clock starts when the trial workspace entitlement is successfully provisioned after the account step; onboarding then runs inside that period."],
+      ["Eligibility","Requested, definition unresolved","New members only. Define whether ‘new’ is enforced per verified person, business, workspace, domain, payment identity or a combination."],
+      ["Number of trials","Approval required","Decide whether an eligible member receives one trial total, one Flow plus one AI Text trial, or one trial per eligible package."],
+      ["AI Text allowance","Approved","500 committed replies, calculated as 25% of AI Text Starter's 2,000 replies."],
+      ["AI Text trial response length","Approved","The same 200-visible-character maximum applies to every generated AI Text trial reply; trial status does not weaken runtime validation."],
+      ["Flow allowance","Approved","5,000 conversations across the fixed 30-day trial. At zero, the Flow trial bot stops new service and presents the merchant subscription continuation; no Flow overage is charged."],
+      ["Trial-to-plan relationship","Approved","Flow and AI Text use Starter settings. Text receives 500 replies, equal to 25% of the 2,000-reply Starter allowance. Paid-package continuation remains a server-side intent, not automatic conversion."],
+      ["Included features","Approved","Flow and AI Text receive Starter feature boundaries with their trial-specific allowances. Both are website-only and exclude social access."],
+      ["Trial channels","Approved","Website only for both Flow and AI Text. No social-channel connection or social-channel add-on during trial."],
+      ["Payment method","Partially approved","AI Text requires a card; Flow does not. Decide whether the Text card is verification/manual-conversion only or whether clearly disclosed automatic conversion is intended. No automatic charge is implied yet."],
+      ["20% Text warning","Approved","At 100 AI Text replies remaining, create a deduplicated in-platform warning and account-owner email."],
+      ["Flow warning","Approved scope","Show Flow usage in the platform. No Flow 20%-remaining email rule is approved."],
+      ["Warning recipients","Approved for AI Text trial","The account owner receives the 100-replies-remaining in-app and email warning. Additional recipients require later approval."],
+      ["Exhaustion","Approved","When the trial quota reaches zero, stop further trial bot service and prompt the merchant to subscribe to continue."],
+      ["Customer experience at zero","Original PRD behavior approved; trial destination pending","The PRD already requires a tenant-approved contact, Flow, LINE, call or human fallback without exposing quota/provider details. Trial onboarding must select the website-appropriate destination and exact copy."],
+      ["Time expiry","Approved stop rule; retention pending","At the fixed 30-day expiry, stop new trial service and prompt subscription. Pre-expiry reminders, grace and retained-data duration remain gated."],
+      ["Early conversion","Approval required","Define whether paid access begins immediately, whether unused trial time/usage is forfeited, and how the paid allowance/reset date is established."],
+      ["Data preservation","Original PRD framework approved; trial duration pending","The PRD already requires artifact-specific retention, export and deletion. Approve the trial retention period for configuration, versions, knowledge, customer records and evidence so conversion can resume safely."],
+      ["Abuse prevention","Trial-specific approval required","The PRD contains general reliability/channel-abuse controls, but not one-free-trial eligibility. Define duplicate-account, workspace, domain and business controls without blocking legitimate invited members."],
+      ["Legal and email","Approval required","Publish trial terms, privacy/retention treatment and the approved transactional-email classification before release."]
+    ];
+
+    const commonStates = ["loading", "ready", "empty", "validation error", "authoritative read unavailable", "transport unknown", "permission denied", "entitlement denied", "retry"];
+    const page = (id, realm, product, title, purpose, route, status, data = {}) => ({ id, realm, product, title, purpose, route, status, ...data });
+    const pages = [
+      page("PUB-01","Public","Shared","Landing and product chooser","Explain the three bot families and move the prospect to factual comparison.","/", "current", {entry:["Direct visit","Campaign","Referral"],actions:["Explore Flow","Explore AI Text","Explore Voice","View packages","Sign in"],next:["PUB-02","PUB-03","PUB-04","PUB-05","ID-02"],states:commonStates}),
+      page("PUB-02","Public","Flow","Flow Bot family detail","Explain deterministic guided journeys, Starter vs Advanced, website/social boundaries and outcomes.","/flow-bot (target)","target",{entry:["Landing","Pricing"],actions:["Compare tiers","Choose package","View setup service"],next:["PUB-05","COM-01","OPS-15"],states:commonStates}),
+      page("PUB-03","Public","AI Text","AI Text family detail","Explain grounded knowledge, natural-language sales/service, usage, escalation and channel boundaries.","/ai-text-bot (target)","target",{entry:["Landing","Pricing"],actions:["Compare tiers","Choose package","View knowledge setup"],next:["PUB-05","COM-01","OPS-15"],states:commonStates}),
+      page("PUB-04","Public","Voice","AI Voice family detail","Explain web voice, telephone boundary, disclosure, minutes, concurrency, callbacks and transfer.","/ai-voice-bot (target)","target",{entry:["Landing","Pricing"],actions:["Compare tiers","Choose package","View Voice setup"],next:["PUB-05","COM-01","OPS-15"],states:commonStates}),
+      page("PUB-05","Public","Shared","Package comparison","Compare all six packages from the authoritative catalogue and present Subscribe plus eligible Free trial as separate choices.","/pricing","target",{entry:["Landing","Family pages","Workspace explore"],actions:["Switch family","Concise/full comparison","Subscribe","Free trial for Flow/Text","Contact DJAI"],dialogs:["Package terms detail","Free-trial terms and eligibility","Third-party fee explanation","Availability explanation"],next:["COM-01","TRIAL-01","PUB-06"],states:[...commonStates,"catalogue unavailable","package preview only","trial eligibility unavailable","trial not offered for Voice"]}),
+      page("PUB-06","Public","Shared","Setup services","Separate professional setup from subscription inclusion and collect a scoped request.","/setup-services (target)","target",{entry:["Pricing","Onboarding","Product Studio"],actions:["Compare starting services","Request quotation"],dialogs:["Service scope and exclusions","Request sent"],next:["OPS-15","PUB-05"],states:commonStates}),
+      page("PUB-07","Public","Shared","Enterprise enquiry","Capture needs outside package limits without implying fixed scope or price.","/enterprise (target)","target",{actions:["Submit qualified enquiry","Return to packages"],next:["PUB-05"],states:commonStates}),
+      page("PUB-08","Public","Shared","Help Center","Let prospects and merchants find factual guidance before contacting support.","/help","current",{entry:["Public navigation","Errors and setup guidance"],actions:["Search guides","Open topic","Contact support","View service status"],next:["OPS-15","TRUST-03"],states:[...commonStates,"no matching guide","guide unavailable"]}),
+      page("PUB-09","Public","Shared","Business use cases","Explain customer situations, bot responsibilities, merchant outcomes and eligible products without pretending a use case is a finished configuration.","/templates","current",{entry:["Landing","Product family","Pricing"],actions:["Filter by need","View eligible products","Continue to pricing"],next:["PUB-02","PUB-03","PUB-04","PUB-05"],states:commonStates}),
+      page("ID-01","Identity","Shared","Registration","Create global identity and business workspace intent with current legal acceptance while preserving Subscribe or Free-trial continuation.","/register","target",{entry:["Selected subscription package","Selected Flow/Text trial","Register-first path"],fields:["Name","Work email","Business name","Password","Confirmation","Language","Timezone","Terms version","Privacy version","Trial terms version when applicable"],actions:["Create account","Open Terms","Open Privacy","Sign in"],next:["ID-03"],states:[...commonStates,"legal unavailable","trial terms unavailable","email already pending","rate limited","password mismatch"]}),
+      page("ID-02","Identity","Shared","Sign in and MFA","Authenticate and resume preserved purchase, invitation or workspace continuation.","Public /login then Tenant /","current",{fields:["Email","Password","MFA code when required"],actions:["Sign in","Recover password","Resume continuation"],next:["COM-01","MER-01","ID-06"],states:[...commonStates,"invalid credentials","MFA required","expired session","unsafe continuation rejected"]}),
+      page("ID-03","Identity","Shared","Verify email","Confirm one-time email link or safely request another without exposing account existence.","/verify-email","current",{actions:["Verify","Resend","Return to sign in"],next:["ID-04","COM-01"],states:["working","verified","invalid link","expired link","temporary service failure","resend sent","rate limited"]}),
+      page("ID-04","Identity","Shared","Workspace provisioning status","Show whether tenant, owner membership and policies were created; never blindly duplicate provisioning.","Target state page","target",{actions:["Continue","Retry authoritative job","Contact support"],next:["COM-01","MER-01"],states:["provisioning","ready","failed retryable","failed needs support","already provisioned"]}),
+      page("ID-05","Identity","Shared","Password recovery request","Send an anti-enumerating recovery email.","Tenant /recovery","current",{fields:["Email"],actions:["Send recovery link","Return to sign in"],next:["ID-06"],states:["idle","working","sent","temporary failure","rate limited"]}),
+      page("ID-06","Identity","Shared","Complete password recovery","Validate one-time token and establish a compliant password.","Tenant /recovery/complete","current",{fields:["New password","Confirmation"],actions:["Reset password","Request new link"],next:["ID-02"],states:["idle","working","completed","invalid token","expired token","password mismatch","temporary failure"]}),
+      page("ID-07","Identity","Shared","Invitation acceptance","Join an existing workspace as the invited role without owner checkout.","Public and Tenant /invitations/accept","current",{actions:["Create account and join","Sign in and join","Reject/leave"],next:["MER-02"],states:["valid","identity mismatch","expired","already accepted","revoked","temporary failure"]}),
+      page("ID-08","Identity","Shared","Ownership transfer acceptance","Accept time-bound owner transfer after authentication and impact review.","Tenant /ownership/accept","current",{actions:["Accept ownership","Cancel","Sign in"],dialogs:["Ownership impact confirmation"],next:["OPS-12"],states:["valid","wrong identity","expired","conflict","accepted","temporary failure"]}),
+      page("TRUST-01","Public","Shared","Terms of Service","Display only the currently approved version and effective date.","/terms","current",{actions:["Print","Return"],states:["loading","ready","approved document unavailable"]}),
+      page("TRUST-02","Public","Shared","Privacy Notice","Display only the currently approved version and effective date.","/privacy","current",{actions:["Print","Return"],states:["loading","ready","approved document unavailable"]}),
+      page("TRUST-03","Public","Shared","Service status","Show current operational evidence without false healthy state.","/status","current",{actions:["Refresh"],states:["checking","operational","degraded","incident","unknown","read unavailable"]}),
+      page("COM-01","Commerce","Shared","Selected package and purchase intent","Bind the chosen bot/package to a server-side intent across registration and verification.","Target purchase-intent state","target",{entry:["Pricing choose action","Saved workspace selection"],actions:["Continue as new user","Sign in","Change package"],dialogs:["Changing selection consequence"],next:["ID-01","ID-02","COM-02"],states:["saved","expired","package unavailable","catalogue changed","unsafe browser selection rejected"]}),
+      page("COM-02","Commerce","Shared","Checkout review","Review exact workspace, annual charge, renewal, allowance, overage, add-ons, tax, exclusions and legal terms before Stripe.","/checkout/review (target)","target",{fields:["Billing contact","Legal entity","Tax details","Add-ons","Overage/cap policy"],actions:["Pay with Stripe","Edit package","Edit billing"],dialogs:["Final annual-charge confirmation","Third-party fee detail"],next:["COM-03"],states:[...commonStates,"sellable false","Stripe mapping unavailable","quote changed","duplicate checkout resolved"]}),
+      page("COM-03","Commerce","Shared","Stripe Checkout","Complete external hosted payment using server-selected immutable price authority.","Stripe hosted surface","blocked",{entry:["COM-02"],actions:["Pay","Cancel/return"],next:["COM-04"],states:["open","completed","action required","expired","canceled","provider unavailable"]}),
+      page("COM-04","Commerce","Shared","Checkout return and activation","Resolve local status from signed webhook; the return URL never grants access.","/checkout/return (target)","target",{actions:["Refresh status","Resume payment","Start replacement checkout","Contact support"],next:["MER-03","COM-02"],states:["processing","active","action required","expired","canceled","unavailable"]}),
+      page("TRIAL-01","Trial commerce","Flow/AI Text","Free-trial selection","Bind the selected eligible product and trial intent server-side without converting the trial button into a hidden subscription.","Pricing trial state (target)","target",{entry:["Free trial on eligible Flow/Text package"],actions:["Continue to eligibility","Review trial terms","Switch to Subscribe","Change product"],dialogs:["Trial summary and unresolved commercial terms"],next:["ID-01","ID-02","TRIAL-02"],states:["intent saved","intent expired","product ineligible","trial unavailable","catalogue changed"]}),
+      page("TRIAL-02","Trial commerce","Flow/AI Text","Trial eligibility result","Check the approved new-member rule using server authority and branch eligible Flow directly to activation or eligible AI Text to secure card setup.","Post-verification trial eligibility (target)","target",{entry:["Verified trial intent"],actions:["Continue eligible Flow trial","Add card for eligible AI Text trial","Subscribe instead","Return to pricing","Contact support for mistaken result"],dialogs:["Trial activation terms","Product-specific card requirement"],next:["TRIAL-03","TRIAL-11","TRIAL-10","COM-02"],states:["checking","eligible Flow no card","eligible AI Text card required","ineligible","already used","policy unavailable","check failed"]}),
+      page("TRIAL-11","Trial commerce","AI Text","AI Text trial card setup","Use a Stripe payment-method setup flow to collect and verify a card without storing raw card data. Until automatic conversion is explicitly approved, adding the card does not authorize an automatic subscription charge.","Stripe card-setup surface (target)","blocked",{entry:["Eligible AI Text trial"],actions:["Add/verify card","Complete issuer authentication","Cancel and return","Subscribe instead"],dialogs:["Card requirement and no-current-auto-charge disclosure","External issuer authentication"],next:["TRIAL-03","TRIAL-02","COM-02"],states:["setup creating","card entry","authentication required","payment method saved","setup failed","canceled","provider unavailable","duplicate resolved"]}),
+      page("TRIAL-03","Trial commerce","Flow/AI Text","Trial activation","Create one authoritative trial entitlement with product, allowance, successful-provisioning start, fixed 30-day end, applicable warning threshold and state.","Trial activation status (target)","target",{actions:["Start onboarding","Refresh status","Contact support"],next:["ONB-01","TRIAL-04"],states:["eligibility confirmed","provisioning","trial active and clock started","activation retryable","activation unknown","duplicate resolved","policy unavailable"]}),
+      page("TRIAL-04","Trial operations","Flow/AI Text","Active-trial workspace status","Show product, exact end time, allowance, remaining usage, percentage, setup/deployment health and one conversion action.","Workspace trial banner and overview (target)","target",{actions:["Continue setup","View usage","Subscribe now","Review trial terms"],next:["ONB-01","TRIAL-05","TRIAL-08"],states:["active onboarding","active testing","active live","20% or less remaining","time ending","deployment unhealthy"]}),
+      page("TRIAL-05","Trial operations","Flow/AI Text","Trial usage and Text warning","Show committed usage for both products. For AI Text only, create one in-app plus account-owner email warning at 100 replies remaining.","Usage trial state (target)","target",{actions:["Subscribe","Review usage events","Configure operational fallback"],dialogs:["Subscription continuation summary"],next:["TRIAL-08","OPS-09"],states:["usage visible","Text 100 remaining","in-app warning created","owner email queued","owner email sent","email failed visible","quota exhausted","reconciling"]}),
+      page("TRIAL-06","Trial operations","Flow/AI Text","Trial quota exhausted","Stop new trial bot service at zero remaining usage and tell the merchant that subscription is required to continue.","Workspace quota-exhausted gate (target)","target",{actions:["Subscribe to continue","Review usage","Open support"],dialogs:["Customer fallback and deployment impact"],next:["TRIAL-08","OPS-09","OPS-15"],states:["quota exhausted","bot service paused","usage reconciling","subscription processing","paid access active"]}),
+      page("TRIAL-07","Trial operations","Flow/AI Text","Trial time expired","Stop trial access according to the approved end-time rule and present conversion without deleting configuration.","Workspace trial-expired gate (target)","target",{actions:["Subscribe to continue","Review retained setup","Export if approved","Open support"],next:["TRIAL-08","OPS-15"],states:["ending soon","expired","deployment inactive","read-only if approved","retention ending","paid access active"]}),
+      page("TRIAL-08","Trial conversion","Flow/AI Text","Trial-to-paid checkout review","Convert the trial product to the selected annual package while preserving configuration and showing exact paid terms.","Trial conversion checkout (target)","target",{fields:["Selected annual package","Billing contact","Legal/tax details","Add-ons","Overage/cap policy"],actions:["Pay with Stripe","Change package","Return to trial status"],dialogs:["Exact charge, renewal and retained-resource confirmation"],next:["COM-03","TRIAL-09"],states:["review ready","package unavailable","sellable false","quote changed","checkout open","duplicate checkout resolved"]}),
+      page("TRIAL-09","Trial conversion","Flow/AI Text","Paid conversion activation","Resolve signed payment state, replace trial entitlement with paid entitlement and resume eligible deployments without duplicating data.","Trial conversion return (target)","target",{actions:["Refresh","Resume payment","Open workspace","Contact support"],next:["MER-03","OPS-01"],states:["processing","action required","paid active","resume queued","live resumed","partial activation","provider unavailable"]}),
+      page("TRIAL-10","Trial commerce","Flow/AI Text","Trial not eligible","Explain that this account cannot start a new trial without exposing fraud controls and retain Subscribe as the clear continuation.","Trial ineligible state (target)","target",{actions:["Subscribe","Return to pricing","Contact support for mistaken eligibility"],next:["COM-02","PUB-05","OPS-15"],states:["already used","not a new member under approved rule","product not eligible","eligibility unavailable"]}),
+      page("MER-01","Merchant foundation","Shared","Unsubscribed workspace overview","Provide a real workspace with package selection, profile and security tasks but no fake product metrics.","/workspace","target",{actions:["Choose first bot","Resume checkout","Complete profile","Set up MFA"],next:["PUB-05","COM-01","OPS-13"],states:[...commonStates,"saved selection","checkout open","checkout expired"]}),
+      page("MER-02","Merchant foundation","Shared","Workspace selector","Select among memberships without trusting browser-supplied tenant authority.","Workspace chrome","current",{actions:["Select workspace","Create/add workspace if entitled"],states:["one workspace","multiple workspaces","membership revoked","read unavailable"]}),
+      page("MER-03","Merchant foundation","Shared","Subscription success","Confirm active package, paid term, renewal, allowance, invoice status and next setup action.","Target success landing","target",{actions:["Set up purchased product","Invite team","View billing","Set up later","Request professional setup"],next:["ONB-01","OPS-12","OPS-10","OPS-15"],states:["active","invoice pending","provisioning partial","read unavailable"]}),
+      page("ONB-01","Shared onboarding","Shared","Product setup portfolio","Show independent lifecycle for every purchased bot family and let merchant choose which to launch first.","/workspace/start (target behavior)","target",{actions:["Continue selected product","Review shared prerequisites","Save and exit","Get setup help"],next:["ONB-02","FLOW-01","TEXT-01","VOICE-01"],states:[...commonStates,"one product","multiple products","access processing","attention required"]}),
+      page("ONB-02","Shared onboarding","Shared","Business profile","Collect legal/display identity, industry, website, contact, timezone, language and hours once.","Onboarding shared step","target",{fields:["Legal/display name","Industry","Website","Contact","Timezone","Default language","Business hours"],actions:["Save and continue","Back","Save and exit"],next:["ONB-03"],states:commonStates}),
+      page("ONB-03","Shared onboarding","Shared","Lead destination and human availability","Configure who owns new leads, notifications, handover and callback expectations.","Onboarding shared step","target",{fields:["Recipients","Inbox owner/team","Handover hours","Callback expectation"],actions:["Save and continue","Back","Save and exit","Test recipient"],next:["ONB-04"],states:[...commonStates,"recipient verification failed"]}),
+      page("ONB-04","Shared onboarding","Shared","Privacy and disclosure","Configure privacy URL, consent, retention and AI/transcription disclosure for purchased modalities.","Onboarding shared step","target",{fields:["Privacy URL","Lead consent","Retention","AI disclosure","Transcription policy"],actions:["Save and continue","Back","Save and exit","Preview disclosure"],next:["ONB-05"],states:[...commonStates,"approved policy unavailable","disclosure incomplete"]}),
+      page("ONB-05","Shared onboarding","Shared","Usage protection","Set recipients, thresholds, overage/pack choice, safety cap and fallback before billable expansion.","Onboarding shared step","target",{fields:["Alert recipients","Thresholds","Overage opt-in","Pack","Safety cap","Limit fallback"],actions:["Save and continue","Back","Save and exit"],dialogs:["Cost-increase confirmation"],next:["FLOW-01","TEXT-01","VOICE-01"],states:[...commonStates,"policy approval blocked","billing permission denied"]}),
+
+      page("FLOW-01","Flow onboarding","Flow","Choose an editable starting journey","Within the purchased Flow package, choose FAQ/contact, Capture leads, Appointment request, Product/service guide, Support routing or Blank and preview the path before copying it.","Flow onboarding step","target",{fields:["Starting journey","Template path preview"],actions:["Preview template","Choose","Back"],dialogs:["Template contents preview"],next:["FLOW-02"],states:[...commonStates,"no suitable template","template version unavailable"]}),
+      page("FLOW-02","Flow onboarding","Flow","Bot identity and greeting","Name the Flow Bot and edit Thai/English welcome, fallback and handover wording.","Flow onboarding step","target",{fields:["Bot name","Default language","Thai greeting","English greeting","Fallback","Handover message"],actions:["Save","Preview","Back","Continue"],next:["FLOW-03"],states:commonStates}),
+      page("FLOW-03","Flow onboarding","Flow","Guided topic and step editor","Edit every message, question, answer, button, branch, form, card, CTA and handover in ordered form.","/workspace/flowbot","current",{actions:["Add topic","Add step","Edit","Duplicate","Delete","Reorder","Switch to canvas","Undo","Redo","Save"],dialogs:["Delete impact","Unsaved navigation","Conflict compare"],next:["FLOW-04","FLOW-05"],states:[...commonStates,"dirty","saving","saved","conflict","invalid step","advisory"]}),
+      page("FLOW-04","Flow onboarding","Flow","Visual Flow canvas","Edit the same graph spatially with create, connect, reconnect, move, pan, zoom, minimap and keyboard alternatives.","/workspace/flowbot/canvas","current",{actions:["Create","Connect","Reconnect","Duplicate","Delete","Multi-select","Fit","Undo","Redo","Validate","Preview"],dialogs:["Guarded delete","Unsaved navigation","Conflict recovery"],next:["FLOW-03","FLOW-08"],states:[...commonStates,"dirty","autosaving","conflict","invalid graph"]}),
+      page("FLOW-05","Flow onboarding","Flow","Lead capture and form design","Choose editable customer fields, requirement, consent, destination and lead source/title.","Flow setup panel","target",{fields:["Name/phone/email","Custom fields","Required flags","Consent","Lead title/source","Recipient"],actions:["Add field","Edit wording","Reorder","Test validation","Continue"],next:["FLOW-06"],states:commonStates}),
+      page("FLOW-06","Flow onboarding","Flow","Goal-specific actions and handover","Configure booking/request/call/LINE/site/checkout actions and human routing appropriate to the selected outcome.","Flow setup panel","target",{fields:["Action type","Destination","Confirmation wording","Handover team","Hours","Fallback"],actions:["Add action","Test action safely","Edit","Remove","Continue"],dialogs:["External destination confirmation","Remove action impact"],next:["FLOW-07"],states:[...commonStates,"destination invalid","action unavailable by plan","external result unknown"]}),
+      page("FLOW-07","Flow onboarding","Flow","Advanced logic, routing and integrations","For Advanced: conditions, tags, attributes, schedules, teams, Sheets, signed webhook and allowlisted API.","Flow Advanced setup panels","target",{actions:["Add condition","Configure team","Connect integration","Test mapping","View logs"],next:["INT-05","INT-06","INT-07","FLOW-08"],states:[...commonStates,"Starter entitlement denied","integration unhealthy","mapping invalid"]}),
+      page("FLOW-08","Flow onboarding","Flow","Validate and preview Flow","Run graph validation and production-engine simulation with no external side effects or customer allowance.","Flow simulator","current",{actions:["Validate","Start from selected node","Enter sample input","Inspect path","Fix issue"],next:["FLOW-09","FLOW-03"],states:["validation passed","blocking errors","advisories","preview running","preview complete","preview failed"]}),
+      page("FLOW-09","Flow onboarding","Flow","Optional test and immutable publish","Test the real draft from the entry or selected node when useful, then publish with advisory warnings if the merchant is satisfied.","Flow Studio right tester and publish review","target",{actions:["Test selected path","Review warnings","Publish with warnings","Continue editing"],dialogs:["Publish impact and advisory-warning confirmation"],next:["FLOW-10","OPS-08"],states:["draft","not tested advisory","tested","publishing","published","structural blocker"]}),
+      page("FLOW-10","Flow onboarding","Flow","Website deployment","Create exact allowed origin, appearance, one launcher behavior and one-time install key.","Flow deployment panel","current",{fields:["Deployment name","Exact HTTPS origin","Position","Theme","Branding","Launcher/mode behavior"],actions:["Create deployment","Copy snippet","Preview desktop/mobile"],dialogs:["One-time key warning","Competing launcher resolution"],next:["INT-01"],states:[...commonStates,"origin invalid","duplicate launcher","key already revealed"]}),
+      page("FLOW-11","Flow onboarding","Flow","Social channel selection","Advanced only: choose the included channel slot, bot binding, language, hours, handover and fallback.","Channels target route","target",{actions:["Choose LINE","Choose Messenger","Review channel limitations","Connect"],dialogs:["Changing included channel consequence"],next:["INT-02","INT-03"],states:[...commonStates,"slot occupied","cooldown","add-on required","social release disabled"]}),
+      page("FLOW-12","Flow operations","Flow","Flow versions and rollback","Compare immutable versions and roll back by publishing a new version without changing pinned sessions.","Flow Studio versions","current",{actions:["Compare","Rollback","Duplicate version"],dialogs:["Rollback impact confirmation"],states:[...commonStates,"version stale","rollback validation failed"]}),
+      page("FLOW-13","Flow operations","Flow","Flow analytics","View conversations, completion, drop-off, leads, handovers, outcomes and Advanced journey detail.","Flow analytics","current",{actions:["Filter period","Filter topic/channel","Export"],states:[...commonStates,"insufficient data","freshness delayed"]}),
+
+      page("TEXT-01","AI Text onboarding","AI Text","Agent identity","Name the purchased AI Text Bot and configure editable greeting, language, tone and business role.","AI Text onboarding step","target",{fields:["Name","Greeting","Thai/English","Tone","Business role"],actions:["Save","Preview","Back","Continue"],next:["TEXT-02"],states:commonStates}),
+      page("TEXT-02","AI Text onboarding","AI Text","Knowledge library","Add manual FAQ, website, PDF, DOCX, TXT and product/service information with visible processing state.","/workspace/knowledge","current",{actions:["Add FAQ","Upload","Crawl website","Preview source","Exclude","Correct","Reprocess","Delete","Publish revision"],dialogs:["File requirements","Delete impact","Publish binding impact"],next:["TEXT-03"],states:[...commonStates,"uploading","scanning","quarantined","extracting","indexing","partially failed","ready","stale"]}),
+      page("TEXT-03","AI Text onboarding","AI Text","Business goal and sales behavior","Configure goals, boundaries, recommendations, claims, objections, CTA priorities and escalation under the fixed 200-character reply ceiling. All generated defaults remain editable.","/workspace/ai-chat","target",{fields:["Goal","Answer boundaries","Recommendation rules","Prohibited claims","Objection handling","CTA priorities","Escalation","Maximum reply length: 200 characters, not merchant-increasable"],actions:["Edit guided fields","Open optional Advanced JSON","Save","Preview","Check sample length"],dialogs:["Unsaved navigation","Malformed JSON repair","Over-limit sample explanation"],next:["TEXT-04"],states:[...commonStates,"dirty","saved","invalid playbook","conflict","sample within limit","sample exceeds limit"]}),
+      page("TEXT-04","AI Text onboarding","AI Text","Lead fields and verified actions","Configure contact capture, booking request, call, LINE, website, quotation, checkout and integrations according to package.","AI Text setup panel","target",{fields:["Contact fields","Consent","Action type","Destination","Confirmation","Failure fallback"],actions:["Add action","Preview","Test without side effect","Remove"],next:["TEXT-05"],states:[...commonStates,"action not entitled","destination invalid","external result unknown"]}),
+      page("TEXT-05","AI Text onboarding","AI Text","Handover, qualification and routing","Configure low-confidence escalation, team routing and Advanced qualification, tags, segment and explainable score.","AI Text Playbook","current",{actions:["Set confidence fallback","Choose team","Configure qualification","Preview handover package"],next:["TEXT-06"],states:[...commonStates,"team unavailable","Starter feature locked"]}),
+      page("TEXT-06","AI Text onboarding","AI Text","Quality Test Center","Test Thai/English grounding, citations, claims, safety, prompt injection, actions, escalation and 199/200/201-character boundaries with no customer effects.","/workspace/test-center","target",{actions:["Run suggested test","Ask custom question","Inspect source","Inspect character count","Approve/reject evidence","Compare regression"],next:["TEXT-07"],states:["loading","ready","test running","passed","failed","over-limit blocked","repair/fallback used","provider unavailable","evidence stale","human approval missing"]}),
+      page("TEXT-07","AI Text onboarding","AI Text","Publish agent version","Review changes and publish immutable agent plus knowledge pins.","AI Text publish","current",{actions:["Review diff","Publish","Return to edit"],dialogs:["Publish impact and knowledge pins"],next:["TEXT-08"],states:["draft","publishing","published","validation failed","conflict"]}),
+      page("TEXT-08","AI Text onboarding","AI Text","Website deployment and launch","Configure exact origin, widget, install check and current-version published test.","AI Text deployment","current",{actions:["Create deployment","Copy snippet","Preview","Run install check","Activate"],dialogs:["One-time key warning","Activation confirmation"],next:["INT-01","TEXT-10"],states:[...commonStates,"origin invalid","install missing","published test failed","active"]}),
+      page("TEXT-09","AI Text onboarding","AI Text","Social channel setup","Advanced only: select included channel and complete provider-specific connection, preview and round-trip test.","Channels target route","target",{actions:["Connect LINE","Connect Messenger","Connect WhatsApp when available"],next:["INT-02","INT-03","INT-04"],states:[...commonStates,"slot occupied","social release disabled","provider review blocked"]}),
+      page("TEXT-10","AI Text operations","AI Text","AI analytics and insights","View conversations, replies, 200-character compliance/recovery, leads, handovers, confidence, unanswered questions, knowledge gaps and Advanced intents/outcomes.","AI Text analytics/insights","target",{actions:["Filter","Review length failures","Open knowledge gap","Export","Create improvement draft"],states:[...commonStates,"insufficient data","length evidence unavailable","freshness delayed"]}),
+      page("TEXT-11","AI Text operations","AI Text","Versions and rollback","Inspect immutable history and publish a selected prior version as a new rollback version.","AI Text versions","current",{actions:["Compare","Rollback as new version"],dialogs:["Rollback impact"],states:[...commonStates,"stale version","validation failed"]}),
+
+      page("VOICE-01","Voice onboarding","Voice","Agent identity and voice","Configure agent name, approved provider-neutral voice choice, language, greeting and speaking style.","/workspace/voice","current",{fields:["Name","Language","Voice choice","Greeting","Speaking style"],actions:["Preview voice","Save","Continue"],next:["VOICE-02"],states:[...commonStates,"voice preview unavailable"]}),
+      page("VOICE-02","Voice onboarding","Voice","Voice knowledge","Select or create knowledge and test spoken answers against the active revision.","Voice Studio knowledge","current",{actions:["Choose collection","Add source","Test spoken answer"],next:["VOICE-03"],states:[...commonStates,"knowledge not ready","spoken test failed"]}),
+      page("VOICE-03","Voice onboarding","Voice","Conversation behavior and business outcome","Configure opening, qualification, interruptions, silence, duration, callback, appointment and end-call behavior under the fixed 200-character reply ceiling.","Voice Studio behavior","target",{fields:["Outcome","Opening","Qualification questions","Interruptions","Silence prompts","Max duration","Callback","Appointment","End call","Maximum generated reply: 200 characters, not merchant-increasable"],actions:["Edit","Preview script","Inspect sample character count","Continue"],next:["VOICE-04"],states:[...commonStates,"duration outside plan","required fallback missing","sample exceeds limit"]}),
+      page("VOICE-04","Voice onboarding","Voice","Privacy and disclosure","Configure AI identity, transcription/recording policy, consent, privacy link and retention.","Voice Studio policy","current",{fields:["AI disclosure","Transcription","Recording off/default","Consent","Privacy URL","Retention"],actions:["Preview spoken disclosure","Save"],next:["VOICE-05"],states:[...commonStates,"policy approval missing","recording not authorized"]}),
+      page("VOICE-05","Voice onboarding","Voice","Lead, callback and appointment destinations","Configure contact fields, recipients/hours, outcomes and verified scheduling behavior.","Voice Studio actions","current",{actions:["Add callback route","Add appointment action","Test without side effect","Set fallback"],next:["VOICE-06"],states:[...commonStates,"recipient invalid","calendar not connected","verified scheduling unavailable"]}),
+      page("VOICE-06","Voice onboarding","Voice","Voice quality test","Use a real microphone to test Thai/English, disclosure, interruption, silence, noise, capture, reconnect, 199/200/201-character output, end, transcript and summary.","Test Center/Voice Studio","target",{actions:["Grant microphone","Start test","Mute","Interrupt","Reconnect","Inspect response character count","End","Review transcript"],dialogs:["Browser microphone permission","End test"],next:["VOICE-07"],states:["permission needed","permission denied","connecting","listening","speaking","over-limit blocked","repair/fallback used","muted","reconnecting","warning","ended","quality pass","quality fail"]}),
+      page("VOICE-07","Voice onboarding","Voice","Website voice deployment","Configure exact HTTPS origin, appearance, snippet, microphone check, concurrency and usage fallback.","Voice deployment","current",{actions:["Create deployment","Copy snippet","Run install/microphone check","Activate"],dialogs:["Activation safety confirmation"],next:["INT-01","VOICE-09"],states:[...commonStates,"HTTPS required","capacity paused","usage fallback missing"]}),
+      page("VOICE-08","Voice onboarding","Voice","Telephone setup","Advanced: operator-provisioned number, disclosure, hours, routing, transfer/fallback and real test call.","Telephone target flow","blocked",{actions:["Confirm assigned number","Upload jurisdiction document if required","Configure routing","Place test call"],dialogs:["Carrier fee disclosure","Number activation confirmation"],next:["INT-08"],states:["awaiting number","documents submitted","approved","rejected with reason","test pending","test passed","carrier unavailable"]}),
+      page("VOICE-09","Voice operations","Voice","Voice history and analytics","Review sessions, minutes, transcripts, summaries, 200-character compliance/recovery, callbacks, appointments, outcomes and Advanced routing/quality analytics.","Voice Studio analytics","target",{actions:["Filter","Open call","Assign callback","Export","Review quality","Review length failures"],states:[...commonStates,"partial transcript","summary failed","length evidence unavailable","usage reconciling"]}),
+      page("VOICE-10","Voice operations","Voice","Voice versions and runtime safety","Manage immutable agent version, rollback, pause/resume and emergency stop with restricted authority.","Voice Studio/Platform boundary","current",{actions:["Publish","Rollback","Request activation","Pause deployment"],dialogs:["Pause impact","Rollback impact"],states:[...commonStates,"admission paused","incident safeguard active"]}),
+
+      page("INT-01","Connections","Shared","Website installation and verification","Install one loader, verify exact origin, preview responsive behavior, detect duplicate launchers and run a real-site test.","Product deployment panels","current",{fields:["Origin","Position","Theme","Branding","Launcher mode"],actions:["Copy snippet","Preview desktop/mobile","Run automated check","Open real-site test","Activate"],dialogs:["One-time key","Duplicate launcher choice"],next:["CUS-01","CUS-02","CUS-03"],states:["snippet ready","origin mismatch","script missing","CSP blocked","duplicate launcher","widget unreachable","real-site test passed","live healthy"]}),
+      page("INT-02","Connections","Flow/AI Text","LINE connection","Warn about permanent Provider choice, accept Channel ID/Secret, validate OA, set/test webhook and prove reachability.","/workspace/flowbot/connect/line and target shared wizard","current",{fields:["Channel ID","Channel Secret"],actions:["Validate","Confirm OA identity","Connect","Test","Rotate","Disconnect"],dialogs:["Permanent Provider warning","Confirm OA account","Disconnect impact"],next:["CUS-04","OPS-08"],states:["prerequisite unmet","invalid credentials","chat mode wrong","webhook inactive","LINE unreachable","active","reauthorization required"]}),
+      page("INT-03","Connections","Flow/AI Text","Meta Messenger connection","Advanced: OAuth consent, Page picker, bot binding, capability preview and two-way provider test.","Target Meta onboarding","blocked",{actions:["Start OAuth","Choose Page","Preview fallback","Send provider test","Activate"],dialogs:["External Facebook consent","Page selection","Disconnect impact"],next:["CUS-04"],states:["review unavailable","consent denied","no eligible Page","scope missing","test failed","active","reauthorization required"]}),
+      page("INT-04","Connections","AI Text","Instagram and WhatsApp connection","Advanced target: Meta asset selection with explicit prerequisite errors and channel-specific setup.","Target Meta onboarding","blocked",{actions:["Choose asset","Fix prerequisite","Test","Activate"],dialogs:["WhatsApp fee/policy disclosure","Disconnect impact"],next:["CUS-04"],states:["Instagram not Business","Page not linked","message access off","WhatsApp number already registered","no asset","test failed","active"]}),
+      page("INT-05","Connections","Flow/AI Text/Voice","Google Sheets","Authorize, choose sheet, map fields, test idempotent row creation and monitor delivery.","Integration target flow","target",{actions:["Authorize","Choose file/sheet","Map fields","Test","Activate","Reconnect","Disconnect"],dialogs:["Google consent","Mapping replacement","Disconnect impact"],states:[...commonStates,"scope denied","mapping invalid","duplicate prevented","delivery failed","reauthorization required"]}),
+      page("INT-06","Connections","Flow/AI Text/Voice","Signed webhook","Configure HTTPS endpoint, events, field mapping, secret rotation, test, delivery logs and replay.","Integration panels","current",{fields:["Endpoint","Events","Schema mapping","Timeout policy"],actions:["Generate secret","Copy once","Send test","Rotate","View logs","Replay safely"],dialogs:["One-time secret","Rotate impact","Replay confirmation"],states:[...commonStates,"endpoint invalid","timeout","signature rejected","delivery failed","dead letter","healthy"]}),
+      page("INT-07","Connections","Flow/AI Text/Voice","Basic CRM or external API","Configure approved connection, OAuth/credentials, schema mapping, actions, timeout and reconciliation.","Target integration flow","blocked",{actions:["Authorize","Map fields","Test create/update","Activate","Reconnect"],dialogs:["External consent","Write-test confirmation"],states:[...commonStates,"provider not selected","scope denied","mapping invalid","rate limited","unknown result","reconciliation needed"]}),
+      page("INT-08","Connections","Voice","Telephone carrier and number","Operator provisions carrier/number; merchant configures only business policy and verifies a real test call.","Target telephone flow","blocked",{actions:["Confirm number","Configure hours/routing","Test call","Activate"],dialogs:["Carrier charges","Call recording/transcription"],states:["carrier unselected","number unavailable","documents pending","SIP/media unhealthy","test failed","active","failover"]}),
+      page("INT-09","Connections","Shared","Google Calendar and appointment provider","Authorize calendar, select calendars, map availability/timezone, test create/reschedule/cancel and reconcile unknown outcomes.","Appointments connection panel","current",{actions:["Authorize","Select calendar","Configure availability","Test create/update/cancel","Reconnect"],dialogs:["Google consent","Test-event confirmation","Disconnect impact"],states:[...commonStates,"provider pending","sync queued","confirmed","failed retryable","unknown outcome","dead letter","reviewed recovery"]}),
+
+      page("CUS-01","End customer","Flow","Flow website widget","Guide a visitor through the published deterministic journey with buttons, forms, cards, actions and handover.","Embedded website widget","current",{actions:["Open/minimize/restore","Choose topic","Submit answer/form","Open CTA","Request human","Restart"],states:["loading","ready","validation error","submitting","handover queued","handover connected","completed","offline","limit fallback","session restored"]}),
+      page("CUS-02","End customer","AI Text","AI Text website widget","Accept natural language, show truthful progress, return a grounded response of no more than 200 approved characters plus separately governed actions, and escalate safely.","Embedded website widget","target",{actions:["Send message","Use suggested question","Confirm action","Submit contact","Request human"],states:["connecting","sending","preparing response","length validating","grounded response within limit","clarification","low-confidence fallback","refusal","over-limit repair","safe fallback","action pending","action failed","handover","offline","limit fallback"]}),
+      page("CUS-03","End customer","Voice","Voice website widget","Request microphone after Start, disclose AI/transcription, and speak AI replies whose validated response text is no more than 200 approved characters.","Embedded website widget","target",{actions:["Start","Allow microphone","Mute","Speak/interrupt","Request callback/appointment/human","End"],states:["pre-call","permission","denied","connecting","listening","length validating before speech","speaking approved response","over-limit repair","safe fallback","interrupted","muted","reconnecting","action pending","transfer failed","usage warning","ended"]}),
+      page("CUS-04","End customer","Flow/AI Text","Social conversation","Resolve signed provider event to the correct tenant/bot, adapt content, deduplicate, deliver once and preserve reply-window rules.","LINE/Meta channel UI","current",{actions:["Send text/postback","Use native controls","Request human"],states:["received","processing","delivered","delivery failed","reply window closing","reply window closed","provider degraded","reauthorization fallback"]}),
+      page("CUS-05","End customer","Voice","Inbound telephone call","Resolve number, disclose AI/transcription, conduct grounded call, verify actions, transfer/callback and settle once.","Telephone call","blocked",{actions:["Consent","Change language","Ask","Use DTMF fallback","Book","Transfer","Callback","End"],states:["admission","disclosure","listening","speaking","silence warning","poor audio","action pending","transfer pending","transfer failed","usage warning","ended"]}),
+      page("CUS-06","End customer","Shared","Customer action confirmation","Confirm appointment, booking, quotation, checkout or external change only after verified result.","Widget/channel state","target",{actions:["Confirm proposed action","Cancel","Retry if safe","Choose fallback"],states:["proposed","pending","confirmed","failed","unknown/reconciling"]}),
+      page("CUS-07","End customer","Shared","Human handover state","Package transcript, identity, fields, reason and target; show queued, connected, unavailable and fallback truthfully.","Widget/channel state","current",{actions:["Request handover","Continue bot when permitted","Use fallback"],states:["requested","queued","assigned","connected","window closed","unavailable","resolved","released to bot"]}),
+
+      page("OPS-01","Merchant operations","Shared","Workspace overview","Show independent product lifecycle, attention queue, outcomes, usage risk and state-derived next action.","/workspace","current",{actions:["Continue setup","Open handover","Resolve health","Review usage","View performance"],states:[...commonStates,"unsubscribed","processing","mixed product states","live attention","restricted"]}),
+      page("OPS-02","Merchant operations","Shared","Shared Inbox","Operate cross-product/channel conversations, assignment, reply, note, takeover, release and resolution.","/workspace/inbox","current",{actions:["Filter","Select conversation","Assign/accept","Reply","Private note","Take over","Release","Resolve/reopen"],dialogs:["Takeover impact","Resolve conversation"],states:[...commonStates,"messages unavailable","reply window closed","takeover required","reply failed draft preserved"]}),
+      page("OPS-03","Merchant operations","Shared","Contact detail and journey","View identity, consent, tags, conversations, leads, appointments, callbacks and value evidence chronologically.","/workspace/contacts","current",{actions:["Search","Add contact","Edit metadata","Open journey","Export"],dialogs:["Potential duplicate review"],states:[...commonStates,"identity required","possible duplicate","journey truncated"]}),
+      page("OPS-04","Merchant operations","Shared","Lead pipeline","Review source, qualification, score, owner, stage, next action, outcome and confirmed value.","/workspace/leads","current",{actions:["Filter","Assign","Change stage","Add value evidence","Export"],dialogs:["Close deal confirmation","Value evidence confirmation"],states:[...commonStates,"conflict","closed deal required"]}),
+      page("OPS-05","Merchant operations","Shared","Appointments and callbacks","Manage request-only and provider-confirmed states, reschedule, cancel, recover sync and complete callbacks.","/workspace/appointments","current",{actions:["Filter","Confirm option","Reschedule","Cancel","Add note","Complete callback","Open source conversation"],dialogs:["Confirm appointment","Cancel impact","Retry/recovery status"],states:["requested","pending confirmation","confirmed","reschedule pending","canceled","failed sync","unknown provider outcome","callback due","completed"]}),
+      page("OPS-06","Merchant operations","Shared","Notification center","Group actionable onboarding, deployment, customer, support, billing, usage, team, privacy and incident events.","/workspace/notifications","current",{actions:["Filter category","Open affected object","Mark read"],states:[...commonStates,"delivery policy proposed","email not sent"]}),
+      page("OPS-07","Merchant operations","Shared","Operations reports","Filter Flow/AI/Voice outcomes, daily trends, leads, completed work and merchant-confirmed value; export safe CSV.","/workspace/reports","current",{actions:["Choose 7/30/90/365 days","Filter product","Export CSV"],states:[...commonStates,"no evidence","data freshness delayed"]}),
+      page("OPS-08","Merchant operations","Shared","Test Center and regression evidence","Certify only current published product versions, including AI Text/Voice 200-character enforcement, and keep replay-safe history.","/workspace/test-center","target",{actions:["Select product/version","Run case","Review character-count evidence","Review safety/effect evidence","Approve with reference"],states:[...commonStates,"stale version","provider unavailable","over-limit output blocked","character-count policy unavailable","human approval required","failed"]}),
+      page("OPS-09","Merchant operations","Shared","Usage and cost control","Show allowance, consumption, packs, forecast, projected overage, cap, alerts, reset and reconciliation freshness per product.","/workspace/usage","current",{actions:["Configure alerts","Enable overage","Set cap","Buy pack","Review events"],dialogs:["Cost increase","Pack purchase","Cap impact"],states:[...commonStates,"near limit","limit reached","cap reached","reconciling","billing permission denied"]}),
+      page("OPS-10","Merchant operations","Shared","Billing and subscriptions","Manage each family contract, invoices, credits, payment state, Portal, upgrade, downgrade and cancellation.","/workspace/usage plus target Billing route","current",{actions:["Open Portal","View invoice","Upgrade","Run downgrade preflight","Cancel","Resume renewal"],dialogs:["Upgrade charge/proration","Downgrade disabled resources","Cancellation access/end/export dates"],states:["active","past due","grace","restricted","cancel scheduled","ended","portal unavailable"]}),
+      page("OPS-11","Merchant operations","Shared","Workspace settings and brand","Manage business profile, locale, timezone, defaults and website widget brand settings.","/workspace/settings","current",{actions:["Edit","Save","Preview widget"],states:commonStates}),
+      page("OPS-12","Merchant operations","Shared","Team, roles and ownership","Show included/used/invited seats, invite roles, change/remove members and transfer ownership.","/workspace/team","current",{actions:["Invite","Change role","Remove","Resend/revoke invite","Transfer ownership"],dialogs:["Role impact","Remove access","Transfer ownership"],states:[...commonStates,"seat limit","invite pending","expired","identity conflict","one-owner invariant"]}),
+      page("OPS-13","Merchant operations","Shared","Security and sessions","Enroll MFA, verify, view recovery codes, review/revoke sessions and reauthenticate sensitive work.","/workspace/security","current",{actions:["Enroll MFA","Verify","Download recovery codes","Revoke session"],dialogs:["Recovery code one-time display","Revoke session"],states:[...commonStates,"recent authentication required","verification failed"]}),
+      page("OPS-14","Merchant operations","Shared","Data and privacy","Request workspace export, contact erasure, legal hold, retention changes and secure downloads.","/workspace/data","current",{actions:["Request export","Request scoped erasure","Download","Configure retention","Create/release hold"],dialogs:["Scope and irreversible impact","Download expiry"],states:["queued","running","succeeded","partially succeeded","failed","download expired","hold blocks deletion"]}),
+      page("OPS-15","Merchant operations","Shared","Support and professional services","Open/reply/close tickets, attach safe files, request setup service and track scoped engagement.","/workspace/support and /workspace/operations","current",{actions:["Search guide","Open ticket","Reply","Attach","Close with feedback","Request service","Accept quotation"],dialogs:["Close ticket","Attachment requirements","Service scope/SOW"],states:["open","waiting merchant","waiting DJAI","resolved","closed","attachment scanning","infected","failed","service quoted","in progress","accepted"]}),
+      page("OPS-16","Merchant operations","Shared","Knowledge operations","Review source freshness, failures, revisions, product bindings and deletion impact after launch.","/workspace/knowledge","current",{actions:["Refresh","Reprocess","Publish revision","Review affected bots"],dialogs:["Live bot impact"],states:[...commonStates,"stale","failed source","revision pending"]}),
+      page("OPS-17","Merchant operations","Shared","Integrations and channel health","Monitor connection status, last inbound/outbound, errors, reauthorization and delivery logs.","Target Channels/Integrations routes","target",{actions:["Filter","Reconnect","Test","Rotate","Disconnect","Open delivery log"],dialogs:["Disconnect impact","Rotate credential"],states:["healthy","degraded","reauthorization required","webhook inactive","delivery failed","provider incident"]}),
+      page("OPS-18","Merchant operations","Shared","Account change and closure","Review renewal, cancellation, paid-term access, read-only period, export window, purge and legal hold.","Target account lifecycle","approval",{actions:["Cancel renewal","Reactivate","Export","Request closure"],dialogs:["Cancellation and retention timeline","Closure impact"],states:["active","cancel scheduled","paid term ended","read-only","export window","purge queued","closed","legal hold"]}),
+      page("SYS-01","System and recovery","Shared","Public not-found and route error","Keep public navigation available, explain that the page is unavailable and give safe destinations.","Public 404/error boundary","target",{entry:["Unknown or failed public route"],actions:["Return home","View packages","Open Help","Retry"],next:["PUB-01","PUB-05","PUB-08"],states:["not found","temporary render failure","dependency unavailable"]}),
+      page("SYS-02","System and recovery","Shared","Merchant not-found and route error","Preserve authenticated workspace context and provide a safe return without repeating a failed mutation.","Tenant 404/error boundary","target",{entry:["Unknown or failed merchant route"],actions:["Return to workspace","Retry read","Open support"],next:["MER-01","OPS-15"],states:["not found","temporary render failure","last mutation outcome unknown","workspace unavailable"]}),
+      page("SYS-03","System and recovery","Shared","Session expiry and reauthentication","Preserve safe drafts and continuation while requiring fresh authentication for expired or sensitive work.","Global auth boundary","target",{entry:["Expired session","Sensitive action","Revoked session"],fields:["Password","MFA code when required"],actions:["Sign in again","Cancel sensitive action","Recover password"],dialogs:["Session expired","Recent authentication required"],next:["ID-02","ID-05"],states:["expired","reauthentication required","revoked","identity changed","draft restorable"]}),
+      page("SYS-04","System and recovery","Shared","Support-access disclosure","Show when authorized DJAI support access is active, its scope, approval reference and expiry.","Authenticated workspace banner/detail","target",{entry:["Approved support access begins"],actions:["View scope","Open audit history","Revoke when permitted","Contact owner"],dialogs:["Support-access details"],next:["OPS-13","OPS-15"],states:["inactive","pending approval","active","expired","revoked"]}),
+      page("SYS-05","System and recovery","Shared","Temporary no-login design preview","Expose the current onboarding concept for local review only. It is not authoritative onboarding, subscription activation or a production customer route.","/workspace/setup (temporary current preview)","current",{entry:["Local development review link"],actions:["Inspect concept","Return to architecture document"],next:["ONB-01"],states:["preview available","preview route unavailable"],dialogs:["None; preview must not mutate production state"]})
+    ];
+
+    const onboarding = [
+      {title:"Flow Bot", status:"target", steps:["Selected Flow family/package and active paid/trial access","Choose one of six editable starting journeys","Edit identity and website preview","Open Dashboard anytime or enter full-page Flow Studio","Build deterministic steps, leads, fallback and handover","Optionally test the real draft from entry/selected node","Publish immutable version with advisory warnings allowed","Copy snippet, verify HTTPS origin and explicitly Go live","Enter Dashboard and return to Configuration anytime"]},
+      {title:"AI Text Bot", status:"target", steps:["Selected AI Text family/package and active paid/trial access","Choose Support, Sales or Booking role","Provide authorized website or manual business information","Watch truthful task progress and edit business, three behavior fields and FAQs","Configure role-specific full-page Text Studio under the 200-character limit","Optionally run Thai/English draft tests","Publish immutable version with advisory warnings allowed","Copy snippet, verify HTTPS origin and explicitly Go live","Enter Dashboard and return to Configuration anytime"]},
+      {title:"AI Voice Bot", status:"target", steps:["Selected Voice family/package and active paid access","Choose Support, Sales or Booking role","Provide authorized website or manual business information","Edit generated business, behavior and FAQs","Configure role-specific Studio plus Voice modality and 200-character written-response limit","Optionally run the distinct Voice tester","Publish immutable version with advisory warnings allowed","Copy snippet, verify site/microphone setup and explicitly Go live","Enter Dashboard and return to Configuration anytime"]}
+    ];
+
+    const goals = [
+      ["Answer common questions","FAQ topics, editable answers, alternative routes, no-answer fallback and handover.","Approved knowledge scope, answer boundaries, source behavior, low-confidence fallback and escalation.","Spoken-answer length, knowledge scope, clarification, silence behavior and callback/human fallback."],
+      ["Capture leads","Editable form/questions, required fields, consent, recipient, source, confirmation and handover.","Conversational capture timing, consent, required fields, qualification, routing and verified destination.","Spoken field capture/readback, consent, qualification, recipient, callback expectation and failed-capture fallback."],
+      ["Recommend products","Product/service branches, cards, comparison questions, CTA destinations, claims and human route.","Product facts, discovery questions, recommendation rules, prohibited claims, objections, CTA priority and escalation.","Spoken discovery, approved recommendations, claim boundaries, concise CTA, transfer and callback behavior."],
+      ["Book appointments","Questions, requested fields, timezone, availability source, request-only or provider-confirmed behavior, reschedule/cancel, handover, notifications and failure fallback.","Appointment intent, required fields, availability/provider action, customer confirmation, verified success, reconciliation and fallback.","Spoken date/time capture and readback, timezone, disclosure, verified scheduling, reschedule/cancel, transfer/callback and failure recovery."],
+      ["Customer support","Issue categories, troubleshooting branches, data capture, completion criteria, unavailable path and handover.","Support knowledge/boundaries, diagnostic questions, prohibited actions, case details, escalation triggers and handover summary.","Spoken triage, identity/data limits, troubleshooting, interruption/silence, case capture, transfer and callback fallback."]
+    ];
+
+    const connections = [
+      ["Website loader","All bot families","Exact HTTPS origin → one-time public key → loader snippet → desktop/mobile preview → automated install check → real-site test → activate. Multiple families use one launcher or explicit inline secondary entries."],
+      ["LINE OA","Flow Advanced, AI Text Advanced","Prerequisite warning → Channel ID/Secret → server-minted token → OA identity confirmation → auto-reply check → webhook set/readback → provider reachability test → active."],
+      ["Messenger","Flow Advanced, AI Text Advanced","Meta consent → Page asset picker → encrypted token staging → bot binding → capability preview → inbound/outbound provider test → active. Blocked by production review/evidence."],
+      ["Instagram and WhatsApp","Target supported channels","Meta consent and asset picker with named prerequisite failures. WhatsApp fees and number constraints are disclosed. Current non-social release keeps these unavailable."],
+      ["Google Calendar","Appointment workflows","Authorize → select calendar → timezone/availability → map create/reschedule/cancel → test → activate → reconcile external and local truth → reviewed recovery when retries exhaust."],
+      ["Sheets, webhook and CRM","Advanced integrations","Authorize or seal credential → map fields/events → safe test → activate → delivery history → bounded retry → reconciliation or dead letter → audited recovery."],
+      ["Inbound telephone","Voice Advanced","Operator provisions carrier and number → merchant confirms policy/routing/transfer/fallback → real test call → activate. Carrier, SIP/media, cost and legal gates remain blocked."]
+    ];
+
+    const customerFlows = [
+      {title:"Flow website customer", steps:["Loader verifies origin and fetches provider-neutral manifest","Customer opens one accessible launcher","Welcome and approved topic options appear","Customer chooses buttons or submits validated answers/forms","Runtime follows pinned deterministic revision","Lead/action/appointment request resolves idempotently","Handover packages transcript and fields when requested","Conversation completes or resumes after reconnect","Merchant receives inbox/lead/notification/usage evidence"]},
+      {title:"AI Text website or social customer", steps:["Signed deployment or provider event resolves tenant and agent","Customer asks in Thai/English natural language","AI gateway uses pinned playbook and active knowledge","Model is instructed to answer concisely within 200 characters","Structured response and approved character count validate before delivery","Over-limit text is never silently delivered","Typed action asks for confirmation when policy requires","Verified result alone may show success","Low confidence/refusal/provider/length failure uses configured fallback","Handover includes summary, transcript, identity and reply-window state","One committed reply and downstream outcomes meter once"]},
+      {title:"Voice website or telephone customer", steps:["Admission checks entitlement, capacity, cap and health before media","Customer explicitly starts and receives disclosure","Microphone/call enters listening and speaking states","Model is instructed to answer concisely within 200 characters","Response text and approved character count validate before text-to-speech","Customer can interrupt, mute, change language, ask for human/callback or end","Grounded action remains pending until verified","Reconnect and silence loops are bounded","Transfer or length failure uses the approved fallback","Terminal settlement records raw seconds and billable minutes once","Merchant receives transcript/summary/outcome/callback/appointment evidence"]}
+    ];
+
+    const dashboard = [
+      ["Overview","Independent paid/trial product lifecycle, exact trial end and remaining quota, attention, customer outcomes, usage risk, recent changes and one state-derived next action."],
+      ["Inbox","Conversation list, timeline and customer context; assignment, reply, note, takeover, release, handover and resolution."],
+      ["Contacts and leads","Consent-aware identity, journey, tags, qualification, stage, owner, next action and merchant-confirmed value."],
+      ["Appointments and callbacks","Requested vs confirmed truth, provider reconciliation, reschedule/cancel, callback queue and history."],
+      ["Knowledge","Sources, scans, failures, active revisions, bot bindings, freshness, exclusions and delete impact."],
+      ["Reports and analytics","Flow, AI and Voice business outcomes plus AI Text/Voice 200-character compliance and recovery, with period, timezone, filters, freshness, denominator and safe export."],
+      ["Usage and billing","Trial and paid allowances, AI Text 100-replies-remaining warning, Flow usage visibility, packs, forecast, cap, overage, contracts, invoices, Portal, conversion, plan changes and cancellation."],
+      ["Connections","Website, social, calendar, Sheets, webhook, CRM and telephone health, tests, delivery history and reconnect."],
+      ["Team and security","Roles, seats, invitations, ownership, MFA, sessions, recent authentication and access review."],
+      ["Data and privacy","Retention, exports, contact erasure, legal holds, secure downloads and closure lifecycle."],
+      ["Support and services","Guides, durable tickets, safe attachments, service quotation, engagement and audited access disclosure."],
+      ["Notifications","Action-needed, product health, usage/cost, billing, team/security and completed lifecycle events."]
+    ];
+
+    const features = [
+      ["Free-trial lifecycle","Eligible new Flow/AI Text members","Separate trial choice, eligibility, fixed 30-day authority, website-only onboarding, Flow Starter features with 5,000 conversations/no card, AI Text card setup and limited replies, warning, exhaustion/expiry gate and paid conversion without hidden auto-charge.","Pricing, trial status, onboarding, Usage and conversion checkout"],
+      ["AI response-length limit","AI Text and AI Voice","Every customer-facing generated reply must be concise and no longer than 200 characters under the approved counting rule. Prompting and server validation both enforce the contract.","AI playbook, Voice behavior, runtime, Test Center and analytics"],
+      ["Shared bot lifecycle","All subscribed families","Create, name, configure, duplicate, archive, restore, validate, preview, publish immutable versions, compare versions, roll back and audit.","Product Studio, Versions, Test Center, Overview"],
+      ["Business outcome","All subscribed families","After purchase, filters relevant editable setup for enquiries, lead qualification, appointment requests, sales or support. It never replaces configuration or approval.","Product onboarding and Studio"],
+      ["Thai and English","All subscribed families","Merchant configuration, customer experience, knowledge, tests, fallbacks, handover and reporting retain explicit language behavior.","Onboarding, runtime, Test Center, reports"],
+      ["Lead capture","All subscribed families","Consent-aware fields, validation, source, transcript link, qualification, assignment, stage, next action and duplicate review.","Bot configuration, Contacts, Leads"],
+      ["Human handover","All subscribed families","Reason, summary, collected fields, transcript, owner/team, availability, reply-window state, fallback and resolution.","Bot configuration and Inbox"],
+      ["Flow core content","Flow Starter and Advanced","Topics, messages, questions, answers, buttons, branching, forms, cards, CTA, fallback and handover with keyboard-editable ordering.","Guided editor and Canvas"],
+      ["Flow Advanced logic","Flow Advanced","Reusable subflows, conditions, variables, API/integration actions, social entry, validation and explicit channel capability preview.","Flow Studio and Connections"],
+      ["Flow runtime evidence","Flow Starter and Advanced","Production-engine preview, current-version regression, session pinning, action idempotency, outcomes and usage evidence.","Preview, Test Center, reports"],
+      ["Knowledge ingestion","AI Text and Voice","Approved URLs/files/text, scan/extraction status, exclusions, source-by-source failures, revisions, freshness, product binding and delete impact.","Knowledge"],
+      ["Grounded AI Text","AI Text Starter and Advanced","Pinned playbook and knowledge, source-grounded answers, refusal, low-confidence fallback, prohibited claims, structured-response validation and enforced 200-character maximum.","AI Text Studio, Test Center, runtime"],
+      ["AI Text actions","AI Text Starter and Advanced","Lead capture, appointment request, callback, verified external action, customer confirmation and idempotent metering.","AI Text Studio and customer conversation"],
+      ["AI Text Advanced sales","AI Text Advanced","Sales qualification, advanced routing, multiple knowledge collections, approved integrations and one eligible social channel.","AI Text Studio, Knowledge, Connections"],
+      ["Voice runtime","Voice Starter and Advanced","Explicit start, disclosure, microphone state, listening/speaking, enforced 200-character response text before speech, interruption, mute, language, silence timeout, reconnect, end and settlement.","Voice Test Center and customer voice surface"],
+      ["Voice Advanced","Voice Advanced","Multiple agents, two concurrent sessions, inbound telephone, transfer policy, callback fallback and provider/carrier evidence.","Voice Studio, telephone connection, reports"],
+      ["Website deployment","All bot families","Exact HTTPS origin allowlist, public deployment key, loader, placement, brand, preview, automated check, real-site test, health and key rotation.","Website connection and deployment health"],
+      ["Social channels","Advanced Flow and AI Text where released","LINE assisted setup and Meta OAuth/asset selection, encrypted staging, capability preview, provider round-trip, health and reply-window enforcement.","Connections and Inbox"],
+      ["Appointments and callbacks","Configured bots","Request-only versus confirmed truth, availability/timezone, create/reschedule/cancel dependency chain, reconciliation, reviewed recovery and callback queue.","Bot setup, Appointments, Inbox"],
+      ["Google Sheets","Eligible advanced integration","Authorize, select destination, map fields, test, activate, show delivery attempts, bounded retry and reconciliation.","Connections and delivery history"],
+      ["Signed webhooks","Eligible advanced integration","Seal/rotate secret, choose events, map payload, safe test, signed delivery, bounded retry, dead letter and audited recovery.","Connections and delivery history"],
+      ["CRM/basic API","Eligible advanced integration","Authorized credentials, field/action mapping, capability-specific test, verified result, delivery history and failure recovery.","Connections and delivery history"],
+      ["Contacts and journey","All subscribed families","Identity resolution, consent, tags, conversations, leads, appointments, callbacks and value evidence on one chronology.","Contacts"],
+      ["Usage authority","All subscribed families","Committed conversations, AI replies, connected Voice minutes, packs, forecast, caps, reset, alerting and reconciliation freshness.","Usage and Overview"],
+      ["Commercial lifecycle","Workspace owner/billing roles","Annual contract, renewal, invoices, payment state, Portal, upgrades, downgrade preflight, cancellation, reactivation and read-only/export windows.","Billing and Usage"],
+      ["Team and roles","Owner, Administrator, Operator, Analyst, Billing manager","Seat authority, invitations, role changes, least-privilege navigation, ownership transfer, access revocation and direct-route enforcement.","Team, Security and every protected route"],
+      ["Privacy and data","Authorized merchant roles","Consent evidence, retention, workspace export, contact erasure, legal hold, secure downloads and closure/purge lifecycle.","Data and Privacy"],
+      ["Support and services","All merchants by support entitlement","Guides, durable tickets, attachments, setup-service request, quotation/SOW, engagement tracking and disclosed audited support access.","Help, Support and Operations"],
+      ["Notifications","All merchants by role and policy","In-app events for setup, deployment, customer operations, usage, billing, team/security, privacy, support and incidents; external sends only when approved.","Notification Center and approved email channels"]
+    ];
+
+    const responseRules = [
+      ["Controlling limit","Requested","Maximum 200 characters per generated reply for AI Text Bot and AI Voice Bot. The final ‘characters’ instruction is treated as overriding the earlier ‘words’ phrase."],
+      ["Excluded product","Requested","Flow Bot is not included in this rule because its merchant-authored deterministic messages were not named."],
+      ["Model instruction","Requested","The system/playbook tells the model to answer concisely and remain within 200 characters."],
+      ["Runtime enforcement","Required safety design","The server validates the finalized customer-facing text before delivery. A prompt instruction by itself is not treated as enforcement."],
+      ["Voice enforcement","Requested","Validate the response text before text-to-speech so the spoken AI reply is based on no more than 200 approved characters."],
+      ["Over-limit recovery","Approval required","Define whether to recompose, retry or use a safe fallback. Do not silently deliver an over-limit response."],
+      ["Blind truncation","Proposed safety rule","Do not cut at character 200 because that can break Thai text, sentences, links, disclosures or action meaning. Recompose to a complete concise reply instead."],
+      ["Character counting","Approval required","Choose Unicode grapheme clusters, Unicode code points or another explicit rule. Thai combining marks and emoji make raw string length unsuitable as an unstated authority."],
+      ["Included content","Approval required","Define whether the limit covers citations, URLs, action labels, required AI/privacy disclosure, handover text and system-generated fallback text."],
+      ["Multiple bubbles","Approval required","Decide whether one answer may be split into multiple messages. Without approval, splitting must not be used to bypass the 200-character limit."],
+      ["Merchant control","Approval required","Decide whether 200 is fixed platform policy or whether merchants may set a lower limit. Merchants must never be able to raise it above 200."],
+      ["Streaming","Approval required","Choose buffer-before-delivery or another enforcement method so streamed content cannot pass 200 before validation."],
+      ["Metering","Proposed consistency rule","Only the committed customer reply counts toward usage. Over-limit generation attempts that are never delivered do not create additional billable replies."],
+      ["Tests","Required acceptance","Test 199, 200 and 201-character outputs in Thai and English, combining characters, emoji, URLs, actions, disclosures, fallback and Voice text-to-speech."],
+      ["Evidence","Required acceptance","Record final character count, enforcement result, repair/fallback result and delivered text digest without exposing provider/model identity."]
+    ];
+
+    const communications = [
+      ["Account verification","Email plus in-app continuation","Verification link, expiry, resend and the preserved package/workspace continuation.","Registration and email change"],
+      ["Invitations and ownership","Email plus in-app","Invited workspace, role, inviter, expiry, identity match, ownership impact and acceptance result.","Invite, resend, revoke and transfer"],
+      ["Recovery and security","Email plus in-app","Anti-enumerating recovery, password changed, MFA/recovery-code events, new/revoked sessions and sensitive access.","Security events"],
+      ["Checkout and activation","Provider surface plus in-app; email only if approved","Package, amount, renewal, payment status, processing, action required, invoice and activation result.","Purchase lifecycle"],
+      ["AI Text trial usage warning","In-app plus account-owner email","Product, exact remaining units and percentage, trial end, effect at zero and Subscribe continuation. The approved 500-reply trial warns at 100 replies remaining.","First authoritative crossing to 100 replies remaining or lower"],
+      ["Trial expiry and exhaustion","In-app; additional email timing requires approval","Whether time or quota ended, bot/deployment state, customer fallback, retained configuration and Subscribe continuation.","Trial expires or allowance reaches zero"],
+      ["Renewal and payment state","In-app; email only if approved","Renewal date/amount, past due, grace, restriction, restored access and failed payment recovery.","Subscription lifecycle"],
+      ["Finance documents","In-app secure link; approved email notification","Invoice, receipt, credit/refund state, document availability and download expiry without exposing sensitive data.","Finance events"],
+      ["Onboarding blocked","In-app","Exact incomplete or failed prerequisite, saved progress, retry and support path.","Shared or product setup"],
+      ["Deployment unhealthy","In-app; approved external alert","Affected bot/channel, observed failure, customer fallback, last healthy time and reconnect/test action.","Website, social, integration or telephone health"],
+      ["Customer operations","In-app; approved external alert","New lead, handover, appointment request/change, callback due, assignment and unresolved conversation.","Runtime outcomes"],
+      ["Usage and limits","In-app; approved external alert","Meter, allowance, threshold, forecast, pack/overage choices, cap effect, reset and fallback.","Usage events"],
+      ["Privacy and data jobs","In-app; email only if approved","Export/erasure/retention/legal-hold state, partial failure, secure download availability and expiry.","Data lifecycle"],
+      ["Support and services","In-app; email only if approved","Ticket reply/status, attachment safety, quotation, SOW/engagement state and support-access scope/expiry.","Support lifecycle"],
+      ["Incident and recovery","Status page plus in-app; approved external alert","Affected component, known impact, merchant safe action, updates, recovery and evidence link.","Platform incident"]
+    ];
+
+    const roles = [
+      ["Purchase, cancel or change package","Yes","Policy-controlled","No","No","Yes"],
+      ["Change tax or payment details","Yes","No by default","No","No","Yes"],
+      ["Create or publish bots","Yes","Yes","Limited operation","No","No"],
+      ["Connect channels or integrations","Yes","Yes","Health/reconnect if granted","No","No"],
+      ["Handle inbox and leads","Yes","Yes","Yes","Read-only","No"],
+      ["View analytics","Yes","Yes","Operational","Yes","Cost only as granted"],
+      ["Set overage or cap","Yes","No by default","No","No","Yes"],
+      ["Manage team or ownership","Yes","Invite role-limited","No","No","No"],
+      ["Privacy export or erasure","Yes","Policy-controlled","No","No","No"]
+    ];
+
+    const states = [
+      ["Authoritative read fails","Inline/page error names the unavailable resource, says no state changed and offers retry.","Empty list, zero metric or endless loading"],
+      ["Mutation result unknown","Preserve all input, resolve idempotency/current status, then allow safe retry.","Repeat automatically or clear the draft"],
+      ["Package unavailable","Show exact package and truthful preview/contact path; disable checkout.","Hide package or imply it can be purchased"],
+      ["Trial eligibility unavailable","Preserve trial intent, explain that eligibility could not be verified and offer retry or Subscribe.","Grant a trial from browser state"],
+      ["Trial ineligible","State that a new trial is unavailable and offer Subscribe/support without exposing fraud-control details.","Leak eligibility signals or create a second trial"],
+      ["Trial 20% remaining","Show exact product, remaining units, percentage, end time and zero-usage effect; create in-app and email delivery evidence.","Use a vague warning or send repeated duplicate emails"],
+      ["Trial quota exhausted","Stop new trial service at the authoritative committed limit, preserve evidence and present Subscribe.","Allow unmetered use or delete configuration"],
+      ["Trial time expired","Show exact end time, deployment state, retention treatment and Subscribe continuation.","Continue indefinitely or silently delete setup"],
+      ["Trial conversion processing","Keep trial configuration and resolve payment by signed webhook before resuming paid service.","Resume from the return URL or duplicate resources"],
+      ["Legal document unavailable","Pause new registration and offer retry; existing verification remains usable.","Accept stale or missing legal versions"],
+      ["Verification/recovery expired","Explain expiry, preserve identity context where safe and offer anti-enumerating resend.","Generic failure with no recovery"],
+      ["Checkout processing","Show processing, safe-to-close message and status refresh.","Grant access from return URL"],
+      ["Payment action required","Return to the existing provider flow and prevent duplicate entitlement.","Create a second checkout blindly"],
+      ["Onboarding save fails","Keep fields, remain on the step, report that progress did not advance and retry.","Mark step complete"],
+      ["Unsaved navigation","Confirmation names unsaved scope and offers stay, discard or save.","Navigate silently"],
+      ["Draft conflict","Compare/reload or save a copy; protect the other editor's revision.","Last write wins"],
+      ["Publish","Confirmation identifies version, bot, deployments, knowledge pins and impact.","Publish an older hidden draft"],
+      ["Rollback","Explain that rollback publishes a new immutable version and preserves active-session pins.","Rewrite history"],
+      ["Install check fails","Name origin, script, key, CSP, duplicate launcher or reachability condition and its fix.","Show generic not working"],
+      ["Channel prerequisite fails","Name exact provider prerequisite and link/instruction to correct it before credential entry.","Empty picker"],
+      ["Channel/provider degraded","Show affected bot/channel, health, safe customer fallback and reconnect/test action.","Take unrelated workspace areas offline"],
+      ["External action unknown","Show pending/unknown and reconcile before confirmation.","Claim appointment/payment/sync success"],
+      ["Closed social reply window","Disable composer before send and show permitted alternatives.","Accept text then fail"],
+      ["Knowledge partial failure","Show status per source/page and allow retry of failed items.","Mark everything failed or ready"],
+      ["AI reply exceeds 200 characters","Block delivery, preserve the grounded/action result and apply the approved bounded recompose or fallback policy.","Deliver it because the prompt was close enough"],
+      ["AI reply-length recovery fails","Use the approved safe customer fallback, record evidence and keep usage truthful.","Blindly truncate, loop forever or expose provider errors"],
+      ["Character-count authority unavailable","Fail closed for generated customer delivery and surface an operational incident with retry/fallback.","Guess a count in each client"],
+      ["Microphone denied","Provide neutral browser guidance and text/call alternatives.","Request permission repeatedly"],
+      ["Voice reconnecting","Show bounded timer, preserved state and End option.","Freeze controls or reconnect forever"],
+      ["Voice cap/capacity/provider unavailable","Warn before media allocation and use configured callback/text/human fallback.","Drop mid-sentence or expose provider"],
+      ["Limit reached","Name meter, current use, reset, allowed pack/upgrade and service fallback.","Expose token/model/provider error"],
+      ["Downgrade","Preflight lists excess resources that become disabled/read-only and effective date.","Delete excess data"],
+      ["Cancellation","Confirm renewal stop, paid access end, export/read-only/purge dates and reactivation path.","Immediate silent deletion"],
+      ["Destructive privacy action","Confirmation names scope, retained/legal-hold exceptions and irreversible effect.","Broad ambiguous delete"],
+      ["Support attachment unsafe","Show scanning/quarantine/failed state, block download and preserve ticket.","Serve unscanned file"],
+      ["Permission or entitlement denied","State the required role/package and allowed next action without revealing another tenant's object.","UI-only bypass or generic 500"],
+      ["Unexpected page error","State last action may not have completed; retry before repeating mutation and provide safe return.","Blank screen"]
+    ];
+
+    const decisions = [
+      ["Current sellability","All six packages are sellable=false. Checkout must remain unavailable until each package's evidence passes."],
+      ["Free-trial commercial rules","Approved: 30 fixed days from successful trial provisioning, website only, Starter settings; Flow 5,000 conversations/no card; Text 500 replies/card and owner warning at 100 remaining; Voice no trial. Auto-charge, repeat/abuse thresholds, retention and extra recipients remain gated."],
+      ["AI Text trial quota","Approved at 500 replies, equal to 25% of the 2,000-reply Starter allowance, with a 100-reply remaining warning."],
+      ["Business-goal mappings","The product-level effect is fixed: goals filter relevant editable configuration. Exact default templates/copy for each industry and goal require page-by-page owner approval."],
+      ["Stripe and Thai finance","Production Stripe mappings, tax, VAT, withholding, invoice numbering, dunning, refund/dispute and FlowAccount authority remain open."],
+      ["Social release","Non-social production defaults off. Meta review, credentials, shared routing, Instagram/WhatsApp gaps, channel-slot enforcement and provider acceptance remain a separate release train."],
+      ["Knowledge production","Approved file policy, malware/extraction/vector provider, encryption/deletion and production object-store evidence remain open."],
+      ["AI quality","Executable Thai/English cases exist; human approval, live provider thresholds and approval references remain open."],
+      ["AI response-length policy","Approved at 200 visible characters for AI Text and Voice written output, counted grapheme-aware before delivery/speech. Detailed recovery, streaming, multi-message and lower-ceiling options remain implementation decisions requiring safe acceptance."],
+      ["Voice and telephony","Live microphone/network quality, provider rates, carrier, number, SIP/media, CDR, transfer, failover, pricing and legal evidence remain open."],
+      ["Notification delivery","The AI Text 100-replies-remaining warning requires in-app plus account-owner email. Operational legal classification, provider setup, retry/escalation and unmocked email evidence remain release gates."],
+      ["Browser acceptance","Keyboard, responsive, zoom, overflow, axe and visual acceptance require an explicitly authorized project-managed browser run."],
+      ["Named merchant and rollout","Named Thai merchant acceptance, penetration test, staging environment, 48-hour soak, kill-switch and incident drills remain open."]
+    ];
+
+    const sources = [
+      ["Free-trial product direction","Approved experience contract","Fixed 30-day website-only Flow/Text Starter trials from successful provisioning. Flow has 5,000 conversations/no card. Text has 500 replies/card and account-owner warning at 100 remaining. Voice has no trial. Auto-charge and unspecified rules remain gated."],
+      ["AI response-length direction","Approved experience contract","AI Text and AI Voice generated replies must be concise and no longer than 200 visible characters, counted as grapheme clusters before delivery or speech. Recovery details may evolve but cannot bypass the ceiling."],
+      ["Commercial and normative product authority","docs/product/djay-bots-v1-market-release-prd.md","Prices, packages, meters, product features, channels, integrations, merchant and customer requirements."],
+      ["End-to-end UX authority","docs/design/djay-bots-v1-ui-ux-and-user-flows.md","Public, subscription, onboarding, product, operations, widget, social, telephone, state and route flows."],
+      ["Onboarding mechanics authority","docs/superpowers/specs/2026-07-26-omnichannel-onboarding-design.md","LINE, Meta, WhatsApp, acquisition modes, prerequisites, health and operator-assisted connection."],
+      ["Non-social release sequencing","docs/plans/2026-08-11-non-social-production-readiness-plan.md","Website-first rollout, product slices, shared prerequisites, acceptance and external blockers."],
+      ["Executable catalogue","packages/catalog/src/index.ts","Exact six packages, prices, entitlements, allowances, limits, add-ons, packs and services."],
+      ["Requirement registry","requirements/market-release-v1.yaml","322 requirements and current implementation/evidence mappings."],
+      ["Current route inventory","apps/public-site/app, apps/tenant-web/app, apps/platform-master/app, apps/api/app","Current pages, route handlers, errors, permissions and operational surfaces."],
+      ["Current checkpoint","docs/validation/non-social-production-readiness-2026-08-11.md","Implemented local evidence and strict remaining production blockers."]
+    ];
+
+    const swimlanes = [
+      ["Prospect",["Landing","Compare package","Choose bot/tier","Subscribe or eligible trial","Register or sign in"]],
+      ["Commerce",["Preserve paid/trial intent","Eligibility or annual review","Trial activation or Stripe","Authority confirms access"]],
+      ["Merchant setup",["Shared prerequisites","Product-specific configuration","Test current version","Publish"]],
+      ["Connection",["Website/social/telephone setup","Verify identity and entitlement","Round-trip health test","Activate"]],
+      ["End customer",["Open widget/channel","Conversation/actions","Lead or handover","Outcome"]],
+      ["Merchant operation",["Inbox and customer journey","Appointments/callbacks","Reports and usage","Improve next version"]]
+    ];
+
+    function esc(value) { return String(value ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+    function list(items) { return items?.length ? `<ul>${items.map(item => `<li>${esc(item)}</li>`).join("")}</ul>` : "<p>None specified.</p>"; }
+    function statusLabel(status) { return status === "current" ? "Implemented now" : status === "target" ? "Proposed target" : status === "blocked" ? "Blocked or deferred" : "Approval required"; }
+    function authorityFor(page) {
+      const authority = {
+        "Public":"Approved catalogue, localization, legal/status publication and public content authority.",
+        "Identity":"Global identity, version-bound legal acceptance, one-time token and server-preserved continuation authority.",
+        "Commerce":"Server purchase intent, authoritative catalogue, immutable provider price mapping, signed webhook and local subscription authority.",
+        "Trial commerce":"Verified global identity, approved eligibility policy, server-preserved trial intent and durable trial-entitlement authority.",
+        "Trial operations":"Durable trial entitlement, authoritative start/end, committed usage ledger, warning-delivery evidence and deployment-health authority.",
+        "Trial conversion":"Server conversion intent, authoritative paid catalogue, signed payment webhook and atomic paid-entitlement replacement authority.",
+        "Merchant foundation":"Authenticated tenant membership, active subscription and server-side entitlement authority.",
+        "Shared onboarding":"Authenticated tenant context, saved onboarding state, catalogue entitlement and verified prerequisite authority.",
+        "Flow onboarding":"Immutable Flow graph/version, validator, production runtime and product entitlement authority.",
+        "AI Text onboarding":"Pinned playbook/knowledge versions, AI gateway evidence, approved actions and product entitlement authority.",
+        "Voice onboarding":"Pinned agent/knowledge versions, admission control, usage settlement and product entitlement authority.",
+        "Connections":"Deployment/channel identity, sealed credential or OAuth grant, provider readback/test, health and entitlement authority.",
+        "End customer":"Signed deployment or provider event, pinned published version, durable session/action ledger and usage authority.",
+        "Merchant operations":"Authenticated tenant context, role permission, durable repositories, RLS and current provider reconciliation authority.",
+        "System and recovery":"Current server session, tenant authorization, idempotency lookup and last-known durable state authority."
+      };
+      return authority[page.realm] || "Authenticated server authority appropriate to this surface.";
+    }
+    function accessFor(page) {
+      if (["Public"].includes(page.realm)) return "Public. Commerce actions still require package availability and server validation.";
+      if (["Identity"].includes(page.realm)) return "Public identity surface with one-time tokens where applicable; authenticated continuation is revalidated server-side.";
+      if (["Commerce"].includes(page.realm)) return "Prospect or authenticated merchant as applicable; billing mutations require owner or billing authority.";
+      if (["End customer"].includes(page.realm)) return "Anonymous or channel-identified customer through an active signed deployment; no merchant workspace access.";
+      return "Authenticated workspace member. Visibility and mutation depend on role, product entitlement and direct-route authorization.";
+    }
+
+    const nav = document.getElementById("nav");
+    sections.forEach(([id,label], index) => {
+      const button = document.createElement("button");
+      button.type = "button"; button.dataset.view = id; button.className = index === 0 ? "active" : "";
+      const count = id === "pages" ? `<span class="nav-count">${pages.length}</span>` : "";
+      button.innerHTML = `${esc(label)}${count}`;
+      button.addEventListener("click", () => showView(id)); nav.appendChild(button);
+    });
+    function showView(id) {
+      document.querySelectorAll(".view").forEach(view => view.classList.toggle("active", view.id === id));
+      document.querySelectorAll(".nav button").forEach(button => button.classList.toggle("active", button.dataset.view === id));
+      document.getElementById("sidebar").classList.remove("open");
+      document.getElementById("menuButton").setAttribute("aria-expanded", "false");
+      history.replaceState(null, "", `#${id}`); window.scrollTo({top:0, behavior:"smooth"});
+    }
+    document.getElementById("menuButton").addEventListener("click", event => {
+      const sidebar = document.getElementById("sidebar"); const open = sidebar.classList.toggle("open"); event.currentTarget.setAttribute("aria-expanded", String(open));
+    });
+
+    document.getElementById("masterFlow").innerHTML = masterFlow.map((item,index) => `<article class="flow-node"><span class="node-no">${String(index+1).padStart(2,"0")}</span><strong>${esc(item[0])}</strong><p>${esc(item[1])}</p></article>`).join("");
+    document.getElementById("swimlanes").innerHTML = swimlanes.map(lane => `<div class="lane"><div class="lane-title">${esc(lane[0])}</div><div class="lane-content">${lane[1].map(item => `<div class="lane-item"><strong>${esc(item)}</strong><small>Authoritative state passes to the next surface</small></div>`).join("")}</div></div>`).join("");
+    document.getElementById("catalogTable").innerHTML = `<thead><tr><th>Package</th><th>First year</th><th>Renewal</th><th>Capacity</th><th>Monthly allowance</th><th>Channels</th><th>Support</th><th>Overage</th><th>Approved choices</th><th>Status</th></tr></thead><tbody>${plans.map(p => `<tr><td><strong>${p[0]}</strong></td><td>${p[1]}</td><td>${p[2]}</td><td>${p[3]}</td><td>${p[4]}</td><td>${p[5]}</td><td>${p[6]}</td><td>${p[7]}</td><td>${p[0].startsWith("AI Voice") ? "Subscribe only" : "Subscribe or 30-day website trial"}</td><td><span class="status ${p[8]}">Not sellable</span></td></tr>`).join("")}</tbody>`;
+    document.getElementById("commercialExtras").innerHTML = extras.map(item => `<article class="card"><h3>${esc(item[0])}</h3><p>${esc(item[1])}</p></article>`).join("");
+    document.getElementById("trialTruth").innerHTML = trialTruth.map(item => `<div><strong>${esc(item[0])}</strong><span>${esc(item[1])}</span></div>`).join("");
+    document.getElementById("trialFlow").innerHTML = trialFlow.map((item,index) => `<article class="flow-node"><span class="node-no">${String(index+1).padStart(2,"0")}</span><strong>${esc(item[0])}</strong><p>${esc(item[1])}</p></article>`).join("");
+    document.getElementById("trialRuleMatrix").innerHTML = `<thead><tr><th>Rule</th><th>Decision status</th><th>Required treatment</th></tr></thead><tbody>${trialRules.map(row => `<tr><td><strong>${esc(row[0])}</strong></td><td>${esc(row[1])}</td><td>${esc(row[2])}</td></tr>`).join("")}</tbody>`;
+
+    const realms = [...new Set(pages.map(p => p.realm))].sort(); const products = [...new Set(pages.map(p => p.product))].sort();
+    realms.forEach(value => document.getElementById("realmFilter").insertAdjacentHTML("beforeend", `<option>${esc(value)}</option>`));
+    products.forEach(value => document.getElementById("productFilter").insertAdjacentHTML("beforeend", `<option>${esc(value)}</option>`));
+    const filters = ["realmFilter","productFilter","statusFilter","pageSearch"];
+    filters.forEach(id => document.getElementById(id).addEventListener(id === "pageSearch" ? "input" : "change", renderPages));
+    function renderPages(queryOverride = "") {
+      const realm = document.getElementById("realmFilter").value; const product = document.getElementById("productFilter").value;
+      const status = document.getElementById("statusFilter").value; const query = (queryOverride || document.getElementById("pageSearch").value).toLowerCase().trim();
+      const filtered = pages.filter(p => (realm === "all" || p.realm === realm) && (product === "all" || p.product === product) && (status === "all" || p.status === status) && (!query || JSON.stringify(p).toLowerCase().includes(query)));
+      document.getElementById("pageCount").textContent = `${filtered.length} of ${pages.length} defined merchant-facing screens shown.`;
+      document.getElementById("pageList").innerHTML = filtered.length ? filtered.map(p => `<button class="page-row" type="button" data-page="${esc(p.id)}"><span class="page-id">${esc(p.id)}</span><strong>${esc(p.title)}</strong><p>${esc(p.purpose)}</p><span class="status ${p.status}">${esc(statusLabel(p.status))}</span></button>`).join("") : `<div class="empty">No page matches these filters.</div>`;
+      document.querySelectorAll("[data-page]").forEach(button => button.addEventListener("click", () => openPage(button.dataset.page)));
+    }
+    renderPages();
+
+    const dialog = document.getElementById("pageDialog");
+    function openPage(id) {
+      const p = pages.find(item => item.id === id); if (!p) return;
+      document.getElementById("dialogId").textContent = `${p.id} · ${p.realm} · ${p.product}`; document.getElementById("dialogTitle").textContent = p.title;
+      const blocks = [
+        ["Route or surface", [p.route]], ["Entry points", p.entry], ["Fields and information", p.fields], ["Actions", p.actions],
+        ["Dialogs and confirmations", p.dialogs], ["Next destinations", p.next], ["Required states and failures", p.states],
+        ["Data authority", [authorityFor(p)]], ["Access and roles", [accessFor(p)]]
+      ];
+      document.getElementById("dialogBody").innerHTML = `<div class="detail-summary">${esc(p.purpose)}</div><div class="detail-meta"><span class="status ${p.status}">${esc(statusLabel(p.status))}</span></div><div class="detail-grid">${blocks.map(block => `<section class="detail-block"><h3>${esc(block[0])}</h3>${list(block[1])}</section>`).join("")}<section class="detail-block full"><h3>Non-negotiable behavior</h3><ul><li>State comes from authenticated server authority, catalogue, immutable version, verified provider result or deployment health as applicable.</li><li>Save failure never advances progress. Unknown external results remain pending and reconcile.</li><li>Back, retry and recovery preserve valid user input. Direct-route authorization and entitlement are enforced independently of visible UI.</li><li>Thai/English, keyboard, mobile, loading, error, denied and recovery behavior require acceptance before implementation is approved.</li></ul></section></div>`;
+      dialog.showModal();
+    }
+    document.getElementById("dialogClose").addEventListener("click", () => dialog.close());
+    dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
+
+    document.getElementById("onboardingFlows").innerHTML = onboarding.map(flow => `<section class="section"><div class="section-head"><span class="status ${flow.status}">${esc(statusLabel(flow.status))}</span><h2>${esc(flow.title)}</h2></div><div class="flow-strip">${flow.steps.map((step,index) => `<article class="flow-node"><span class="node-no">${String(index+1).padStart(2,"0")}</span><strong>${esc(step)}</strong></article>`).join("")}</div></section>`).join("");
+    document.getElementById("goalMatrix").innerHTML = `<thead><tr><th>Business goal</th><th>Flow Bot opens</th><th>AI Text Bot opens</th><th>AI Voice Bot opens</th></tr></thead><tbody>${goals.map(row => `<tr><td><strong>${esc(row[0])}</strong></td><td>${esc(row[1])}</td><td>${esc(row[2])}</td><td>${esc(row[3])}</td></tr>`).join("")}</tbody>`;
+    document.getElementById("connectionCards").innerHTML = connections.map(item => `<article class="card"><span class="status target">${esc(item[1])}</span><h3>${esc(item[0])}</h3><p>${esc(item[2])}</p></article>`).join("");
+    document.getElementById("customerFlows").innerHTML = customerFlows.map(flow => `<section class="section"><div class="section-head"><h2>${esc(flow.title)}</h2></div><div class="flow-strip">${flow.steps.map((step,index) => `<article class="flow-node"><span class="node-no">${String(index+1).padStart(2,"0")}</span><strong>${esc(step)}</strong></article>`).join("")}</div></section>`).join("");
+    document.getElementById("dashboardCards").innerHTML = dashboard.map(item => `<article class="card"><h3>${esc(item[0])}</h3><p>${esc(item[1])}</p></article>`).join("");
+    document.getElementById("featureMatrix").innerHTML = `<thead><tr><th>Capability</th><th>Entitlement or audience</th><th>Complete behavior</th><th>Operating surface</th></tr></thead><tbody>${features.map(row => `<tr><td><strong>${esc(row[0])}</strong></td><td>${esc(row[1])}</td><td>${esc(row[2])}</td><td>${esc(row[3])}</td></tr>`).join("")}</tbody>`;
+    document.getElementById("responseRuleMatrix").innerHTML = `<thead><tr><th>Response rule</th><th>Decision status</th><th>Required behavior</th></tr></thead><tbody>${responseRules.map(row => `<tr><td><strong>${esc(row[0])}</strong></td><td>${esc(row[1])}</td><td>${esc(row[2])}</td></tr>`).join("")}</tbody>`;
+    document.getElementById("roleMatrix").innerHTML = `<thead><tr><th>Task</th><th>Owner</th><th>Admin</th><th>Operator</th><th>Analyst</th><th>Billing manager</th></tr></thead><tbody>${roles.map(row => `<tr>${row.map((cell,index) => `<td>${index === 0 ? `<strong>${esc(cell)}</strong>` : esc(cell)}</td>`).join("")}</tr>`).join("")}</tbody>`;
+    document.getElementById("communicationMatrix").innerHTML = `<thead><tr><th>Communication</th><th>Allowed delivery</th><th>Required content</th><th>Trigger</th></tr></thead><tbody>${communications.map(row => `<tr><td><strong>${esc(row[0])}</strong></td><td>${esc(row[1])}</td><td>${esc(row[2])}</td><td>${esc(row[3])}</td></tr>`).join("")}</tbody>`;
+    document.getElementById("stateMatrix").innerHTML = `<thead><tr><th>Situation or popup</th><th>Required design and recovery</th><th>Prohibited behavior</th></tr></thead><tbody>${states.map(row => `<tr><td><strong>${esc(row[0])}</strong></td><td>${esc(row[1])}</td><td>${esc(row[2])}</td></tr>`).join("")}</tbody>`;
+    document.getElementById("decisionCards").innerHTML = decisions.map(item => `<article class="card"><span class="status approval">Approval or evidence required</span><h3>${esc(item[0])}</h3><p>${esc(item[1])}</p></article>`).join("");
+    document.getElementById("sourceList").innerHTML = sources.map(item => `<article class="source"><strong>${esc(item[0])}</strong><code>${esc(item[1])}</code><p>${esc(item[2])}</p></article>`).join("");
+
+    document.getElementById("globalSearch").addEventListener("input", event => {
+      const query = event.target.value.trim(); if (!query) return;
+      showView("pages"); document.getElementById("pageSearch").value = query; renderPages(query.toLowerCase());
+    });
+    const initial = location.hash.slice(1); if (sections.some(item => item[0] === initial)) showView(initial);
+  </script>
+</body>
+</html>

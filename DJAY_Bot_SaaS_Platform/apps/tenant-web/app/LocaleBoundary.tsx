@@ -1,9 +1,16 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { createContext, useContext, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { translateEnglishUi, translateThaiUi } from "@djay/shared";
 
 type Locale = "th" | "en";
+
+type LocaleContextValue = Readonly<{
+  locale: Locale;
+  chooseLocale: (locale: Locale) => void;
+}>;
+
+const LocaleContext = createContext<LocaleContextValue | null>(null);
 
 export function LocaleBoundary({ children }: Readonly<{ children: React.ReactNode }>) {
   const root = useRef<HTMLDivElement>(null);
@@ -72,11 +79,12 @@ export function LocaleBoundary({ children }: Readonly<{ children: React.ReactNod
     location.reload();
   }
 
-  return <div ref={root}>
-    <div className="locale-switch" style={{ position: "absolute", right: 16, top: 12, zIndex: 10, display: "flex", gap: 4, padding: 4, borderRadius: 999, background: "#fff", boxShadow: "0 8px 30px rgba(0,0,0,.18)" }} aria-label="เลือกภาษา / Select language">
-      <button type="button" onClick={() => choose("th")} style={{ border: 0, borderRadius: 999, padding: "8px 12px", background: locale === "th" ? "#0e7c86" : "transparent", color: locale === "th" ? "#fff" : "#334155" }}>ไทย</button>
-      <button type="button" onClick={() => choose("en")} style={{ border: 0, borderRadius: 999, padding: "8px 12px", background: locale === "en" ? "#0e7c86" : "transparent", color: locale === "en" ? "#fff" : "#334155" }}>English</button>
-    </div>
-    {children}
-  </div>;
+  const value = useMemo(() => ({ locale, chooseLocale: choose }), [locale]);
+  return <LocaleContext.Provider value={value}><div ref={root}>{children}</div></LocaleContext.Provider>;
+}
+
+export function useTenantLocale() {
+  const value = useContext(LocaleContext);
+  if (!value) throw new Error("missing_tenant_locale_context");
+  return value;
 }

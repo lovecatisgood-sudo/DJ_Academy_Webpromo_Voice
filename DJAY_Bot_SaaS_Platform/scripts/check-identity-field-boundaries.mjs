@@ -15,7 +15,7 @@ for (const marker of [
 }
 
 for (const path of [
-  "apps/public-site/app/page.tsx",
+  "apps/public-site/app/register/page.tsx",
   "apps/public-site/app/VerificationResendForm.tsx",
   "apps/tenant-web/app/page.tsx",
   "apps/tenant-web/app/recovery/page.tsx",
@@ -26,7 +26,7 @@ for (const path of [
 }
 
 for (const [path, markers] of [
-  ["apps/public-site/app/page.tsx", ["displayNameFieldConstraints", "businessNameFieldConstraints", "identityTextError", "normalizeIdentityText", "reportValidity()"]],
+  ["apps/public-site/app/register/page.tsx", ["displayNameFieldConstraints", "businessNameFieldConstraints", "identityTextError", "normalizeIdentityText", "reportValidity()"]],
   ["apps/public-site/app/invitations/accept/InvitationAcceptanceClient.tsx", ["displayNameFieldConstraints", "identityTextError", "normalizeIdentityText", "reportValidity()"]],
 ]) {
   const source = read(path);

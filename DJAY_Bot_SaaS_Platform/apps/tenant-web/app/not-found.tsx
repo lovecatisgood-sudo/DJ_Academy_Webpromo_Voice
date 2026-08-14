@@ -1,7 +1,9 @@
+import { BrandLockup, LocaleSwitch } from "./BrandChrome";
+
 export default function NotFound() {
   return (
     <main className="recovery-page">
-      <header className="recovery-header"><span className="recovery-mark" aria-hidden="true">D</span><strong>DJAY BOT</strong><span className="recovery-realm">Workspace</span></header>
+      <header className="recovery-header"><BrandLockup /><LocaleSwitch /><span className="recovery-realm">Workspace</span></header>
       <section className="recovery-content" aria-labelledby="not-found-title">
         <p className="recovery-kicker">Page not found</p>
         <h1 id="not-found-title">This workspace page does not exist.</h1>

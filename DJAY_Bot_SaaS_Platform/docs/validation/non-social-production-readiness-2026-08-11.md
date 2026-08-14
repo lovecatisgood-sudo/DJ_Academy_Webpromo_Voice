@@ -1,5 +1,13 @@
 # Non-social production-readiness core checkpoint
 
+> **Historical evidence, reconciled 2026-08-13:** This file preserves what was implemented and
+> measured at the 2026-08-11/12 checkpoint. Its 297-requirement count and goal-first onboarding
+> statements are dated evidence, not current product or experience authority. The maintained
+> registry now contains 322 requirements. New experience work follows
+> `docs/design/djay-bots-approved-experience-contract.md`, including package selection before
+> family-specific onboarding. Nothing in this note upgrades the checkpoint's acceptance or
+> sellability status.
+
 > 2026-08-12 post-interruption revalidation: completed the Thai/English locale
 > round-trip boundary and made the English-assumption browser QA fixtures
 > deterministic without changing the Thai-first product default. A fresh

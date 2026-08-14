@@ -3,7 +3,7 @@
   "schema_version": "1.0.0",
   "prd": {
     "path": "docs/product/djay-bots-v1-market-release-prd.md",
-    "expected_requirement_count": 297
+    "expected_requirement_count": 322
   },
   "packages": [
     {
@@ -603,6 +603,231 @@
         "scripts/test-db-integration.sh"
       ],
       "status": "in_progress",
+      "accepted_by": null
+    },
+    {
+      "id": "TRL-001",
+      "title": "New members MUST be offered a 30-fixed-day website-only Flow Bot Starter trial with 5,000 customer conversations and no payment card requirement.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "COM-04",
+      "supporting_work_packages": [
+        "COM-01",
+        "COM-02",
+        "COM-03",
+        "CORE-02"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "TRL-002",
+      "title": "New members MUST be offered a 30-fixed-day website-only AI Text Bot Starter trial with 500 AI-generated replies, equal to 25% of the 2,000-reply Starter allowance, and a payment card requirement.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "COM-04",
+      "supporting_work_packages": [
+        "COM-01",
+        "COM-02",
+        "COM-03",
+        "CORE-02"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "TRL-003",
+      "title": "AI Voice Bot MUST NOT advertise or provision a free trial under the approved V1 experience.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "COM-04",
+      "supporting_work_packages": [
+        "COM-01",
+        "COM-02",
+        "COM-03",
+        "CORE-02"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "TRL-004",
+      "title": "The trial request begins from the public package page. The fixed trial clock MUST begin only after authoritative account/workspace trial entitlement provisioning succeeds; onboarding, configuration, publication, and website installation then occur inside that period.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "COM-04",
+      "supporting_work_packages": [
+        "COM-01",
+        "COM-02",
+        "COM-03",
+        "CORE-02"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "TRL-005",
+      "title": "Trial entitlements MUST exclude social channels, telephone channels, paid add-ons, overage, and Advanced-only features.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "COM-04",
+      "supporting_work_packages": [
+        "COM-01",
+        "COM-02",
+        "COM-03",
+        "CORE-02"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "TRL-006",
+      "title": "At 100 AI Text trial replies remaining, equal to 20% of the trial allowance, the platform MUST notify the account owner in-product and by email. Delivery MUST be deduplicated and auditable.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "COM-04",
+      "supporting_work_packages": [
+        "COM-01",
+        "COM-02",
+        "COM-03",
+        "CORE-02"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "TRL-007",
+      "title": "At trial allowance exhaustion or fixed-period expiry, the affected bot MUST stop accepting new trial-metered service and present the merchant with a paid-plan action. The customer-facing experience MUST use the merchant-approved unavailable/contact fallback and MUST NOT expose provider, token, model, or internal quota identifiers.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "COM-04",
+      "supporting_work_packages": [
+        "COM-01",
+        "COM-02",
+        "COM-03",
+        "CORE-02"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "TRL-008",
+      "title": "Flow trial usage MUST be tracked as deterministic customer conversations and MUST NOT consume AI reply credits.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "COM-04",
+      "supporting_work_packages": [
+        "COM-01",
+        "COM-02",
+        "COM-03",
+        "CORE-02"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "TRL-009",
+      "title": "Automatic paid conversion/charging, repeat-trial policy, abuse-prevention thresholds, trial-data retention, and additional warning recipients remain unapproved decision gates. Card collection for the Text trial MUST NOT be treated as authority to invent those rules.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "COM-04",
+      "supporting_work_packages": [
+        "COM-01",
+        "COM-02",
+        "COM-03",
+        "CORE-02"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
       "accepted_by": null
     },
     {
@@ -2411,6 +2636,54 @@
       "accepted_by": null
     },
     {
+      "id": "AIT-009",
+      "title": "Every customer-facing AI Text reply MUST be validated to a maximum of 200 visible characters before delivery. The limit is characters, not words, and MUST be applied without exposing internal validation or model details.",
+      "packages": [
+        "ai_chat_basic",
+        "ai_chat_premium"
+      ],
+      "owner_work_package": "AI-02",
+      "supporting_work_packages": [
+        "AI-01",
+        "AI-03"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "AIT-010",
+      "title": "AI Text onboarding MUST begin with Customer Support, Sales Associate, or Appointment Booking role selection after the merchant has already selected the AI Text family/package. Sales Associate MUST retain appointment booking as a supporting action after discovery and objection handling.",
+      "packages": [
+        "ai_chat_basic",
+        "ai_chat_premium"
+      ],
+      "owner_work_package": "AI-02",
+      "supporting_work_packages": [
+        "AI-01",
+        "AI-03"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
       "id": "KNO-001",
       "title": "Support manual FAQ authoring and import.",
       "packages": [
@@ -3362,6 +3635,54 @@
     {
       "id": "VOI-008",
       "title": "A voice agent MUST fail safely on provider outage, silence, abusive input, unsafe request, tool failure, or handover failure.",
+      "packages": [
+        "voice_basic_gen1",
+        "voice_advanced_gen2"
+      ],
+      "owner_work_package": "VOICE-01",
+      "supporting_work_packages": [
+        "VOICE-02",
+        "VOICE-06"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "VOI-009",
+      "title": "Voice responses MUST be generated and validated as customer-facing written content of no more than 200 visible characters before speech output. The limit is characters, not words.",
+      "packages": [
+        "voice_basic_gen1",
+        "voice_advanced_gen2"
+      ],
+      "owner_work_package": "VOICE-01",
+      "supporting_work_packages": [
+        "VOICE-02",
+        "VOICE-06"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "VOI-010",
+      "title": "AI Voice onboarding MUST begin with Customer Support, Sales Associate, or Appointment Booking role selection after the merchant has already selected the AI Voice family/package. The selected role determines behavior configuration; Voice settings remain a separate modality layer.",
       "packages": [
         "voice_basic_gen1",
         "voice_advanced_gen2"
@@ -5581,6 +5902,138 @@
       "accepted_by": null
     },
     {
+      "id": "UX-013",
+      "title": "The public landing and package page MUST show all three product families; the merchant MUST select bot family and package before a role or bot-specific configuration question.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "CORE-03",
+      "supporting_work_packages": [
+        "GA-02"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "UX-014",
+      "title": "Flow Bot MUST use template-led deterministic onboarding. AI Text and AI Voice MUST use separate role-led onboarding with Customer Support, Sales Associate, and Appointment Booking choices.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "CORE-03",
+      "supporting_work_packages": [
+        "GA-02"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "UX-015",
+      "title": "The product Configuration Studio MUST remain a dedicated full-page surface with a direct Dashboard route and an expandable real-draft tester. Dashboard access MUST remain available before configuration completion and MUST highlight Configuration as `Not configured` until publication.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "CORE-03",
+      "supporting_work_packages": [
+        "GA-02"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "UX-016",
+      "title": "`Needs attention`, `Not reviewed`, and `Not tested` states MUST remain advisory. The UI MUST NOT force completion of all categories, all review actions, or all suggested tests before publication.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "CORE-03",
+      "supporting_work_packages": [
+        "GA-02"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "UX-017",
+      "title": "Publication, snippet installation, origin verification, and Go live MUST be separate explicit states and commands.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "CORE-03",
+      "supporting_work_packages": [
+        "GA-02"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "UX-018",
+      "title": "Processing status for website learning MAY use friendly varied task copy but MUST describe observable pipeline stages and MUST NOT reveal or fabricate hidden chain-of-thought.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "CORE-03",
+      "supporting_work_packages": [
+        "GA-02"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
       "id": "SEC-001",
       "title": "Encrypt data in transit and at rest; use managed KMS and Secret Manager for application/provider secrets.",
       "packages": [
@@ -6130,6 +6583,52 @@
       "accepted_by": null
     },
     {
+      "id": "EXP-010",
+      "title": "The acquisition sequence MUST be Landing -> Packages -> Bot family -> Package -> Subscribe or eligible trial -> Account -> product-specific onboarding. All three families MUST remain visible on Landing and Packages.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "BILL-01",
+      "supporting_work_packages": [
+        "CORE-02",
+        "CORE-03"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "EXP-011",
+      "title": "Flow and AI Text trial presentation and enforcement MUST follow `TRL-001` through `TRL-009`; AI Voice MUST show subscription-only.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "BILL-01",
+      "supporting_work_packages": [
+        "CORE-02",
+        "CORE-03"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
       "id": "ONB-001",
       "title": "After active payment, the customer MUST see package, paid term, renewal, allowance, usage-protection state, invoice/receipt state, and a primary product-specific setup action.",
       "packages": [
@@ -6153,7 +6652,7 @@
     },
     {
       "id": "ONB-002",
-      "title": "Onboarding MUST be resumable, role-aware, and evidence-derived with save-and-exit, back/continue, per-field error recovery, test state, and scoped setup-help entry.",
+      "title": "Onboarding MUST be resumable and evidence-derived with back/continue, saved draft state, per-field error recovery, and scoped setup-help entry. Role awareness applies to AI Text and AI Voice; Flow uses template choice instead.",
       "packages": [
         "shared"
       ],
@@ -6197,7 +6696,7 @@
     },
     {
       "id": "ONB-004",
-      "title": "Flow Starter onboarding MUST cover template/blank choice, identity/greeting, topic/step building, lead capture, current-version test, website origin/install verification, publish, and activation.",
+      "title": "Flow Starter onboarding MUST offer the six approved starting journeys, editable identity/widget preview, visual step map, lead capture, fallback/handover, optional real-draft test, publish, website origin/install verification, and explicit activation.",
       "packages": [
         "shared"
       ],
@@ -6241,7 +6740,7 @@
     },
     {
       "id": "ONB-006",
-      "title": "AI Text Starter onboarding MUST cover agent identity, supported knowledge sources, structured sales behavior, lead/typed CTAs, Thai/English grounded quality test, website install verification, publication, and activation.",
+      "title": "AI Text Starter onboarding MUST follow Role -> Website or manual business source -> transparent processing -> editable generated business/behavior/FAQ review -> role-specific full-page Configuration Studio -> optional Thai/English grounded test -> publication -> website verification -> explicit activation.",
       "packages": [
         "shared"
       ],
@@ -6285,7 +6784,7 @@
     },
     {
       "id": "ONB-008",
-      "title": "Voice Starter onboarding MUST cover provider-neutral voice selection, knowledge, conversation/interrupt/silence behavior, disclosure/retention, lead/callback, Thai/English microphone test, website install verification, publication, and activation.",
+      "title": "Voice Starter onboarding MUST follow the same role/source/processing/editable-review structure as AI Text, then provide role-specific configuration plus provider-neutral Voice settings, optional Thai/English voice test, publication, website verification, and explicit activation.",
       "packages": [
         "shared"
       ],
@@ -6374,6 +6873,50 @@
     {
       "id": "ONB-012",
       "title": "Preview and current-version test activity MUST not consume customer allowance or create production external side effects; internal provider cost MUST remain separately observable.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "CORE-02",
+      "supporting_work_packages": [
+        "CORE-03"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "ONB-013",
+      "title": "Website learning MUST exclude login/account, checkout, private, form-submission, and unrelated pages; expose partial/failure recovery; and allow every generated business field, agent objective/behavior/boundary, and FAQ to be edited or removed.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "CORE-02",
+      "supporting_work_packages": [
+        "CORE-03"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "ONB-014",
+      "title": "The Configuration Studio section navigator MUST be the primary guide. A second readiness panel MUST NOT repeat the same checklist. Merchants MUST be able to skip, revisit, or publish with advisory warnings.",
       "packages": [
         "shared"
       ],
@@ -6612,6 +7155,54 @@
     {
       "id": "OPS-010",
       "title": "Product analytics MUST answer business outcome questions and always show period, timezone, filters, denominator, freshness, and entitlement-appropriate depth.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "OPS-03",
+      "supporting_work_packages": [
+        "OPS-01",
+        "OPS-02",
+        "OPS-05"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "OPS-011",
+      "title": "The merchant dashboard MUST be directly accessible before bot configuration is complete and MUST expose Overview, Conversations, Contacts, Leads and follow-up, Appointments, Analytics, Configuration, and Usage and plan.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "OPS-03",
+      "supporting_work_packages": [
+        "OPS-01",
+        "OPS-02",
+        "OPS-05"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "OPS-012",
+      "title": "A merchant MAY take over a website bot conversation only while the latest bot response is less than five minutes old. The server MUST revalidate recency and ownership atomically; once in human mode automation pauses until explicit return. Flow returns to its main menu, while AI returns under the safe AI continuation policy.",
       "packages": [
         "shared"
       ],

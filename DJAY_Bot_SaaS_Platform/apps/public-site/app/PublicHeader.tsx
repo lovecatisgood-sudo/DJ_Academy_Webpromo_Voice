@@ -1,29 +1,27 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import Image from "next/image";
+import { localeText, usePublicLocale } from "./LocaleBoundary";
 
-const landingLinks = [
-  { href: "#features", label: "ฟีเจอร์" },
-  { href: "#benefits", label: "ประโยชน์" },
-  { href: "/templates", label: "เทมเพลต" },
-  { href: "/pricing", label: "แพ็กเกจ" },
-  { href: "/help", label: "ช่วยเหลือ" },
-  { href: "/login", label: "เข้าสู่ระบบ" },
-] as const;
-
-const informationLinks = [
-  { href: "/templates", label: "เทมเพลต" },
-  { href: "/pricing", label: "แพ็กเกจ" },
-  { href: "/help", label: "ศูนย์ช่วยเหลือ" },
-  { href: "/status", label: "สถานะระบบ" },
-  { href: "/login", label: "เข้าสู่ระบบ" },
-] as const;
+export function BrandLockup() {
+  return <span className="brand-lockup-inner">
+    <Image className="brand-logo-mark" src="/djbot-blue-wordmark.png" alt="DJay Bot by DJAI" width={1322} height={748} priority sizes="112px" />
+  </span>;
+}
 
 export function PublicHeader({ variant = "information" }: Readonly<{ variant?: "landing" | "information" }>) {
   const [open, setOpen] = useState(false);
   const navigationId = useId();
+  const { locale, chooseLocale } = usePublicLocale();
   const landing = variant === "landing";
-  const links = landing ? landingLinks : informationLinks;
+  const links = [
+    { href: landing ? "#solutions" : "/#solutions", th: "โซลูชัน", en: "Solutions" },
+    { href: landing ? "#how-it-works" : "/#how-it-works", th: "วิธีทำงาน", en: "How it works" },
+    { href: "/templates", th: "ตัวอย่างใช้งาน", en: "Use cases" },
+    { href: "/pricing", th: "แพ็กเกจ", en: "Pricing" },
+    { href: "/help", th: "ช่วยเหลือ", en: "Help" },
+  ];
 
   useEffect(() => {
     if (!open) return;
@@ -34,26 +32,19 @@ export function PublicHeader({ variant = "information" }: Readonly<{ variant?: "
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [open]);
 
-  return (
-    <header className={landing ? "landing-nav public-header" : "info-header public-header"}>
-      <a className="skip-link public-skip-link" href="#main-content">ข้ามไปยังเนื้อหาหลัก</a>
-      <a className="brand-lockup public-brand" href="/">
-        <span className="brand-mark" aria-hidden="true">D</span>
-        <span>DJBOT</span>
-      </a>
-      <button
-        type="button"
-        className="public-menu-toggle"
-        aria-expanded={open}
-        aria-controls={navigationId}
-        onClick={() => setOpen((current) => !current)}
-      >
-        {open ? "ปิด" : "เมนู"}
+  return <header className="public-header">
+    <a className="skip-link public-skip-link" href="#main-content">{localeText(locale, "ข้ามไปยังเนื้อหาหลัก", "Skip to main content")}</a>
+    <a className="public-brand" href="/" aria-label={localeText(locale, "หน้าแรก DJBOT", "DJBOT home")}><BrandLockup /></a>
+    <button type="button" className="public-menu-toggle" aria-expanded={open} aria-controls={navigationId} onClick={() => setOpen((current) => !current)}>
+      {open ? localeText(locale, "ปิด", "Close") : localeText(locale, "เมนู", "Menu")}
+    </button>
+    <nav id={navigationId} className={open ? "public-navigation open" : "public-navigation"} aria-label={localeText(locale, "เมนูหลัก", "Main navigation")}>
+      {links.map((link) => <a href={link.href} key={link.href} onClick={() => setOpen(false)}>{localeText(locale, link.th, link.en)}</a>)}
+      <a href="/login" onClick={() => setOpen(false)}>{localeText(locale, "เข้าสู่ระบบ", "Log in")}</a>
+      <button className="language-switch" type="button" onClick={() => chooseLocale(locale === "th" ? "en" : "th")} lang={locale === "th" ? "en" : "th"} aria-label={localeText(locale, "เปลี่ยนเป็นภาษาอังกฤษ", "Switch to Thai")}>
+        {locale === "th" ? "EN" : "ไทย"}
       </button>
-      <nav id={navigationId} className={open ? "public-navigation open" : "public-navigation"} aria-label={landing ? "เมนูหลัก" : "เมนูข้อมูลสาธารณะ"}>
-        {links.map((link) => <a href={link.href} key={link.href} onClick={() => setOpen(false)}>{link.label}</a>)}
-        {landing ? <a className="nav-cta" href="#start" onClick={() => setOpen(false)}>สร้างพื้นที่ทำงาน</a> : null}
-      </nav>
-    </header>
-  );
+      <a className="nav-cta" href="/pricing" onClick={() => setOpen(false)}>{localeText(locale, "ดูแพ็กเกจ", "View packages")}</a>
+    </nav>
+  </header>;
 }

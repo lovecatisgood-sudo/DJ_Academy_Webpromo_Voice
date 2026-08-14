@@ -1,4 +1,5 @@
 import { RecoveryCompleteClient } from "./RecoveryCompleteClient";
+import { BrandLockup, LocaleSwitch } from "../../BrandChrome";
 
 export default async function RecoveryCompletePage({
   searchParams,
@@ -6,7 +7,7 @@ export default async function RecoveryCompletePage({
   const { token = "" } = await searchParams;
   return (
     <main>
-      <header><span className="mark">D</span><strong>DJAY BOT</strong><span className="realm">Account recovery</span></header>
+      <header><BrandLockup /><LocaleSwitch /><span className="realm">Account recovery</span></header>
       <section aria-labelledby="recovery-complete-title">
         <p>Account security</p>
         <h1 id="recovery-complete-title">Choose a new password</h1>
@@ -15,4 +16,3 @@ export default async function RecoveryCompletePage({
     </main>
   );
 }
-

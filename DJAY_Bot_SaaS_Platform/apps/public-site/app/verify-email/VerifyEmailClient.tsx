@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { clearBrowserOneTimeValues, retainBrowserOneTimeValues, safeMutationFetch } from "@djay/shared";
 import { VerificationResendForm } from "../VerificationResendForm";
+import { BrandLockup } from "../PublicHeader";
 
 const verificationStorage = "djay.verification";
 
@@ -50,7 +51,7 @@ export function VerifyEmailClient({ token: initialToken, tenantLoginUrl }: Reado
 
   return (
     <section className="verification-panel" aria-labelledby="verification-title">
-      <div className="brand-lockup verification-brand"><span className="brand-mark">D</span><span>DJAY BOT</span></div>
+      <div className="verification-brand"><BrandLockup /></div>
       <p className="step-label">ยืนยันอีเมล</p>
       <h1 id="verification-title">ยืนยันบัญชีเจ้าของของคุณ</h1>
       {status === "verified" ? (

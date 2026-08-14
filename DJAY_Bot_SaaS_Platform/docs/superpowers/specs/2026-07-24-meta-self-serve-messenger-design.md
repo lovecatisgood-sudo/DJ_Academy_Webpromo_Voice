@@ -2,6 +2,8 @@
 
 **Date:** 2026-07-24 · **Status:** Approved design (pre-implementation) · **Owner:** DJAI Academy
 
+> **Authority note (2026-08-13):** Approval is limited to the deferred Messenger connection mechanism described here. It does not authorize social release or override `docs/design/djay-bots-approved-experience-contract.md` for acquisition, trials, website onboarding, Configuration Studio, publishing, dashboard or customer-operation behavior.
+
 ## 1. Context
 
 Today a merchant can only connect Facebook Messenger to a FlowBot by **pasting raw credentials** (`pageAccessToken`, `appSecret`, `verifyToken`, `pageId`) from **their own** Meta app, and then manually configuring the webhook callback and subscribing their Page in the Meta App Dashboard. Nothing in code subscribes a Page to an app (`subscribed_apps` is absent), there is no OAuth flow, and the app-level Meta env vars (`META_APP_ID/SECRET/WEBHOOK_VERIFY_TOKEN/OAUTH_REDIRECT_URI`) are present but read by zero lines of code. On the FlowBot side the feature is fully disabled (`FLOWBOT_SOCIAL_CREDENTIAL_ENVELOPE_KEY` and `FLOWBOT_SOCIAL_WORKER_ENABLED` unset). The receive/verify/normalize/deliver machinery for Messenger, however, **is built and unit-tested**.

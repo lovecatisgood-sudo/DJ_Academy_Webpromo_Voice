@@ -1,77 +1,50 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
-import { translateEnglishUi, translateThaiUi } from "@djay/shared";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-type Locale = "th" | "en";
+export type PublicLocale = "th" | "en";
 
-export function LocaleBoundary({ children }: Readonly<{ children: React.ReactNode }>) {
-  const root = useRef<HTMLDivElement>(null);
-  const [locale, setLocale] = useState<Locale>("th");
+type LocaleContextValue = {
+  locale: PublicLocale;
+  chooseLocale: (locale: PublicLocale) => void;
+};
 
-  useLayoutEffect(() => {
-    const query = new URLSearchParams(window.location.search).get("lang");
-    const selected: Locale = query === "en" || (query !== "th" && localStorage.getItem("djay-ui-locale") === "en") ? "en" : "th";
-    setLocale(selected);
+const LocaleContext = createContext<LocaleContextValue | null>(null);
+
+function browserLocale(): PublicLocale {
+  if (typeof window === "undefined") return "th";
+  const query = new URLSearchParams(window.location.search).get("lang");
+  if (query === "en" || query === "th") return query;
+  return /(?:^|;\s*)djay-locale=en(?:;|$)/.test(document.cookie) ? "en" : "th";
+}
+
+export function LocaleBoundary({ children, initialLocale = "th" }: Readonly<{ children: React.ReactNode; initialLocale?: PublicLocale }>) {
+  const [locale, setLocale] = useState<PublicLocale>(initialLocale);
+
+  useEffect(() => {
+    const selected = browserLocale();
+    if (selected !== initialLocale) setLocale(selected);
     document.documentElement.lang = selected;
-    document.cookie = `djay-locale=${selected}; path=/; max-age=31536000; samesite=lax`;
-    const translate = selected === "th" ? translateThaiUi : translateEnglishUi;
-    const localize = (scope: HTMLElement) => {
-      if (scope.closest("[data-no-localize]")) return;
-      const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT, {
-        acceptNode(node) {
-          const parent = node.parentElement;
-          if (!parent || parent.closest("[data-no-localize],script,style,code,pre,textarea,input,select,option")) return NodeFilter.FILTER_REJECT;
-          return NodeFilter.FILTER_ACCEPT;
-        },
-      });
-      const nodes: Text[] = [];
-      while (walker.nextNode()) nodes.push(walker.currentNode as Text);
-      for (const node of nodes) node.nodeValue = translate(node.nodeValue || "");
-      for (const element of scope.querySelectorAll<HTMLElement>("[placeholder], [aria-label], [title]")) {
-        if (element.closest("[data-no-localize]")) continue;
-        for (const attribute of ["placeholder", "aria-label", "title"]) {
-          const value = element.getAttribute(attribute);
-          if (value) element.setAttribute(attribute, translate(value));
-        }
-      }
-    };
-    if (!root.current) return;
-    localize(root.current);
-    const observer = new MutationObserver((records) => {
-      for (const record of records) {
-        if (record.type === "characterData" && record.target instanceof Text) {
-          const parent = record.target.parentElement;
-          if (!parent || parent.closest("[data-no-localize],script,style,code,pre,textarea,input,select,option")) continue;
-          const translated = translate(record.target.nodeValue || "");
-          if (translated !== record.target.nodeValue) record.target.nodeValue = translated;
-          continue;
-        }
-        for (const node of record.addedNodes) {
-          if (node instanceof Text) {
-            const parent = node.parentElement;
-            if (!parent || parent.closest("[data-no-localize],script,style,code,pre,textarea,input,select,option")) continue;
-            const translated = translate(node.nodeValue || "");
-            if (translated !== node.nodeValue) node.nodeValue = translated;
-          } else if (node instanceof HTMLElement) localize(node);
-        }
-      }
-    });
-    observer.observe(root.current, { childList: true, characterData: true, subtree: true });
-    return () => observer.disconnect();
-  }, []);
+  }, [initialLocale]);
 
-  function choose(next: Locale) {
+  function chooseLocale(next: PublicLocale) {
     localStorage.setItem("djay-ui-locale", next);
     document.cookie = `djay-locale=${next}; path=/; max-age=31536000; samesite=lax`;
-    location.reload();
+    const url = new URL(window.location.href);
+    url.searchParams.set("lang", next);
+    window.location.assign(url.toString());
   }
 
-  return <div ref={root}>
-    <div className="locale-switch" style={{ position: "absolute", right: 16, top: 12, zIndex: 10, display: "flex", gap: 4, padding: 4, borderRadius: 999, background: "#fff", boxShadow: "0 8px 30px rgba(0,0,0,.18)" }} aria-label="เลือกภาษา / Select language">
-      <button type="button" onClick={() => choose("th")} style={{ border: 0, borderRadius: 999, padding: "8px 12px", background: locale === "th" ? "#0e7c86" : "transparent", color: locale === "th" ? "#fff" : "#334155" }}>ไทย</button>
-      <button type="button" onClick={() => choose("en")} style={{ border: 0, borderRadius: 999, padding: "8px 12px", background: locale === "en" ? "#0e7c86" : "transparent", color: locale === "en" ? "#fff" : "#334155" }}>English</button>
-    </div>
-    {children}
-  </div>;
+  const value = useMemo(() => ({ locale, chooseLocale }), [locale]);
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
+}
+
+export function usePublicLocale() {
+  const value = useContext(LocaleContext);
+  if (!value) throw new Error("missing_locale_context");
+  return value;
+}
+
+export function localeText(locale: PublicLocale, thai: string, english: string) {
+  return locale === "th" ? thai : english;
 }

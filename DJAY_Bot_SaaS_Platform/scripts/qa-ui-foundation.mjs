@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import AxeBuilder from "@axe-core/playwright";
 
 const publicUrl = process.env.PUBLIC_QA_URL || "http://127.0.0.1:3110";
+const publicRegistrationUrl = `${publicUrl}/register`;
 const tenantUrl = process.env.TENANT_QA_URL || "http://127.0.0.1:3111";
 const platformUrl = process.env.PLATFORM_QA_URL || "http://127.0.0.1:3112";
 const apiUrl = process.env.API_QA_URL || "http://127.0.0.1:3113";
@@ -236,7 +237,7 @@ async function mockPlatformRole(page, role, failedPaths, abortedMutationPaths) {
 }
 
 for (const [name, viewport] of [["desktop", desktop], ["mobile", mobile]]) {
-  await visit({ name: `public-registration-${name}`, url: publicUrl, viewport, mock: mockPublic, ready: "#register-title", check: async (page) => {
+  await visit({ name: `public-registration-${name}`, url: publicRegistrationUrl, viewport, mock: mockPublic, ready: "#register-title", check: async (page) => {
     if (await page.locator(".plan-option").count() !== 2) failures.push(`public-registration-${name}: catalog plans missing`);
     if (await page.locator('a[href="/terms"]').last().getAttribute("href") !== "/terms") failures.push(`public-registration-${name}: terms link missing`);
     if (await page.locator('a[href="/privacy"]').last().getAttribute("href") !== "/privacy") failures.push(`public-registration-${name}: privacy link missing`);
@@ -323,11 +324,11 @@ await visit({ name: "public-status", url: `${publicUrl}/status`, mock: mockPubli
   const title = (await page.locator("#status-title").innerText()).trim();
   if (!["All systems operational", "ทุกระบบทำงานตามปกติ"].includes(title)) failures.push("public-status: operational summary missing");
 } });
-await visit({ name: "public-catalog-failure", url: publicUrl, mock: (page) => mockPublic(page, new Set(["/public/catalog"])), ready: ".plan-load-state.error", check: async (page) => {
+await visit({ name: "public-catalog-failure", url: publicRegistrationUrl, mock: (page) => mockPublic(page, new Set(["/public/catalog"])), ready: ".plan-load-state.error", check: async (page) => {
   if (!await page.getByRole("button", { name: "Try again" }).count()) failures.push("public-catalog-failure: retry action missing");
   if (!await page.getByRole("button", { name: "Create workspace" }).isEnabled()) failures.push("public-catalog-failure: owner registration was unnecessarily blocked");
 } });
-await visit({ name: "public-legal-failure", url: publicUrl, mock: (page) => mockPublic(page, new Set(["/public/legal"])), ready: ".legal-load-state.error", check: async (page) => {
+await visit({ name: "public-legal-failure", url: publicRegistrationUrl, mock: (page) => mockPublic(page, new Set(["/public/legal"])), ready: ".legal-load-state.error", check: async (page) => {
   if (!await page.getByText("Registration is paused", { exact: false }).count()) failures.push("public-legal-failure: fail-closed explanation missing");
   if (await page.getByRole("button", { name: "Create workspace" }).isEnabled()) failures.push("public-legal-failure: registration remained enabled without approved documents");
   if (!await page.getByRole("button", { name: "Try again" }).count()) failures.push("public-legal-failure: retry action missing");
@@ -335,7 +336,7 @@ await visit({ name: "public-legal-failure", url: publicUrl, mock: (page) => mock
 await visit({ name: "public-terms-failure", url: `${publicUrl}/terms`, mock: (page) => mockPublic(page, new Set(["/public/legal/terms"])), ready: ".legal-state.error", check: async (page) => {
   if (!await page.getByText("Registration remains paused", { exact: false }).count()) failures.push("public-terms-failure: safe unavailable state missing");
 } });
-await visit({ name: "public-mutation-network-failure", url: publicUrl, mock: (page) => mockPublic(page, undefined, new Set(["/public/auth/register"])), ready: "#register-title", check: async (page) => {
+await visit({ name: "public-mutation-network-failure", url: publicRegistrationUrl, mock: (page) => mockPublic(page, undefined, new Set(["/public/auth/register"])), ready: "#register-title", check: async (page) => {
   await page.getByLabel("Your name").fill("QA Owner");
   await page.getByLabel("Work email").fill("owner@example.test");
   await page.getByLabel("Business name").fill("QA Studio");
@@ -347,7 +348,7 @@ await visit({ name: "public-mutation-network-failure", url: publicUrl, mock: (pa
   if (!await page.getByRole("button", { name: "Create workspace" }).isEnabled()) failures.push("public-mutation-network-failure: submit remained busy");
 } });
 const registrationIdentityRequests = new Map();
-await visit({ name: "public-registration-identity-boundary", url: publicUrl, mock: (page) => mockPublic(page, undefined, undefined, undefined, registrationIdentityRequests), ready: "#register-title", check: async (page) => {
+await visit({ name: "public-registration-identity-boundary", url: publicRegistrationUrl, mock: (page) => mockPublic(page, undefined, undefined, undefined, registrationIdentityRequests), ready: "#register-title", check: async (page) => {
   await page.getByLabel("Your name").fill("  ");
   await page.getByLabel("Work email").fill("preserved@example.test");
   await page.getByLabel("Business name").fill("Preserved Studio");
@@ -365,7 +366,7 @@ await visit({ name: "public-registration-identity-boundary", url: publicUrl, moc
   if (await page.getByLabel("Work email").inputValue() !== "preserved@example.test") failures.push("public-registration-identity-boundary: correctable fields were erased");
 } });
 const registrationMismatchRequests = new Map();
-await visit({ name: "public-registration-password-mismatch", url: publicUrl, mock: (page) => mockPublic(page, undefined, undefined, undefined, registrationMismatchRequests), ready: "#register-title", check: async (page) => {
+await visit({ name: "public-registration-password-mismatch", url: publicRegistrationUrl, mock: (page) => mockPublic(page, undefined, undefined, undefined, registrationMismatchRequests), ready: "#register-title", check: async (page) => {
   await page.getByLabel("Your name").fill("Preserved Owner");
   await page.getByLabel("Work email").fill("preserved@example.test");
   await page.getByLabel("Business name").fill("Preserved Studio");
@@ -378,7 +379,7 @@ await visit({ name: "public-registration-password-mismatch", url: publicUrl, moc
   if (await page.getByLabel("Your name").inputValue() !== "Preserved Owner") failures.push("public-registration-password-mismatch: account fields were erased");
   if (!await page.getByRole("button", { name: "Create workspace" }).isEnabled()) failures.push("public-registration-password-mismatch: correction remained disabled");
 } });
-await visit({ name: "public-legal-version-change", url: publicUrl, mock: (page) => mockPublic(page, undefined, undefined, new Set(["/public/auth/register"])), ready: "#register-title", check: async (page) => {
+await visit({ name: "public-legal-version-change", url: publicRegistrationUrl, mock: (page) => mockPublic(page, undefined, undefined, new Set(["/public/auth/register"])), ready: "#register-title", check: async (page) => {
   await page.getByLabel("Your name").fill("Preserved Owner");
   await page.getByLabel("Work email").fill("preserved@example.test");
   await page.getByLabel("Business name").fill("Preserved Studio");
@@ -392,7 +393,7 @@ await visit({ name: "public-legal-version-change", url: publicUrl, mock: (page) 
 } });
 const registrationRequests = new Map();
 const registrationBodies = new Map();
-await visit({ name: "public-registration-complete", url: publicUrl, mock: (page) => mockPublic(page, undefined, undefined, undefined, registrationRequests, "accepted", registrationBodies), ready: "#register-title", check: async (page) => {
+await visit({ name: "public-registration-complete", url: publicRegistrationUrl, mock: (page) => mockPublic(page, undefined, undefined, undefined, registrationRequests, "accepted", registrationBodies), ready: "#register-title", check: async (page) => {
   await page.getByLabel("Your name").fill("  Completed Owner  ");
   await page.getByLabel("Work email").fill("completed@example.test");
   await page.getByLabel("Business name").fill("  Completed Studio  ");
@@ -410,7 +411,7 @@ await visit({ name: "public-registration-complete", url: publicUrl, mock: (page)
   if (registrationBody?.name !== "Completed Owner" || registrationBody?.businessName !== "Completed Studio") failures.push("public-registration-complete: normalized identity values were not trimmed before transport");
   await page.screenshot({ path: "/tmp/djay-registration-complete-desktop.png", fullPage: true });
 } });
-await visit({ name: "public-registration-complete-mobile", url: publicUrl, viewport: mobile, mock: mockPublic, ready: "#register-title", check: async (page) => {
+await visit({ name: "public-registration-complete-mobile", url: publicRegistrationUrl, viewport: mobile, mock: mockPublic, ready: "#register-title", check: async (page) => {
   await page.getByLabel("Your name").fill("Mobile Owner");
   await page.getByLabel("Work email").fill("mobile@example.test");
   await page.getByLabel("Business name").fill("Mobile Studio");

@@ -1,4 +1,5 @@
 import { WorkspaceSidebar, type WorkspaceArea, type WorkspaceSummary } from "./WorkspaceSidebar";
+import { BrandLockup, LocaleSwitch } from "../BrandChrome";
 
 export function WorkspaceViewOnly({ children }: Readonly<{ children: string }>) {
   return <div className="workspace-access-note" role="status"><strong>สิทธิ์ดูอย่างเดียว</strong><span>{children}</span></div>;
@@ -7,7 +8,7 @@ export function WorkspaceViewOnly({ children }: Readonly<{ children: string }>) 
 export function WorkspaceSessionLoadError({ onRetry }: Readonly<{ onRetry: () => void }>) {
   return (
     <main className="workspace-session-error">
-      <header><span className="mark" aria-hidden="true">D</span><strong>DJAY BOT</strong><span className="realm">เวิร์กสเปซ</span></header>
+      <header><BrandLockup /><LocaleSwitch /><span className="realm">เวิร์กสเปซ</span></header>
       <section aria-labelledby="workspace-session-error-title" role="alert">
         <p>ไม่พร้อมใช้งานชั่วคราว</p>
         <h1 id="workspace-session-error-title">โหลดเวิร์กสเปซไม่สำเร็จ</h1>

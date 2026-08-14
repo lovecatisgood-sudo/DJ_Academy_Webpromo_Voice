@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Implemented and locally verified |
-| Date | 2026-07-18 |
+| Date | 2026-08-13 |
 | Owner | Program control |
 | Product sellability impact | All six packages remain non-sellable |
 | Evidence | `docs/validation/market-release-requirements.md` |
@@ -12,11 +12,11 @@
 
 Create the executable control that keeps the V1 PRD, detailed implementation plan, implementation/test evidence and package sellability consistent throughout development.
 
-This work package does not implement or accept any commercial product requirement. The 297 product records therefore remain `planned` and no package is sellable.
+This work package does not implement or accept any commercial product requirement. The reconciled 322 product records therefore remain unaccepted and no package is sellable.
 
 ## Delivered
 
-- JSON-compatible YAML registry containing exactly the 297 normative PRD requirements.
+- JSON-compatible YAML registry synchronized to exactly the 322 normative PRD requirements.
 - Closed JSON Schema for registry structure and allowed package/status values.
 - Deterministic synchronization tool that adds new PRD records and preserves existing implementation status/evidence.
 - Semantic validator for exact PRD membership, titles, packages, work-package ownership, tracking fields, status evidence and sellability.

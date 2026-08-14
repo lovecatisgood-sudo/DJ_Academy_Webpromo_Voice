@@ -6,6 +6,7 @@ import { resolveTenantRequest } from "../../../lib/tenant-context";
 
 const updateSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("refresh") }).strict(),
+  z.object({ action: z.literal("review_conversations") }).strict(),
   z.object({
     action: z.literal("save_preferences"),
     businessGoal: z.enum(["answer_questions","capture_leads","recommend_products","book_appointments","customer_support"]),
@@ -33,6 +34,10 @@ export async function PATCH(request: NextRequest) {
     const body = updateSchema.parse(await readJson(request));
     if (body.action === "save_preferences") {
       const result = await resolved.services.tenantWorkspace.updateOnboardingPreferences(resolved.context, body);
+      return safeJson(result, result.status === "updated" ? 200 : 404);
+    }
+    if (body.action === "review_conversations") {
+      const result = await resolved.services.tenantWorkspace.markConversationExamplesReviewed(resolved.context);
       return safeJson(result, result.status === "updated" ? 200 : 404);
     }
     const onboarding = await resolved.services.tenantWorkspace.refreshOnboarding(resolved.context);

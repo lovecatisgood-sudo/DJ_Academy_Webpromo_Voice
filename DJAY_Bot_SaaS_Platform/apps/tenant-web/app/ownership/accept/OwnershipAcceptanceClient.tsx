@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type MouseEvent } from "react";
 import { clearBrowserOneTimeValues, retainBrowserOneTimeValues, safeMutationFetch } from "@djay/shared";
+import { BrandLockup, LocaleSwitch } from "../../BrandChrome";
 
 const ownershipStorage = "djay.ownership";
 
@@ -73,9 +74,9 @@ export function OwnershipAcceptanceClient({ transferId: initialTransferId, token
   }
   return (
     <main>
-      <header><span className="mark">D</span><strong>DJAY BOT</strong><span className="realm">Ownership</span></header>
+      <header><BrandLockup /><LocaleSwitch /><span className="realm">Ownership</span></header>
       <section className="acceptance-panel" aria-labelledby="acceptance-title">
-        <span className="mark">D</span>
+        <BrandLockup />
         <p>Workspace ownership</p>
         <h1 id="acceptance-title">Confirm ownership transfer</h1>
         {sessionError ? (

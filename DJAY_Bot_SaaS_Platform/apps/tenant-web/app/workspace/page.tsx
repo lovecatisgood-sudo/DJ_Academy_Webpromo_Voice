@@ -1,258 +1,90 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { tenantRoleAllows, type TenantRole } from "@djay/authorization";
 import { safeMutationFetch } from "@djay/shared";
-import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "./WorkspaceAccess";
 import { WorkspaceSidebar, type WorkspaceSummary } from "./WorkspaceSidebar";
-import {
-  defaultWorkspaceHome,
-  humanizeOnboardingStage,
-  humanizeTenantRole,
-  humanizeToken,
-  inboxHomeRoles,
-} from "../../lib/workspace-labels";
+import { BrandLockup, LocaleSwitch } from "../BrandChrome";
 
-type Workspace = WorkspaceSummary;
-
-type Onboarding = {
-  tenant_id: string;
-  business_name: string;
-  slug: string;
-  locale: string;
-  timezone: string;
-  stage: "account_created" | "business_profile" | "product_selection" | "ready";
-  readiness: {
-    businessProfile: boolean;
-    productSelected: boolean;
-    activeAccess: boolean;
-    selectedProducts: Subscription["productKey"][];
-    configuredProducts: Subscription["productKey"][];
-    testedProducts: Subscription["productKey"][];
-    launchReadyProducts: Subscription["productKey"][];
-    productStates: { productKey: Subscription["productKey"]; activeAccess: boolean; configured: boolean; tested: boolean; deployed: boolean; launchReady: boolean; nextAction: "activate" | "configure" | "deploy" | "test" | "operate" }[];
+type ProductState = { productKey: string; activeAccess: boolean; configured: boolean; tested: boolean; deployed: boolean };
+type HomePayload = {
+  selectedTenantId: string;
+  workspaces: WorkspaceSummary[];
+  onboarding: {
+    business_name: string;
+    preferences: { complete: boolean; conversationExamplesReviewed: boolean };
+    readiness: { productStates: ProductState[] };
   };
-  checklist: {
-    key: string;
-    label: string;
-    detail: string;
-    complete: boolean;
-    nextHref?: string;
-    nextLabel?: string;
-  }[];
-  primaryAction: { href: string; label: string } | null;
 };
-type Subscription = {
-  id: string; productKey: "flowbot" | "ai_chat" | "voice"; publicName: string;
-  tierName: string; status: string; accessMode: "none" | "read_only" | "active";
-};
+type Conversation = { id: string; status: string; channel: string; customerDisplayName?: string | null; updatedAt?: string };
 
-const productRoutes: Record<Subscription["productKey"], string> = {
-  flowbot: "/workspace/flowbot",
-  ai_chat: "/workspace/ai-chat",
-  voice: "/workspace/voice",
-};
+function setupComplete(payload: HomePayload) {
+  const flowbot = payload.onboarding.readiness.productStates.find((item) => item.productKey === "flowbot");
+  return Boolean(payload.onboarding.preferences.complete
+    && payload.onboarding.preferences.conversationExamplesReviewed
+    && flowbot?.configured
+    && flowbot.tested);
+}
 
-export default function WorkspacePage() {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
-  const [onboarding, setOnboarding] = useState<Onboarding | null>(null);
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+export default function WorkspaceHomePage() {
+  const [payload, setPayload] = useState<HomePayload | null>(null);
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
+  const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [mutationMessage, setMutationMessage] = useState("");
-  const [mutationTone, setMutationTone] = useState<"success" | "error" | null>(null);
-  const activeWorkspace = workspaces.find((workspace) => workspace.tenantId === selectedTenantId);
-  const canUpdateOnboarding = activeWorkspace
-    ? tenantRoleAllows(activeWorkspace.role as TenantRole, "onboarding.update")
-    : false;
+  const [error, setError] = useState(false);
 
   async function load() {
+    setLoading(true); setError(false);
     try {
-      const sessionResponse = await fetch("/tenant/session", { cache: "no-store" });
-      if ([401, 403].includes(sessionResponse.status)) { window.location.replace("/"); return; }
-      if (!sessionResponse.ok) throw new Error("workspace_session_unavailable");
-      const session = await sessionResponse.json();
-      setWorkspaces(session.workspaces || []);
-      setSelectedTenantId(session.selectedTenantId || null);
-      if (session.selectedTenantId) {
-        const [onboardingResponse, subscriptionResponse] = await Promise.all([
-          fetch("/tenant/onboarding", { cache: "no-store" }),
-          fetch("/tenant/subscriptions", { cache: "no-store" }),
-        ]);
-        if (!onboardingResponse.ok || !subscriptionResponse.ok) throw new Error("workspace_overview_unavailable");
-        setOnboarding((await onboardingResponse.json()).onboarding);
-        setSubscriptions((await subscriptionResponse.json()).subscriptions || []);
-      } else setSubscriptions([]);
-      setLoadError(false);
-      setLoading(false);
-    } catch { setLoadError(true); setLoading(false); }
+      const response = await fetch("/tenant/setup", { cache: "no-store" });
+      if ([401, 403].includes(response.status)) { window.location.replace("/"); return; }
+      if (!response.ok) throw new Error("home_unavailable");
+      const result = await response.json() as HomePayload;
+      if (!setupComplete(result)) { window.location.replace("/workspace/setup"); return; }
+      setPayload(result); setWorkspaces(result.workspaces); setLoading(false);
+      void fetch("/tenant/conversations", { cache: "no-store" }).then(async (activityResponse) => {
+        if (!activityResponse.ok) return;
+        const activity = await activityResponse.json();
+        setConversations((activity.conversations || []).slice(0, 3));
+      }).catch(() => undefined);
+    } catch { setError(true); setLoading(false); }
   }
 
   useEffect(() => { void load(); }, []);
 
-  useEffect(() => {
-    if (!activeWorkspace) return;
-    const role = activeWorkspace.role as TenantRole;
-    if (!inboxHomeRoles.has(role)) return;
-    if (new URLSearchParams(window.location.search).get("stay") === "1") return;
-    window.location.replace(defaultWorkspaceHome({ role }));
-  }, [activeWorkspace]);
-
   async function selectWorkspace(tenantId: string) {
-    setMutationMessage("");
-    setMutationTone(null);
     const response = await safeMutationFetch("/tenant/workspace/select", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenantId }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId }),
     });
-    if (response.ok) {
-      setLoading(true);
-      setOnboarding(null);
-      setSubscriptions([]);
-      await load();
-    } else {
-      setMutationTone("error");
-      setMutationMessage("Workspace selection is temporarily unavailable. Your current workspace has not changed.");
-    }
-  }
-
-  async function refreshOnboarding() {
-    if (!canUpdateOnboarding) return;
-    setMutationMessage("");
-    setMutationTone(null);
-    setRefreshing(true);
-    const response = await safeMutationFetch("/tenant/onboarding", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "refresh" }),
-    });
-    if (response.ok) {
-      setOnboarding((await response.json()).onboarding);
-      setMutationTone("success");
-      setMutationMessage("Launch checklist refreshed from current product evidence.");
-    } else {
-      setMutationTone("error");
-      setMutationMessage("The launch checklist could not be refreshed. Your product setup is unchanged.");
-    }
-    setRefreshing(false);
+    if (response.ok) window.location.replace("/workspace/start");
+    else setError(true);
   }
 
   async function logout() {
-    setMutationMessage("");
-    setMutationTone(null);
     const response = await safeMutationFetch("/tenant/auth/logout", { method: "POST" });
     if (response.ok) window.location.replace("/");
-    else {
-      setMutationTone("error");
-      setMutationMessage("Sign out could not be confirmed. Your current session remains open.");
-    }
+    else setError(true);
   }
 
-  if (loading) return <main className="workspace-loading">กำลังโหลดเวิร์กสเปซ...</main>;
-  if (loadError && !selectedTenantId) return <WorkspaceSessionLoadError onRetry={() => void load()} />;
+  if (loading) return <main className="workspace-home-loading"><BrandLockup /><div className="home-skeleton" /><div className="home-skeleton short" /></main>;
+  if (error || !payload) return <main className="workspace-home-loading"><BrandLockup /><h1>We couldn’t load your workspace</h1><p>Your saved information is safe.</p><button onClick={() => void load()}>Try again</button></main>;
 
-  if (!selectedTenantId) {
-    return (
-      <main className="workspace-picker">
-        <div className="picker-wrap">
-          <span className="mark">D</span>
-          <p>เวิร์กสเปซ DJAY Bot</p>
-          <h1>เลือกธุรกิจ</h1>
-          <div className="workspace-list">
-            {workspaces.map((workspace) => (
-              <button key={workspace.tenantId} type="button" onClick={() => selectWorkspace(workspace.tenantId)}>
-                <strong data-no-localize>{workspace.businessName}</strong><span>{humanizeTenantRole(workspace.role)}</span>
-              </button>
-            ))}
-          </div>
-          {mutationMessage ? <p className="inline-message" role="alert">{mutationMessage}</p> : null}
-          <button className="quiet-command" type="button" onClick={logout}>ออกจากระบบ</button>
-        </div>
-      </main>
-    );
-  }
+  const flowbot = payload.onboarding.readiness.productStates.find((item) => item.productKey === "flowbot");
+  const nextAction = flowbot?.deployed
+    ? { title: "Your chatbot is running", detail: "Open conversations when a customer needs your team.", href: "/workspace/inbox", label: "Check conversations" }
+    : { title: "Add your chatbot to your website", detail: "Your conversation is ready. Connect it to the website where customers will use it.", href: "/workspace/flowbot", label: "Add to website" };
 
-  if (loadError) return <WorkspacePageLoadError active="overview" title={activeWorkspace?.businessName || "Workspace"} resource="workspace setup" workspaces={workspaces} selectedTenantId={selectedTenantId} onSelect={(tenantId) => void selectWorkspace(tenantId)} onLogout={() => void logout()} onRetry={() => void load()} />;
-
-  const readiness = onboarding?.readiness;
-  const checklist = onboarding?.checklist ?? [];
-  const primaryAction = onboarding?.primaryAction ?? null;
-
-  return (
-    <main className="workspace-shell">
-      <WorkspaceSidebar
-        active="overview"
-        workspaces={workspaces}
-        selectedTenantId={selectedTenantId}
-        onSelect={(tenantId) => void selectWorkspace(tenantId)}
-        onLogout={() => void logout()}
-      />
-      <section id="workspace-main" className="workspace-main" tabIndex={-1}>
-        <header className="workspace-header">
-          <div><p>เวิร์กสเปซ</p><h1>{activeWorkspace?.businessName || onboarding?.business_name}</h1></div>
-          <span className="role-label">{activeWorkspace ? humanizeTenantRole(activeWorkspace.role) : ""}</span>
-        </header>
-        {mutationMessage ? <p className={`inline-message dashboard-inline-message ${mutationTone || "error"}`} role={mutationTone === "success" ? "status" : "alert"}>{mutationMessage}</p> : null}
-        {!canUpdateOnboarding ? <WorkspaceViewOnly>คุณดูความคืบหน้าก่อนเปิดใช้ได้ ผู้ดูแลเวิร์กสเปซเป็นผู้รีเฟรชหลักฐานหลังตั้งค่าหรือทดสอบ</WorkspaceViewOnly> : null}
-        <section className="workspace-action-center" aria-labelledby="action-center-title">
-          <div className="band-heading"><div><p>What to do next</p><h2 id="action-center-title">Action Center</h2></div><span>{readiness?.launchReadyProducts.length ? `${readiness.launchReadyProducts.length} ready` : "Guided setup"}</span></div>
-          <div className="action-center-grid">
-            <article><span>01</span><h3>{primaryAction ? "Continue your setup" : "Setup is current"}</h3><p>{primaryAction ? "Resume the next incomplete step. Your progress is saved to this workspace." : "Review server-verified tests before changing a live bot."}</p><a href={primaryAction?.href || "/workspace/test-center"}>{primaryAction?.label || "Open Test Center"}</a></article>
-            <article><span>02</span><h3>Check customer conversations</h3><p>Take over when a person needs help, use a quick reply, or leave a private team note.</p><a href="/workspace/inbox">Open Inbox</a></article>
-            <article><span>03</span><h3>Need a person?</h3><p>Read a short guide or send a contextual support ticket without leaving your workspace.</p><a href="/workspace/support">Open Support</a></article>
-          </div>
+  return <main className="workspace-shell simple-workspace-home">
+    <WorkspaceSidebar active="overview" workspaces={workspaces} selectedTenantId={payload.selectedTenantId} onSelect={(id) => void selectWorkspace(id)} onLogout={() => void logout()} />
+    <section id="workspace-main" className="workspace-main" tabIndex={-1}>
+      <header className="simple-home-header"><div><p>Good to see you</p><h1 data-no-localize>{payload.onboarding.business_name}</h1></div><LocaleSwitch /></header>
+      <div className="simple-home-content">
+        <section className="home-next-action" aria-labelledby="home-next-title"><div><span>Recommended next step</span><h2 id="home-next-title">{nextAction.title}</h2><p>{nextAction.detail}</p></div><a href={nextAction.href}>{nextAction.label}</a></section>
+        <section className="home-status-row" aria-label="Chatbot status"><div><span>Chatbot</span><strong>{flowbot?.configured && flowbot.tested ? "Ready" : "Needs attention"}</strong></div><div><span>Customer conversations</span><strong>{conversations === null ? "Loading…" : conversations.length ? `${conversations.length} recent` : "None yet"}</strong></div></section>
+        <section className="home-conversations" aria-labelledby="home-conversations-title"><div className="simple-section-heading"><div><h2 id="home-conversations-title">Recent customer conversations</h2><p>Only the latest activity appears here.</p></div><a href="/workspace/inbox">View all</a></div>
+          {conversations === null ? <div className="home-activity-skeleton" aria-label="Loading recent conversations" /> : conversations.length ? <div className="home-conversation-list">{conversations.map((item) => <a href="/workspace/inbox" key={item.id}><strong data-no-localize>{item.customerDisplayName || "Website customer"}</strong><span>{item.channel} · {item.status}</span></a>)}</div> : <div className="home-empty"><strong>No customer conversations yet</strong><span>They will appear here after your chatbot is connected to your website.</span></div>}
         </section>
-        <section className="onboarding-band" aria-labelledby="onboarding-title">
-          <div className="band-heading"><div><p>ตัวช่วยตั้งค่าทีละขั้น</p><h2 id="onboarding-title">รายการตรวจสอบก่อนเปิดใช้</h2></div><span>{onboarding ? humanizeOnboardingStage(onboarding.stage) : "Account created"}</span></div>
-          <p className="control-copy">ความคืบหน้าอ้างอิงหลักฐานเวิร์กสเปซและผลิตภัณฑ์ที่เซิร์ฟเวอร์ตรวจสอบ (Progress comes from server-verified workspace and product evidence.) การเลือกขั้นตอนในเบราว์เซอร์ไม่สามารถทำเครื่องหมายว่าพร้อมได้</p>
-          {primaryAction ? (
-            <p className="onboarding-primary-action">
-              <a className="primary-command" href={primaryAction.href}>{primaryAction.label}</a>
-            </p>
-          ) : null}
-          <ol className="onboarding-checklist">
-            {checklist.map((step, index) => <li className={step.complete ? "complete" : "pending"} key={step.key}>
-              <span className="onboarding-step-number" aria-hidden="true">{step.complete ? "✓" : index + 1}</span>
-              <div><strong>{step.label}</strong><p>{step.detail}</p>{step.nextHref && !step.complete ? <a href={step.nextHref}>{step.nextLabel || "Continue setup"}</a> : null}</div>
-              <small>{step.complete ? "Complete" : "Action needed"}</small>
-            </li>)}
-          </ol>
-          {readiness?.productStates.length ? <div className="product-lifecycle-list" aria-label="ความคืบหน้าการตั้งค่าผลิตภัณฑ์">{readiness.productStates.map((product) => {
-            const title = product.productKey === "flowbot" ? "Flow Bot" : product.productKey === "ai_chat" ? "AI Text Bot" : "AI Voice Bot";
-            const labels = [
-              ["Access", product.activeAccess], ["Configured", product.configured], ["Deployed", product.deployed], ["Tested", product.tested], ["Ready", product.launchReady],
-            ] as const;
-            const actionHref = product.nextAction === "activate" ? "/workspace/usage"
-              : product.nextAction === "operate" ? "/workspace/operations"
-                : product.productKey === "flowbot"
-                  ? "/workspace/setup"
-                  : productRoutes[product.productKey];
-            const actionLabel = product.nextAction === "operate"
-              ? "Open operations"
-              : product.nextAction === "activate"
-                ? "Continue to payment"
-                : `Continue ${humanizeToken(product.nextAction)}`;
-            return <article key={product.productKey}><div><span>{product.launchReady ? "Live operations" : "Setup in progress"}</span><h3>{title}</h3></div>
-              <ol>{labels.map(([label, complete]) => <li className={complete ? "complete" : "pending"} key={label}><span aria-hidden="true">{complete ? "✓" : "·"}</span>{label}</li>)}</ol>
-              <a href={actionHref}>{actionLabel}</a>
-            </article>;
-          })}</div> : null}
-          <div className="onboarding-refresh">
-            <p>การเปิดให้บริการสาธารณะยังต้องผ่านเกณฑ์ด้านผลิตภัณฑ์ กฎหมาย การค้า และการดำเนินงานที่เกี่ยวข้อง</p>
-            {canUpdateOnboarding ? <button type="button" disabled={refreshing} onClick={() => void refreshOnboarding()}>{refreshing ? "Checking evidence…" : "Refresh checklist"}</button> : null}
-          </div>
-        </section>
-        <section className="empty-band product-overview-band">
-          <p>ผลิตภัณฑ์</p>
-          <h2>{subscriptions.length ? `${subscriptions.length} product${subscriptions.length === 1 ? "" : "s"} configured` : "No products are configured yet"}</h2>
-          {subscriptions.length ? <div className="product-overview-grid">{subscriptions.map((subscription) => <a href={`/workspace/${subscription.productKey === "ai_chat" ? "ai-chat" : subscription.productKey}`} key={subscription.id}>
-            <span>{subscription.tierName}</span><strong>{subscription.publicName}</strong><small>{humanizeToken(subscription.status)} · {humanizeToken(subscription.accessMode)} access</small>
-          </a>)}</div> : <p className="field-help">ผลิตภัณฑ์จะแสดงที่นี่หลังสร้างคำขอสมัครใช้บริการ ระบบยังไม่เรียกเก็บเงินสาธารณะจนกว่าประตูอนุมัติการเปิดขายจะผ่านครบถ้วน</p>}
-        </section>
-      </section>
-    </main>
-  );
+        <div className="home-secondary-links"><a href="/workspace/flowbot">Manage chatbot</a><a href="/workspace/support">Get help</a></div>
+      </div>
+    </section>
+  </main>;
 }

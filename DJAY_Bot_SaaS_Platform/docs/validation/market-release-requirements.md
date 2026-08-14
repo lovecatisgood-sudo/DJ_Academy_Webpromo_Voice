@@ -46,3 +46,16 @@ Results:
 ## Remaining gate
 
 Each product requirement must acquire implementation paths, tests, staging evidence and authorized acceptance during its owning work package. Package sellability remains correctly blocked until that work is complete.
+
+## Reconciliation addendum — 2026-08-13
+
+The approved page-by-page experience added 25 normative requirements. The governing PRD and executable registry now contain 322 requirements in 36 families. The original 2026-07-18 execution record above remains historical evidence for the earlier 297-record baseline; it is not the current count.
+
+Current focused verification:
+
+```text
+Market-release requirement registry valid: 322 requirements, 0 accepted, 6 packages non-sellable.
+Requirement-control test: 1 passed, 0 failed.
+```
+
+New `TRL-*`, `AIT-009..010`, `VOI-009..010`, `UX-013..018`, `EXP-010..011`, `ONB-013..014`, and `OPS-011..012` records remain unaccepted until their implementation, tests, staging evidence and authorized review are complete.

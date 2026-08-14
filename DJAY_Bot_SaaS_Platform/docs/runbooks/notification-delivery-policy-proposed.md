@@ -16,6 +16,7 @@ This document records what the product implements today. It is not permission to
 | Email verification, password recovery | Not sent | Required | Account user |
 | Team invitation, ownership transfer | Required | Required | Invited/transferring account and authorized workspace members |
 | Billing and usage | Required | Configurable | Authorized workspace members or configured allow-listed recipient |
+| AI Text trial at 100 of 500 replies remaining | Required by approved product design | Required by approved product design; provider/legal release evidence pending | Account owner only |
 | Flow/AI lead capture | Not sent by this center | Configurable | Configured allow-listed recipient |
 | Appointments, callbacks, confirmed value | Required | Not implemented | Authorized workspace members |
 | Support responses and attachment scan outcomes | Required | Not implemented | Authorized workspace members |

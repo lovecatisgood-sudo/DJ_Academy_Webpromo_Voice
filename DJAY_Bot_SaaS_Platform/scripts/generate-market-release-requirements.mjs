@@ -17,6 +17,7 @@ const planAssignments = Object.freeze({
   BOT: ["COM-02", ["CORE-02", "CORE-03"]],
   CHN: ["CHAN-01", ["WEB-01", "OPS-01"]],
   COM: ["COM-01", ["COM-02", "BILL-01"]],
+  TRL: ["COM-04", ["COM-01", "COM-02", "COM-03", "CORE-02"]],
   EXP: ["BILL-01", ["CORE-02", "CORE-03"]],
   FIN: ["FIN-01", ["FIN-02", "PLAT-02"]],
   FLA: ["FLOW-05", ["FLOW-01", "FLOW-02", "FLOW-04"]],

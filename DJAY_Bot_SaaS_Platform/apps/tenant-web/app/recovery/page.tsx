@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { emailFieldConstraints, safeMutationFetch } from "@djay/shared";
+import { BrandLockup, LocaleSwitch } from "../BrandChrome";
 
 export default function RecoveryRequestPage() {
   const [working, setWorking] = useState(false);
@@ -28,7 +29,7 @@ export default function RecoveryRequestPage() {
 
   return (
     <main>
-      <header><span className="mark">D</span><strong>DJAY BOT</strong><span className="realm">Account recovery</span></header>
+      <header><BrandLockup /><LocaleSwitch /><span className="realm">Account recovery</span></header>
       <section aria-labelledby="recovery-title">
         <p>Account security</p>
         <h1 id="recovery-title">Reset your password</h1>

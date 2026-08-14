@@ -4,6 +4,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { emailFieldConstraints, safeMutationFetch, safeSameOriginPath } from "@djay/shared";
 import { tenantApplicationEnvironment } from "../lib/application-environment";
 import { defaultWorkspaceHome } from "../lib/workspace-labels";
+import { BrandLockup, LocaleSwitch } from "./BrandChrome";
 
 export default function TenantLoginPage() {
   const [status, setStatus] = useState<"idle" | "working" | "mfa_required" | "authenticated" | "error">("idle");
@@ -22,6 +23,9 @@ export default function TenantLoginPage() {
     const result = authenticatedResult.current;
     const selected = result?.workspaces?.find((workspace) => workspace.tenantId === result.selectedTenantId)
       ?? result?.workspaces?.[0];
+    if (selected && ["tenant_master_admin", "tenant_admin"].includes(selected.role)) {
+      return "/workspace/start";
+    }
     return defaultWorkspaceHome({
       role: selected?.role,
       explicitNext: explicitNext || null,
@@ -79,7 +83,7 @@ export default function TenantLoginPage() {
 
   return (
     <main>
-      <header><span className="mark">D</span><strong>DJAY BOT</strong><span className="realm">Workspace</span></header>
+      <header><BrandLockup /><LocaleSwitch /><span className="realm">Workspace</span></header>
       <section aria-labelledby="tenant-login-title">
         <p>Business account</p>
         <h1 id="tenant-login-title">{mfaStage ? "Verify your identity" : "Sign in to your workspace"}</h1>
