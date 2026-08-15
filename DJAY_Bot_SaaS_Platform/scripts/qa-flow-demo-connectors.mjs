@@ -28,9 +28,19 @@ try {
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   await page.goto(demoUrl.toString());
-  await page.evaluate(() => localStorage.removeItem("djbot-clickable-flow-demo-v1"));
+  await page.evaluate(() => localStorage.removeItem("djbot-flow-builder-v2"));
   await page.reload();
   await page.evaluate(() => openFlowStudio("map"));
+
+  await page.locator("#flowOpenFullTest").click();
+  assert(await page.getByText("Testing the complete customer journey from its starting message").isVisible(), "Full customer testing did not start from the configured entry message.");
+  assert(await page.locator("[data-flow-test-option-index]").count() === 4, "The Main menu customer replies were not rendered.");
+  await page.getByRole("button", { name: "Services", exact: true }).click();
+  assert(await page.locator("#flowTestForm").isVisible(), "The Services reply did not follow its configured path to the contact form.");
+  await page.locator("#flowTestLanguage").selectOption("th");
+  assert(await page.getByRole("button", { name: "บริการ", exact: true }).isVisible(), "Thai testing did not render the translated customer replies.");
+  await page.locator("#flowClosePanel").click();
+
   await page.locator("#flowAddNode").click();
 
   const newNode = page.locator('[data-flow-node^="step_"]').last();

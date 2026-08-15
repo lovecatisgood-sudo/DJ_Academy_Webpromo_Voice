@@ -410,8 +410,9 @@ If multiple products are purchased, shared steps are completed once and referenc
 ### 9.3 Flow builder interaction model
 
 - Left: direct Dashboard route followed by Bot identity, Flow map, Lead capture, Fallback and handover, Widget appearance, and Publish/install. Status is advisory except for true invalid state.
-- Center: stable graph/canvas with step add, select, drag, duplicate, remove, entry selection, fit/scroll, connections, keyboard alternative and validation markers.
-- Right: Edit selected step and Test flow tabs. The editor supports message, options, input, form, card, handover and end types; localized copy; destinations; buttons; fields; keywords; and entry choice.
+- Center: stable graph/canvas with message add, select, drag, duplicate, remove, entry selection, fit/scroll, connections, keyboard alternative and validation markers. Removing a message disconnects incoming paths and leaves them visibly repairable.
+- Right: Edit selected message and Test flow tabs. The editor describes what the customer can do next, supports message, reply choice, input, form, card, handover and end behavior, and keeps localized reply text, destination selectors and canvas connectors synchronized.
+- Normal customer testing always starts at the configured entry message. Starting from a selected message is a separate explicit debugging action. Reply selection follows the exact saved destination and exposes disconnected or missing destinations as repairable errors instead of failing silently.
 - Mobile right panel: focused sheet/panel with Return to canvas; it never traps the user away from the map.
 - Top bar: draft/version context, autosave state, Dashboard, Undo, Redo and reset/controlled recovery. Publication remains a separate release section/action.
 - Version conflict opens a compare/reload flow and never silently overwrites another editor.

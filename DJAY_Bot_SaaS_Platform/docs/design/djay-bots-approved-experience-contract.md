@@ -173,7 +173,7 @@ The map supports:
 - selecting and dragging steps;
 - adding a message step;
 - duplicating a selected step;
-- removing a selected step when it is not the entry and has no unresolved incoming reference;
+- removing any selected step; incoming message and reply connections are disconnected and left visibly repairable, and removing the entry selects the next available message as the new entry;
 - choosing another entry step;
 - fitting/returning the map viewport;
 - undo and redo for draft changes;
@@ -190,6 +190,8 @@ Supported baseline step types:
 - end.
 
 The selected-step editor supports title, English customer copy, Thai customer copy, next destination, button labels/destinations, form fields, typed-message keywords, and entry-step selection as appropriate to the type.
+
+The merchant-facing editor presents this as the customer's next action rather than exposing internal node terminology. `Customer chooses a reply` shows every reply with English text, Thai text, and one explicit destination. New replies begin unconnected and are never routed to an arbitrary message. The destination selector and canvas connector are two controls for the same saved edge and must remain synchronized.
 
 Flow execution remains deterministic. Typed input matches configured keywords. Unmatched text follows the configured fallback or human-handover route; it never silently invokes an AI model. Runtime protects against missing references and unbounded loops.
 
@@ -212,7 +214,8 @@ The UI must not claim a person received or accepted a handover until authoritati
 
 The tester runs the actual draft structure without creating billable customer usage or external side effects. It supports:
 
-- starting at the entry step or selected step;
+- starting the normal customer test at the configured entry message;
+- starting at a selected message only through an explicit `Test from this message` debugging action;
 - English/Thai test language;
 - button paths;
 - form submission simulation;
@@ -220,6 +223,8 @@ The tester runs the actual draft structure without creating billable customer us
 - fallback behavior;
 - restart;
 - end and handover outcomes.
+
+Selecting a customer reply must append that reply to the transcript and follow its exact saved destination. A reply without a destination or with a missing destination remains visible and produces a clear repair message in the tester; it must never fail silently or jump to another branch.
 
 Testing is recommended and always optional.
 
