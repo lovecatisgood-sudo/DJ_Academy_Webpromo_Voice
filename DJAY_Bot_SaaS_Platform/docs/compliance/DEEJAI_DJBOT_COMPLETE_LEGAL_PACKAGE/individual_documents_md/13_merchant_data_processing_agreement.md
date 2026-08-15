@@ -1,6 +1,6 @@
 # Merchant Data Processing Agreement
 
-> **Status:** COUNSEL DRAFT - NOT EFFECTIVE UNTIL APPROVED AND RELEASE-GATED
+> **Status:** COUNSEL APPROVED BY OWNER ATTESTATION ON 15 AUGUST 2026 - EFFECTIVE ONLY WHEN RELEASE-GATED
 >
 > **Drafting date:** 27 July 2026
 >
@@ -72,4 +72,4 @@ Master Terms liability applies to the lawful extent. This DPA prevails for proce
 
 ## 16. Contact
 
-Privacy: privacy@djai.academy. Security: security@djai.academy. Address: 48/187 Soi Sukhumvit 64, Bang Chak, Phra Khanong, Bangkok, Thailand.
+Privacy: privacy@djai.academy. Security: security@djai.academy. Address: 48/187 Soi Sukhumvit 64, Sukhumvit Road, Phra Khanong, Bangkok 10260, Thailand.

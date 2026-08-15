@@ -74,7 +74,7 @@ locals {
     api             = merge(local.api_product_secrets, var.commerce_enabled ? local.api_commerce_secrets : {})
     ai-gateway = {
       AI_TEXT_GATEWAY_SERVICE_TOKEN = "ai-text-gateway-service-token",
-      OPENAI_API_KEY                = "openai-api-key",
+      AI_TEXT_API_KEY               = "ai-text-api-key",
     }
     voice-gateway = {
       VOICE_AUTHORIZATION_SERVICE_TOKEN = "voice-authorization-service-token",

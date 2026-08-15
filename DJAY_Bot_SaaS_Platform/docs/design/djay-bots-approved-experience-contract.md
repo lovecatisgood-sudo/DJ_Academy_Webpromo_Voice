@@ -80,17 +80,17 @@ The account step follows the commercial choice. It presents the selected product
 
 The production account flow requires identity, legal acceptance, and authoritative server-side provisioning. The standalone design demo deliberately simulates this page without creating an account, charging a card, or requiring login.
 
-For paid subscriptions, payment confirmation and entitlement provisioning must be authoritative and idempotent. For trials, the request begins when the merchant chooses the trial and the 30-day clock begins when the trial workspace entitlement is successfully provisioned after the account step. Onboarding, configuration, publishing, and installation occur within that fixed trial period.
+For paid subscriptions, payment confirmation and entitlement provisioning must be authoritative and idempotent. A trial choice creates a pending trial intent so the merchant can configure and test without consuming trial time. The 30-day clock begins only when deployment provisioning succeeds. Flow deployment requires a verified account email. Text deployment first opens Stripe card setup, and the deployment continues only after the SetupIntent succeeds and the server confirms that the card fingerprint has not previously received a Text trial.
 
 ## 5. Approved free-trial policy
 
 | Rule | Flow Bot trial | AI Text Bot trial | AI Voice Bot |
 | --- | --- | --- | --- |
-| Eligibility | New member | New member | No trial |
+| Eligibility | One trial per verified account email | One trial per verified card fingerprint | No trial |
 | Duration | 30 fixed days | 30 fixed days | Not applicable |
 | Package basis | Starter settings | Starter settings | Not applicable |
 | Channel access | Website only | Website only | Not applicable |
-| Card required | No | Yes | Not applicable |
+| Card required | No | At Deploy Bot only | Not applicable |
 | Included allowance | 5,000 customer conversations | 500 AI-generated replies, equal to 25% of the 2,000-reply Starter allowance | Not applicable |
 | Warning | Usage shown in platform | At 100 replies remaining, equal to 20% of the trial quota, warn in platform and by email | Paid-plan policy only |
 | Exhaustion | Stop new trial service and prompt subscription | Stop new AI replies and prompt subscription | Paid-plan policy only |
@@ -99,7 +99,9 @@ For paid subscriptions, payment confirmation and entitlement provisioning must b
 
 The AI Text warning recipient is the account owner. Additional configurable recipients may be added only through a separately approved notification decision.
 
-The following remain decision-gated and must not be inferred from the card requirement: automatic conversion to paid service, automatic charging at expiry, trial-data retention duration, repeat-trial prevention, and detailed abuse-prevention rules.
+Flow trial matching uses only the normalized verified account email. Text trial matching uses only the Stripe card fingerprint returned after successful card setup; Deejai stores a keyed hash of that fingerprint, not the full card number. Company registration, business-domain verification, telephone verification, IP address and device identity are not eligibility requirements. IP/device signals may be logged under the security policy but cannot reject a trial.
+
+The Text card setup validates and saves the card without creating a DJBOT charge. Any temporary verification entry is controlled by Stripe, the card network and the issuing bank and must not be advertised as an exact USD 1 charge. Automatic conversion, automatic charging at expiry, and additional warning recipients remain prohibited unless separately approved. Ordinary approved retention controls apply to trial data.
 
 ## 6. Flow Bot onboarding
 

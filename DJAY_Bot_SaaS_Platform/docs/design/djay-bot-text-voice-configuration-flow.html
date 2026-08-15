@@ -1522,7 +1522,7 @@
       },
       text: {
         name: 'AI Text Bot', description: 'Flexible Thai and English website conversations grounded in approved business knowledge.', trial: true,
-        trialText: '30 days, Starter features, website only, 500 AI replies, card required. Platform and email warnings at 100 replies remaining.',
+        trialText: 'Configure first. On Deploy Bot, verify a card. Then receive 30 days, website only, and 500 AI replies. One Text trial per card.',
         plans: [
           {key:'ai_chat_basic',name:'AI Text Bot Starter',tier:'Starter',price:'THB 5,950',renewal:'THB 11,900',summary:'A Thai and English website AI assistant grounded in approved business knowledge.',features:['1 AI Text Bot','2,000 AI replies monthly','Thai and English','Website and document knowledge','Lead capture and handover']},
           {key:'ai_chat_premium',name:'AI Text Bot Advanced',tier:'Advanced',price:'THB 12,450',renewal:'THB 24,900',summary:'Multi-channel AI conversations with advanced qualification, routing, integrations, and analytics.',features:['Up to 3 AI Text Bots','10,000 AI replies monthly','Website plus one social channel','Advanced sales intelligence','Routing and integrations']}
@@ -1763,7 +1763,7 @@
         test: [{a:'Happy path',b:'Grounded answer and valid next step',passed:false},{a:'Missing information',b:'Ask only a relevant question',passed:false},{a:'Unsupported claim',b:'Decline to guess and offer help',passed:false},{a:'Provider failure',b:'No false success message',passed:false}]
       },
       reviewed: {},
-      install: { snippetCopied: false, domain: 'https://www.harbor-example.com', verified: false, live: false }
+      install: { snippetCopied: false, domain: 'https://www.harbor-example.com', verified: false, live: false, cardPromptOpen: false, cardVerified: false }
     };
     const clone = value => JSON.parse(JSON.stringify(value));
     let draft = clone(defaultDraft);
@@ -1792,6 +1792,7 @@
     draft.sales ||= clone(defaultDraft.sales);
     draft.booking ||= clone(defaultDraft.booking);
     draft.install ||= clone(defaultDraft.install);
+    Object.entries(defaultDraft.install).forEach(([key,value]) => { if (draft.install[key] === undefined) draft.install[key] = clone(value); });
     draft.rows ||= clone(defaultDraft.rows);
     Object.entries(defaultDraft.rows).forEach(([key,value]) => { if (draft.rows[key] === undefined) draft.rows[key] = clone(value); });
     draft.sources ||= clone(defaultDraft.sources);
@@ -1805,6 +1806,7 @@
     publishedDraft.sales ||= clone(defaultDraft.sales);
     publishedDraft.booking ||= clone(defaultDraft.booking);
     publishedDraft.install ||= clone(defaultDraft.install);
+    Object.entries(defaultDraft.install).forEach(([key,value]) => { if (publishedDraft.install[key] === undefined) publishedDraft.install[key] = clone(value); });
     publishedDraft.rows ||= clone(defaultDraft.rows);
     Object.entries(defaultDraft.rows).forEach(([key,value]) => { if (publishedDraft.rows[key] === undefined) publishedDraft.rows[key] = clone(value); });
     publishedDraft.sources ||= clone(defaultDraft.sources);
@@ -2434,10 +2436,10 @@
       $('#orderAccess').textContent = trial ? '30-day Starter trial' : plan.name;
       $('#orderDue').textContent = trial ? 'THB 0' : plan.price;
       $('#orderNoticeTitle').textContent = trial ? `${family.name} trial limits` : 'Annual subscription';
-      $('#orderNoticeText').textContent = trial && commerceState.product === 'flow' ? 'Website only, 5,000 conversations, 30 fixed days, and no card required.' : trial ? 'Website only, 500 AI replies, and a card is required. Platform and email warnings appear when 100 replies remain. No charge occurs in this demo.' : `${plan.price} is the first-year amount. Renewal is ${plan.renewal} per year. No charge occurs in this demo.`;
-      $('#cardSection').classList.toggle('hidden',trial && commerceState.product === 'flow');
+      $('#orderNoticeText').textContent = trial && commerceState.product === 'flow' ? 'One trial per verified email. Configure first; the 30-day, 5,000-conversation website trial starts when deployment succeeds. No card required.' : trial ? 'Configure first. Card verification appears only when you press Deploy Bot. One trial per card, 500 AI replies, and warnings at 100 remaining. No automatic charge.' : `${plan.price} is the first-year amount. Renewal is ${plan.renewal} per year. No charge occurs in this demo.`;
+      $('#cardSection').classList.toggle('hidden', trial);
       $('#cardSectionTitle').textContent = trial ? 'Card for the Text Bot trial' : 'Payment card';
-      $('#cardSectionHelp').textContent = trial ? 'A card is required for the AI Text Bot trial. This demo never submits or stores it.' : 'Required for the annual subscription. This demo never submits or stores it.';
+      $('#cardSectionHelp').textContent = trial ? 'Card setup is deferred until Deploy Bot.' : 'Required for the annual subscription. This demo never submits or stores it.';
       $('#onboardingPackageBadge').textContent = trial ? `${family.name} · 30-day Starter trial` : `${family.name} · ${plan.tier}`;
       $('#onboardingProductEyebrow').textContent = `Your ${family.name} is ready to set up`;
       $('#continueToBotOnboarding').textContent = `Continue to ${family.name} onboarding`;
@@ -2768,9 +2770,17 @@
     function installSection() {
       const install = draft.install;
       const snippet = `<script src="https://cdn.djbot.example/widget.js" data-bot="harbor-${state.role}"><\/script>`;
+      const textTrial = state.product === 'text' && commerceState.intent === 'trial';
+      const cardSetup = textTrial && install.cardPromptOpen && !install.cardVerified
+        ? `<div class="panel"><span class="eyebrow">Text trial deployment</span><h2>Verify a card to deploy</h2><p>Stripe card setup occurs only now, after configuration. This demo does not contact Stripe, debit USD 1, create a subscription, or enable automatic charging. One Text trial is allowed per verified card.</p><div class="field-grid"><label class="wide">Card number<input id="deployTrialCard" inputmode="numeric" value="4242 4242 4242 4242" autocomplete="cc-number"></label><label>Expiry<input id="deployTrialExpiry" value="12/30" autocomplete="cc-exp"></label><label>Security code<input id="deployTrialCvc" inputmode="numeric" value="123" autocomplete="cc-csc"></label></div><button class="btn btn-green" data-verify-trial-card style="margin-top:16px">Verify card and deploy Bot</button></div>`
+        : textTrial && install.cardVerified
+          ? `<div class="notice"><strong>✓</strong><div><strong>Card verified for this Text trial</strong><p>The simulated deployment is authorized. No DJBOT charge or automatic subscription was created.</p></div></div>`
+          : '';
+      const trafficAction = install.live ? 'Take bot offline' : textTrial ? 'Deploy Bot' : 'Go live';
       return sectionHeader('Install and launch', 'Publish a version, install it on the website, verify the domain, then explicitly enable customer traffic.') +
         `<div class="panel"><h2>Website installation</h2><p>This is a simulated installation flow. No external website is changed.</p><div class="codebox"><textarea readonly id="installSnippet">${escapeHtml(snippet)}</textarea><button class="btn" data-copy-snippet>${install.snippetCopied ? 'Copied' : 'Copy'}</button></div><div class="field-grid" style="margin-top:14px"><label class="wide">Website domain<input data-bind="install.domain" value="${escapeHtml(install.domain)}" placeholder="https://www.yourbusiness.com"></label></div></div>` +
-        `<div class="launch-grid"><div class="launch-card"><strong>Published version</strong><span>Immutable version ${state.version} is available for installation.</span><span class="badge">Ready to install</span></div><div class="launch-card"><strong>Domain verification</strong><span>${install.verified ? `Verified: ${escapeHtml(install.domain)}` : 'Confirm that the website snippet is present.'}</span><button class="btn ${install.verified ? '' : 'btn-green'}" data-verify-domain ${!install.snippetCopied ? 'disabled' : ''}>${install.verified ? 'Verify again' : 'Verify installation'}</button></div><div class="launch-card"><strong>Customer traffic</strong><span>${install.live ? 'The simulated bot is live on the verified website.' : 'Customer traffic remains off until you enable it.'}</span><button class="btn ${install.live ? 'danger-button' : 'btn-green'}" data-toggle-live ${!install.verified ? 'disabled' : ''}>${install.live ? 'Take bot offline' : 'Go live'}</button></div></div>` +
+        cardSetup +
+        `<div class="launch-grid"><div class="launch-card"><strong>Published version</strong><span>Immutable version ${state.version} is available for installation.</span><span class="badge">Ready to install</span></div><div class="launch-card"><strong>Domain verification</strong><span>${install.verified ? `Verified: ${escapeHtml(install.domain)}` : 'Confirm that the website snippet is present.'}</span><button class="btn ${install.verified ? '' : 'btn-green'}" data-verify-domain ${!install.snippetCopied ? 'disabled' : ''}>${install.verified ? 'Verify again' : 'Verify installation'}</button></div><div class="launch-card"><strong>Customer traffic</strong><span>${install.live ? 'The simulated bot is live on the verified website.' : textTrial && !install.cardVerified ? 'Press Deploy Bot to verify a card and start the trial.' : 'Customer traffic remains off until you enable it.'}</span><button class="btn ${install.live ? 'danger-button' : 'btn-green'}" data-toggle-live ${!install.verified ? 'disabled' : ''}>${trafficAction}</button></div></div>` +
         (install.verified ? `<div class="dashboard-handoff"><div><strong>Your website is verified. Continue to the merchant dashboard.</strong><span>Configuration stays available as its own full-page workspace. You can return here from the dashboard at any time.</span></div><button class="btn btn-primary" data-enter-dashboard>Enter dashboard</button></div>` : '');
     }
 
@@ -2859,7 +2869,18 @@
         setTimeout(() => { draft.install.verified = true; savePrototype(false); render(); showToast('Simulated domain verification passed.'); }, 650);
       });
       if ($('[data-toggle-live]')) $('[data-toggle-live]').addEventListener('click', () => {
+        if (!draft.install.live && state.product === 'text' && commerceState.intent === 'trial' && !draft.install.cardVerified) {
+          draft.install.cardPromptOpen = true; savePrototype(false); render(); showToast('Verify a card now to deploy the Text Bot trial.'); return;
+        }
         draft.install.live = !draft.install.live; savePrototype(false); render(); showToast(draft.install.live ? 'Demo bot is now simulated as live.' : 'Demo bot is now simulated as offline.');
+      });
+      if ($('[data-verify-trial-card]')) $('[data-verify-trial-card]').addEventListener('click', () => {
+        const cardValid = $('#deployTrialCard').value.replace(/\D/g,'').length >= 15
+          && /^\d{2}\/\d{2}$/.test($('#deployTrialExpiry').value.trim())
+          && /^\d{3,4}$/.test($('#deployTrialCvc').value.trim());
+        if (!cardValid) { showToast('Complete the simulated card details.'); return; }
+        draft.install.cardVerified = true; draft.install.cardPromptOpen = false; draft.install.live = true;
+        savePrototype(false); render(); showToast('Card verified. Text Bot deployed and the 30-day trial started.');
       });
       if ($('[data-enter-dashboard]')) $('[data-enter-dashboard]').addEventListener('click', () => showDashboard('overview'));
       if ($('[data-publish-from-page]')) $('[data-publish-from-page]').addEventListener('click', openPublishReview);
@@ -3293,7 +3314,7 @@
       const passwordValid = $('#accountPassword').value.length >= 8;
       const cardValid = $('#accountCard').value.replace(/\D/g,'').length >= 15 && /^\d{2}\/\d{2}$/.test($('#accountExpiry').value.trim()) && /^\d{3,4}$/.test($('#accountCvc').value.trim());
       const termsValid = $('#accountTerms').checked;
-      const cardRequired = !(commerceState.product === 'flow' && commerceState.intent === 'trial');
+      const cardRequired = commerceState.intent === 'subscribe';
       const problems = [];
       if (!emailValid) problems.push('Enter a valid work email.');
       if (!businessValid) problems.push('Enter the business name.');

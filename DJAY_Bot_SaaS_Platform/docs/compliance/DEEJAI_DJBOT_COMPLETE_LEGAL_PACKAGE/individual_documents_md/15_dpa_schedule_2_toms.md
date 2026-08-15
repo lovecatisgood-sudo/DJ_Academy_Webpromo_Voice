@@ -1,6 +1,6 @@
 # DPA Schedule 2 - Technical and Organisational Measures
 
-> **Status:** COUNSEL DRAFT - NOT EFFECTIVE UNTIL APPROVED AND RELEASE-GATED
+> **Status:** COUNSEL APPROVED BY OWNER ATTESTATION ON 15 AUGUST 2026 - EFFECTIVE ONLY WHEN RELEASE-GATED
 >
 > **Drafting date:** 27 July 2026
 >

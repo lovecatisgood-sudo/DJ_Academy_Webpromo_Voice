@@ -1,6 +1,6 @@
 # Current-State Disclosure and Launch Conditions
 
-> **Status:** COUNSEL DRAFT - NOT EFFECTIVE UNTIL APPROVED AND RELEASE-GATED
+> **Status:** COUNSEL APPROVED BY OWNER ATTESTATION ON 15 AUGUST 2026 - EFFECTIVE ONLY WHEN RELEASE-GATED
 >
 > **Drafting date:** 27 July 2026
 >
@@ -14,7 +14,7 @@ Until a Readiness Certificate says otherwise:
 
 - Primary data is Neon/AWS Ohio, USA.
 - GCP Asia is planned, not applied/verified.
-- Transcript default 365; Merchant range 30-3,650.
+- Transcript default 365; customer-facing Merchant API range 30-730.
 - Voice recording disabled/zero.
 - Privacy links expire seven days; encrypted row not physically purged.
 - Contacts/leads have no time-based purge.
@@ -38,8 +38,8 @@ Main Privacy Notice uses current facts. Target Terms/Retention statements are co
 9. Verify DNS/TLS provider and list if it processes data.
 10. Implement consent/suppression/preferences.
 11. Implement model identifier removal/screening/register before consent.
-12. Implement Premium disable control.
-13. Keep partner/AI/Voice/LINE disabled until specific gate.
+12. Verify the tier-neutral model-development disable control.
+13. Keep partner sharing and production AI/Voice processing disabled until their specific gates; keep all social channels excluded from the initial release.
 
 ## 4. Rule
 

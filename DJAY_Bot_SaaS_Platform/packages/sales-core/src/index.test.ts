@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aiPlaybookFieldLimits, aiPlaybookSchema, chunkKnowledge, salesCoreOutputSchema, selectRelevantKnowledge } from "./index";
+import { aiPlaybookFieldLimits, aiPlaybookSchema, buildSalesCorePolicy, chunkKnowledge, countVisibleCharacters, salesCoreOutputSchema, selectRelevantKnowledge } from "./index";
 
 const ids = {
   revision: "11111111-1111-4111-8111-111111111111",
@@ -52,6 +52,26 @@ describe("Sales Conversation Core contract", () => {
       proposedActions: [{ type: "merchant_email.send", templateKey: "ai_chat.lead_qualified" }],
       handover: null, customerResponse: "We will confirm later.", channelResponse: { format: "text", quickReplies: [] },
     })).toThrow(/Lead capture is required/);
+  });
+
+  it("instructs providers about cross-field action and handover invariants", () => {
+    const policy = buildSalesCorePolicy({
+      locale: "en", businessName: "Studio", agentName: "Mali", tone: "Warm",
+      salesGoal: "Qualify interest", approvedClaims: [], prohibitedClaims: [],
+      discoveryQuestions: [], ctaPolicy: [], knowledge: [], recentMessages: [], customerMessage: "Hello",
+    });
+    expect(policy).toContain("only when the same proposedActions array also contains a valid lead.capture action");
+    expect(policy).toContain("if and only if proposedActions contains handover.request");
+    expect(policy).toContain("no more than 200 visible grapheme characters");
+  });
+
+  it("counts graphemes and rejects customer replies over 200 visible characters", () => {
+    expect(countVisibleCharacters("กำ")).toBe(1);
+    expect(() => salesCoreOutputSchema.parse({
+      schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover",
+      facts: [], knowledgeCitations: [], responseGoal: "ask a question", proposedActions: [], handover: null,
+      customerResponse: "🙂".repeat(201), channelResponse: { format: "text", quickReplies: [] },
+    })).toThrow(/exceeds 200 visible characters/);
   });
 
   it("chunks and retrieves approved content deterministically", () => {

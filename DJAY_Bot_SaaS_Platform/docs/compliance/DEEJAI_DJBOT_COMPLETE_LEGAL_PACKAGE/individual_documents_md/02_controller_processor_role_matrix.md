@@ -1,6 +1,6 @@
 # Controller and Processor Role Matrix
 
-> **Status:** COUNSEL DRAFT - NOT EFFECTIVE UNTIL APPROVED AND RELEASE-GATED
+> **Status:** COUNSEL APPROVED BY OWNER ATTESTATION ON 15 AUGUST 2026 - EFFECTIVE ONLY WHEN RELEASE-GATED
 >
 > **Drafting date:** 27 July 2026
 >
@@ -14,16 +14,16 @@
 |---|---|---|---|---|
 | Merchant registration/authentication | Business customer/data source | Controller | Main Privacy Notice | Active |
 | Billing/tax | Business customer | Controller | Terms; Privacy Notice | Stripe active |
-| Website enquiry and lead | Controller | Processor | DPA | FlowBot active |
+| Website enquiry and lead | Controller | Processor | DPA | Flow service only after package approval |
 | Merchant marketing | Controller | Processor to documented instructions | DPA; Merchant notice | Merchant lawful basis |
 | Security/abuse monitoring | Service user | Controller | Main Privacy Notice | Legitimate-interest review |
-| Deejai marketing to Basic end customer | Collection-interface participant | Independent controller | Basic Addendum; Consent | Separate opt-in |
+| Deejai marketing to end customer | Collection-interface participant | Independent controller | Customer Data Use Addendum; Consent | Separate opt-in for every tier |
 | Partner disclosure | Collection-interface participant | Disclosing controller | Addendum; Partner Consent/Terms | Disabled until named partner |
 | Model development | Collection-interface participant | Controller | Model Notice and Consent | Governance gate |
-| Premium contact details | Controller | Processor; no own marketing | DPA; Premium Notice | Premium rule |
+| End-customer service data | Controller | Processor; no tier-based reuse | DPA; AI Data Use Notice | Applies to Starter and Advanced |
 | AI response delivery | Controller of business purpose | Processor for delivery; controller for separate security/model purposes | AI Schedule | Provider approved |
 | Voice call delivery | Controller of call purpose/list | Processor for merchant call; controller for separate uses | Voice Schedule | Providers approved |
-| LINE delivery | Controller | Processor; LINE external platform | LINE Schedule | Add-on active |
+| Social-channel delivery | Controller | Not active | Social Channels Exclusion Schedule | Excluded from initial release |
 | Merchant-purpose rights request | Controller | Processor assisting | DPA | Privacy jobs |
 | Deejai-purpose rights request | Cooperation duty | Controller | Privacy/Preference Notice | Direct channel |
 

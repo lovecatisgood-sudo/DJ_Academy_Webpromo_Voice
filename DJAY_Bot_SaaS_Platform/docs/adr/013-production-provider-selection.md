@@ -40,7 +40,7 @@ subscription-mode Checkout. No production charge is authorized by this ADR.
 | Secrets and encryption | Secret Manager plus Cloud KMS | Selected; independent environment/purpose secrets required |
 | Monitoring | Cloud Monitoring, Logging and uptime checks | Selected; real observations, budget alerts and on-call alerts required |
 | Transactional email | Resend | Recommended; its Bearer HTTP and idempotency-key contract fits the existing adapter |
-| AI text | OpenAI Responses API through the restricted internal gateway | Recommended; exact pinned route requires Thai/English evaluation |
+| AI text | Owner-selected OpenAI Responses, xAI Grok, or Google Gemini through the restricted internal gateway | Multi-provider adapters implemented; the owner selects one provider and pinned model in server configuration; exact route requires Thai/English evaluation |
 | Primary production Voice candidate | OpenAI Realtime API | Recommended; a new restricted adapter and full live acceptance are required |
 | Existing Voice candidate | Google Gemini Live | Implemented adapter; restricted pilot/equivalent-route evaluation pending |
 | Thai accounting/tax documents | FlowAccount Open API | Recommended; Thai accountant and legal approval remain authoritative |
@@ -59,8 +59,12 @@ isolated `djay-master-deck` gcloud configuration and account guard.
 - The current Voice provider adapter implements the Gemini Live WebSocket
   contract. An OpenAI Realtime adapter is not yet implemented in this SaaS
   workspace.
-- AI Chat calls a provider-neutral internal HTTP gateway. A production OpenAI
-  Responses adapter/routing service is not yet configured or accepted.
+- AI Chat calls a provider-neutral internal HTTP gateway. OpenAI Responses,
+  xAI Grok Chat Completions, and Gemini OpenAI-compatible Chat Completions
+  adapters are implemented. `AI_TEXT_PROVIDER` and the corresponding model and
+  secret are restricted SaaS-owner configuration; tenant and public responses
+  cannot select or reveal them. No provider/model route is production-accepted
+  until its Thai/English live evaluation and privacy evidence pass.
 - The generic HTTP email adapter matches Resend's request shape, Bearer
   authentication, and `Idempotency-Key` behavior; a verified sender domain and
   live delivery exercise remain required.

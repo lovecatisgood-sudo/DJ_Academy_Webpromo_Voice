@@ -15,8 +15,9 @@ describe("restricted AI gateway", () => {
   it("requires service authority and returns only normalized output", async () => {
     const handler = createAiGatewayHandler({
       serviceToken: "service-token-abcdefghijklmnopqrstuvwxyz",
-      openAiApiKey: "sk-restricted-abcdefghijklmnopqrstuvwxyz",
-      openAiModel: "restricted-route",
+      provider: "openai",
+      apiKey: "sk-restricted-abcdefghijklmnopqrstuvwxyz",
+      model: "restricted-route",
       fetchImpl: async () => new Response(JSON.stringify({
         status: "completed",
         output: [{ type: "message", content: [{ type: "output_text", text: "{\"response\":\"Hello\"}" }] }],
@@ -37,5 +38,31 @@ describe("restricted AI gateway", () => {
       output: { response: "Hello" },
       nativeUsage: { inputUnits: 3, outputUnits: 2, cachedUnits: 0 },
     });
+  });
+
+  it.each([
+    ["xai" as const, "https://api.x.ai/v1/chat/completions"],
+    ["gemini" as const, "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"],
+  ])("routes the owner-selected %s provider without exposing it", async (provider, endpoint) => {
+    const handler = createAiGatewayHandler({
+      serviceToken: "service-token-abcdefghijklmnopqrstuvwxyz",
+      provider,
+      apiKey: "restricted-provider-key-abcdefghijklmnopqrstuvwxyz",
+      model: "owner-selected-route",
+      fetchImpl: async (input) => {
+        expect(String(input)).toBe(endpoint);
+        return new Response(JSON.stringify({
+          choices: [{ message: { content: "{\"response\":\"Hello\"}" } }],
+          usage: { prompt_tokens: 3, completion_tokens: 2 },
+        }), { status: 200 });
+      },
+    });
+    const accepted = await handler(new Request("https://internal.example/v1/generate", {
+      method: "POST",
+      headers: { authorization: "Bearer service-token-abcdefghijklmnopqrstuvwxyz", "content-type": "application/json" },
+      body: JSON.stringify(requestBody),
+    }));
+    expect(accepted.status).toBe(200);
+    expect(JSON.stringify(await accepted.json())).not.toMatch(/xai|grok|gemini|model/i);
   });
 });

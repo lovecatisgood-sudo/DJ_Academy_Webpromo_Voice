@@ -1,18 +1,29 @@
 {
   "package": "DEEJAI_DJBOT_COMPLETE_LEGAL_PACKAGE",
-  "package_date": "2026-07-27",
+  "package_date": "2026-08-15",
   "company": {
     "name_en": "DEEJAI LAB CO., LTD.",
     "name_th": "บริษัท ดีใจ แล็บ จำกัด",
-    "registration_number": "0105569117953"
+    "registration_number": "0105569117953",
+    "registered_office": "48/187 Soi Sukhumvit 64, Sukhumvit Road, Phra Khanong, Bangkok 10260, Thailand"
   },
-  "status": "COUNSEL_DRAFT_NOT_APPROVED",
+  "status": "COUNSEL_APPROVED_OWNER_ATTESTED_RELEASE_GATED",
+  "approval": {
+    "recorded_date": "2026-08-15",
+    "internal_reference": "OWNER-ATTESTED-COUNSEL-APPROVAL-2026-08-15-DJBOT-LEGAL-PACKAGE",
+    "evidence_custody": "DEEJAI LAB CO., LTD. legal records outside Git"
+  },
+  "tax_status": {
+    "thai_vat_registered": false,
+    "vat_charged": false,
+    "document_type": "non-VAT receipt or payment record"
+  },
   "document_count": 47,
   "current_state_rule": "US Neon/AWS processing is disclosed until an Asian deployment is applied and independently verified.",
   "retention_revision": {
     "chat_default_days": 365,
     "merchant_configurable_min_days": 30,
-    "merchant_configurable_max_days": 3650,
+    "merchant_configurable_max_days": 730,
     "voice_recording_days": 0,
     "privacy_export_access_days": 7,
     "contacts_time_purge_current": false,
@@ -26,258 +37,258 @@
   "files": [
     {
       "path": "00_Master_Complete_Legal_Package.docx",
-      "size_bytes": 86777,
-      "sha256": "22005fc46bf9de08e10256f3685bcacbd8bfe442a5eb7a05142f46c3a69807bd"
+      "size_bytes": 55699,
+      "sha256": "9328a39f19491e1f8662c2052163fa96b93a64340590b8aca8c0f1ce6e679e3d"
     },
     {
       "path": "01_Public_Contracts_and_Notices.docx",
-      "size_bytes": 62291,
-      "sha256": "204fbe6eb0c5b6e02edfc26143cc06952372d4d0c45087872ff548baa69f6143"
+      "size_bytes": 32646,
+      "sha256": "0a893b618a5da614aa944b7728db8f081cff990dca3a92f2acc0f2da56633a08"
     },
     {
       "path": "02_Internal_Privacy_AI_Governance.docx",
-      "size_bytes": 64055,
-      "sha256": "66527ee301c8df9e5a446d35a03ac5df3afdfc158193a9024384d3328efa59a2"
+      "size_bytes": 30499,
+      "sha256": "eac68179cceb3dbadcb2dd2a35cf3331498835610af0a68e906a11f3d63f4d9f"
     },
     {
       "path": "README.md",
-      "size_bytes": 9114,
-      "sha256": "e022068056371a4c1df8abee26d571e05bd80629bea9a130a6e4fd1f49da7b03"
+      "size_bytes": 10283,
+      "sha256": "2518018302aaa5f8179281873cf300ca8d379a37d0fdf9c0e78bf7e8a95f4d79"
     },
     {
       "path": "individual_documents_md/01_consolidated_counsel_brief.md",
-      "size_bytes": 5882,
-      "sha256": "b63ad5326eb9fa9536ec661137e213c8bd44d3cd0ee5a5c3001bfb24511eded0"
+      "size_bytes": 6467,
+      "sha256": "4d0243be1b33041c49790c7dc319bd902ded5ffebc6f5a6fdec3db35c216bc4f"
     },
     {
       "path": "individual_documents_md/02_controller_processor_role_matrix.md",
-      "size_bytes": 2901,
-      "sha256": "241ad4aa9302f5523f3aa2c0401300dbf757bf98f503c5a0efa20d87368adcb0"
+      "size_bytes": 3029,
+      "sha256": "5bd7a6343d1ef6ea82e91d9a6821120ee3da4be5827923a7ebe05f5ff395f3f0"
     },
     {
       "path": "individual_documents_md/03_counsel_decision_schedule.md",
-      "size_bytes": 2959,
-      "sha256": "192a538de8507650f552ff64730d11324a536c9ed454f0043a52f1dd5a928ac5"
+      "size_bytes": 3078,
+      "sha256": "1b3d211dc48ef42b023841c2dc2d9997c2ac69fefae9d520f0754e4575903f00"
     },
     {
       "path": "individual_documents_md/04_counsel_approval_certificate.md",
-      "size_bytes": 1510,
-      "sha256": "61e16c604b533619436248817ea9484127aba492e2c34d8ccb5db3fb557242ed"
+      "size_bytes": 2242,
+      "sha256": "a1eb8fb70709939b14ef64f2bbea827dcb701e635f5b9bb00e9982f851cdb6dd"
     },
     {
       "path": "individual_documents_md/05_legal_version_deployment_manifest.md",
-      "size_bytes": 1840,
-      "sha256": "8a1a033a93d1e9b4bfd7589b3e17cd4a179ba87a015d5c55b51f8452d6eedc69"
+      "size_bytes": 2258,
+      "sha256": "1edf8e0154665344467ab0825792540cee823fcbf4c15632650ed74ba8d880d6"
     },
     {
       "path": "individual_documents_md/06_master_terms_of_service.md",
-      "size_bytes": 9066,
-      "sha256": "044d5863a4425d7bce7766ce9c2cc3bdd6d4d1a879e9a300b497d716896d2fff"
+      "size_bytes": 11255,
+      "sha256": "91865a215d66f32debb2e1854cf0f6b8a4371293c189c16cbb31ef5d452ea0b6"
     },
     {
-      "path": "individual_documents_md/07_flowbot_basic_product_schedule.md",
-      "size_bytes": 3138,
-      "sha256": "7cb2916e8dfe6807edde2efeac13c337743d62d45a608df2c8f8342f0a64c8fb"
+      "path": "individual_documents_md/07_flow_bot_product_schedule.md",
+      "size_bytes": 4292,
+      "sha256": "60447ef0bc655f535c5709c5a080c6c975ecfbd4ed396539317be906b61f8ed6"
     },
     {
-      "path": "individual_documents_md/08_premium_product_schedule.md",
-      "size_bytes": 1678,
-      "sha256": "de1af6c94316b91ee45286452630fbddd7de9878b126a24887351f097d071bdd"
+      "path": "individual_documents_md/08_ai_text_bot_product_schedule.md",
+      "size_bytes": 4436,
+      "sha256": "5a397be9babbde4be1e76ecf1ba270e1a8edf78ecff20bc038aa936b3c86d014"
     },
     {
-      "path": "individual_documents_md/09_ai_text_bot_schedule.md",
-      "size_bytes": 2589,
-      "sha256": "b813a8db1c4262b62661d90c8b9ff7dd33a0cc8146a1cdfe51bf4ed6c5e6973c"
+      "path": "individual_documents_md/09_ai_voice_bot_product_schedule.md",
+      "size_bytes": 3875,
+      "sha256": "28f1866837c57c828f390d58a9f2ccca1f9d367173983c2b7cd3f34192381e8f"
     },
     {
-      "path": "individual_documents_md/10_voice_bot_schedule.md",
-      "size_bytes": 2148,
-      "sha256": "85b347d6fb1b78f56c72eb51be313165493efced308515e9719256d21a47fd18"
+      "path": "individual_documents_md/10_trial_terms_schedule.md",
+      "size_bytes": 3014,
+      "sha256": "b974bfe27916074fbc09c8ed9857b6882e688d6823b1cb9ab6bd2445df98bfa4"
     },
     {
-      "path": "individual_documents_md/11_line_channel_addon_schedule.md",
-      "size_bytes": 1467,
-      "sha256": "c009ec1540e39585900998fed44c28476a5f57d6efb3a3b40f43fd891cbad028"
+      "path": "individual_documents_md/11_social_channels_exclusion_schedule.md",
+      "size_bytes": 1543,
+      "sha256": "41bf32c9a0fdff9605025adbbc433e2429926ca571fb27ef6babeb5befb1a862"
     },
     {
       "path": "individual_documents_md/12_acceptable_use_policy.md",
-      "size_bytes": 2080,
-      "sha256": "73bcf4bb917c8464e50d07b7055b892fab0338124b34b6e3336b0b4f47bdbd5f"
+      "size_bytes": 2109,
+      "sha256": "c185039902edd2daba7bb20809e3618f7464a2b7afdb50948feca3337840af43"
     },
     {
       "path": "individual_documents_md/13_merchant_data_processing_agreement.md",
-      "size_bytes": 4406,
-      "sha256": "f7592e07041b56588b52eaeedfa31ffe38d2db41a4af7e9849e795907b2f6cd7"
+      "size_bytes": 4446,
+      "sha256": "a55c2e72f792f473ac8db5d321d9a034afb8b010ff9a4161e9022b179dc098a4"
     },
     {
       "path": "individual_documents_md/14_dpa_schedule_1_processing_details.md",
-      "size_bytes": 2298,
-      "sha256": "27864282dee01d91bd184311655e86c7fb7ef7edefdb83eaba25e6462976971d"
+      "size_bytes": 2386,
+      "sha256": "f659c5f05f465fcaf0ee00bb485e604cbf2e52a5a502ad02a35e0e638cf3b1bc"
     },
     {
       "path": "individual_documents_md/15_dpa_schedule_2_toms.md",
-      "size_bytes": 2162,
-      "sha256": "19a0b49bc04f661dc53f5e1a495963bc8ee269ce54b3bc989f297e6da0514dfd"
+      "size_bytes": 2191,
+      "sha256": "03399cc5a889af55c4e5863449efd8fdc987d53e805d624f7fdbbdd9d7b5f7c5"
     },
     {
       "path": "individual_documents_md/16_dpa_schedule_3_subprocessors.md",
-      "size_bytes": 1809,
-      "sha256": "5fdc8c3460721d6d13d88f989ab41cce16e292dcb8525f4dd0c9e174c1db822f"
+      "size_bytes": 2318,
+      "sha256": "e32b5491d38df880aad4836df668e1944c3e6519df999511d1cdce3d1cae287b"
     },
     {
-      "path": "individual_documents_md/17_basic_controller_to_controller_addendum.md",
-      "size_bytes": 2302,
-      "sha256": "b70b38400a7f49ccce9d095659b8e2406ab2687b63aa94bb64dd06e8b8050b83"
+      "path": "individual_documents_md/17_customer_data_use_addendum.md",
+      "size_bytes": 2487,
+      "sha256": "de534dd7940922f170b29f5f13c8ded2c14e2667e8271c5a9c20d86d6bd76b6b"
     },
     {
       "path": "individual_documents_md/18_marketing_partner_standard_terms.md",
-      "size_bytes": 2248,
-      "sha256": "0019a9bdb12e022c1047dbdea9bab3ad4be28fd7066ed19ca8a2f38b8d0c6487"
+      "size_bytes": 2277,
+      "sha256": "855fe1cc8a8c40c7dd183fd5c1567745027bf8912721e014a77d3deccb042db5"
     },
     {
       "path": "individual_documents_md/19_marketing_partner_schedule.md",
-      "size_bytes": 1322,
-      "sha256": "9feeae95b3fc6ddf2a9683aeeca8274d4cd9ca94c95709875f86704202a45a0e"
+      "size_bytes": 1351,
+      "sha256": "0b3ea088be7ac5eb27c17b00d76179d6c45ca8e71c4e9db1426600828b720e96"
     },
     {
       "path": "individual_documents_md/20_main_privacy_notice.md",
-      "size_bytes": 5985,
-      "sha256": "9f00bce7e87f4b9f8aacb8c311c02b4920da9e0bc57459f628edd5d3088462c8"
+      "size_bytes": 6903,
+      "sha256": "8a1a6c0f5beca855acb17c703e699b1bc08995fedf17262c2b29a09e80136823"
     },
     {
       "path": "individual_documents_md/21_layered_end_customer_privacy_notice.md",
-      "size_bytes": 3478,
-      "sha256": "59c7b34710780451ce73c404e7acd8d78befcec5b30ae1dcc5fdd9f1832bd9b6"
+      "size_bytes": 3505,
+      "sha256": "edce7d7c4bfa4526e2eac96042bce280bb9374c4f74978ae5aa55bdb63e16a7e"
     },
     {
-      "path": "individual_documents_md/22_flowbot_basic_data_use_notice.md",
-      "size_bytes": 1961,
-      "sha256": "d7451c5355af6e6be4baa5b3bb485b91b61f2fcf60e73f41606a37622737a319"
+      "path": "individual_documents_md/22_end_customer_data_use_notice.md",
+      "size_bytes": 2152,
+      "sha256": "a880107b25583a4d607991c2bd6754ee41ad372cf86d82163a522b0f9ce24f10"
     },
     {
-      "path": "individual_documents_md/23_premium_data_use_notice.md",
-      "size_bytes": 1352,
-      "sha256": "7e912e3b99b889d8cd24a1e8501c4143a45d06b45b53154e846144c6a09aee81"
+      "path": "individual_documents_md/23_ai_data_use_notice.md",
+      "size_bytes": 1526,
+      "sha256": "4211069f097a5fac65b11036e14705a0c8b177bc63024dfe771275db34e0ebc7"
     },
     {
       "path": "individual_documents_md/24_model_development_data_notice.md",
-      "size_bytes": 2700,
-      "sha256": "315bbc5b9b0364121339dc5a39ada690743c74fbd2f6d5d31c989761b0272050"
+      "size_bytes": 2729,
+      "sha256": "806edfd977b452377b217744bdebce766cff9228ba0387ba90cd59ee737592e8"
     },
     {
       "path": "individual_documents_md/25_deejai_marketing_consent.md",
-      "size_bytes": 2176,
-      "sha256": "07b91af5b0544c0dd102cf7bb2fe6324518bb4cec15a3da329522533dd6dd439"
+      "size_bytes": 2205,
+      "sha256": "46ec07ec80731b6ed7538c8a719a6dc1f75116e8b831716e6cbe3704ab25f16f"
     },
     {
       "path": "individual_documents_md/26_marketing_partner_consent.md",
-      "size_bytes": 2165,
-      "sha256": "b2ac925c6020dc678ffe915d18c73a363d6cb13dea5a3973c4a917b7d7b5c350"
+      "size_bytes": 2194,
+      "sha256": "5fb7ad42b9d03dbdd948adf97d711cf6e4dd3d3c5d768e06c9c4930169dea25a"
     },
     {
       "path": "individual_documents_md/27_model_development_consent.md",
-      "size_bytes": 2398,
-      "sha256": "c496dafe4ce585edef20bad84c35ec4c7ac9bae16e942db462cf10f6b60b97fc"
+      "size_bytes": 2427,
+      "sha256": "336bc268bbb296da47172bcecf5199716d2eab60b35b43bdd0554ddf1383aa95"
     },
     {
       "path": "individual_documents_md/28_consent_withdrawal_preference_notice.md",
-      "size_bytes": 1721,
-      "sha256": "3aed0897b5a7cac55eb94901f4cf0b084e675897c595118d71541557cd02b8a0"
+      "size_bytes": 1750,
+      "sha256": "2b6e947546f9d5dc8a800a18e92994c59165ce2a41eefc8317e59253a506f8d1"
     },
     {
       "path": "individual_documents_md/29_ai_text_interaction_notice.md",
-      "size_bytes": 1486,
-      "sha256": "bb98778fbf5c4444b02c4859ab7f85676be7e4884182637a75e1b59606d3ec6a"
+      "size_bytes": 1515,
+      "sha256": "69da897ea76564be20602a606546834ce16ce3e8ef1163bee4a397941f833dad"
     },
     {
       "path": "individual_documents_md/30_voice_call_notice_scripts.md",
-      "size_bytes": 3151,
-      "sha256": "1d37168ca01eec1e6c5f3166d0fa34a8875655e9d5a0170ed7ea0756ca86db52"
+      "size_bytes": 3180,
+      "sha256": "128a2d9065ed94a71ea2aaf5bb7eab53f6c04b317bde7ce7c2b915fca4754916"
     },
     {
       "path": "individual_documents_md/31_data_flow_map.md",
-      "size_bytes": 2507,
-      "sha256": "abb6de8ee2ae0cedef6b1072c8369467efb7cfead050c71f263279e2286984fe"
+      "size_bytes": 3018,
+      "sha256": "136054de0d7441ce4998d0eb2c6adb8b60e047a1e74c5353960e7de3b1cc0fe4"
     },
     {
       "path": "individual_documents_md/32_record_of_processing_activities.md",
-      "size_bytes": 2308,
-      "sha256": "ef2db330fe65ec6d45a621797593aba18f8213e62dcb8ab7b197d02c11b2896f"
+      "size_bytes": 2830,
+      "sha256": "c60f0467b972b1085c4cd3c1fc98ae12517fd09d5fb43291668e985da2075f4a"
     },
     {
       "path": "individual_documents_md/33_legal_basis_matrix.md",
-      "size_bytes": 1952,
-      "sha256": "b56071be6455a1374ab3d628ed6c35c6d378533b4f67521883e25aaa5f4ed56b"
+      "size_bytes": 1981,
+      "sha256": "58775b58abca8f48ee726b3e6be7831963858f0546153aae6edf6c10d23b0f73"
     },
     {
       "path": "individual_documents_md/34_consent_governance_specification.md",
-      "size_bytes": 1941,
-      "sha256": "12c0678495887ba7e70e13c605023592d597e42663ec6fa3a31b84c41ace31bb"
+      "size_bytes": 1970,
+      "sha256": "46d466aa7e3ff51fe1af4e625efcb7609eb6e4cd1b859a000a78c1ae6d8030af"
     },
     {
       "path": "individual_documents_md/35_marketing_suppression_policy.md",
-      "size_bytes": 1566,
-      "sha256": "12d956d57b3d0975d0500fcf433fc2010689f30a15f4546b0d8c4d0a6a0c8abe"
+      "size_bytes": 1595,
+      "sha256": "7e44cf0e7ffc5cb659209437cf63545322f2b435a71359b942bba6c8c45b981b"
     },
     {
       "path": "individual_documents_md/36_model_development_governance_policy.md",
-      "size_bytes": 2367,
-      "sha256": "d4246f96bd2e2da53a3bf8bdc5b28105897d1f06b79c802eae8e0aa04b509dc7"
+      "size_bytes": 2396,
+      "sha256": "adf212026491ab8cc4d9b076fc8ccead7f9cb3185e1ff51eeb0d4c4513c72f30"
     },
     {
       "path": "individual_documents_md/37_model_dataset_register.md",
-      "size_bytes": 1418,
-      "sha256": "3545d8913c4b92f4ea86c98eac9213578e6200e2a46a1970fbab54673227eb1a"
+      "size_bytes": 1447,
+      "sha256": "94c8f370fd24becc794a4e8083e49786eaf58acddc084ab3facc8de95423fb70"
     },
     {
       "path": "individual_documents_md/38_retention_deletion_standard.md",
-      "size_bytes": 2491,
-      "sha256": "574bd8cfe09c797e24fb7de64d7f401e81a0432ee789e8f3bff6a53c7011cf88"
+      "size_bytes": 2638,
+      "sha256": "2cac35e145ffc559d327caddb92d872789149d2107377468cae70259ce732d4c"
     },
     {
       "path": "individual_documents_md/39_dsar_residual_list.md",
-      "size_bytes": 1815,
-      "sha256": "71721fcf0a9fdb0b50fa26214a7bc135f7fd30db57ab688dad340f30575fcebc"
+      "size_bytes": 1844,
+      "sha256": "30d7b3cb3bf9f988534d90840122ef0cdbfef42ab92317c8b48dc76c751cb0cc"
     },
     {
       "path": "individual_documents_md/40_international_transfer_assessment.md",
-      "size_bytes": 1839,
-      "sha256": "c11dfe14afde4b67b80e3350598e44507489f0601d0bb57756cc69c1276a2a45"
+      "size_bytes": 2535,
+      "sha256": "e8f2cd421212b28b39cc548c88172801a3c7177750b61467c8f21840e8c5caa8"
     },
     {
       "path": "individual_documents_md/41_vendor_due_diligence_standard.md",
-      "size_bytes": 1793,
-      "sha256": "70fc8edf0c4fd3cca14572e1dd6139a21d8e6331823375c157856deb461ee2e3"
+      "size_bytes": 1822,
+      "sha256": "ece59727bf02bbd98210da61d404ea309a5ad92cd2dba5fa9a870eabbeab609d"
     },
     {
       "path": "individual_documents_md/42_personal_data_breach_response_plan.md",
-      "size_bytes": 2107,
-      "sha256": "c588e271178f79a63bf0fb655611d0e0726a16c172670993bb9be2f9004bb55b"
+      "size_bytes": 2136,
+      "sha256": "2b64e2f33466c6fe1f9303b442f9e1a37743808275d7b2de4f356a72b805656f"
     },
     {
       "path": "individual_documents_md/43_children_sensitive_data_policy.md",
-      "size_bytes": 1877,
-      "sha256": "8e829c43d794fae5fd82a79665df9ebcdcab81d3482139f2ceb35e1c770adc2a"
+      "size_bytes": 1906,
+      "sha256": "a7353c525507607f3f5a589cc7797374ebd13998b3e6c27dfa1431b89022b882"
     },
     {
       "path": "individual_documents_md/44_registration_publication_controls.md",
-      "size_bytes": 1756,
-      "sha256": "bfd3da33ceafd2c656f166fbd40662d83e582833b3f1803391c6c3014231997a"
+      "size_bytes": 1883,
+      "sha256": "1f0ab016b204b790ec04daed6feae1cfdc54248fad4f1c7f8dfcbb7b02b8f024"
     },
     {
       "path": "individual_documents_md/45_current_state_launch_conditions.md",
-      "size_bytes": 2106,
-      "sha256": "c5c638fb88abca236df58d817362d2e32d223ffc78285e3fd85446277449d78b"
+      "size_bytes": 2273,
+      "sha256": "99492d7d087568b2a9767fd43ba4704ccb2aeec3cea0c390415d6db4db89db80"
     },
     {
       "path": "individual_documents_md/46_launch_readiness_certificate.md",
-      "size_bytes": 2000,
-      "sha256": "173842f7896f88fb344a3c03aeed4fedf1e5fe37a05df980736df50b8dfe5c18"
+      "size_bytes": 2265,
+      "sha256": "3a1059dcc851b4b61cc14cc379719150d6b3f0fa83d00094a37997ab22d831df"
     },
     {
       "path": "individual_documents_md/47_legal_authority_source_notes.md",
-      "size_bytes": 2260,
-      "sha256": "df46bb1b5182c3f7bf1c97902cc794e93ad3083211f91a7f551f7ed875ab26cb"
+      "size_bytes": 2744,
+      "sha256": "fa4e1853fcafef8672d999e0518ed870a1671e4f5f5a60c15930cb33d24ad7be"
     }
   ]
 }

@@ -127,15 +127,15 @@ The displayed first-year price is authoritative. Each subscription is paid annua
 
 ### 6.4 Free trials
 
-- `TRL-001` New members MUST be offered a 30-fixed-day website-only Flow Bot Starter trial with 5,000 customer conversations and no payment card requirement.
-- `TRL-002` New members MUST be offered a 30-fixed-day website-only AI Text Bot Starter trial with 500 AI-generated replies, equal to 25% of the 2,000-reply Starter allowance, and a payment card requirement.
+- `TRL-001` A verified account email MUST be offered at most one 30-fixed-day website-only Flow Bot Starter trial with 5,000 customer conversations and no payment card requirement.
+- `TRL-002` A successfully verified Stripe card fingerprint MUST be offered at most one 30-fixed-day website-only AI Text Bot Starter trial with 500 AI-generated replies, equal to 25% of the 2,000-reply Starter allowance. Card setup MUST be deferred until the merchant presses Deploy Bot after configuration.
 - `TRL-003` AI Voice Bot MUST NOT advertise or provision a free trial under the approved V1 experience.
-- `TRL-004` The trial request begins from the public package page. The fixed trial clock MUST begin only after authoritative account/workspace trial entitlement provisioning succeeds; onboarding, configuration, publication, and website installation then occur inside that period.
+- `TRL-004` The trial request begins from the public package page as a pending intent. Configuration and testing MUST remain available before activation. The fixed trial clock MUST begin only after authoritative deployment provisioning succeeds.
 - `TRL-005` Trial entitlements MUST exclude social channels, telephone channels, paid add-ons, overage, and Advanced-only features.
 - `TRL-006` At 100 AI Text trial replies remaining, equal to 20% of the trial allowance, the platform MUST notify the account owner in-product and by email. Delivery MUST be deduplicated and auditable.
 - `TRL-007` At trial allowance exhaustion or fixed-period expiry, the affected bot MUST stop accepting new trial-metered service and present the merchant with a paid-plan action. The customer-facing experience MUST use the merchant-approved unavailable/contact fallback and MUST NOT expose provider, token, model, or internal quota identifiers.
 - `TRL-008` Flow trial usage MUST be tracked as deterministic customer conversations and MUST NOT consume AI reply credits.
-- `TRL-009` Automatic paid conversion/charging, repeat-trial policy, abuse-prevention thresholds, trial-data retention, and additional warning recipients remain unapproved decision gates. Card collection for the Text trial MUST NOT be treated as authority to invent those rules.
+- `TRL-009` Flow repeat prevention MUST use only the normalized verified account email. Text repeat prevention MUST use only a keyed hash of the Stripe card fingerprint returned after successful SetupIntent confirmation. Text card setup MUST validate/save the card without creating a DJBOT charge and MUST NOT promise an exact USD 1 debit because temporary verification behavior is controlled by Stripe, card networks and issuers. The card MUST NOT authorize automatic trial conversion or charging. Company registration, business-domain verification, telephone verification, IP address and device identity MUST NOT be eligibility requirements, and IP/device signals MUST NOT be a sole rejection reason.
 
 ## 7. Meter definitions
 

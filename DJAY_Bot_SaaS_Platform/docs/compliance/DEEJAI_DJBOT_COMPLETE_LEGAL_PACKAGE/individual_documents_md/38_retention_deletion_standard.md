@@ -1,6 +1,6 @@
 # Retention and Deletion Standard
 
-> **Status:** COUNSEL DRAFT - NOT EFFECTIVE UNTIL APPROVED AND RELEASE-GATED
+> **Status:** COUNSEL APPROVED BY OWNER ATTESTATION ON 15 AUGUST 2026 - EFFECTIVE ONLY WHEN RELEASE-GATED
 >
 > **Drafting date:** 27 July 2026
 >
@@ -12,7 +12,7 @@
 
 | Data | Current position |
 |---|---|
-| Chat content | Default 365 days; Merchant configurable 30-3,650; then tombstone |
+| Chat content | Default 365 days; Merchant configurable 30-730; then tombstone |
 | Voice recording | Disabled; zero |
 | Privacy download | Seven days; encrypted-row purge pending |
 | Contacts/leads | Until erasure or closure; no time-based purge |
@@ -33,6 +33,7 @@
 | Security/audit | 24 months except legal/immutable records |
 | Privacy export object | Seven days then physical purge |
 | Billing/tax | Seven years |
+| Trial eligibility claim | While the relevant trial programme operates, then approved erasure, subject to legal hold |
 | Consent evidence | Five years after withdrawal/last reliance |
 | Deejai marketing contact | Withdrawal or 24 months last engagement |
 | Suppression | Five years |

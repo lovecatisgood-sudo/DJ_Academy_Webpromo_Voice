@@ -45,7 +45,8 @@ service_environment = {
     VOICE_RUNTIME_ENABLED            = "false"
   }
   ai-gateway = {
-    OPENAI_RESPONSES_MODEL = "replace-after-live-evaluation"
+    AI_TEXT_PROVIDER = "openai"
+    AI_TEXT_MODEL    = "replace-after-live-evaluation"
   }
   voice-gateway = {
     VOICE_GEN1_PROVIDER_KEY        = "openai_realtime"

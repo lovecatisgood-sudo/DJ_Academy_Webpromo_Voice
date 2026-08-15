@@ -1,8 +1,8 @@
-# FlowBot Basic Controller-to-Controller Data Use Addendum
+# Customer Data Use Addendum
 
-> **Status:** COUNSEL DRAFT - NOT EFFECTIVE UNTIL APPROVED AND RELEASE-GATED
+> **Status:** COUNSEL APPROVED BY OWNER ATTESTATION ON 15 AUGUST 2026 - EFFECTIVE ONLY WHEN RELEASE-GATED
 >
-> **Drafting date:** 27 July 2026
+> **Drafting date:** 15 August 2026
 >
 > **Operator:** DEEJAI LAB CO., LTD. (บริษัท ดีใจ แล็บ จำกัด), company registration number 0105569117953, operating DJAI Academy and DJBOT.
 >
@@ -10,7 +10,7 @@
 
 ## 1. Purpose and roles
 
-This Addendum applies where an end customer separately chooses a Deejai purpose while using Basic. Merchant controls enquiry/lead/Merchant-marketing purposes. Deejai controls Deejai marketing, partner disclosure and model development. Each is independently responsible for its purpose, notice, basis, security, retention, rights and complaints.
+This Addendum applies where an end customer separately chooses a Deejai-controlled purpose while using any Flow, AI Text or AI Voice service. Merchant controls enquiry, lead and Merchant-marketing purposes. Deejai controls its own marketing and separately consented model development. Partner disclosure is disabled for the initial release. Each party is independently responsible for its purpose, notice, basis, security, retention, rights and complaints.
 
 ## 2. Consent interface
 
@@ -22,7 +22,7 @@ Processor data stays in the Merchant dataset. On opt-in, only necessary data may
 
 ## 4. Deejai/partner marketing
 
-Deejai uses selected contact details only under its Marketing Consent and maintains suppression. No partner receives data unless separately consented, named, contracted and suppression-enabled. Merchant may not conceal optionality.
+Deejai uses selected contact details only under its Marketing Consent and maintains suppression. No partner receives data in the initial release. Any future partner disclosure requires a named recipient, approved agreement, separate consent and suppression control. Merchant may not conceal optionality.
 
 ## 5. Model development
 

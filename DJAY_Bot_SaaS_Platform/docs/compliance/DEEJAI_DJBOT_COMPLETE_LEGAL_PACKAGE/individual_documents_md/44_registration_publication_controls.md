@@ -1,6 +1,6 @@
 # Merchant Registration and Bot Publication Controls
 
-> **Status:** COUNSEL DRAFT - NOT EFFECTIVE UNTIL APPROVED AND RELEASE-GATED
+> **Status:** COUNSEL APPROVED BY OWNER ATTESTATION ON 15 AUGUST 2026 - EFFECTIVE ONLY WHEN RELEASE-GATED
 >
 > **Drafting date:** 27 July 2026
 >
@@ -20,8 +20,8 @@ Merchant identity/contact displayed; Merchant and Deejai notices linked; optiona
 
 ## 3. Plan controls
 
-Basic may show Deejai marketing/model choices; partner choice disabled until approved. Premium suppresses Deejai/partner contact marketing and includes Merchant model-development disable control.
+Every Starter and Advanced tier uses the same privacy boundary: Deejai marketing and model-development choices are separate and optional, partner choice is disabled, and the Merchant has the approved model-development disable control. A higher tier never expands Deejai's data-use permission.
 
 ## 4. Domains/legal gate
 
-Target Basic maximum three domains/origins. Publication is blocked if not enforced or control not demonstrated. Registration/publication fail closed if legal bundle is missing, unapproved, expired or hash-mismatched.
+Any package-specific domain/origin limit must come from the accepted catalogue and be technically enforced. Registration/publication fails closed if the legal bundle is missing, unapproved, expired or hash-mismatched.

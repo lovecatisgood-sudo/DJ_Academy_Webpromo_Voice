@@ -57,8 +57,9 @@ service_environment = {
     VOICE_RUNTIME_ENABLED     = "false"
   }
   ai-gateway = {
-    PORT                   = "8080"
-    OPENAI_RESPONSES_MODEL = "replace-after-live-evaluation"
+    AI_TEXT_PROVIDER = "openai"
+    AI_TEXT_MODEL    = "replace-after-live-evaluation"
+    PORT             = "8080"
   }
   voice-gateway = {
     PORT                           = "8080"

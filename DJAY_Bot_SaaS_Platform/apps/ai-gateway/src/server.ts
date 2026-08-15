@@ -1,4 +1,10 @@
-import { createOpenAIResponsesGateway, ProviderGatewayError } from "@djay/provider-gateway";
+import {
+  createCompatibleChatTextGateway,
+  createOpenAIResponsesGateway,
+  ProviderGatewayError,
+  type TextProviderGateway,
+} from "@djay/provider-gateway";
+import { salesCoreOutputSchema } from "@djay/sales-core";
 import { z } from "zod";
 
 const requestSchema = z.object({
@@ -13,6 +19,8 @@ const requestSchema = z.object({
   structuredOutputSchemaVersion: z.literal("sales-core.v1"),
 }).strict();
 
+const salesCoreJsonSchema = z.toJSONSchema(salesCoreOutputSchema, { target: "draft-7" });
+
 function json(value: unknown, status: number) {
   return new Response(JSON.stringify(value), {
     status,
@@ -22,15 +30,28 @@ function json(value: unknown, status: number) {
 
 export function createAiGatewayHandler(config: Readonly<{
   serviceToken: string;
-  openAiApiKey: string;
-  openAiModel: string;
+  provider: "openai" | "xai" | "gemini";
+  apiKey: string;
+  model: string;
   fetchImpl?: typeof fetch;
 }>) {
-  const gateway = createOpenAIResponsesGateway({
-    apiKey: config.openAiApiKey,
-    model: config.openAiModel,
-    ...(config.fetchImpl ? { fetchImpl: config.fetchImpl } : {}),
-  });
+  let gateway: TextProviderGateway;
+  if (config.provider === "openai") {
+    gateway = createOpenAIResponsesGateway({
+      apiKey: config.apiKey,
+      model: config.model,
+      ...(config.fetchImpl ? { fetchImpl: config.fetchImpl } : {}),
+    });
+  } else {
+    gateway = createCompatibleChatTextGateway({
+      apiKey: config.apiKey,
+      model: config.model,
+      endpoint: config.provider === "xai"
+        ? "https://api.x.ai/v1/chat/completions"
+        : "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      ...(config.fetchImpl ? { fetchImpl: config.fetchImpl } : {}),
+    });
+  }
   return async (request: Request) => {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/health/live") return json({ status: "live" }, 200);
@@ -41,7 +62,7 @@ export function createAiGatewayHandler(config: Readonly<{
     }
     try {
       const parsed = requestSchema.parse(await request.json());
-      const result = await gateway.generate(parsed);
+      const result = await gateway.generate({ ...parsed, structuredOutputJsonSchema: salesCoreJsonSchema });
       return json(result, 200);
     } catch (error) {
       if (error instanceof ProviderGatewayError) {

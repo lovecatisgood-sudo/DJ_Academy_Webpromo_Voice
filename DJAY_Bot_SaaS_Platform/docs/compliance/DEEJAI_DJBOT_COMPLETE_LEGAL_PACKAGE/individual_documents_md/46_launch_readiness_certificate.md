@@ -1,6 +1,6 @@
 # Launch Readiness Certificate - Standard
 
-> **Status:** COUNSEL DRAFT - NOT EFFECTIVE UNTIL APPROVED AND RELEASE-GATED
+> **Status:** COUNSEL APPROVED BY OWNER ATTESTATION ON 15 AUGUST 2026 - EFFECTIVE ONLY WHEN RELEASE-GATED
 >
 > **Drafting date:** 27 July 2026
 >
@@ -16,8 +16,8 @@ Operational evidence required before legal bundle becomes effective. Current sta
 
 | Control | Evidence | Current |
 |---|---|---|
-| Counsel approval | Signed certificate/reference | Missing |
-| Legal bundle | Approved hashes/fail-closed test | Missing |
+| Counsel approval | Owner-attested approval; underlying lawyer communication held outside Git | Recorded 15 August 2026 |
+| Legal bundle | Approved hashes and fail-closed registration test | Package hashes complete; production mount pending |
 | Hosting | Production region verification | US disclosure available |
 | Domain limit | Automated three-domain test | Unverified |
 | Transcript | Default/range production test | Source-supported; test needed |
@@ -29,8 +29,9 @@ Operational evidence required before legal bundle becomes effective. Current sta
 | Consent | Separate versions/withdrawal tests | Unverified |
 | Suppression | Cross-channel/partner tests | Unverified |
 | Model | Removal/screening/exclusion/register | Unverified |
-| Premium control | Merchant disable | Unverified |
+| Tier-neutral data-use control | Merchant model-development disable | Unverified |
 | Providers | Email/vendor due diligence | Incomplete |
-| AI/Voice/LINE | Product-specific approval | Dormant |
+| AI Text/AI Voice | Product-specific provider approval | Dormant |
+| Social channels | Release exclusion and fail-closed gate | Excluded |
 
 No product is ready unless every applicable item passes, is reasoned not applicable, or is accepted by counsel as a residual. Final certificate identifies evidence, tester, date, environment, version and approver.

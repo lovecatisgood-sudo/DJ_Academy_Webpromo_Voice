@@ -7,15 +7,41 @@ const env = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65_535).default(3106),
   AI_TEXT_GATEWAY_SERVICE_TOKEN: z.string().min(32),
-  OPENAI_API_KEY: z.string().min(20),
-  OPENAI_RESPONSES_MODEL: z.string().trim().min(2).max(160),
+  AI_TEXT_PROVIDER: z.enum(["openai", "xai", "gemini"]).default("openai"),
+  AI_TEXT_API_KEY: z.string().min(20).optional(),
+  AI_TEXT_MODEL: z.string().trim().min(2).max(160).optional(),
+  OPENAI_API_KEY: z.string().min(20).optional(),
+  OPENAI_RESPONSES_MODEL: z.string().trim().min(2).max(160).optional(),
+  XAI_API_KEY: z.string().min(20).optional(),
+  GROK_API_KEY: z.string().min(20).optional(),
+  XAI_TEXT_MODEL: z.string().trim().min(2).max(160).optional(),
+  GEMINI_API_KEY: z.string().min(20).optional(),
+  GEMINI_TEXT_MODEL: z.string().trim().min(2).max(160).optional(),
+}).superRefine((value, context) => {
+  const selected = value.AI_TEXT_PROVIDER === "openai"
+    ? [value.AI_TEXT_API_KEY ?? value.OPENAI_API_KEY, value.AI_TEXT_MODEL ?? value.OPENAI_RESPONSES_MODEL]
+    : value.AI_TEXT_PROVIDER === "xai"
+      ? [value.AI_TEXT_API_KEY ?? value.XAI_API_KEY ?? value.GROK_API_KEY, value.AI_TEXT_MODEL ?? value.XAI_TEXT_MODEL]
+      : [value.AI_TEXT_API_KEY ?? value.GEMINI_API_KEY, value.AI_TEXT_MODEL ?? value.GEMINI_TEXT_MODEL];
+  if (selected.some((item) => !item)) {
+    context.addIssue({ code: "custom", message: `Selected ${value.AI_TEXT_PROVIDER} Text provider configuration is incomplete.` });
+  }
 }).parse(process.env);
 
 assertNoProductionPlaceholders(env.NODE_ENV, env);
 const handler = createAiGatewayHandler({
   serviceToken: env.AI_TEXT_GATEWAY_SERVICE_TOKEN,
-  openAiApiKey: env.OPENAI_API_KEY,
-  openAiModel: env.OPENAI_RESPONSES_MODEL,
+  provider: env.AI_TEXT_PROVIDER,
+  apiKey: env.AI_TEXT_API_KEY ?? (env.AI_TEXT_PROVIDER === "openai"
+    ? env.OPENAI_API_KEY!
+    : env.AI_TEXT_PROVIDER === "xai"
+      ? (env.XAI_API_KEY ?? env.GROK_API_KEY)!
+      : env.GEMINI_API_KEY!),
+  model: env.AI_TEXT_MODEL ?? (env.AI_TEXT_PROVIDER === "openai"
+    ? env.OPENAI_RESPONSES_MODEL!
+    : env.AI_TEXT_PROVIDER === "xai"
+      ? env.XAI_TEXT_MODEL!
+      : env.GEMINI_TEXT_MODEL!),
 });
 
 const server = createServer(async (request, response) => {

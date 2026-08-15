@@ -85,6 +85,12 @@ if (missing.length) {
   process.exit(1);
 }
 
+const selectedAiKey = env.AI_TEXT_API_KEY
+  || (env.AI_TEXT_PROVIDER === "xai" ? env.XAI_API_KEY || env.GROK_API_KEY
+    : env.AI_TEXT_PROVIDER === "gemini" ? env.GEMINI_API_KEY
+      : env.OPENAI_API_KEY);
+if (selectedAiKey) values.AI_TEXT_API_KEY = selectedAiKey;
+
 for (const [envName, value] of Object.entries(values)) {
   const name = secretName(envName);
   const exists = spawnSync("gcloud", ["secrets", "describe", name, "--project", project], { stdio: "ignore" }).status === 0;

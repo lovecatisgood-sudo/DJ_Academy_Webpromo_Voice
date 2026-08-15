@@ -1,8 +1,8 @@
 # Deejai Lab Privacy Notice
 
-> **Status:** COUNSEL DRAFT - NOT EFFECTIVE UNTIL APPROVED AND RELEASE-GATED
+> **Status:** COUNSEL APPROVED BY OWNER ATTESTATION ON 15 AUGUST 2026 - EFFECTIVE ONLY WHEN RELEASE-GATED
 >
-> **Drafting date:** 27 July 2026
+> **Drafting date:** 15 August 2026
 >
 > **Operator:** DEEJAI LAB CO., LTD. (บริษัท ดีใจ แล็บ จำกัด), company registration number 0105569117953, operating DJAI Academy and DJBOT.
 >
@@ -10,7 +10,7 @@
 
 ## 1. Who we are
 
-DEEJAI LAB CO., LTD. (บริษัท ดีใจ แล็บ จำกัด), registration number 0105569117953, of 48/187 Soi Sukhumvit 64, Bang Chak, Phra Khanong, Bangkok, Thailand, operates DJAI Academy and DJBOT. Contact privacy@djai.academy. A Privacy Lead is appointed; statutory DPO need will be reassessed if legal thresholds apply.
+DEEJAI LAB CO., LTD. (บริษัท ดีใจ แล็บ จำกัด), registration number 0105569117953, of 48/187 Soi Sukhumvit 64, Sukhumvit Road, Phra Khanong, Bangkok 10260, Thailand, operates DJAI Academy and DJBOT. Contact privacy@djai.academy. A Privacy Lead is appointed; statutory DPO need will be reassessed if legal thresholds apply.
 
 ## 2. Scope and roles
 
@@ -18,9 +18,9 @@ This Notice covers Merchant owners/staff, billing/support contacts, visitors and
 
 ## 3. Data collected
 
-Merchant name; staff name/email; authentication/account/role records; billing identity/subscription; support communications; IP, request/security and device/browser data; consent and preferences.
+Merchant name; staff name/email; authentication/account/role records; billing identity/subscription; a normalized verified-email claim for Flow trial matching; a keyed hash of the Stripe card fingerprint for Text trial matching; support communications; IP, request/security and device/browser data; consent and preferences. Deejai does not receive or store the full card number.
 
-Through Merchant bots: name, email, telephone, free-text messages, lead information, opaque session token and channel identifiers. Basic may offer separate Deejai marketing, partner and model choices. Premium contact details are not used for Deejai/partner marketing.
+Through Merchant bots: name, email, telephone, free-text messages, lead information, opaque session token and website deployment identifiers. Starter and Advanced are service tiers, not privacy permissions. Deejai marketing and model development require separate optional choices. Partner sharing and social-channel delivery are disabled for the initial release.
 
 ## 4. Sources
 
@@ -28,7 +28,7 @@ The person, Merchant, Merchant site/channel, Stripe, approved providers and secu
 
 ## 5. Purposes and bases
 
-Account/service/billing/support, security/fraud, law/claims and rights administration rely as applicable on contract, legal obligation and legitimate interests.
+Account/service/billing/support, enforcing the published one-trial-per-email or one-trial-per-card rules, security/fraud, law/claims and rights administration rely as applicable on contract, legal obligation and legitimate interests. IP and device data are not used as the sole reason to reject a trial.
 
 Deejai contact marketing, partner disclosure and model development rely on separate consent in the initial release. Consent may be withdrawn for future processing.
 
@@ -42,7 +42,7 @@ FlowBot sets no cookies. It uses one first-party localStorage entry per deployme
 
 ## 8. Recipients
 
-Neon, AWS and Stripe are current recipients. Google Cloud is planned but Asian deployment is not active until verified. No transactional-email, AI or Voice provider is approved. LINE applies only when activated.
+Neon and its AWS infrastructure are current hosting recipients. Stripe receives Merchant card and billing data when an approved paid checkout or AI Text trial SetupIntent is used. Google Cloud is planned but its Asian production deployment is not active until verified. No transactional-email, AI or Voice provider is approved for production processing. Social providers, including LINE and Meta, are excluded from the initial release.
 
 ## 9. International processing
 
@@ -50,7 +50,7 @@ The current primary database is Neon on AWS `us-east-2`, Ohio, USA. Personal dat
 
 ## 10. Retention
 
-Chat content defaults to 365 days, but Merchants can configure 30-3,650 days; then content becomes a non-content tombstone. Voice recording is disabled/zero unless separately approved.
+Chat and Voice transcript content defaults to 365 days, and the current Merchant API permits 30-730 days; after expiry, content becomes a non-content tombstone. The database can technically hold a higher value, but the customer-facing policy and API maximum is 730 days. Voice audio recording is disabled with zero recording retention unless a later approved legal version and technical policy enable it.
 
 Privacy export downloads are available seven days. The expired encrypted result row is not yet physically purged. Contacts/leads remain until erasure or closure handling; no automatic time purge is active. Billing/tax records: seven years. Consent evidence: five years after withdrawal/last reliance unless claims/law require longer. Legal holds continue until release.
 
@@ -81,5 +81,5 @@ Material changes are versioned/notified and new consent or acceptance requested 
 Privacy: privacy@djai.academy
 Security: security@djai.academy
 Legal: legal@djai.academy
-Address: 48/187 Soi Sukhumvit 64, Bang Chak, Phra Khanong, Bangkok, Thailand
+Address: 48/187 Soi Sukhumvit 64, Sukhumvit Road, Phra Khanong, Bangkok 10260, Thailand
 A complaint may be submitted to Thailand's PDPC where applicable.

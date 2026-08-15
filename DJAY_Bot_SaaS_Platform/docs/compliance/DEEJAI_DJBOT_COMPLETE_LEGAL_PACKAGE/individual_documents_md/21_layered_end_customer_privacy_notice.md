@@ -1,6 +1,6 @@
 # Layered End-Customer Privacy Notice
 
-> **Status:** COUNSEL DRAFT - NOT EFFECTIVE UNTIL APPROVED AND RELEASE-GATED
+> **Status:** COUNSEL APPROVED BY OWNER ATTESTATION ON 15 AUGUST 2026 - EFFECTIVE ONLY WHEN RELEASE-GATED
 >
 > **Drafting date:** 27 July 2026
 >
@@ -40,4 +40,4 @@ If selected, Deejai may create a controlled conversation copy to develop/test/im
 
 ### Retention/rights
 
-Transcript period is Merchant-configured 30-3,650 days, default 365. Contacts/leads currently remain until erasure/closure. Contact Merchant for its purpose and privacy@djai.academy for Deejai purposes.
+Transcript period is Merchant-configured 30-730 days, default 365. Contacts/leads currently remain until erasure/closure. Contact Merchant for its purpose and privacy@djai.academy for Deejai purposes.

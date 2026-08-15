@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@djay/provider-gateway": "workspace:*",
+    "@djay/sales-core": "workspace:*",
     "@djay/shared": "workspace:*",
     "zod": "4.4.3"
   },

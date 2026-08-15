@@ -39,6 +39,9 @@ importers:
       '@djay/provider-gateway':
         specifier: workspace:*
         version: link:../../packages/provider-gateway
+      '@djay/sales-core':
+        specifier: workspace:*
+        version: link:../../packages/sales-core
       '@djay/shared':
         specifier: workspace:*
         version: link:../../packages/shared

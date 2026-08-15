@@ -1,6 +1,6 @@
 # Counsel Decision Schedule
 
-> **Status:** COUNSEL DRAFT - NOT EFFECTIVE UNTIL APPROVED AND RELEASE-GATED
+> **Status:** COUNSEL APPROVED BY OWNER ATTESTATION ON 15 AUGUST 2026 - EFFECTIVE ONLY WHEN RELEASE-GATED
 >
 > **Drafting date:** 27 July 2026
 >
@@ -18,10 +18,10 @@
 | CD-04 | Partner marketing | Separate opt-in; disabled until partner named/contracted | Proposed |
 | CD-05 | Model development | Controller; separate opt-in; no anonymous claim | Proposed |
 | CD-06 | DPA acceptance | Mandatory electronic acceptance during registration | Adopted |
-| CD-07 | Basic contact use | Only with end-customer Deejai-marketing consent | Proposed |
-| CD-08 | Premium contact use | No Deejai/partner marketing | Adopted policy |
+| CD-07 | Deejai contact use | Only with separate end-customer Deejai-marketing consent for every tier | Proposed |
+| CD-08 | Tier-neutral customer-data use | No tier permits Deejai/partner reuse without separate authority | Adopted policy |
 | CD-09 | Hosting | Disclose Neon/AWS Ohio until verified migration | Current fact |
-| CD-10 | Transcript retention | Default 365; configurable 30-3,650 | Current fact |
+| CD-10 | Transcript retention | Default 365; customer-facing API configurable 30-730 | Current fact |
 | CD-11 | Contacts/leads | Current until erasure/closure; target 24 months inactivity | Proposed target |
 | CD-12 | Closure | Paid term + 30-day read-only/reactivation + purge | Proposed target |
 | CD-13 | Backups | 30 days after production purge | Proposed target |

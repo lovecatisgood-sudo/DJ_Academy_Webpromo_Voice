@@ -281,6 +281,7 @@ assert(evidence(aiRoot).sha256 === aiManifest.bundles.sha256, "ai-gateway bundle
 const ai = start("index.js", aiRoot, {
   PORT: "3127",
   AI_TEXT_GATEWAY_SERVICE_TOKEN: "release-artifact-ai-service-token-00000001",
+  AI_TEXT_PROVIDER: "openai",
   OPENAI_API_KEY: "sk-release-artifact-runtime-key-00000001",
   OPENAI_RESPONSES_MODEL: "restricted-release-model",
 });
@@ -303,6 +304,7 @@ const rejectedAi = spawn(process.execPath, ["index.js"], {
     NODE_ENV: "production",
     PORT: "3128",
     AI_TEXT_GATEWAY_SERVICE_TOKEN: "replace-with-independent-ai-service-token",
+    AI_TEXT_PROVIDER: "openai",
     OPENAI_API_KEY: "replace-with-openai-api-key",
     OPENAI_RESPONSES_MODEL: "restricted-release-model",
   },

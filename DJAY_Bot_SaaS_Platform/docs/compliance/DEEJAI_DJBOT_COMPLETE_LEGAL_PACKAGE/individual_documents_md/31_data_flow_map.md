@@ -1,6 +1,6 @@
 # Data Flow Map and Processing Narrative
 
-> **Status:** COUNSEL DRAFT - NOT EFFECTIVE UNTIL APPROVED AND RELEASE-GATED
+> **Status:** COUNSEL APPROVED BY OWNER ATTESTATION ON 15 AUGUST 2026 - EFFECTIVE ONLY WHEN RELEASE-GATED
 >
 > **Drafting date:** 27 July 2026
 >
@@ -16,16 +16,16 @@
 4. Data passes to Deejai services.
 5. Operational data is stored in Neon on AWS `us-east-2`.
 6. Merchant views lead/conversation.
-7. Transcript content is tombstoned after configured 30-3,650 days.
+7. Transcript content is tombstoned after configured 30-730 days.
 8. Contact data remains until erasure or closure handling under current implementation.
 
 Role: Merchant controller; Deejai processor.
 
-## 2. Billing
+## 2. Billing after commerce approval
 
-Merchant uses Stripe-hosted checkout. Stripe receives full card information. Deejai receives billing identity, subscription status and payment tokens. Deejai controller.
+When a package becomes sellable, the Merchant uses Stripe-hosted checkout. Stripe receives full card information. Deejai receives billing identity, subscription status and payment tokens. Deejai is controller for its billing records; Stripe may independently control its payment/compliance processing. No production charge is currently authorised.
 
-## 3. Deejai marketing - Basic
+## 3. Deejai marketing
 
 On separate opt-in, necessary contact data and consent evidence are copied to a separate Deejai marketing dataset. Central suppression applies. Deejai controller.
 
@@ -37,13 +37,13 @@ Disabled. When approved, only named fields and consent evidence transfer. Chat c
 
 On separate opt-in and Merchant-enabled setting, an eligibility event is created. Direct identifiers are removed, free text screened, prohibited records quarantined and approved dataset registered. Operational Merchant data remains separate. Deejai controller.
 
-## 6. LINE
+## 6. Social channels
 
-When active, messages pass between customer, LINE, Deejai and Merchant. LINE is external. Merchant controller; Deejai processor.
+Excluded from the initial release. No production customer data is sent to LINE, Meta or another social provider.
 
-## 7. AI/Voice
+## 7. AI Text and AI Voice
 
-Inactive. No data may go to AI, telephony or speech providers until approved.
+The Text runtime, internal OpenAI Responses gateway, Voice WebSocket gateway and Google Live/OpenAI Realtime adapters exist in code. The current launch configuration does not provide complete live provider routes. No production data may go to an AI, Voice, telephony or speech provider until the relevant route, subprocessor and transfer controls are approved.
 
 ## 8. Export/erasure
 

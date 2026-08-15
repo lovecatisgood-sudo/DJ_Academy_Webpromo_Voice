@@ -1,6 +1,6 @@
 # DPA Schedule 1 - Processing Details
 
-> **Status:** COUNSEL DRAFT - NOT EFFECTIVE UNTIL APPROVED AND RELEASE-GATED
+> **Status:** COUNSEL APPROVED BY OWNER ATTESTATION ON 15 AUGUST 2026 - EFFECTIVE ONLY WHEN RELEASE-GATED
 >
 > **Drafting date:** 27 July 2026
 >
@@ -14,11 +14,11 @@ Provision of DJBOT during subscription and applicable export, closure, backup an
 
 ## Nature/purpose
 
-Collection, validation, transmission, organisation, storage, retrieval, display, lead management, messaging, export, erasure, security monitoring, support, backup and channel delivery as instructed.
+Collection, validation, transmission, organisation, storage, retrieval, display, lead management, website messaging, export, erasure, security monitoring, support and backup as instructed. Social-channel delivery is excluded from the initial release.
 
 ## Data subjects
 
-Merchant customers/prospects, website/channel visitors, Merchant staff administered for Merchant, and callers when Voice is active.
+Merchant customers/prospects, website visitors, Merchant staff administered for Merchant, and speakers when AI Voice is approved and active.
 
 ## Data categories
 
@@ -30,7 +30,7 @@ Standard plans are not designed for sensitive data. Passwords, OTPs, full card d
 
 ## Current retention
 
-- Transcripts: default 365 days, configurable 30-3,650, then tombstone.
+- Transcripts: default 365 days, configurable 30-730, then tombstone.
 - Contacts/leads: until erasure or closure; no time-based purge.
 - Privacy download: seven days; encrypted-row physical purge pending.
 - Voice recordings: disabled/zero.

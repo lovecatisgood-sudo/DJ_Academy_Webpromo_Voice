@@ -137,6 +137,9 @@ export const salesCoreOutputSchema = z.object({
     quickReplies: z.array(z.string().trim().min(1).max(80)).max(6).default([]),
   }).strict(),
 }).strict().superRefine((value, context) => {
+  if (countVisibleCharacters(value.customerResponse) > 200) {
+    context.addIssue({ code: "custom", message: "Customer response exceeds 200 visible characters.", path: ["customerResponse"] });
+  }
   const handoverAction = value.proposedActions.some((action) => action.type === "handover.request");
   if (Boolean(value.handover) !== handoverAction) context.addIssue({ code: "custom", message: "Handover state and action must agree.", path: ["handover"] });
   const hasLead = value.proposedActions.some((action) => action.type === "lead.capture");
@@ -148,6 +151,12 @@ export const salesCoreOutputSchema = z.object({
 });
 
 export type SalesCoreOutput = z.infer<typeof salesCoreOutputSchema>;
+
+const graphemeSegmenter = new Intl.Segmenter("und", { granularity: "grapheme" });
+
+export function countVisibleCharacters(value: string) {
+  return [...graphemeSegmenter.segment(value)].length;
+}
 
 export type SalesCoreContext = Readonly<{
   locale: "th" | "en";
@@ -173,9 +182,12 @@ export function buildSalesCorePolicy(context: SalesCoreContext): string {
     "Follow truthfulness, consent, refusal, safety, and minimum-data rules before conversion goals.",
     "Use only the approved knowledge and claims below. Never invent price, availability, guarantees, discounts, or appointments.",
     "Propose effects only through the exact structured action allow-list. Never claim an action succeeded.",
+    "A sales_fact.record, appointment.request, follow_up.create, or merchant_email.send action is allowed only when the same proposedActions array also contains a valid lead.capture action.",
+    "Set handover to a reason/summary object if and only if proposedActions contains handover.request; otherwise set handover to null.",
     "An appointment action is a request pending merchant confirmation and requires two to five time options.",
     "For a requested phone callback, use follow_up.create with a due time. Never claim the callback has already happened.",
     "Match the customer language. If asked about internal technology, describe yourself only as the business's automated assistant.",
+    "customerResponse must be concise and contain no more than 200 visible grapheme characters, including spaces and punctuation.",
     `Business: ${context.businessName}. Assistant: ${context.agentName}. Locale: ${context.locale}. Tone: ${context.tone}.`,
     `Sales goal: ${context.salesGoal}`,
     `Approved claims: ${JSON.stringify(context.approvedClaims)}`,

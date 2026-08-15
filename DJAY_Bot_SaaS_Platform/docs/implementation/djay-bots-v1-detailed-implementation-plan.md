@@ -390,13 +390,13 @@ The UI acceptance matrix MUST prove that family/package selection precedes role,
 
 ### COM-04: Free-trial lifecycle
 
-**Schema/services:** opaque trial intents, eligibility decisions, Starter entitlement snapshot, fixed start/expiry, website-only channel grant, product meter allowance, card-requirement evidence, threshold events and terminal state.
+**Schema/services:** opaque pending trial intents; normalized verified-email claim for Flow; Stripe SetupIntent plus keyed payment-method-fingerprint claim for Text; Starter entitlement snapshot; fixed deployment-time start/expiry; website-only channel grant; product meter allowance; threshold events and terminal state. Never store full card data.
 
-**Implement:** Flow 30 days/5,000 conversations/no card; Text 30 days/500 replies/card; no Voice trial; owner in-app/email warning at 100 Text replies remaining; exhaustion/expiry stop and subscribe/fallback behavior; no social grant and no automatic paid conversion.
+**Implement:** Flow 30 days/5,000 conversations/no card/one per verified email; Text configuration before card setup, then SetupIntent on Deploy Bot, 30 days/500 replies/one per card fingerprint; no Voice trial; owner in-app/email warning at 100 Text replies remaining; exhaustion/expiry stop and subscribe/fallback behavior; no social grant and no automatic paid conversion.
 
-**Decision boundaries:** leave repeat-trial/abuse thresholds, trial-data retention, extra recipients and auto-charge unimplemented until approved. Internal eligibility signals never appear in customer errors.
+**Decision boundaries:** do not require company, domain, telephone, IP or device verification. IP/device data is not trial eligibility authority. Leave extra recipients and auto-charge unimplemented. Internal eligibility signals never appear in customer errors.
 
-**Tests:** concurrent/replayed trial creation, fixed clock, family/allowance/channel/card boundaries, threshold dedupe, expiry and exhaustion races, customer fallback, upgrade continuation, tenant isolation and absence of Voice/social entitlement.
+**Tests:** concurrent/replayed trial creation, configuration-before-card, deploy-time SetupIntent, one-Flow-trial-per-email and one-Text-trial-per-card races, fixed deployment clock, family/allowance/channel/card boundaries, threshold dedupe, expiry and exhaustion races, customer fallback, upgrade continuation, tenant isolation and absence of Voice/social entitlement.
 
 ### BILL-01: Purchase, Checkout and webhook lifecycle
 

@@ -4,6 +4,13 @@
 
 - API uses `AI_DATABASE_URL`, `AI_TEXT_GATEWAY_ENDPOINT`,
   `AI_TEXT_GATEWAY_SERVICE_TOKEN`, and `AI_NOTIFICATION_ENVELOPE_KEY`.
+- The SaaS owner selects the provider with `AI_TEXT_PROVIDER=openai|xai|gemini`
+  and supplies `AI_TEXT_API_KEY` plus `AI_TEXT_MODEL` as server-only settings.
+  Existing provider-specific names remain compatibility aliases:
+  `OPENAI_API_KEY` + `OPENAI_RESPONSES_MODEL`, `XAI_API_KEY` (or
+  `GROK_API_KEY`) + `XAI_TEXT_MODEL`, and `GEMINI_API_KEY` +
+  `GEMINI_TEXT_MODEL`.
+  Merchants cannot select or inspect provider or model identity.
 - Workers use `WORKER_DATABASE_URL`, `AI_WORKER_ENABLED=true`,
   `AI_NOTIFICATION_ENVELOPE_KEY`, and the approved email delivery configuration.
 - The runtime database role is restricted to fixed functions. Do not substitute
