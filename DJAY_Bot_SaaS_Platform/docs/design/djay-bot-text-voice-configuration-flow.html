@@ -721,12 +721,12 @@
     .flow-widget-mini { position: relative; min-height: 460px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: linear-gradient(145deg,#e3ebe7,#f7f9f8); }
     .flow-widget-mini::before { content: 'YOUR WEBSITE'; position: absolute; top: 18px; left: 18px; color: #82908a; font-size: 10px; font-weight: 850; letter-spacing: .12em; }
     .flow-widget-panel { position: absolute; right: 20px; bottom: 72px; width: min(300px,calc(100% - 40px)); overflow: hidden; border-radius: 12px; background: #fff; box-shadow: 0 18px 42px rgba(15,57,44,.2); }
-    .flow-widget-head { display: flex; justify-content: space-between; gap: 10px; padding: 13px; color: #fff; background: var(--primary); }
+    .flow-widget-head { display: flex; justify-content: space-between; gap: 10px; padding: 13px; color: var(--flow-brand-ink,#fff); background: var(--flow-brand,var(--primary)); }
     .flow-widget-body { display: grid; gap: 9px; padding: 13px; }
     .flow-widget-body p { margin: 0; padding: 10px; border-radius: 9px; background: #eff3f1; font-size: 12px; }
     .flow-widget-options { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-    .flow-widget-options button { min-height: 36px; padding: 7px; color: var(--primary); border: 1px solid #bdd7cd; border-radius: 8px; background: #fff; font-weight: 750; }
-    .flow-widget-launcher { position: absolute; right: 20px; bottom: 18px; display: grid; width: 45px; height: 45px; place-items: center; color: #fff; border-radius: 50%; background: var(--primary); box-shadow: 0 9px 24px rgba(15,57,44,.24); }
+    .flow-widget-options button { min-height: 36px; padding: 7px; color: var(--flow-brand,var(--primary)); border: 1px solid currentColor; border-radius: 8px; background: #fff; font-weight: 750; }
+    .flow-widget-launcher { position: absolute; right: 20px; bottom: 18px; display: grid; width: 45px; height: 45px; place-items: center; color: var(--flow-brand-ink,#fff); border-radius: 50%; background: var(--flow-brand,var(--primary)); box-shadow: 0 9px 24px rgba(15,57,44,.24); }
     .flow-ready-summary { display: grid; grid-template-columns: 1.2fr .8fr; gap: 18px; }
     .flow-summary-list { display: grid; gap: 1px; margin-top: 18px; border: 1px solid var(--line); background: var(--line); }
     .flow-summary-list div { display: grid; grid-template-columns: 145px 1fr; gap: 15px; padding: 13px; background: #fff; }
@@ -737,7 +737,7 @@
     .flow-studio-title strong, .flow-studio-title span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .flow-studio-title span { color: #bdd0c9; font-size: 11px; }
     .flow-studio-actions { display: flex; gap: 8px; }
-    .flow-studio-body { display: grid; grid-template-columns: 230px minmax(520px,1fr) 370px; height: calc(100dvh - 66px); }
+    .flow-studio-body { display: grid; grid-template-columns: 230px minmax(520px,1fr) 370px; height: calc(100dvh - 66px); min-height: 0; }
     .flow-studio-nav { overflow-y: auto; padding: 17px 12px; border-right: 1px solid var(--line); background: #fff; }
     .flow-studio-nav-head { padding: 7px 10px 16px; }
     .flow-studio-nav-head strong, .flow-studio-nav-head span { display: block; }
@@ -785,12 +785,13 @@
     .flow-input-port.connection-target { transform: scale(1.25); background: var(--yellow); box-shadow: 0 0 0 4px rgba(242,193,78,.28); }
     .flow-connection-help { margin: 0 0 10px; padding: 10px 12px; color: #3f554d; border: 1px solid #bed3ca; border-radius: 9px; background: #f0f7f4; font-size: 11px; }
     .flow-connection-help strong { color: var(--forest); }
-    .flow-right-panel { display: grid; grid-template-rows: auto 1fr; min-width: 0; border-left: 1px solid var(--line); background: #fff; }
+    .flow-right-panel { display: grid; grid-template-rows: auto minmax(0,1fr); min-width: 0; min-height: 0; border-left: 1px solid var(--line); background: #fff; }
     .flow-right-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 10px; border-bottom: 1px solid var(--line); background: #f7f9f8; }
     .flow-right-tabs button { min-height: 38px; border-radius: 8px; font-weight: 800; }
     .flow-right-tabs button.active { color: #fff; background: var(--primary); }
-    .flow-right-content { overflow-y: auto; padding: 16px; }
+    .flow-right-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 16px; }
     .flow-panel-close { display: none; width: 100%; margin-bottom: 10px; }
+    .flow-panel-close.flow-return-setup { display: block; }
     .flow-inspector-empty { padding: 35px 18px; text-align: center; color: var(--muted); border: 1px dashed #b8c8c2; border-radius: 10px; }
     .flow-inspector-head { margin-bottom: 14px; padding-bottom: 13px; border-bottom: 1px solid var(--line); }
     .flow-inspector-head h2 { margin: 4px 0; color: var(--forest); }
@@ -798,7 +799,7 @@
     .flow-inspector-fields label { color: #32423c; font-size: 11px; font-weight: 790; }
     .flow-inspector-fields textarea { min-height: 76px; }
     .flow-option-editor { display: grid; gap: 9px; padding: 10px; background: #f5f8f7; }
-    .flow-option-editor-row { display: grid; grid-template-columns: 1fr 1fr 1.15fr auto; gap: 6px; align-items: end; padding: 9px; border: 1px solid var(--line); background: #fff; }
+    .flow-option-editor-row { display: grid; grid-template-columns: 1fr; gap: 8px; align-items: end; padding: 10px; border: 1px solid var(--line); background: #fff; }
     .flow-option-editor-row label { display: grid; gap: 4px; margin: 0; color: #52635d; font-size: 10px; }
     .flow-option-editor input, .flow-option-editor select { min-width: 0; margin: 0; }
     .flow-option-status { display: block; margin-top: 3px; color: var(--danger); font-size: 10px; font-weight: 720; }
@@ -814,16 +815,22 @@
     .flow-translation-option { display:grid; grid-template-columns:38px 1fr 1fr; gap:8px; align-items:center; padding:0 12px 12px; }
     .flow-translation-option span { font-size:12px; color:var(--muted); }
     @media (max-width: 760px) { .flow-translation-summary,.flow-translation-fields { display:grid; grid-template-columns:1fr; } .flow-translation-option { grid-template-columns:1fr; } }
-    .flow-test-transcript { display: grid; gap: 8px; min-height: 260px; margin-top: 12px; padding: 12px; border: 1px solid var(--line); background: #f7f9f8; }
+    .flow-test-transcript { display: grid; align-content: start; gap: 8px; height: clamp(220px,52dvh,560px); min-height: 0; margin-top: 12px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 12px; border: 1px solid var(--line); background: #f7f9f8; }
     .flow-test-message { max-width: 87%; padding: 9px 10px; border-radius: 9px; background: #fff; box-shadow: 0 2px 8px rgba(15,57,44,.05); }
-    .flow-test-message.customer { margin-left: auto; color: #fff; background: var(--primary); }
+    .flow-test-message.customer { margin-left: auto; color: var(--flow-brand-ink,#fff); background: var(--flow-brand,var(--primary)); }
     .flow-test-message small { display: block; margin-bottom: 3px; opacity: .7; }
     .flow-test-options { display: grid; gap: 6px; margin-top: 9px; }
-    .flow-test-options button { min-height: 36px; padding: 7px 9px; color: var(--primary); border: 1px solid #a7cbbd; border-radius: 8px; background: #fff; font-weight: 750; }
+    .flow-test-options button { min-height: 36px; padding: 7px 9px; color: var(--flow-brand,var(--primary)); border: 1px solid currentColor; border-radius: 8px; background: #fff; font-weight: 750; }
     .flow-test-path-error { padding: 10px; color: var(--danger); border: 1px solid #e4b6b0; background: #fff5f4; font-size: 11px; }
     .flow-test-form { display: grid; gap: 8px; margin-top: 10px; }
-    .flow-test-input-row { display: grid; grid-template-columns: 1fr auto; gap: 7px; margin-top: 10px; }
+    .flow-test-input-row { position: sticky; bottom: 0; display: grid; grid-template-columns: 1fr auto; gap: 7px; margin-top: 10px; padding: 8px 0 2px; background: #fff; }
     .flow-test-input-row input { margin: 0; }
+    .flow-color-control { display: grid; grid-template-columns: 58px minmax(0,1fr); gap: 9px; align-items: center; margin-top: 7px; }
+    .flow-color-control input[type="color"] { width: 58px; height: 42px; margin: 0; padding: 3px; cursor: pointer; border: 1px solid #aebdb7; border-radius: 8px; background: #fff; }
+    .flow-color-control input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+    .flow-color-control input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 5px; }
+    .flow-color-control input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
+    .flow-color-value { display: flex; min-height: 42px; align-items: center; padding: 8px 10px; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; background: #f7f9f8; font: 750 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; }
     .flow-settings-list { display: grid; gap: 9px; }
     .flow-settings-row { display: grid; grid-template-columns: minmax(150px,.8fr) minmax(200px,1.2fr) auto; gap: 9px; align-items: end; padding: 12px; border: 1px solid var(--line); background: #fbfcfc; }
     .flow-settings-row label { font-size: 11px; font-weight: 780; }
@@ -1272,14 +1279,14 @@
               <div><strong>Customer language choice</strong><p class="help">Every visitor chooses English or ไทย before the conversation starts.</p></div>
               <label class="wide">English greeting<textarea id="flowGreetingEn" maxlength="240">Welcome. What would you like help with?</textarea></label>
               <label class="wide">คำทักทายภาษาไทย<textarea id="flowGreetingTh" maxlength="240">ยินดีต้อนรับ ต้องการให้เราช่วยเรื่องใด?</textarea></label>
-              <label>Brand color<input id="flowBrandColor" type="color" value="#126149"></label>
+              <label>Brand color<div class="flow-color-control"><input id="flowBrandColor" type="color" value="#126149" aria-describedby="flowBrandColorValue"><output class="flow-color-value" id="flowBrandColorValue" for="flowBrandColor">#126149</output></div></label>
               <label>Widget position<select id="flowWidgetPosition"><option>Bottom right</option><option>Bottom left</option></select></label>
               <label>Business hours<input id="flowBusinessHours"></label>
               <label>Handover contact<input id="flowHandoverContact"></label>
               <label class="wide">Privacy policy URL<input id="flowPrivacyUrl" type="url" placeholder="https://yourbusiness.com/privacy"></label>
             </div>
           </form>
-          <aside class="flow-widget-mini" aria-label="Flow Bot widget preview">
+          <aside class="flow-widget-mini" id="flowIdentityWidgetPreview" aria-label="Flow Bot widget preview">
             <div class="flow-widget-panel"><div class="flow-widget-head" id="flowIdentityWidgetHead"><strong id="flowIdentityWidgetName">Your Bot</strong><span>EN | ไทย</span></div><div class="flow-widget-body"><p id="flowIdentityWidgetGreeting">Choose a language to test this draft / เลือกภาษาเพื่อทดสอบ</p><div class="flow-widget-options"><button data-flow-onboarding-test-language="en">Test in English</button><button data-flow-onboarding-test-language="th">ทดสอบภาษาไทย</button></div></div></div>
             <div class="flow-widget-launcher" id="flowIdentityLauncher">D</div>
           </aside>
@@ -1560,7 +1567,7 @@
       support: {label:'Support routing',copy:'A guided support path that gathers context, offers approved help, and routes unresolved cases.',path:['Welcome','Choose issue','Collect context','Approved guidance','Human handover']},
       blank: {label:'Start from blank',copy:'One editable welcome step. Add every message, choice, form, branch, and action yourself.',path:['Welcome']}
     };
-    const flowState = {onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',widgetPreviewLanguage:null,testNodeId:null,testMessages:[],testError:'',testStartMode:'entry',testStartNodeId:null};
+    const flowState = {onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',widgetPreviewLanguage:null,testNodeId:null,testMessages:[],testError:'',testStartMode:'entry',testStartNodeId:null,testReturnSurface:null};
     const flowStorageKey = 'djbot-flow-builder-v2';
     const flowSchemaVersion = 5;
     const flowNode = (id,type,title,en,th,x,y,extra={}) => ({id,type,title,en,th,x,y,keywords:[],next:null,...extra});
@@ -2170,12 +2177,34 @@
       saveFlowLocal();
     }
 
+    function normalizeFlowBrandColor(value) {
+      return /^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value).toLowerCase() : '#126149';
+    }
+
+    function flowBrandTextColor(value) {
+      const color = normalizeFlowBrandColor(value).slice(1);
+      const channels = [0,2,4].map(index => parseInt(color.slice(index,index + 2),16) / 255).map(channel => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4);
+      const luminance = .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
+      const inkLuminance = .0094;
+      const whiteContrast = 1.05 / (luminance + .05);
+      const inkContrast = (luminance + .05) / (inkLuminance + .05);
+      return whiteContrast >= inkContrast ? '#fff' : '#171a1f';
+    }
+
+    function applyFlowBrandPreview(root,colorValue) {
+      if (!root) return;
+      const color = normalizeFlowBrandColor(colorValue);
+      root.style.setProperty('--flow-brand',color);
+      root.style.setProperty('--flow-brand-ink',flowBrandTextColor(color));
+      root.querySelectorAll('.flow-color-value').forEach(output => { output.textContent = color.toUpperCase(); });
+    }
+
     function syncFlowIdentityPreview() {
-      const color = $('#flowBrandColor').value;
+      const color = normalizeFlowBrandColor($('#flowBrandColor').value);
       $('#flowIdentityWidgetName').textContent = $('#flowBotName').value || 'Untitled Flow Bot';
       $('#flowIdentityWidgetGreeting').textContent = 'Choose a language to test this draft / เลือกภาษาเพื่อทดสอบ';
-      $('#flowIdentityWidgetHead').style.background = color;
-      $('#flowIdentityLauncher').style.background = color;
+      $('#flowBrandColorValue').textContent = color.toUpperCase();
+      applyFlowBrandPreview($('#flowIdentityWidgetPreview'),color);
     }
 
     function applyFlowIdentityForm() {
@@ -2184,7 +2213,7 @@
         languageMode:'customer-choice',
         greetingEn:$('#flowGreetingEn').value.trim(),
         greetingTh:$('#flowGreetingTh').value.trim(),
-        brandColor:$('#flowBrandColor').value,
+        brandColor:normalizeFlowBrandColor($('#flowBrandColor').value),
         position:$('#flowWidgetPosition').value,
         businessHours:$('#flowBusinessHours').value.trim(),
         handoverContact:$('#flowHandoverContact').value.trim(),
@@ -2209,10 +2238,11 @@
       $('#flowStudioContent').scrollTop = 0;
     }
 
-    function openFlowDraftTest(language = flowState.testLanguage, nodeId = flowDraft.entryId, testStartMode = 'entry') {
+    function openFlowDraftTest(language = flowState.testLanguage, nodeId = flowDraft.entryId, testStartMode = 'entry', returnSurface = null) {
       flowState.testLanguage = language;
       flowState.panel = 'test';
       openFlowStudio('map');
+      flowState.testReturnSurface = returnSurface;
       $('#flowStudioDemo').classList.add('flow-panel-open');
       flowTestStart(nodeId || flowDraft.entryId,testStartMode);
     }
@@ -2266,7 +2296,7 @@
       });
       $('#flowStudioNav').innerHTML = html;
       $('[data-flow-dashboard]').addEventListener('click',() => showDashboard('overview'));
-      $$('[data-flow-section]').forEach(button => button.addEventListener('click',() => { flowState.section = button.dataset.flowSection; renderFlowStudio(); }));
+      $$('[data-flow-section]').forEach(button => button.addEventListener('click',() => { flowState.section = button.dataset.flowSection; renderFlowStudio(); $('#flowStudioContent').scrollTop = 0; }));
     }
 
     function flowPageHead(title,description,badge='Flow Bot draft') {
@@ -2275,7 +2305,7 @@
 
     function flowIdentitySection() {
       return flowPageHead('Bot identity','Edit how the widget introduces the business. These values are shared with the actual Welcome step.') +
-        `<section class="flow-studio-panel"><h2>Customer-facing identity</h2><p>Changes save to the Flow draft and update the preview.</p><div class="field-grid"><label>Bot name<input data-flow-bind="identity.botName" value="${escapeHtml(flowDraft.identity.botName)}"></label><div><strong>Conversation language</strong><p class="help">The customer chooses English or ไทย before the first message. The choice stays with that conversation.</p></div><label class="wide">English greeting<textarea data-flow-bind="identity.greetingEn">${escapeHtml(flowDraft.identity.greetingEn)}</textarea></label><label class="wide">คำทักทายภาษาไทย<textarea data-flow-bind="identity.greetingTh">${escapeHtml(flowDraft.identity.greetingTh)}</textarea></label><label>Brand color<input type="color" data-flow-bind="identity.brandColor" value="${escapeHtml(flowDraft.identity.brandColor)}"></label><label>Widget position<select data-flow-bind="identity.position">${optionList(['Bottom right','Bottom left'],flowDraft.identity.position)}</select></label><label>Business hours<input data-flow-bind="identity.businessHours" value="${escapeHtml(flowDraft.identity.businessHours)}"></label><label>Handover contact<input data-flow-bind="identity.handoverContact" value="${escapeHtml(flowDraft.identity.handoverContact)}"></label><label class="wide">Privacy policy URL<input data-flow-bind="identity.privacyUrl" value="${escapeHtml(flowDraft.identity.privacyUrl)}"></label></div></section>` + flowWidgetPreview(false);
+        `<section class="flow-studio-panel"><h2>Customer-facing identity</h2><p>Changes save to the Flow draft and update the preview.</p><div class="field-grid"><label>Bot name<input data-flow-bind="identity.botName" value="${escapeHtml(flowDraft.identity.botName)}"></label><div><strong>Conversation language</strong><p class="help">The customer chooses English or ไทย before the first message. The choice stays with that conversation.</p></div><label class="wide">English greeting<textarea data-flow-bind="identity.greetingEn">${escapeHtml(flowDraft.identity.greetingEn)}</textarea></label><label class="wide">คำทักทายภาษาไทย<textarea data-flow-bind="identity.greetingTh">${escapeHtml(flowDraft.identity.greetingTh)}</textarea></label><label>Brand color<div class="flow-color-control"><input type="color" data-flow-bind="identity.brandColor" value="${escapeHtml(normalizeFlowBrandColor(flowDraft.identity.brandColor))}" aria-label="Brand color"><output class="flow-color-value">${escapeHtml(normalizeFlowBrandColor(flowDraft.identity.brandColor).toUpperCase())}</output></div></label><label>Widget position<select data-flow-bind="identity.position">${optionList(['Bottom right','Bottom left'],flowDraft.identity.position)}</select></label><label>Business hours<input data-flow-bind="identity.businessHours" value="${escapeHtml(flowDraft.identity.businessHours)}"></label><label>Handover contact<input data-flow-bind="identity.handoverContact" value="${escapeHtml(flowDraft.identity.handoverContact)}"></label><label class="wide">Privacy policy URL<input data-flow-bind="identity.privacyUrl" value="${escapeHtml(flowDraft.identity.privacyUrl)}"></label></div></section>` + flowWidgetPreview(false);
     }
 
     function flowMapSection() {
@@ -2307,7 +2337,7 @@
     }
 
     function flowWidgetPreview(includeEditor = true) {
-      const editor = includeEditor ? `<section class="flow-studio-panel"><h2>Website widget</h2><p>The trial is website-only. No social connection is enabled here.</p><div class="field-grid"><label class="wide">Website domain<input data-flow-bind="widget.domain" value="${escapeHtml(flowDraft.widget.domain)}"></label><label>Position<select data-flow-bind="identity.position">${optionList(['Bottom right','Bottom left'],flowDraft.identity.position)}</select></label><label>Brand color<input type="color" data-flow-bind="identity.brandColor" value="${escapeHtml(flowDraft.identity.brandColor)}"></label><label class="consent-row"><input type="checkbox" data-flow-widget-open ${flowDraft.widget.openOnLoad ? 'checked' : ''}><span>Open automatically on page load</span></label></div></section>` : '';
+      const editor = includeEditor ? `<section class="flow-studio-panel"><h2>Website widget</h2><p>The trial is website-only. No social connection is enabled here.</p><div class="field-grid"><label class="wide">Website domain<input data-flow-bind="widget.domain" value="${escapeHtml(flowDraft.widget.domain)}"></label><label>Position<select data-flow-bind="identity.position">${optionList(['Bottom right','Bottom left'],flowDraft.identity.position)}</select></label><label>Brand color<div class="flow-color-control"><input type="color" data-flow-bind="identity.brandColor" value="${escapeHtml(normalizeFlowBrandColor(flowDraft.identity.brandColor))}" aria-label="Brand color"><output class="flow-color-value">${escapeHtml(normalizeFlowBrandColor(flowDraft.identity.brandColor).toUpperCase())}</output></div></label><label class="consent-row"><input type="checkbox" data-flow-widget-open ${flowDraft.widget.openOnLoad ? 'checked' : ''}><span>Open automatically on page load</span></label></div></section>` : '';
       const language = flowState.widgetPreviewLanguage;
       const entry = flowDraft.nodes.find(node => node.id === flowDraft.entryId);
       const choiceNode = flowDraft.nodes.find(node => node.type === 'options');
@@ -2315,7 +2345,9 @@
       const body = language
         ? `<p>${escapeHtml(greeting || (language === 'th' ? entry?.th : entry?.en) || '')}</p><div class="flow-widget-options">${(choiceNode?.options || []).slice(0,4).map(option => `<button>${escapeHtml(flowOptionText(option,language) || (language === 'th' ? 'ยังไม่มีคำแปล' : 'Missing translation'))}</button>`).join('')}</div><button class="btn" data-flow-widget-language="">Change language / เปลี่ยนภาษา</button>`
         : `<p><strong>Choose language / เลือกภาษา</strong><br><span class="help">Your choice stays with this conversation.</span></p><div class="flow-widget-options"><button data-flow-widget-language="en">English</button><button data-flow-widget-language="th">ไทย</button></div>`;
-      return `${editor}<section class="flow-widget-mini"><div class="flow-widget-panel" style="${flowDraft.identity.position === 'Bottom left' ? 'left:20px;right:auto' : ''}"><div class="flow-widget-head" style="background:${escapeHtml(flowDraft.identity.brandColor)}"><strong>${escapeHtml(flowDraft.identity.botName)}</strong><span>${language === 'th' ? 'ไทย' : language === 'en' ? 'EN' : 'EN | ไทย'}</span></div><div class="flow-widget-body">${body}</div></div><div class="flow-widget-launcher" style="background:${escapeHtml(flowDraft.identity.brandColor)};${flowDraft.identity.position === 'Bottom left' ? 'left:20px;right:auto' : ''}">D</div></section>`;
+      const brandColor = normalizeFlowBrandColor(flowDraft.identity.brandColor);
+      const brandInk = flowBrandTextColor(brandColor);
+      return `${editor}<section class="flow-widget-mini" style="--flow-brand:${escapeHtml(brandColor)};--flow-brand-ink:${escapeHtml(brandInk)}"><div class="flow-widget-panel" style="${flowDraft.identity.position === 'Bottom left' ? 'left:20px;right:auto' : ''}"><div class="flow-widget-head"><strong>${escapeHtml(flowDraft.identity.botName)}</strong><span>${language === 'th' ? 'ไทย' : language === 'en' ? 'EN' : 'EN | ไทย'}</span></div><div class="flow-widget-body">${body}</div></div><div class="flow-widget-launcher" style="${flowDraft.identity.position === 'Bottom left' ? 'left:20px;right:auto' : ''}">D</div></section>`;
     }
 
     function flowReleaseSection() {
@@ -2337,6 +2369,9 @@
       if (!stage) return;
       const lines = [];
       const byId = Object.fromEntries(flowDraft.nodes.map(node => [node.id,node]));
+      const nodeHeight = node => node.type === 'options' ? Math.max(96,68 + Math.max(0,(node.options || []).length - 1) * 23) : 96;
+      const canvasHeight = Math.max(650,...flowDraft.nodes.map(node => Number(node.y) + nodeHeight(node) + 36));
+      stage.style.minHeight = `${canvasHeight}px`;
       flowDraft.nodes.forEach(node => {
         const targets = [...(node.next ? [{target:node.next,kind:'next',index:0}] : []),...flowActiveOptions(node).map((option,index) => ({target:option.target,kind:'option',index}))];
         targets.forEach(edge => {
@@ -2352,9 +2387,9 @@
           ? (node.options || []).map((option,index) => `<button class="flow-output-port ${option.target ? '' : 'unconnected'} ${flowConnection?.sourceId === node.id && flowConnection?.kind === 'option' && flowConnection?.optionIndex === index ? 'connecting' : ''}" data-flow-output-port data-flow-output-kind="option" data-flow-output-index="${index}" title="${option.target ? 'Drag to reconnect' : 'Drag to connect'}: ${escapeHtml(option.en)}" aria-label="${option.target ? 'Reconnect' : 'Connect'} ${escapeHtml(option.en)}"></button>`).join('')
           : ['end','handover'].includes(node.type) ? ''
             : `<button class="flow-output-port ${node.next ? '' : 'unconnected'} ${flowConnection?.sourceId === node.id && flowConnection?.kind === 'next' ? 'connecting' : ''}" data-flow-output-port data-flow-output-kind="next" data-flow-output-index="0" title="${node.next ? 'Drag to reconnect next step' : 'Drag to connect next step'}" aria-label="${node.next ? 'Reconnect' : 'Connect'} next step"></button>`;
-        return `<article class="flow-node-demo ${flowState.selectedNodeId === node.id ? 'selected' : ''} ${flowState.testNodeId === node.id ? 'test-active' : ''}" data-flow-node="${escapeHtml(node.id)}" style="left:${Number(node.x)}px;top:${Number(node.y)}px" tabindex="0"><button class="flow-input-port ${flowConnection && flowConnection.sourceId !== node.id ? 'connection-target' : ''}" data-flow-input-port title="Connect into ${escapeHtml(node.title)}" aria-label="Connect into ${escapeHtml(node.title)}"></button><header><span>${escapeHtml(node.type.replaceAll('_',' '))}${node.id === flowDraft.entryId ? ' · entry' : ''}</span><b>${node.type === 'options' ? '▦' : node.type === 'form' ? '□' : node.type === 'handover' ? 'H' : node.type === 'end' ? '✓' : 'T'}</b></header><strong>${escapeHtml(node.title)}</strong><small>${escapeHtml((node.en || '').slice(0,70))}</small>${outputPorts ? `<span class="flow-output-ports">${outputPorts}</span>` : ''}</article>`;
+        return `<article class="flow-node-demo ${flowState.selectedNodeId === node.id ? 'selected' : ''} ${flowState.testNodeId === node.id ? 'test-active' : ''}" data-flow-node="${escapeHtml(node.id)}" style="left:${Number(node.x)}px;top:${Number(node.y)}px;min-height:${nodeHeight(node)}px" tabindex="0"><button class="flow-input-port ${flowConnection && flowConnection.sourceId !== node.id ? 'connection-target' : ''}" data-flow-input-port title="Connect into ${escapeHtml(node.title)}" aria-label="Connect into ${escapeHtml(node.title)}"></button><header><span>${escapeHtml(node.type.replaceAll('_',' '))}${node.id === flowDraft.entryId ? ' · entry' : ''}</span><b>${node.type === 'options' ? '▦' : node.type === 'form' ? '□' : node.type === 'handover' ? 'H' : node.type === 'end' ? '✓' : 'T'}</b></header><strong>${escapeHtml(node.title)}</strong><small>${escapeHtml((node.en || '').slice(0,70))}</small>${outputPorts ? `<span class="flow-output-ports">${outputPorts}</span>` : ''}</article>`;
       }).join('');
-      stage.innerHTML = `<svg class="flow-canvas-wires" aria-hidden="true">${lines.join('')}<path id="flowConnectingWire" class="connecting" hidden></path></svg>${nodeHtml}`;
+      stage.innerHTML = `<svg class="flow-canvas-wires" style="height:${canvasHeight}px" aria-hidden="true">${lines.join('')}<path id="flowConnectingWire" class="connecting" hidden></path></svg>${nodeHtml}`;
       bindFlowNodeDragging();
     }
 
@@ -2487,17 +2522,38 @@
       const form = node?.type === 'form' ? `<form class="flow-test-form" id="flowTestForm">${(node.fields || flowDraft.lead.fields).map(field => `<label>${escapeHtml(field.label)}<input name="${escapeHtml(field.label)}" type="${field.type === 'textarea' ? 'text' : escapeHtml(field.type)}" ${field.required ? 'required' : ''}></label>`).join('')}<label class="consent-row"><input type="checkbox" required><span>${escapeHtml(flowDraft.lead.consent)}</span></label><button class="btn btn-green">Submit test form</button></form>` : '';
       const composer = ['input','options'].includes(node?.type) ? `<div class="flow-test-input-row"><input id="flowTypedTestInput" placeholder="Type a customer reply"><button class="btn btn-green" id="flowTypedTestSend">Send</button></div>` : '';
       const scope = flowState.testStartMode === 'selected' ? `Debugging from “${flowDraft.nodes.find(item => item.id === flowState.testStartNodeId)?.title || 'selected message'}”` : 'Testing the complete customer journey from its starting message';
-      return `<div class="flow-inspector-head"><span class="eyebrow">Current draft</span><h2>Customer test</h2><p class="help">${escapeHtml(scope)}. No allowance, lead, booking, handover, or external action is created.</p></div><div class="row between"><select id="flowTestLanguage"><option value="en" ${flowState.testLanguage === 'en' ? 'selected' : ''}>English</option><option value="th" ${flowState.testLanguage === 'th' ? 'selected' : ''}>ไทย</option></select><button class="btn" id="flowRestartTest">Restart</button></div><div class="flow-test-transcript">${transcript || '<div class="flow-inspector-empty">The customer journey has not started.</div>'}${options}${form}${flowState.testError ? `<div class="flow-test-path-error" role="alert"><strong>Flow needs attention</strong><br>${escapeHtml(flowState.testError)}</div>` : ''}</div>${composer}<p class="help">Current message: <strong>${escapeHtml(node?.title || 'Not started')}</strong></p>`;
+      return `<div class="flow-inspector-head"><span class="eyebrow">Current draft</span><h2>Customer test</h2><p class="help">${escapeHtml(scope)}. No allowance, lead, booking, handover, or external action is created.</p></div><div class="row between"><select id="flowTestLanguage" aria-label="Test conversation language"><option value="en" ${flowState.testLanguage === 'en' ? 'selected' : ''}>English</option><option value="th" ${flowState.testLanguage === 'th' ? 'selected' : ''}>ไทย</option></select><button class="btn" id="flowRestartTest">Restart</button></div><div class="flow-test-transcript" id="flowTestTranscript" aria-live="polite" aria-label="Flow Bot test conversation">${transcript || '<div class="flow-inspector-empty">The customer journey has not started.</div>'}${options}${form}${flowState.testError ? `<div class="flow-test-path-error" role="alert"><strong>Flow needs attention</strong><br>${escapeHtml(flowState.testError)}</div>` : ''}</div>${composer}<p class="help">Current message: <strong>${escapeHtml(node?.title || 'Not started')}</strong></p>`;
+    }
+
+    function scrollFlowTestToLatest() {
+      queueMicrotask(() => {
+        const transcript = $('#flowTestTranscript');
+        if (transcript) transcript.scrollTop = transcript.scrollHeight;
+      });
     }
 
     function renderFlowRightPanel() {
       $$('[data-flow-panel]').forEach(button => button.classList.toggle('active',button.dataset.flowPanel === flowState.panel));
-      $('#flowRightContent').innerHTML = `<button class="btn flow-panel-close" id="flowClosePanel">Return to canvas</button>${flowState.panel === 'test' ? renderFlowTester() : renderFlowInspector()}`;
+      $('.flow-right-panel')?.classList.toggle('testing',flowState.panel === 'test');
+      const closeLabel = flowState.panel === 'test' && flowState.testReturnSurface ? 'Return to setup' : 'Return to canvas';
+      $('#flowRightContent').innerHTML = `<button class="btn flow-panel-close ${flowState.panel === 'test' && flowState.testReturnSurface ? 'flow-return-setup' : ''}" id="flowClosePanel">${closeLabel}</button>${flowState.panel === 'test' ? renderFlowTester() : renderFlowInspector()}`;
       bindFlowRightPanel();
+      if (flowState.panel === 'test') scrollFlowTestToLatest();
     }
 
     function bindFlowRightPanel() {
-      if ($('#flowClosePanel')) $('#flowClosePanel').addEventListener('click',() => $('#flowStudioDemo').classList.remove('flow-panel-open'));
+      if ($('#flowClosePanel')) $('#flowClosePanel').addEventListener('click',() => {
+        if (flowState.panel === 'test' && flowState.testReturnSurface) {
+          const returnSurface = flowState.testReturnSurface;
+          flowState.testReturnSurface = null;
+          $('#flowStudioDemo').classList.add('hidden');
+          $('#flowStudioDemo').classList.remove('flow-panel-open');
+          $('#flowOnboardingDemo').classList.remove('hidden');
+          showFlowOnboardingPage(returnSurface);
+          return;
+        }
+        $('#flowStudioDemo').classList.remove('flow-panel-open');
+      });
       const node = flowState.panel === 'test' ? flowDraft.nodes.find(item => item.id === flowState.testNodeId) || null : selectedFlowNode();
       if (flowState.panel === 'edit' && node) {
         const updateNode = update => { rememberFlowDraft(); update(); markFlowChanged(); renderFlowStudio(); };
@@ -2576,9 +2632,15 @@
         }
         markFlowChanged(); renderFlowStudio();
       }));
+      $$('input[type="color"][data-flow-bind="identity.brandColor"]').forEach(control => control.addEventListener('input',() => {
+        const color = normalizeFlowBrandColor(control.value);
+        control.closest('.flow-color-control')?.querySelector('.flow-color-value')?.replaceChildren(color.toUpperCase());
+        $$('.flow-widget-mini').forEach(preview => applyFlowBrandPreview(preview,color));
+        applyFlowBrandPreview($('#flowStudioDemo'),color);
+      }));
       if ($('[data-flow-widget-open]')) $('[data-flow-widget-open]').addEventListener('change',event => { rememberFlowDraft(); flowDraft.widget.openOnLoad = event.target.checked; markFlowChanged(); renderFlowStudio(); });
       if ($('#flowAddNode')) $('#flowAddNode').addEventListener('click',() => {
-        rememberFlowDraft(); const id = `step_${Date.now()}`; flowDraft.nodes.push(flowNode(id,'message','New message','New customer message','ข้อความใหม่',120 + flowDraft.nodes.length * 35,420,{needsConnection:true})); flowState.selectedNodeId = id; flowState.panel = 'edit'; $('#flowStudioDemo').classList.add('flow-panel-open'); markFlowChanged(); renderFlowStudio();
+        rememberFlowDraft(); const id = `step_${Date.now()}`; const index = flowDraft.nodes.length; const x = 60 + index % 4 * 235; const y = 70 + Math.floor(index / 4) % 3 * 175; flowDraft.nodes.push(flowNode(id,'message','New message','New customer message','ข้อความใหม่',x,y,{needsConnection:true})); flowState.selectedNodeId = id; flowState.panel = 'edit'; $('#flowStudioDemo').classList.add('flow-panel-open'); markFlowChanged(); renderFlowStudio();
       });
       if ($('#flowDuplicateNode')) $('#flowDuplicateNode').addEventListener('click',() => {
         const node = selectedFlowNode(); if (!node) return; rememberFlowDraft(); const copyNode = clone(node); copyNode.id = `step_${Date.now()}`; copyNode.title += ' copy'; copyNode.x = Math.min(870,node.x + 35); copyNode.y = Math.min(535,node.y + 110); copyNode.next = null; copyNode.options = (copyNode.options || []).map(option => ({...option})); copyNode.needsConnection = !['options','end','handover'].includes(copyNode.type); flowDraft.nodes.push(copyNode); flowState.selectedNodeId = copyNode.id; markFlowChanged(); renderFlowStudio();
@@ -2624,6 +2686,7 @@
     }
 
     function renderFlowStudio() {
+      applyFlowBrandPreview($('#flowStudioDemo'),flowDraft.identity.brandColor);
       $('#flowStudioSubtitle').textContent = `${flowDraft.identity.botName} · ${flowTemplateMeta[flowDraft.template].label} draft`;
       $('#flowVersionState').textContent = flowState.configured ? `Published version ${flowState.version}` : 'No published version';
       $('#flowSaveState').innerHTML = flowState.dirty ? '<span class="dot"></span>Draft saved locally' : '<span class="dot"></span>Draft matches published';
@@ -3725,10 +3788,10 @@
     $('#flowIdentityForm').addEventListener('submit',event => event.preventDefault());
     ['flowBotName','flowGreetingEn','flowGreetingTh','flowBrandColor'].forEach(id => $('#' + id).addEventListener('input',syncFlowIdentityPreview));
     $('#flowContinueIdentity').addEventListener('click',() => { applyFlowIdentityForm(); showFlowOnboardingPage('ready'); });
-    $$('[data-flow-onboarding-test-language]').forEach(button => button.addEventListener('click',() => { applyFlowIdentityForm(); openFlowDraftTest(button.dataset.flowOnboardingTestLanguage,flowDraft.entryId); }));
+    $$('[data-flow-onboarding-test-language]').forEach(button => button.addEventListener('click',() => { applyFlowIdentityForm(); openFlowDraftTest(button.dataset.flowOnboardingTestLanguage,flowDraft.entryId,'entry','identity'); }));
     $('#flowOpenDashboardEarly').addEventListener('click',() => { state.product = 'flow'; state.configured = flowState.configured; state.dirty = flowState.dirty; showDashboard('overview'); });
-    $('#flowTestReady').addEventListener('click',() => openFlowDraftTest(flowState.testLanguage,flowDraft.entryId));
-    $('#flowOpenStudio').addEventListener('click',() => openFlowStudio('map'));
+    $('#flowTestReady').addEventListener('click',() => openFlowDraftTest(flowState.testLanguage,flowDraft.entryId,'entry','ready'));
+    $('#flowOpenStudio').addEventListener('click',() => { flowState.testReturnSurface = null; openFlowStudio('map'); });
     $('#flowTopDashboard').addEventListener('click',() => showDashboard('overview'));
     $('#flowUndo').addEventListener('click',() => restoreFlowHistory('undo'));
     $('#flowRedo').addEventListener('click',() => restoreFlowHistory('redo'));
@@ -3737,7 +3800,7 @@
       localStorage.removeItem(flowStorageKey);
       flowDraft = createFlowDraft('faq');
       flowPublishedDraft = clone(flowDraft);
-      Object.assign(flowState,{onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',testNodeId:null,testMessages:[],testError:'',testStartMode:'entry',testStartNodeId:null});
+      Object.assign(flowState,{onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',widgetPreviewLanguage:null,testNodeId:null,testMessages:[],testError:'',testStartMode:'entry',testStartNodeId:null,testReturnSurface:null});
       flowUndoStack = [];
       flowRedoStack = [];
       state.product = 'flow'; state.configured = false; state.version = 0; state.dirty = true;
@@ -3872,7 +3935,7 @@
       localStorage.removeItem(flowStorageKey);
       draft = clone(defaultDraft);
       publishedDraft = clone(defaultDraft);
-      flowDraft = createFlowDraft('faq'); flowPublishedDraft = clone(flowDraft); Object.assign(flowState,{onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',widgetPreviewLanguage:null,testNodeId:null,testMessages:[],testError:'',testStartMode:'entry',testStartNodeId:null}); flowUndoStack = []; flowRedoStack = [];
+      flowDraft = createFlowDraft('faq'); flowPublishedDraft = clone(flowDraft); Object.assign(flowState,{onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',widgetPreviewLanguage:null,testNodeId:null,testMessages:[],testError:'',testStartMode:'entry',testStartNodeId:null,testReturnSurface:null}); flowUndoStack = []; flowRedoStack = [];
       state.product = 'text'; state.role = 'sales'; state.publishedProduct = 'text'; state.publishedRole = 'sales'; state.section = 'business'; state.testMode = 'draft'; state.version = 0; state.configured = false; state.dirty = false; state.chatInitialized = false;
       undoStack = []; redoStack = []; lastDraftSnapshot = JSON.stringify(draft);
       $('#saveStatus').innerHTML = '<span class="dot"></span>Draft saved';

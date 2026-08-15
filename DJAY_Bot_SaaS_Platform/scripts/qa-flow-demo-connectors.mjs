@@ -34,6 +34,21 @@ try {
   await page.reload();
   await page.evaluate(() => openFlowStudio("map"));
 
+  await page.locator('[data-flow-section="identity"]').click();
+  await page.locator('input[type="color"][data-flow-bind="identity.brandColor"]').evaluate((control) => {
+    control.value = "#e6c229";
+    control.dispatchEvent(new Event("input", { bubbles: true }));
+    control.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  assert(await page.locator("#flowStudioContent .flow-color-value").textContent() === "#E6C229", "The brand color control did not show its selected hex value.");
+  const brandPreview = await page.locator("#flowStudioContent .flow-widget-mini .flow-widget-head").evaluate((element) => ({
+    background: getComputedStyle(element).backgroundColor,
+    color: getComputedStyle(element).color,
+  }));
+  assert(brandPreview.background === "rgb(230, 194, 41)", `The widget preview did not use the selected brand color: ${JSON.stringify(brandPreview)}`);
+  assert(brandPreview.color === "rgb(23, 26, 31)", `The widget preview did not choose readable text for a bright brand color: ${JSON.stringify(brandPreview)}`);
+  await page.locator('[data-flow-section="map"]').click();
+
   const treeAudit = await page.evaluate(() => {
     const problems = [];
     let optionEdges = 0;
@@ -93,6 +108,25 @@ try {
   assert(await page.locator("[data-flow-test-option-index]").count() === 2, "Services did not stop at the next customer decision layer.");
   assert(!await page.locator("#flowTestForm").isVisible(), "Services opened a contact form without customer permission.");
   assert(await page.locator(".flow-test-message").filter({ hasText: "What would you like to do next?" }).count() === 0, "Services added an unnecessary generic follow-up message.");
+  const brandedCustomerBubble = await page.locator(".flow-test-message.customer").last().evaluate((element) => ({
+    background: getComputedStyle(element).backgroundColor,
+    color: getComputedStyle(element).color,
+  }));
+  assert(brandedCustomerBubble.background === "rgb(230, 194, 41)", `The test conversation did not use the selected brand color: ${JSON.stringify(brandedCustomerBubble)}`);
+  assert(brandedCustomerBubble.color === "rgb(23, 26, 31)", `The test conversation brand color has unreadable text: ${JSON.stringify(brandedCustomerBubble)}`);
+  for (let turn = 0; turn < 8; turn += 1) {
+    await page.getByRole("button", { name: "Ask another question", exact: true }).click();
+    await page.getByRole("button", { name: "Services", exact: true }).click();
+  }
+  const transcriptMetrics = await page.locator("#flowTestTranscript").evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    scrollTop: element.scrollTop,
+  }));
+  assert(transcriptMetrics.scrollHeight > transcriptMetrics.clientHeight, `The long test conversation did not create a bounded scroll region: ${JSON.stringify(transcriptMetrics)}`);
+  assert(transcriptMetrics.scrollTop + transcriptMetrics.clientHeight >= transcriptMetrics.scrollHeight - 2, `The test conversation did not follow the latest turn: ${JSON.stringify(transcriptMetrics)}`);
+  const composerBox = await page.locator("#flowTypedTestInput").boundingBox();
+  assert(composerBox && composerBox.y + composerBox.height <= 900, `The test composer fell below the viewport: ${JSON.stringify(composerBox)}`);
   await page.getByRole("button", { name: "Contact the team", exact: true }).click();
   assert(await page.locator("#flowTestForm").isVisible(), "The explicit Contact the team choice did not open the contact form.");
 

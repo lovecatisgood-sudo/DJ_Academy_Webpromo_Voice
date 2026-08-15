@@ -32,6 +32,8 @@ function extractFunction(name) {
 }
 
 const functionNames = [
+  "normalizeFlowBrandColor",
+  "flowBrandTextColor",
   "upgradeFlowDraftJourney",
   "normalizeFlowDraftTranslations",
   "createFlowDraft",
@@ -52,6 +54,11 @@ const flowChoice = (en,th,target) => ({en,th,target});
 ${functionNames.map(extractFunction).join("\n")}
 return { ${functionNames.join(",")} };`;
 const engine = new Function("flowSchemaVersion", body)(5);
+
+assert.equal(engine.normalizeFlowBrandColor("#E6C229"), "#e6c229");
+assert.equal(engine.normalizeFlowBrandColor("not-a-color"), "#126149");
+assert.equal(engine.flowBrandTextColor("#e6c229"), "#171a1f", "bright brand colors need dark readable text");
+assert.equal(engine.flowBrandTextColor("#126149"), "#fff", "dark brand colors need light readable text");
 
 const node = (id, type, next = null, options = []) => ({
   id, type, title: id, en: `English ${id}`, th: `ไทย ${id}`, next, options, needsConnection: false,
@@ -222,6 +229,13 @@ assert.match(source, /flowTestStart\(node\.id,'selected'\)/, "selected-message t
 assert.match(source, /const node = flowState\.panel === 'test' \? flowDraft\.nodes\.find\(item => item\.id === flowState\.testNodeId\)/, "customer-test actions must bind to the active test message, not the selected editor message");
 assert.match(source, /flowResolveTypedReply\(flowDraft,flowState\.testNodeId,value,flowState\.testLanguage\)/, "typed replies must resolve from the active customer-test message");
 assert.doesNotMatch(source, /data-flow-test-option="\$\{escapeHtml\(option\.target\)\}"/, "tester must not use an unchecked destination as its button identity");
+assert.match(source, /id="flowTestTranscript" aria-live="polite"/, "the test transcript must expose live conversation updates");
+assert.match(source, /transcript\.scrollTop = transcript\.scrollHeight/, "the test transcript must follow the latest conversation turn");
+assert.match(source, /\.flow-test-transcript \{[^}]*overflow-y: auto/s, "long test conversations must have a bounded vertical scroll region");
+assert.match(source, /\.flow-right-panel \{[^}]*min-height: 0/s, "the test/editor panel must be allowed to shrink within the viewport");
+assert.match(source, /\.flow-color-value/, "brand color controls must show the selected hex value");
+assert.match(source, /applyFlowBrandPreview\(\$\('#flowStudioDemo'\),flowDraft\.identity\.brandColor\)/, "the Flow Studio tester must use the merchant brand color");
+assert.match(source, /Math\.max\(96,68 \+ Math\.max\(0,\(node\.options \|\| \[\]\)\.length - 1\) \* 23\)/, "option nodes must grow to contain every connector");
 
 for (const match of source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
   new Function(match[1]);
