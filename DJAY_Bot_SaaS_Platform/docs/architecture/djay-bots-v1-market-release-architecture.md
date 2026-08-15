@@ -128,7 +128,7 @@ The existing runtime `proxyApiRequest`, realm-specific trusted-origin checks, co
 Required application services/read models:
 
 - **Public catalogue view:** active package comparison, prices, promotion, terms and sellability from one catalogue version (`EXP-001`, `EXP-002`).
-- **Purchase journey:** server-held purchase intent, registration/verification continuation, checkout intent and authoritative return state (`EXP-003` through `EXP-009`).
+- **Deployment journey:** server-held package/trial and anonymous-draft intent, deployment-time registration/verification continuation, checkout intent and authoritative return state (`EXP-003` through `EXP-009`).
 - **Workspace portfolio:** account/commerce state plus independent lifecycle projection for every subscribed product family (`ONB-010`, `OPS-001`).
 - **Onboarding coordinator:** shared prerequisites, per-product steps, authoritative evidence, blockers and next allowed action (`ONB-001` through `ONB-012`).
 - **Operational command views:** inbox/customer/lead/action, product health, usage/billing and attention queues (`OPS-*`).
@@ -574,7 +574,8 @@ Daily and on-demand jobs compare raw events, aggregates, reservations, pack lots
 ```text
 public or authenticated package selection
  -> server creates opaque purchase_intent with catalogue/promotion snapshot reference
- -> registration/verification/sign-in attaches an eligible workspace without trusting browser state
+ -> Deploy Bot creates the server-held deployment intent
+ -> registration/verification/sign-in attaches the preserved draft to an eligible workspace without trusting browser state
  -> API validates sellable catalogue version, billing permission and tenant eligibility
  -> create/reuse checkout_intent + idempotency key
  -> select server-held annual Stripe Price

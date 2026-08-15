@@ -17,14 +17,6 @@ type HomePayload = {
 };
 type Conversation = { id: string; status: string; channel: string; customerDisplayName?: string | null; updatedAt?: string };
 
-function setupComplete(payload: HomePayload) {
-  const flowbot = payload.onboarding.readiness.productStates.find((item) => item.productKey === "flowbot");
-  return Boolean(payload.onboarding.preferences.complete
-    && payload.onboarding.preferences.conversationExamplesReviewed
-    && flowbot?.configured
-    && flowbot.tested);
-}
-
 export default function WorkspaceHomePage() {
   const [payload, setPayload] = useState<HomePayload | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
@@ -39,7 +31,6 @@ export default function WorkspaceHomePage() {
       if ([401, 403].includes(response.status)) { window.location.replace("/"); return; }
       if (!response.ok) throw new Error("home_unavailable");
       const result = await response.json() as HomePayload;
-      if (!setupComplete(result)) { window.location.replace("/workspace/setup"); return; }
       setPayload(result); setWorkspaces(result.workspaces); setLoading(false);
       void fetch("/tenant/conversations", { cache: "no-store" }).then(async (activityResponse) => {
         if (!activityResponse.ok) return;
@@ -55,7 +46,7 @@ export default function WorkspaceHomePage() {
     const response = await safeMutationFetch("/tenant/workspace/select", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId }),
     });
-    if (response.ok) window.location.replace("/workspace/start");
+    if (response.ok) window.location.replace("/workspace");
     else setError(true);
   }
 

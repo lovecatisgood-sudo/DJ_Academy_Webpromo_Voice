@@ -7,7 +7,18 @@
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": [
+        "AI_TEXT_GATEWAY_ENDPOINT",
+        "AI_TEXT_GATEWAY_SERVICE_TOKEN",
+        "AI_TEXT_PROVIDER",
+        "AI_TEXT_MODEL",
+        "AI_TEXT_API_KEY",
+        "OPENAI_API_KEY",
+        "XAI_API_KEY",
+        "GROK_API_KEY",
+        "GEMINI_API_KEY"
+      ]
     },
     "lint": {
       "dependsOn": ["^build"]
@@ -20,4 +31,3 @@
     }
   }
 }
-

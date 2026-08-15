@@ -16,6 +16,7 @@ describe("browser mutation origin isolation", () => {
     ["/public/auth/register", "https://www.djaybot.test"],
     ["/public/auth/verify-email", "https://www.djaybot.test"],
     ["/public/invitations/accept", "https://www.djaybot.test"],
+    ["/public/builder/ai-test", "https://www.djaybot.test"],
     ["/public/auth/login", "https://app.djaybot.test"],
     ["/public/auth/mfa/challenge", "https://app.djaybot.test"],
     ["/public/auth/recovery/request", "https://app.djaybot.test"],

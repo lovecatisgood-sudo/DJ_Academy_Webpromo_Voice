@@ -6,77 +6,68 @@ const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const read = (path) => readFileSync(resolve(root, path), "utf8");
 const failures = [];
 
-const route = read("apps/api/app/tenant/onboarding/route.ts");
-for (const marker of ['action: z.literal("review_conversations")', "markConversationExamplesReviewed(resolved.context)"]) {
-  if (!route.includes(marker)) failures.push(`onboarding API is missing ${marker}`);
-}
-if (route.includes("stage: z.enum")) failures.push("onboarding API still trusts a browser-supplied stage");
-
-const profileRoute = read("apps/api/app/tenant/profile/route.ts");
-for (const marker of ["updateBusinessProfile", 'locale: z.enum(["en", "th"])']) {
-  if (!profileRoute.includes(marker)) failures.push(`profile API is missing ${marker}`);
-}
-
-const store = read("packages/db/src/tenant-workspace-store.ts");
+const builder = read("docs/design/djay-bot-text-voice-configuration-flow.html");
 for (const marker of [
-  "launchReadyProducts", "current_published_version_id = execution.flow_version_id",
-  "current_published_playbook_version_id = session.playbook_version_id",
-  "session.status = 'ended'", "activeProducts.has(product)",
-  "buildOnboardingChecklist", "nextHref", "/workspace/setup", "/workspace/usage",
-  "conversationExamplesReviewed", "tenant.onboarding_conversations_reviewed",
+  "Choose the bot first, then its package.",
+  "Configure Flow Bot trial",
+  "Configure Text Bot trial",
+  "openSelectedCommerceIntent",
+  "openDeploymentAccount",
+  "Create account and continue deployment",
+  "if (!state.accountCreated) { openDeploymentAccount('flow'); return; }",
+  "if (!draft.install.live && !state.accountCreated) { openDeploymentAccount('configuration'); return; }",
+  "Verify a card to deploy",
+  "One Text trial is allowed per verified card",
+  "data-flow-template=\"faq\"",
+  "data-flow-template=\"lead\"",
+  "data-flow-template=\"appointment\"",
+  "data-flow-template=\"product\"",
+  "data-flow-template=\"support\"",
+  "data-flow-template=\"blank\"",
+  "data-onboarding-role=\"support\"",
+  "data-onboarding-role=\"sales\"",
+  "data-onboarding-role=\"booking\"",
+  "Message removed.",
+  "incoming connection",
+  "live Grok testing",
+  "fetch('/public/builder/ai-test'",
 ]) {
-  if (!store.includes(marker)) failures.push(`onboarding evidence store is missing ${marker}`);
+  if (!builder.includes(marker)) failures.push(`approved anonymous builder is missing ${marker}`);
 }
-
-const setupPage = read("apps/tenant-web/app/workspace/setup/page.tsx");
-for (const marker of [
-  '["Goal", "Conversations", "Chatbot", "Test"]',
-  'JSON.stringify({ action: "review_conversations" })',
-  "/tenant/flowbot/bots", "leadCaptureTemplate", "FlowSimulator",
-  "/workspace/support?from=/workspace/setup",
+for (const forbidden of [
+  "Continue to AI Text Bot onboarding",
+  "Start 30-day Text Bot trial</button>",
+  "Start 30-day Flow Bot trial</button>",
 ]) {
-  if (!setupPage.includes(marker)) failures.push(`setup wizard UI is missing ${marker}`);
-}
-for (const forbidden of ["WebsiteDeploymentForm", "createWidgetInstallSnippet", "setup-stepper", "onboarding?.checklist"]) {
-  if (setupPage.includes(forbidden)) failures.push(`setup wizard UI still contains ${forbidden}`);
+  if (builder.includes(forbidden)) failures.push(`approved anonymous builder still contains ${forbidden}`);
 }
 
-const startPage = read("apps/tenant-web/app/workspace/start/page.tsx");
-for (const marker of ["/tenant/setup", "conversationExamplesReviewed", '"/workspace/setup"', '"/workspace"']) {
-  if (!startPage.includes(marker)) failures.push(`first-login setup router is missing ${marker}`);
+const buildRoute = read("apps/public-site/app/build/route.ts");
+for (const marker of ["djay-bot-text-voice-configuration-flow.html", '"Content-Type": "text/html; charset=utf-8"']) {
+  if (!buildRoute.includes(marker)) failures.push(`public builder route is missing ${marker}`);
 }
 
-const chrome = read("apps/tenant-web/lib/i18n/setup-chrome.ts");
-for (const marker of ["navSetup", "checkoutReturn", "th:", "en:"]) {
-  if (!chrome.includes(marker)) failures.push(`setup chrome i18n is missing ${marker}`);
-}
-
-const page = read("apps/tenant-web/app/workspace/page.tsx");
-for (const marker of [
-  "/tenant/setup", "conversationExamplesReviewed", 'window.location.replace("/workspace/setup")',
-  "Recommended next step", "Recent customer conversations", ".slice(0, 3)",
+for (const [path, marker] of [
+  ["apps/public-site/app/page.tsx", 'redirect("/build")'],
+  ["apps/public-site/app/pricing/page.tsx", 'redirect("/build?product=text")'],
+  ["apps/tenant-web/app/workspace/start/page.tsx", "/build"],
+  ["apps/tenant-web/app/workspace/setup/page.tsx", "/build"],
 ]) {
-  if (!page.includes(marker)) failures.push(`simple workspace home is missing ${marker}`);
-}
-for (const forbidden of ["Launch checklist", "onboarding?.checklist", "primaryAction", "nextHref", "subscriptions", "Action center"] ) {
-  if (page.includes(forbidden)) failures.push(`simple workspace home still contains ${forbidden}`);
+  if (!read(path).includes(marker)) failures.push(`${path} does not retire the old route into the approved builder`);
 }
 
-const settingsPage = read("apps/tenant-web/app/workspace/settings/page.tsx");
-for (const marker of ["/tenant/profile", "Business profile", "Asia/Bangkok"]) {
-  if (!settingsPage.includes(marker)) failures.push(`settings UI is missing ${marker}`);
-}
+const login = read("apps/tenant-web/app/page.tsx");
+if (login.includes('return "/workspace/start"')) failures.push("tenant login still forces the retired first-login wizard");
+const workspace = read("apps/tenant-web/app/workspace/page.tsx");
+if (workspace.includes('window.location.replace("/workspace/setup")')) failures.push("workspace still traps incomplete accounts in the retired setup wizard");
 
-const operationsPage = read("apps/tenant-web/app/workspace/operations/page.tsx");
-if (operationsPage.includes("Mark reviewed")) {
-  failures.push("operations UI still contains fake Mark reviewed guides");
-}
-if (!operationsPage.includes("View launch checklist")) {
-  failures.push("operations UI should link into Overview evidence instead of fake completion");
+const aiTest = read("apps/api/app/public/builder/ai-test/route.ts");
+for (const marker of ["runAiTextPreview", "public_builder_ai_test", "services.aiTextGateway", "hasTrustedOrigin"]) {
+  if (!aiTest.includes(marker)) failures.push(`anonymous Grok test route is missing ${marker}`);
 }
 
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
-console.info("First login is gated by a four-step, server-authoritative Flow Bot setup; the completed workspace home remains intentionally sparse.");
+console.info("Approved package-first anonymous builder is the only customer entry; account and Text-card gates occur at Deploy Bot.");

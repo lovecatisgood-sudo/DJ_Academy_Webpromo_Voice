@@ -76,9 +76,9 @@ Rules:
 
 ### 4.3 Account and order step
 
-The account step follows the commercial choice. It presents the selected product, access type, amount due now, and the applicable term or trial limit before continuation.
+The account step does not follow the commercial choice immediately. The merchant first completes the selected product's onboarding, editable configuration, testing, and publication flow without an account. Account creation appears only when the merchant presses `Deploy Bot`; it presents the selected product, access type, amount due now, and the applicable term or trial limit while preserving the completed anonymous draft.
 
-The production account flow requires identity, legal acceptance, and authoritative server-side provisioning. The standalone design demo deliberately simulates this page without creating an account, charging a card, or requiring login.
+The production deployment account flow requires identity, legal acceptance, and authoritative server-side provisioning. The standalone design demo deliberately simulates this deployment-only page without creating an account, charging a card, or requiring login.
 
 For paid subscriptions, payment confirmation and entitlement provisioning must be authoritative and idempotent. A trial choice creates a pending trial intent so the merchant can configure and test without consuming trial time. The 30-day clock begins only when deployment provisioning succeeds. Flow deployment requires a verified account email. Text deployment first opens Stripe card setup, and the deployment continues only after the SetupIntent succeeds and the server confirms that the card fingerprint has not previously received a Text trial.
 

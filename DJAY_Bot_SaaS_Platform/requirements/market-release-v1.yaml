@@ -6408,7 +6408,7 @@
     },
     {
       "id": "EXP-003",
-      "title": "A prospect MUST be able to register without subscribing, choose before registration and resume after verification, or choose from an unsubscribed workspace.",
+      "title": "A prospect MUST configure, test and publish the selected Bot without registering. Registration or sign-in MUST first appear when the prospect presses `Deploy Bot`; after verification the prospect MUST resume the preserved deployment and may still decline payment or trial activation.",
       "packages": [
         "shared"
       ],
@@ -6431,7 +6431,7 @@
     },
     {
       "id": "EXP-004",
-      "title": "A purchase selection MUST be preserved as an opaque server-side intent through registration, verification, sign-in, checkout interruption, and return; browser parameters MUST NOT be trusted as price/plan/tenant authority.",
+      "title": "The package selection and anonymous configuration draft MUST be preserved as an opaque server-side intent through deployment-time registration, verification, sign-in, checkout interruption, and return; browser parameters MUST NOT be trusted as price, plan, configuration or tenant authority.",
       "packages": [
         "shared"
       ],

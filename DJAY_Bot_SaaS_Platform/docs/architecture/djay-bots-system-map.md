@@ -371,7 +371,7 @@ flowchart LR
 | Realm | Approved page/surface | Product scope |
 | --- | --- | --- |
 | Public | Landing | All three families |
-| Public | Packages | All three families; family then package then subscribe/trial |
+| Public | Packages and builder | All three families; family then package/trial intent, anonymous configuration, publish, and deployment-time account gate |
 | Public/identity | Account, legal acceptance, paid checkout or trial provisioning | Selected family/access |
 | Tenant onboarding | Flow starting journey, identity, ready summary | Flow only |
 | Tenant onboarding | Role, source, processing, editable generated review | AI Text only or AI Voice only |

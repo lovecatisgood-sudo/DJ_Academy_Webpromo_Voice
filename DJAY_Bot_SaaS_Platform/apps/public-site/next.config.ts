@@ -13,6 +13,13 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: workspaceRoot,
   turbopack: { root: workspaceRoot },
   headers: () => Promise.resolve(nextSecurityHeaders("public")),
+  redirects: () => Promise.resolve([
+    {
+      source: "/register",
+      destination: "/build",
+      permanent: false,
+    },
+  ]),
 };
 
 export default nextConfig;

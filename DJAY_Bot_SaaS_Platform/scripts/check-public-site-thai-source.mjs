@@ -74,6 +74,8 @@ function isExplicitEnglishTranslation(node) {
 function isNonCopyLiteral(node) {
   if (node.text === "use client") return true;
   if (node.text === "[placeholder], [aria-label], [title]") return true;
+  if (/^(?:text\/html|image\/png|application\/json)\b/i.test(node.text)) return true;
+  if (/^(?:public|private|no-store),?\s*(?:max-age=\d+)?$/i.test(node.text)) return true;
   if (/^\d+\s+\d+px\s+\d+px\s+rgba\([0-9,.]+\)$/.test(node.text)) return true;
   const parent = node.parent;
   if (ts.isJsxAttribute(parent)) {

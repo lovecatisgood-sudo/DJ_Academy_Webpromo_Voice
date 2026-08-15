@@ -69,7 +69,11 @@ export function expectedBrowserMutationOrigin(pathname: string, urls: BrowserRea
   if (pathname.startsWith("/tenant/")) return canonicalOrigin(urls.tenantAppUrl);
   if (pathname.startsWith("/platform/")) return canonicalOrigin(urls.platformAppUrl);
   if (tenantPublicMutationPaths.has(pathname)) return canonicalOrigin(urls.tenantAppUrl);
-  if (pathname.startsWith("/public/auth/") || pathname.startsWith("/public/invitations/")) {
+  if (
+    pathname.startsWith("/public/auth/")
+    || pathname.startsWith("/public/invitations/")
+    || pathname.startsWith("/public/builder/")
+  ) {
     return canonicalOrigin(urls.publicAppUrl);
   }
   return null;

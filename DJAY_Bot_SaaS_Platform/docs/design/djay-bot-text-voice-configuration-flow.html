@@ -969,7 +969,7 @@
   </style>
 </head>
 <body>
-  <section class="journey-demo" id="journeyDemo" aria-label="DJBOT merchant journey design demo">
+  <section class="journey-demo" id="journeyDemo" aria-label="DJBOT approved merchant preview build">
     <header class="public-nav">
       <div class="brand">
         <div class="brand-mark">D</div>
@@ -979,7 +979,7 @@
       <nav class="public-links" aria-label="Demo navigation">
         <button data-show-landing>Products</button>
         <button data-show-pricing>Pricing</button>
-        <span class="badge">Design demo</span>
+        <span class="badge">Approved preview build</span>
         <button class="btn btn-primary" data-show-pricing>View packages</button>
       </nav>
     </header>
@@ -993,7 +993,7 @@
             <p>Answer questions, collect useful information, support sales, arrange appointments, and hand conversations to your team through structured chat, AI text, or voice.</p>
             <div class="hero-actions"><button class="btn btn-green" data-show-pricing>View packages</button><button class="btn" data-scroll-products>Compare the three bots</button></div>
           </div>
-          <figure class="hero-visual"><img src="djay-merchant-automation-hero.png" width="1586" height="992" alt="A business owner using DJBOT to manage website customer conversations"></figure>
+          <figure class="hero-visual"><img src="/build-hero" width="1586" height="992" alt="A business owner using DJBOT to manage website customer conversations"></figure>
         </div>
 
         <section class="public-section public-shell" id="productFamilies">
@@ -1007,8 +1007,8 @@
 
         <section class="public-section outcome-band">
           <div class="public-shell outcome-grid">
-            <div class="section-copy"><h2>One shared decision, then three separate setup paths.</h2><p>The landing and subscription experience helps the merchant choose. After activation, the purchased product opens its own onboarding and configuration.</p></div>
-            <div class="outcome-steps"><div><strong>Choose the bot</strong><span>Start with Flow, AI Text, or AI Voice based on how customers should interact.</span></div><div><strong>Choose the package</strong><span>Compare Starter and Advanced capabilities, usage, channels, and annual terms.</span></div><div><strong>Activate access</strong><span>Subscribe, or use an eligible website-only trial for Flow Bot or AI Text Bot.</span></div><div><strong>Configure separately</strong><span>Each product opens only its own role, content, testing, publishing, and installation flow.</span></div></div>
+            <div class="section-copy"><h2>One shared decision, then three separate setup paths.</h2><p>Choose a product and package, configure the complete bot without an account, then create the owning account only when you deploy.</p></div>
+            <div class="outcome-steps"><div><strong>Choose the bot</strong><span>Start with Flow, AI Text, or AI Voice based on how customers should interact.</span></div><div><strong>Choose the package</strong><span>Compare Starter and Advanced capabilities, usage, channels, and annual terms.</span></div><div><strong>Configure first</strong><span>Build, edit, test, and publish the draft before creating an account.</span></div><div><strong>Sign up at deployment</strong><span>Deploy Bot creates the account, preserves this configuration, and applies the selected trial or subscription.</span></div></div>
           </div>
         </section>
 
@@ -1035,7 +1035,7 @@
 
       <section class="commerce-screen" data-commerce-screen="account">
         <div class="public-shell">
-          <header class="commerce-header"><button class="back-link" id="backToPricing">Back to packages</button><span class="eyebrow" style="display:block;margin-top:28px">Simulated account step</span><h1 id="accountHeading">Create your account.</h1><p>No account, payment, subscription, or trial will actually be created in this design demo.</p></header>
+          <header class="commerce-header"><button class="back-link" id="backToPricing">Back to configuration</button><span class="eyebrow" style="display:block;margin-top:28px">Deployment account step</span><h1 id="accountHeading">Create your account to deploy.</h1><p>Your completed configuration is preserved. Account creation is requested only because you chose to deploy the Bot.</p></header>
           <div class="account-layout">
             <form class="account-card" id="accountForm" novalidate>
               <h2>Account and business</h2><p>This information will own the bot and its saved configuration.</p>
@@ -1043,8 +1043,8 @@
               <div class="account-section" id="cardSection"><h3 id="cardSectionTitle">Payment card</h3><p class="help" id="cardSectionHelp">Required for this simulated selection. The demo never submits or stores card information.</p><div class="field-grid"><label class="wide">Card number<input id="accountCard" inputmode="numeric" value="4242 4242 4242 4242" autocomplete="cc-number"></label><label>Expiry<input id="accountExpiry" value="12/30" autocomplete="cc-exp"></label><label>Security code<input id="accountCvc" inputmode="numeric" value="123" autocomplete="cc-csc"></label></div></div>
               <label class="consent-row"><input type="checkbox" id="accountTerms" checked><span>I agree to the Terms and Privacy Notice and confirm I am authorized to create this business workspace.</span></label>
               <div class="account-error hidden" id="accountError" role="alert"></div>
-              <button class="btn btn-green" id="continueToBotOnboarding" type="submit" style="margin-top:18px">Continue to AI Text Bot onboarding</button>
-              <p class="simulation-note">Design simulation only. No email, card, checkout, trial, subscription, or external service is contacted.</p>
+              <button class="btn btn-green" id="continueToBotOnboarding" type="submit" style="margin-top:18px">Create account and continue deployment</button>
+              <p class="simulation-note">Preview deployment only. No email, card, checkout, trial, subscription, or external service is contacted.</p>
             </form>
             <aside class="order-summary"><h2>Your selection</h2><p id="orderIntentCopy"></p><div class="order-line"><span>Product</span><strong id="orderProductName">AI Text Bot</strong></div><div class="order-line"><span>Access</span><strong id="orderAccess"></strong></div><div class="order-line"><span>Due today</span><strong id="orderDue"></strong></div><div class="order-line"><span>Website access</span><strong>Included</strong></div><div class="notice" style="margin-top:18px"><strong>i</strong><div><strong id="orderNoticeTitle"></strong><p id="orderNoticeText"></p></div></div></aside>
           </div>
@@ -1053,14 +1053,14 @@
     </main>
   </section>
 
-  <section class="onboarding-demo hidden" id="onboardingDemo" aria-label="Bot onboarding design demo">
+  <section class="onboarding-demo hidden" id="onboardingDemo" aria-label="Approved Bot onboarding preview">
     <header class="onboarding-topbar">
       <div class="brand">
         <div class="brand-mark">D</div>
         <div><strong>DJBOT</strong><small>BY DJAI</small></div>
       </div>
       <span class="onboarding-step-label" id="onboardingStepLabel">Onboarding step 1 of 4</span>
-      <span class="badge">Design demo</span>
+      <span class="badge">Approved preview build</span>
     </header>
     <div class="onboarding-progress" aria-hidden="true"><span id="onboardingProgress"></span></div>
 
@@ -1210,7 +1210,7 @@
     </div>
   </section>
 
-  <section class="flow-onboarding-demo hidden" id="flowOnboardingDemo" aria-label="Flow Bot onboarding design demo">
+  <section class="flow-onboarding-demo hidden" id="flowOnboardingDemo" aria-label="Approved Flow Bot onboarding preview">
     <header class="flow-onboarding-topbar">
       <div class="brand"><div class="brand-mark">D</div><div><strong>DJBOT</strong><small>BY DJAI</small></div></div>
       <span class="badge" id="flowOnboardingPlan">Flow Bot Starter</span>
@@ -1300,7 +1300,7 @@
     </main>
   </section>
 
-  <section class="flow-studio-demo hidden" id="flowStudioDemo" aria-label="Flow Bot Configuration Studio design demo">
+  <section class="flow-studio-demo hidden" id="flowStudioDemo" aria-label="Approved Flow Bot Configuration Studio preview">
     <header class="flow-studio-topbar">
       <div class="brand"><div class="brand-mark">D</div><div><strong>DJBOT</strong><small>BY DJAI</small></div></div>
       <div class="flow-studio-title"><strong>Flow Configuration Studio</strong><span id="flowStudioSubtitle">Harbor Guide · Draft revision</span></div>
@@ -1329,7 +1329,7 @@
       <div class="brand-mark">D</div>
       <div><strong>DJBOT</strong><small>BY DJAI</small></div>
     </div>
-    <div class="topbar-title"><strong>Bot Configuration Studio</strong><span>Design demo, no live AI or customer traffic</span></div>
+    <div class="topbar-title"><strong>Bot Configuration Studio</strong><span>Anonymous draft · live Grok testing · no customer traffic</span></div>
     <span class="badge" id="saveStatus"><span class="dot"></span>Draft saved</span>
     <span class="badge" id="liveVersion">No published version</span>
     <div class="top-actions">
@@ -1382,7 +1382,7 @@
       </details>
       <div class="composer" id="textComposer">
         <div class="composer-row"><input id="testInput" aria-label="Test message" placeholder="Type a customer message"><button class="btn btn-green" id="sendTest">Send</button></div>
-        <div class="composer-help">Replies are simulated in this design demo. Production will test the real draft configuration.</div>
+        <div class="composer-help">Text tests use the configured DJBOT AI gateway and the current draft. No customer action is executed.</div>
       </div>
       <div class="composer hidden" id="voiceComposer">
         <div class="voice-control"><button class="voice-orb" id="voiceTest" aria-label="Start simulated voice test">◉</button></div>
@@ -1394,7 +1394,7 @@
   <button class="btn btn-green mobile-test" id="mobileTest">Test bot</button>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <section class="dashboard-demo hidden" id="merchantDashboard" aria-label="DJBOT merchant dashboard design demo">
+  <section class="dashboard-demo hidden" id="merchantDashboard" aria-label="Approved DJBOT merchant dashboard preview">
     <button class="dashboard-mobile-backdrop" id="dashboardBackdrop" aria-label="Close dashboard menu"></button>
     <div class="dashboard-shell">
       <aside class="dashboard-sidebar" aria-label="Merchant dashboard navigation">
@@ -1508,7 +1508,7 @@
       }
     };
 
-    const state = { product: 'text', role: 'sales', publishedProduct: 'text', publishedRole: 'sales', section: 'business', testMode: 'draft', pendingRole: null, version: 0, configured: false, dirty: false, chatInitialized: false };
+    const state = { product: 'text', role: 'sales', publishedProduct: 'text', publishedRole: 'sales', section: 'business', testMode: 'draft', pendingRole: null, version: 0, configured: false, dirty: false, chatInitialized: false, accountCreated: false, deployReturn: null };
     const onboardingState = { page: 'role', source: 'website', processTimer: null };
     const commerceState = { product: 'text', plan: 'ai_chat_basic', intent: 'subscribe' };
     const commerceCatalog = {
@@ -1517,7 +1517,7 @@
         trialText: '30 days, Starter features, website only, 5,000 conversations, no card required.',
         plans: [
           {key:'flowbot_basic',name:'Flow Bot Starter',tier:'Starter',price:'THB 2,499',renewal:'THB 4,999',summary:'Structured website automation for common questions, lead capture, and guided customer actions.',features:['1 Flow Bot','50,000 monthly conversations','150 conversation topics','Website chat widget','Lead capture and handover']},
-          {key:'flowbot_premium',name:'Flow Bot Advanced',tier:'Advanced',price:'THB 4,450',renewal:'THB 8,900',summary:'Multi-channel structured automation with advanced logic, routing, integrations, and analytics.',features:['Up to 3 Flow Bots','100,000 monthly conversations','500 conversation topics','Website plus one social channel','Advanced logic and integrations']}
+          {key:'flowbot_premium',name:'Flow Bot Advanced',tier:'Advanced',price:'THB 4,450',renewal:'THB 8,900',summary:'Advanced website automation with richer logic, routing, integrations, and analytics.',features:['Up to 3 Flow Bots','100,000 monthly conversations','500 conversation topics','Website channel at launch','Advanced logic and integrations']}
         ]
       },
       text: {
@@ -1525,7 +1525,7 @@
         trialText: 'Configure first. On Deploy Bot, verify a card. Then receive 30 days, website only, and 500 AI replies. One Text trial per card.',
         plans: [
           {key:'ai_chat_basic',name:'AI Text Bot Starter',tier:'Starter',price:'THB 5,950',renewal:'THB 11,900',summary:'A Thai and English website AI assistant grounded in approved business knowledge.',features:['1 AI Text Bot','2,000 AI replies monthly','Thai and English','Website and document knowledge','Lead capture and handover']},
-          {key:'ai_chat_premium',name:'AI Text Bot Advanced',tier:'Advanced',price:'THB 12,450',renewal:'THB 24,900',summary:'Multi-channel AI conversations with advanced qualification, routing, integrations, and analytics.',features:['Up to 3 AI Text Bots','10,000 AI replies monthly','Website plus one social channel','Advanced sales intelligence','Routing and integrations']}
+          {key:'ai_chat_premium',name:'AI Text Bot Advanced',tier:'Advanced',price:'THB 12,450',renewal:'THB 24,900',summary:'Advanced website AI conversations with qualification, routing, integrations, and analytics.',features:['Up to 3 AI Text Bots','10,000 AI replies monthly','Website channel at launch','Advanced sales intelligence','Routing and integrations']}
         ]
       },
       voice: {
@@ -1635,7 +1635,7 @@
         id:'conv-1018', customer:'Kittipong Saelim', company:'Lanna Auto Care', channel:'Website chat', time:'4 minutes ago', minutesAgo:4, automationMode:'bot', starred:false, lead:true,
         interest:'Medium', status:'appointment_made', summary:'Requested a product demonstration after asking how the bot handles service and price questions.',
         goal:'Qualify car service enquiries', problem:'Staff repeat the same service explanations every day', objection:'Needs to see the customer experience first', service:'Product demonstration', next:'Demo booked for Friday, 13:30',
-        contact:{phone:'+66 89 440 2186',email:'kittipong@lannaauto.example',preferred:'LINE',consent:'Appointment consent given'}, notes:'Show Thai and English switching during the demo.',
+        contact:{phone:'+66 89 440 2186',email:'kittipong@lannaauto.example',preferred:'Phone',consent:'Appointment consent given'}, notes:'Show Thai and English switching during the demo.',
         transcript:[['customer','Can it explain our different car service packages in Thai?'],['bot','Yes, using your approved package information. It can also switch to English when the customer does.'],['customer','I need to see it before deciding.'],['bot','I can help arrange a product demonstration. Which day works for you?']]
       },
       {
@@ -1663,7 +1663,7 @@
         id:'conv-0751', customer:'Daniel Wong', company:'Good Grain Bakery', channel:'Website chat', time:'Sun, 15:51', minutesAgo:4320, automationMode:'bot', starred:true, lead:true,
         interest:'High', status:'closed_deal', summary:'Confirmed the Starter package after reviewing website enquiry coverage and handover.',
         goal:'Capture catering enquiries', problem:'Large-order enquiries arrive outside staff hours', objection:'Resolved: asked whether staff can take over', service:'AI Text Bot Starter', next:'Begin implementation handover',
-        contact:{phone:'+66 80 992 6240',email:'daniel@goodgrain.example',preferred:'WhatsApp',consent:'Contact consent given'}, notes:'Won. Implementation team owns the next step.',
+        contact:{phone:'+66 80 992 6240',email:'daniel@goodgrain.example',preferred:'Email',consent:'Contact consent given'}, notes:'Won. Implementation team owns the next step.',
         transcript:[['customer','Can my team take over if the customer asks something unusual?'],['bot','Yes. The bot can hand the conversation to your shared inbox with the information already collected.'],['customer','That works. We will take the Starter package.']]
       }
     ];
@@ -1679,7 +1679,7 @@
         id:'flow-conv-1018',customer:'Kittipong Saelim',company:'Lanna Auto Care',channel:'Website Flow Bot',time:'4 minutes ago',minutesAgo:4,automationMode:'bot',starred:false,lead:true,
         interest:'Medium',status:'appointment_made',summary:'Completed the appointment-request path for a product demonstration on Friday.',
         goal:'Request a demonstration',problem:'Wants to see the customer journey',objection:'No objection recorded',service:'Product demonstration',next:'Confirm Friday, 13:30',path:'Welcome > Appointment > Product demonstration > Contact details',flowVersion:'Version 3',fallback:false,
-        contact:{phone:'+66 89 440 2186',email:'kittipong@lannaauto.example',preferred:'LINE',consent:'Appointment consent given'},notes:'Show Thai and English options during the demonstration.',
+        contact:{phone:'+66 89 440 2186',email:'kittipong@lannaauto.example',preferred:'Phone',consent:'Appointment consent given'},notes:'Show Thai and English options during the demonstration.',
         transcript:[['bot','Welcome to Harbor Studio. What would you like help with?'],['customer','Selected: Book an appointment'],['bot','Which service would you like?'],['customer','Selected: Product demonstration'],['bot','Your request was received. It is not confirmed until the team contacts you.']]
       },
       {
@@ -1707,7 +1707,7 @@
         id:'flow-conv-0751',customer:'Daniel Wong',company:'Good Grain Bakery',channel:'Website Flow Bot',time:'Sun, 15:51',minutesAgo:4320,automationMode:'bot',starred:true,lead:true,
         interest:'High',status:'closed_deal',summary:'Completed the catering-enquiry flow and was marked Won by the merchant.',
         goal:'Capture catering enquiries',problem:'Large orders arrive outside staff hours',objection:'Resolved through human handover information',service:'Flow Bot Starter',next:'Begin implementation handover',path:'Welcome > Catering > Request details > Lead captured',flowVersion:'Version 2',fallback:false,
-        contact:{phone:'+66 80 992 6240',email:'daniel@goodgrain.example',preferred:'WhatsApp',consent:'Contact consent given'},notes:'Won. Implementation team owns the next step.',
+        contact:{phone:'+66 80 992 6240',email:'daniel@goodgrain.example',preferred:'Email',consent:'Contact consent given'},notes:'Won. Implementation team owns the next step.',
         transcript:[['bot','What would you like help with?'],['customer','Selected: Catering enquiry'],['bot','Share your event date, estimated guests, and preferred contact method.'],['customer','Submitted catering details.']]
       }
     ];
@@ -2092,7 +2092,7 @@
         : `<div class="flow-release-state current"><span class="eyebrow">Published version</span><h2>Version ${version}</h2><p>New customer conversations use this immutable version. Previous versions remain available for rollback.</p><ul class="flow-check-list"><li><b>✓</b><span>Published from ${flowDraft.nodes.length} configured steps.</span></li><li><b>✓</b><span>Draft matches the published version.</span></li></ul><button class="btn" id="flowCreateDraftChange">Return to Flow map</button></div>`;
       return flowPageHead('Publish, install, and go live','These are separate decisions. Publishing never silently changes a website or enables customer traffic.',flowState.live ? 'Live' : flowState.installVerified ? 'Verified, traffic off' : flowState.configured ? 'Published' : 'Draft only') +
         `<div class="flow-release-grid">${publication}<div class="flow-release-state"><span class="eyebrow">Website activation</span><h2>${flowState.live ? 'Flow Bot is live' : flowState.installVerified ? 'Website verified' : 'Install after publishing'}</h2><p>Verification checks the configured website domain and widget loader. Go live remains explicit.</p><div class="flow-install-steps"><div class="flow-install-step ${flowState.configured ? 'active' : ''}"><strong>1. Publish a version</strong><span>${flowState.configured ? `Version ${version} available` : 'Required before installation'}</span></div><div class="flow-install-step ${flowState.snippetCopied ? 'active' : ''}"><strong>2. Install the website snippet</strong><span>${flowState.snippetCopied ? 'Snippet copied in this demo' : 'Copy and place before the closing body tag'}</span></div><div class="flow-install-step ${flowState.installVerified ? 'active' : ''}"><strong>3. Verify the website</strong><span>${flowState.installVerified ? 'Widget and allowed origin found' : 'Run the simulated installation check'}</span></div><div class="flow-install-step ${flowState.live ? 'active' : ''}"><strong>4. Enable customer traffic</strong><span>${flowState.live ? 'Website customers can start new Flow conversations' : 'Your explicit final action'}</span></div></div></div></div>` +
-        `<section class="flow-studio-panel"><h2>Website installation</h2><p>This is a clickable design simulation. No external website is read or changed.</p><label>Website domain<input data-flow-bind="widget.domain" value="${escapeHtml(flowDraft.widget.domain)}"></label><div class="flow-codebox"><code>${escapeHtml(snippet)}</code><button class="btn" id="flowCopySnippet" ${!flowState.configured ? 'disabled' : ''}>${flowState.snippetCopied ? 'Copied' : 'Copy snippet'}</button></div><div class="row" style="margin-top:12px"><button class="btn" id="flowVerifyInstall" ${!flowState.configured || !flowState.snippetCopied ? 'disabled' : ''}>Verify installation</button><button class="btn btn-green" id="flowGoLive" ${!flowState.installVerified || flowState.live ? 'disabled' : ''}>${flowState.live ? 'Flow Bot is live' : 'Go live'}</button>${flowState.live ? '<button class="btn" id="flowTurnOff">Turn traffic off</button>' : ''}</div>${flowState.verifyError ? '<div class="flow-verify-result error"><strong>Widget not found on this domain.</strong><br>Check the full https:// address, install the snippet once, then retry.</div>' : flowState.installVerified ? '<div class="flow-verify-result"><strong>Installation verified.</strong><br>The widget loader, website origin, and published Flow version are ready.</div>' : ''}</section>` +
+        `<section class="flow-studio-panel"><h2>Website installation</h2><p>This is a clickable design simulation. No external website is read or changed.</p><label>Website domain<input data-flow-bind="widget.domain" value="${escapeHtml(flowDraft.widget.domain)}"></label><div class="flow-codebox"><code>${escapeHtml(snippet)}</code><button class="btn" id="flowCopySnippet" ${!flowState.configured ? 'disabled' : ''}>${flowState.snippetCopied ? 'Copied' : 'Copy snippet'}</button></div><div class="row" style="margin-top:12px"><button class="btn" id="flowVerifyInstall" ${!flowState.configured || !flowState.snippetCopied ? 'disabled' : ''}>Verify installation</button><button class="btn btn-green" id="flowGoLive" ${!flowState.installVerified || flowState.live ? 'disabled' : ''}>${flowState.live ? 'Flow Bot is live' : 'Deploy Bot'}</button>${flowState.live ? '<button class="btn" id="flowTurnOff">Turn traffic off</button>' : ''}</div>${flowState.verifyError ? '<div class="flow-verify-result error"><strong>Widget not found on this domain.</strong><br>Check the full https:// address, install the snippet once, then retry.</div>' : flowState.installVerified ? '<div class="flow-verify-result"><strong>Installation verified.</strong><br>The widget loader, website origin, and published Flow version are ready.</div>' : ''}</section>` +
         `<div class="row between"><button class="btn" data-flow-dashboard>Enter dashboard</button><span class="help">You may return to the dashboard at any time.</span></div>`;
     }
 
@@ -2345,7 +2345,10 @@
         let valid = false; try { const url = new URL(flowDraft.widget.domain); valid = url.protocol === 'https:' && Boolean(url.hostname); } catch (error) { valid = false; }
         flowState.verifyError = !valid; flowState.installVerified = valid; flowState.live = false; saveFlowLocal(); renderFlowStudio(); showToast(valid ? 'Simulated website installation verified.' : 'Enter a complete HTTPS website domain and retry.');
       });
-      if ($('#flowGoLive')) $('#flowGoLive').addEventListener('click',() => { flowState.live = true; saveFlowLocal(); renderFlowStudio(); showToast('Flow Bot customer traffic is now live in this design simulation.'); });
+      if ($('#flowGoLive')) $('#flowGoLive').addEventListener('click',() => {
+        if (!state.accountCreated) { openDeploymentAccount('flow'); return; }
+        flowState.live = true; saveFlowLocal(); renderFlowStudio(); showToast('Flow Bot customer traffic is now live in this design simulation.');
+      });
       if ($('#flowTurnOff')) $('#flowTurnOff').addEventListener('click',() => { flowState.live = false; saveFlowLocal(); renderFlowStudio(); showToast('New Flow Bot customer traffic is off.'); });
       $$('[data-flow-dashboard]').forEach(button => button.addEventListener('click',() => showDashboard('overview')));
     }
@@ -2416,14 +2419,54 @@
       $('#commerceSelectionTitle').textContent = `${selected.name} selected`;
       $('#commerceSelectionTerms').textContent = `${selected.price} for the first year. Renews at ${selected.renewal} per year. Tax and documentation appear in the approved payment record.`;
       $('#startTrial').classList.toggle('hidden', !family.trial);
-      $('#startTrial').textContent = commerceState.product === 'text' ? 'Start 30-day Text Bot trial' : 'Start 30-day Flow Bot trial';
-      $('#subscribeSelected').textContent = `Subscribe to ${selected.tier}`;
+      $('#startTrial').textContent = commerceState.product === 'text' ? 'Configure Text Bot trial' : 'Configure Flow Bot trial';
+      $('#subscribeSelected').textContent = `Configure ${selected.tier}`;
     }
 
     function openSelectedCommerceIntent(intent) {
       commerceState.intent = intent;
+      state.product = commerceState.product;
+      state.publishedProduct = commerceState.product;
+      state.accountCreated = false;
+      state.deployReturn = null;
+      if (commerceState.product === 'flow') {
+        $('#flowOnboardingPlan').textContent = intent === 'trial' ? 'Flow Bot · 30-day Starter trial' : selectedCommercePlan().name;
+        $('#journeyDemo').classList.add('hidden');
+        $('#flowOnboardingDemo').classList.remove('hidden');
+        showFlowOnboardingPage('template');
+        renderFlowTemplatePreview();
+        saveFlowLocal();
+        return;
+      }
+      $('#onboardingPackageBadge').textContent = intent === 'trial' ? `${commerceCatalog[commerceState.product].name} · 30-day Starter trial` : `${commerceCatalog[commerceState.product].name} · ${selectedCommercePlan().tier}`;
+      $('#onboardingProductEyebrow').textContent = `Configure your ${commerceCatalog[commerceState.product].name}`;
+      $('#onboardingDemo').setAttribute('aria-label', `${productLabel()} onboarding`);
+      $('#journeyDemo').classList.add('hidden');
+      $('#onboardingDemo').classList.remove('hidden');
+      showOnboardingPage('role');
+      selectOnboardingRole(state.role);
+      $('#onboardingDemo').scrollTo({top:0,behavior:'smooth'});
+    }
+
+    function openDeploymentAccount(returnTarget) {
+      state.deployReturn = returnTarget;
       renderAccountStep();
+      $('#accountHeading').textContent = `Create your account to deploy ${commerceCatalog[commerceState.product].name}.`;
+      $('#continueToBotOnboarding').textContent = 'Create account and continue deployment';
+      $('#merchantDashboard').classList.add('hidden');
+      $('#flowStudioDemo').classList.add('hidden');
+      $('#onboardingDemo').classList.add('hidden');
+      $('#flowOnboardingDemo').classList.add('hidden');
+      $('#journeyDemo').classList.remove('hidden');
       showCommerceScreen('account');
+    }
+
+    function returnFromDeploymentAccount() {
+      const target = state.deployReturn;
+      state.deployReturn = null;
+      $('#journeyDemo').classList.add('hidden');
+      if (target === 'flow') openFlowStudio('release');
+      else { state.section = 'release'; render(); window.scrollTo({top:0,behavior:'smooth'}); }
     }
 
     function renderAccountStep() {
@@ -2442,7 +2485,7 @@
       $('#cardSectionHelp').textContent = trial ? 'Card setup is deferred until Deploy Bot.' : 'Required for the annual subscription. This demo never submits or stores it.';
       $('#onboardingPackageBadge').textContent = trial ? `${family.name} · 30-day Starter trial` : `${family.name} · ${plan.tier}`;
       $('#onboardingProductEyebrow').textContent = `Your ${family.name} is ready to set up`;
-      $('#continueToBotOnboarding').textContent = `Continue to ${family.name} onboarding`;
+      $('#continueToBotOnboarding').textContent = 'Create account and continue deployment';
       $('#accountError').classList.add('hidden');
     }
 
@@ -2776,7 +2819,7 @@
         : textTrial && install.cardVerified
           ? `<div class="notice"><strong>✓</strong><div><strong>Card verified for this Text trial</strong><p>The simulated deployment is authorized. No DJBOT charge or automatic subscription was created.</p></div></div>`
           : '';
-      const trafficAction = install.live ? 'Take bot offline' : textTrial ? 'Deploy Bot' : 'Go live';
+      const trafficAction = install.live ? 'Take bot offline' : 'Deploy Bot';
       return sectionHeader('Install and launch', 'Publish a version, install it on the website, verify the domain, then explicitly enable customer traffic.') +
         `<div class="panel"><h2>Website installation</h2><p>This is a simulated installation flow. No external website is changed.</p><div class="codebox"><textarea readonly id="installSnippet">${escapeHtml(snippet)}</textarea><button class="btn" data-copy-snippet>${install.snippetCopied ? 'Copied' : 'Copy'}</button></div><div class="field-grid" style="margin-top:14px"><label class="wide">Website domain<input data-bind="install.domain" value="${escapeHtml(install.domain)}" placeholder="https://www.yourbusiness.com"></label></div></div>` +
         cardSetup +
@@ -2869,6 +2912,7 @@
         setTimeout(() => { draft.install.verified = true; savePrototype(false); render(); showToast('Simulated domain verification passed.'); }, 650);
       });
       if ($('[data-toggle-live]')) $('[data-toggle-live]').addEventListener('click', () => {
+        if (!draft.install.live && !state.accountCreated) { openDeploymentAccount('configuration'); return; }
         if (!draft.install.live && state.product === 'text' && commerceState.intent === 'trial' && !draft.install.cardVerified) {
           draft.install.cardPromptOpen = true; savePrototype(false); render(); showToast('Verify a card now to deploy the Text Bot trial.'); return;
         }
@@ -3306,7 +3350,10 @@
     $$('[data-scroll-products]').forEach(button => button.addEventListener('click', () => $('#productFamilies').scrollIntoView({behavior:'smooth'})));
     $('#startTrial').addEventListener('click', () => openSelectedCommerceIntent('trial'));
     $('#subscribeSelected').addEventListener('click', () => openSelectedCommerceIntent('subscribe'));
-    $('#backToPricing').addEventListener('click', () => showCommerceScreen('pricing'));
+    $('#backToPricing').addEventListener('click', () => {
+      if (state.deployReturn) returnFromDeploymentAccount();
+      else showCommerceScreen('pricing');
+    });
     $('#accountForm').addEventListener('submit', event => {
       event.preventDefault();
       const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($('#accountEmail').value.trim());
@@ -3323,29 +3370,15 @@
       if (!termsValid) problems.push('Accept the Terms and Privacy Notice to continue.');
       if (problems.length) { $('#accountError').textContent = problems.join(' '); $('#accountError').classList.remove('hidden'); return; }
       draft.business.name = $('#accountBusiness').value.trim();
-      state.product = commerceState.product;
-      state.publishedProduct = commerceState.product;
-      state.configured = false;
-      state.version = 0;
-      draft.install = clone(defaultDraft.install);
-      if (commerceState.product === 'flow') {
-        flowDraft.identity.botName = `${$('#accountBusiness').value.trim()} Guide`;
-        flowDraft.identity.greetingEn = `Welcome to ${$('#accountBusiness').value.trim()}. What would you like help with?`;
-        flowDraft.identity.greetingTh = `ยินดีต้อนรับสู่ ${$('#accountBusiness').value.trim()} ต้องการให้เราช่วยเรื่องใด?`;
-        flowState.version = 0; flowState.configured = false; flowState.dirty = true; flowState.tested = false; flowState.installVerified = false; flowState.live = false; flowState.snippetCopied = false;
-        state.configured = false; state.version = 0; state.dirty = true;
-        $('#flowOnboardingPlan').textContent = commerceState.intent === 'trial' ? 'Flow Bot · 30-day Starter trial' : `${selectedCommercePlan().name}`;
-        $('#flowBotName').value = flowDraft.identity.botName; $('#flowGreetingEn').value = flowDraft.identity.greetingEn; $('#flowGreetingTh').value = flowDraft.identity.greetingTh; syncFlowIdentityPreview();
-        $('#accountError').classList.add('hidden'); $('#journeyDemo').classList.add('hidden'); $('#flowOnboardingDemo').classList.remove('hidden');
-        showFlowOnboardingPage('template'); renderFlowTemplatePreview(); saveFlowLocal(); return;
-      }
-      $('#onboardingDemo').setAttribute('aria-label', `${productLabel()} onboarding design demo`);
+      state.accountCreated = true;
       $('#accountError').classList.add('hidden');
-      $('#journeyDemo').classList.add('hidden');
-      $('#onboardingDemo').classList.remove('hidden');
-      showOnboardingPage('role');
-      selectOnboardingRole(state.role);
-      $('#onboardingDemo').scrollTo({top:0,behavior:'smooth'});
+      returnFromDeploymentAccount();
+      if (state.product === 'text' && commerceState.intent === 'trial') {
+        draft.install.cardPromptOpen = true;
+        savePrototype(false);
+        render();
+        showToast('Account created. Verify a card now to deploy the Text Bot trial.');
+      } else showToast('Account created. Your completed configuration is ready to deploy.');
     });
     $('#backToSubscription').addEventListener('click', () => {
       $('#onboardingDemo').classList.add('hidden');
@@ -3477,23 +3510,32 @@
     $('#expandTester').addEventListener('click', () => { document.body.classList.toggle('tester-expanded'); document.body.classList.remove('tester-collapsed'); });
     $('#mobileTest').addEventListener('click', () => document.body.classList.add('tester-mobile-open'));
     $('#resetTest').addEventListener('click', () => renderChat());
-    $('#sendTest').addEventListener('click', () => {
+    $('#sendTest').addEventListener('click', async () => {
       const value = $('#testInput').value.trim(); if (!value) return;
       $('#chatLog').insertAdjacentHTML('beforeend', `<div class="bubble customer"><small>Customer</small>${escapeHtml(value)}</div><div class="bubble bot typing"><small>${state.testMode === 'published' ? 'Published bot' : 'Draft bot'}</small>Checking the selected configuration...</div>`);
       $('#testInput').value = '';
-      setTimeout(() => {
-        const response = configuredResponse(state.testMode === 'published' ? publishedDraft : draft, value, state.testMode === 'published' ? state.publishedRole : state.role);
-        const typing = $('#chatLog .typing');
-        if (typing) { typing.classList.remove('typing'); typing.innerHTML = `<small>Simulated response</small>${escapeHtml(response)}`; }
-        $('#charEvidence').textContent = `${visibleLength(response)} / 200 characters`;
+      try {
         const testConfig = state.testMode === 'published' ? publishedDraft : draft;
+        const testRole = state.testMode === 'published' ? state.publishedRole : state.role;
+        const request = await fetch('/public/builder/ai-test', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({language:testConfig.languages?.includes('th')?'th':'en',role:testRole,message:value,business:{name:testConfig.business.name,summary:testConfig.business.summary||'',offers:testConfig.business.offers||'',agentObjective:testConfig.business.agentObjective,agentBehavior:testConfig.business.agentBehavior,agentBoundaries:testConfig.business.agentBoundaries}})});
+        const result = await request.json();
+        if (!request.ok || !result.preview?.text) throw new Error(result.status || 'test_unavailable');
+        const response = result.preview.text;
+        const typing = $('#chatLog .typing');
+        if (typing) { typing.classList.remove('typing'); typing.innerHTML = `<small>Live DJBOT response</small>${escapeHtml(response)}`; }
+        $('#charEvidence').textContent = `${visibleLength(response)} / 200 characters`;
         const testProduct = state.testMode === 'published' ? state.publishedProduct : state.product;
-        $('#sourceEvidence').textContent = matchingFaq(testConfig, value) ? 'Approved FAQ' : (testConfig.sources?.find(source => source.status === 'Ready')?.name || 'No ready source');
+        $('#sourceEvidence').textContent = result.preview.citationCount ? 'Approved draft knowledge' : 'Draft behavior and customer message';
         $('#toneEvidence').textContent = testProduct === 'voice' ? `${testConfig.tone}, ${testConfig.voice.name}, ${testConfig.voice.speed}` : testConfig.tone;
         $('#behaviorEvidence').textContent = testConfig.business.agentObjective;
-        $('#testerNotice').textContent = 'Safe test mode: the response used the selected configuration. No external action was executed.';
+        $('#actionEvidence').textContent = result.preview.proposedActionTypes?.join(', ') || 'None executed';
+        $('#testerNotice').textContent = 'Live safe test: the response used the current configuration. No external action was executed.';
         $('#chatLog').scrollTop = $('#chatLog').scrollHeight;
-      }, 350);
+      } catch (error) {
+        const typing = $('#chatLog .typing');
+        if (typing) { typing.classList.remove('typing'); typing.innerHTML = '<small>Test unavailable</small>The AI test could not complete. Your draft is unchanged; retry when the gateway is available.'; }
+        $('#testerNotice').textContent = 'The live AI gateway is unavailable. No customer action or usage change occurred.';
+      }
     });
     $('#testInput').addEventListener('keydown', event => { if (event.key === 'Enter') $('#sendTest').click(); });
     $('#voiceTest').addEventListener('click', () => { $('#voiceStatus').textContent = 'Simulating customer speech, transcription, response validation, and playback. No microphone is accessed.'; setTimeout(() => { renderChat(); $('#voiceStatus').textContent = 'Simulation complete. Review the transcript and response evidence above.'; }, 600); });
@@ -3518,7 +3560,15 @@
     selectSourceMode('website');
     showOnboardingPage('role');
     renderCommercePricing();
-    showCommerceScreen('landing');
+    const launchParams = new URLSearchParams(window.location.search);
+    const launchProduct = launchParams.get('product');
+    const launchIntent = launchParams.get('intent');
+    if (['flow','text','voice'].includes(launchProduct)) {
+      selectCommerceProduct(launchProduct);
+      if (launchIntent === 'trial' && commerceCatalog[launchProduct].trial) openSelectedCommerceIntent('trial');
+      else if (launchIntent === 'subscribe') openSelectedCommerceIntent('subscribe');
+      else showCommerceScreen('pricing');
+    } else showCommerceScreen('landing');
     render();
   </script>
 </body>

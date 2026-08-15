@@ -28,7 +28,7 @@ describe("workspace labels and homes", () => {
     expect(defaultWorkspaceHome({
       role: "tenant_master_admin",
       launchReady: false,
-    })).toBe("/workspace/setup");
+    })).toBe("/workspace");
     expect(defaultWorkspaceHome({
       role: "tenant_master_admin",
       launchReady: true,

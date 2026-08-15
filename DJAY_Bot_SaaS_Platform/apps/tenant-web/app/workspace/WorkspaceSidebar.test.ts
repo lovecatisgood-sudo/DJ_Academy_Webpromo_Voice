@@ -6,8 +6,8 @@ const areas = (role: string) => workspaceNavigationForRole(role).map((item) => i
 
 describe("role-aware workspace navigation", () => {
   it("shows every governed workspace area to the owner", () => {
-    expect(paths("tenant_master_admin")).toHaveLength(20);
-    expect(paths("tenant_master_admin")).toContain("/workspace/setup");
+    expect(paths("tenant_master_admin")).toHaveLength(19);
+    expect(paths("tenant_master_admin")).not.toContain("/workspace/setup");
     expect(paths("tenant_master_admin")).toContain("/workspace/support");
     expect(paths("tenant_master_admin")).toContain("/workspace/test-center");
     expect(paths("tenant_master_admin")).toContain("/workspace/appointments");

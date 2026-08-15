@@ -444,7 +444,7 @@ Requests exceeding 100,000 Flow conversations, 10,000 AI replies, 500 voice minu
 1. Visitor starts on a landing page that presents all three product families and proceeds to package comparison.
 2. Visitor chooses Flow Bot, AI Text Bot, or AI Voice Bot first, then chooses Starter or Advanced. No role/business-goal question precedes the product selection.
 3. Visitor chooses paid subscription or, for eligible Flow/Text selections, the approved 30-day Starter trial.
-4. Visitor creates or signs into an account and reviews the selected product, access type, due-now amount, renewal/trial limits, channel scope, and legal terms.
+4. Visitor configures, tests, and publishes an anonymous draft, then presses `Deploy Bot`; only then does the visitor create or sign into an account and review the selected product, access type, due-now amount, renewal/trial limits, channel scope, and legal terms. The completed draft must survive this boundary.
 5. Paid purchase uses an authoritative Stripe Checkout Session and signed webhook. Trial provisioning uses an authoritative, eligibility-checked, idempotent entitlement command.
 6. Provisioning creates the tenant/workspace/access exactly once and routes the merchant to that product's separate onboarding.
 
@@ -610,8 +610,8 @@ These decisions choose how to fulfill the offer; they do not remove requirements
 
 - `EXP-001` The public experience MUST let a prospect compare all six packages by family, exact first-year price, renewal, allowance, overage, bot/agent count, channels, administrators, integrations, branding, support, exclusions, and setup services.
 - `EXP-002` Package comparison, checkout, and workspace entitlement copy MUST use the active versioned catalogue rather than separate hardcoded commercial values.
-- `EXP-003` A prospect MUST be able to register without subscribing, choose before registration and resume after verification, or choose from an unsubscribed workspace.
-- `EXP-004` A purchase selection MUST be preserved as an opaque server-side intent through registration, verification, sign-in, checkout interruption, and return; browser parameters MUST NOT be trusted as price/plan/tenant authority.
+- `EXP-003` A prospect MUST configure, test and publish the selected Bot without registering. Registration or sign-in MUST first appear when the prospect presses `Deploy Bot`; after verification the prospect MUST resume the preserved deployment and may still decline payment or trial activation.
+- `EXP-004` The package selection and anonymous configuration draft MUST be preserved as an opaque server-side intent through deployment-time registration, verification, sign-in, checkout interruption, and return; browser parameters MUST NOT be trusted as price, plan, configuration or tenant authority.
 - `EXP-005` A verified unsubscribed owner MUST receive a functional workspace showing business/security setup and package selection, not empty operational analytics or inaccessible product Studios.
 - `EXP-006` Expensive provider resources, live publication, channel connection, and production customer-data ingestion MUST NOT be allocated before active entitlement or an explicitly approved internal pilot grant.
 - `EXP-007` Checkout review MUST identify the charged workspace, package, first-term total, regular renewal, billing period, allowance, overage/pack mode, add-ons/cadence, taxes, business details, and third-party exclusions before redirecting to Stripe.

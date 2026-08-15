@@ -285,26 +285,22 @@ Do not default-select the most expensive plan or use visual tricks that obscure 
 - Exact offer terms come from the active catalogue API; public copy does not maintain a separate price constant.
 - Unavailable catalogue state preserves descriptive product content but disables checkout and identifies retry/contact paths.
 
-### 7.3 Registration strategy
+### 7.3 Deployment-time registration strategy
 
-Registration and purchase are related but separate. A prospect may:
+The self-service acquisition journey has one account boundary: `Deploy Bot`. A prospect chooses a package or eligible trial, completes the product-specific onboarding, edits and tests the configuration, and publishes an anonymous draft before registration or sign-in is requested. Direct registration is not a parallel customer journey.
 
-1. Choose a package, then register/sign in and return to checkout.
-2. Register first, create a workspace, then choose a package inside the workspace.
-3. Receive an invitation and join a workspace without being offered owner checkout.
-
-Preserve an opaque server-side purchase intent across email verification/sign-in. Do not place a trusted plan, price, promotion, or tenant identifier in an editable browser parameter.
+When the prospect presses `Deploy Bot`, preserve the package/trial selection and complete anonymous draft in an opaque server-side deployment intent across registration, email verification, sign-in, checkout interruption, and return. Do not place a trusted plan, price, promotion, configuration, or tenant identifier in an editable browser parameter. Invitation acceptance remains a separate team-access journey and must not create a second owner onboarding flow.
 
 Registration asks only name, work email, business name, password/confirmation, preferred UI language, timezone confirmation, and current legal acceptance. Detailed business profile belongs in onboarding.
 
-### 7.4 Unsubscribed workspace experience
+### 7.4 Deployment-pending workspace experience
 
-After verification and workspace provisioning, an unsubscribed owner lands on a real workspace, not an empty dashboard or blocked product Studio.
+After deployment-time verification and workspace provisioning, an unsubscribed owner resumes the preserved deployment and can enter a real workspace, not an empty dashboard or a different setup wizard.
 
 The Overview shows:
 
-- “Choose your first bot” as the primary task.
-- Saved/recommended package if one exists, with exact price and renewal.
+- “Finish deploying your configured Bot” as the primary task.
+- The preserved selected package and configuration, with exact price and renewal.
 - Links to compare all packages and professional setup.
 - Workspace profile and security steps that can be completed before purchase.
 - No usage charts filled with zeros and no launch checklist pretending product work has begun.
@@ -347,9 +343,9 @@ The same package page exposes approved trials without merging them into paid che
 | AI Text Bot | 30 fixed days, Starter settings, website only, 500 AI replies, card required, owner warning in platform and email at 100 replies remaining |
 | AI Voice Bot | Subscription only |
 
-The account page repeats the selected trial terms before activation. Trial time starts when the trial workspace entitlement is successfully provisioned, not when the visitor merely opens Pricing. Exhaustion or expiry stops new trial service and shows a paid-plan action. The UI must not promise automatic paid conversion because that policy is not approved.
+The deployment-time account page repeats the selected trial terms before activation. Trial time starts when deployment provisioning succeeds, not when the visitor opens Pricing, starts configuration, publishes a draft, or creates an account. Exhaustion or expiry stops new trial service and shows a paid-plan action. The UI must not promise automatic paid conversion because that policy is not approved.
 
-## 8. First session after subscription
+## 8. First session after deployment-time account creation
 
 ### 8.1 Subscription success landing
 
@@ -359,10 +355,10 @@ After authoritative activation, the owner sees:
 - Paid term and regular renewal amount/date.
 - Included allowance and current safety-cap/overage mode.
 - Invoice/receipt status.
-- Product-specific onboarding with estimated task count, not an unverifiable completion-time promise.
+- The already completed product configuration and its pending deployment state; never restart product onboarding.
 - Choice between self-service and purchased/requested professional setup.
 
-Do not drop the customer into a complex builder. The primary action is “Set up [product]”. Secondary actions are invite team, view billing, or set up later.
+Do not send the customer into a different builder. The primary action is “Continue deployment”. Secondary actions are return to Configuration, view billing, or deploy later.
 
 ### 8.2 Onboarding shell
 

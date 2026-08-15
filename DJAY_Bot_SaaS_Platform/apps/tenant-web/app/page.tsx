@@ -23,9 +23,6 @@ export default function TenantLoginPage() {
     const result = authenticatedResult.current;
     const selected = result?.workspaces?.find((workspace) => workspace.tenantId === result.selectedTenantId)
       ?? result?.workspaces?.[0];
-    if (selected && ["tenant_master_admin", "tenant_admin"].includes(selected.role)) {
-      return "/workspace/start";
-    }
     return defaultWorkspaceHome({
       role: selected?.role,
       explicitNext: explicitNext || null,
@@ -102,7 +99,7 @@ export default function TenantLoginPage() {
           </form>
         )}
         {message ? <p className={`message ${status}`} role="status">{message}</p> : null}
-        <nav><a href="/recovery">Forgot password?</a><a href={tenantApplicationEnvironment.publicAppUrl}>Create workspace</a></nav>
+        <nav><a href="/recovery">Forgot password?</a><a href={`${tenantApplicationEnvironment.publicAppUrl}/build`}>Configure a new Bot</a></nav>
       </section>
     </main>
   );

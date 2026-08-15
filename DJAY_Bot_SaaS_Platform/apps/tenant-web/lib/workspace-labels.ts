@@ -95,12 +95,6 @@ export function defaultWorkspaceHome(input: Readonly<{
   if (role && tenantRoles.includes(role as TenantRole)) {
     if (inboxHomeRoles.has(role as TenantRole)) return "/workspace/inbox";
     if (role === "tenant_billing_manager") return "/workspace/usage";
-    if (
-      (role === "tenant_master_admin" || role === "tenant_admin")
-      && input.launchReady === false
-    ) {
-      return "/workspace/setup";
-    }
   }
   return "/workspace";
 }

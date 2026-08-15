@@ -18,7 +18,7 @@ export type WorkspaceSummary = Readonly<{
 }>;
 
 export type WorkspaceArea =
-  | "overview" | "setup" | "settings" | "flowbot" | "ai_chat" | "voice"
+  | "overview" | "settings" | "flowbot" | "ai_chat" | "voice"
   | "inbox" | "contacts" | "leads" | "appointments" | "knowledge" | "operations"
   | "data" | "team" | "usage" | "security" | "support" | "test_center" | "notifications" | "reports";
 
@@ -32,7 +32,6 @@ type NavItem = Readonly<{
 
 const workspaceNavigation: readonly NavItem[] = [
   { area: "overview", href: "/workspace", label: { en: "Overview", th: "ภาพรวม" }, permission: "tenant.read", group: "get_live" },
-  { area: "setup", href: "/workspace/setup", label: { en: "Setup", th: "เริ่มใช้งาน" }, permission: "tenant.read", group: "get_live" },
   { area: "test_center", href: "/workspace/test-center", label: { en: "Test center", th: "ศูนย์ทดสอบ" }, permission: "flowbot.read", group: "get_live" },
   { area: "inbox", href: "/workspace/inbox", label: { en: "Inbox", th: "กล่องข้อความ" }, permission: "conversations.read", group: "customers" },
   { area: "contacts", href: "/workspace/contacts", label: { en: "Contacts", th: "ข้อมูลติดต่อ" }, permission: "contacts.read", group: "customers" },
@@ -68,7 +67,7 @@ export function workspaceNavigationForRole(role: string) {
   return workspaceNavigation.filter((item) => {
     if (!tenantRoleAllows(role as TenantRole, item.permission)) return false;
     if (hideStudios && studioAreas.has(item.area)) return false;
-    if (hideStudios && (item.area === "setup" || item.area === "operations")) return false;
+    if (hideStudios && item.area === "operations") return false;
     return true;
   });
 }

@@ -66,8 +66,12 @@ export function createAiGatewayHandler(config: Readonly<{
       return json(result, 200);
     } catch (error) {
       if (error instanceof ProviderGatewayError) {
+        console.error("ai_gateway_provider_failed", { reason: error.code });
         return json({ status: error.code }, error.code === "gateway_timeout" ? 504 : 503);
       }
+      console.error("ai_gateway_request_failed", {
+        reason: error instanceof Error ? error.message : "unknown_error",
+      });
       return json({ status: "invalid_request" }, 400);
     }
   };

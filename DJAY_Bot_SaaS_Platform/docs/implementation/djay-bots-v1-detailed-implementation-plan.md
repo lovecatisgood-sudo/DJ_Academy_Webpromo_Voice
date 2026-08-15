@@ -331,7 +331,7 @@ Create an owner, deadline, evidence and fallback for each decision:
 - Route-based public, tenant and Platform information architecture from the UX plan.
 - Shared authenticated shell, mobile navigation, product context and workspace switcher.
 - Loading/empty/unavailable/partial/denied/conflict/pending/success components.
-- Approved Landing -> Packages -> family -> package -> subscribe/trial -> account composition.
+- Approved Landing -> Packages -> family -> package/trial intent -> anonymous product configuration -> publish -> Deploy Bot -> account composition.
 - Short product-specific onboarding shells: three Flow pages and four separate Text/Voice pages.
 - Full-page Configuration shell with Dashboard route, section navigator, autosave/conflict recovery and responsive expandable right tester.
 - Product portfolio and merchant dashboard shell with Overview, Conversations/detail, Contacts, Leads, Appointments, Analytics, Configuration and Usage.
@@ -404,7 +404,7 @@ The UI acceptance matrix MUST prove that family/package selection precedes role,
 
 **Implement:**
 
-- Anonymous selection -> registration/verification -> workspace attachment.
+- Anonymous selection and configuration draft -> Deploy Bot -> registration/verification -> authoritative draft/workspace attachment.
 - Unsubscribed workspace purchase path.
 - Server-calculated checkout review and price-change confirmation.
 - Idempotent Stripe Checkout creation with server Price/coupon.
