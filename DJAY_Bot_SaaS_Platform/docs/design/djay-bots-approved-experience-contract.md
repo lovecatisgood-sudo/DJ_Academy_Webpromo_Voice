@@ -120,7 +120,7 @@ The merchant chooses one of six editable starting points:
 
 Selecting a template updates a visible path preview and description before the merchant continues. Every template is copied into the merchant's own editable draft; none is a locked example that can only be accepted.
 
-Informational answers must continue to another customer decision layer. They must not automatically open a contact form or trigger human handover. Contact capture and handover occur only after an explicit customer choice, except when the customer has already chosen and entered the prerequisite information in a form-oriented journey.
+Informational answers must display their context-relevant reply buttons directly with the answer, without adding a generic follow-up message. They must not automatically open a contact form or trigger human handover. Contact capture and handover occur only after an explicit customer choice, except when the customer has already chosen and entered the prerequisite information in a form-oriented journey.
 
 ### 6.2 Page F2: identity and website experience
 

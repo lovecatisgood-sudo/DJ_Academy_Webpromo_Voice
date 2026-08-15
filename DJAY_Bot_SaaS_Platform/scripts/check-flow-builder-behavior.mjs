@@ -51,7 +51,7 @@ const flowNode = (id,type,title,en,th,x,y,extra={}) => ({id,type,title,en,th,x,y
 const flowChoice = (en,th,target) => ({en,th,target});
 ${functionNames.map(extractFunction).join("\n")}
 return { ${functionNames.join(",")} };`;
-const engine = new Function("flowSchemaVersion", body)(4);
+const engine = new Function("flowSchemaVersion", body)(5);
 
 const node = (id, type, next = null, options = []) => ({
   id, type, title: id, en: `English ${id}`, th: `ไทย ${id}`, next, options, needsConnection: false,
@@ -108,13 +108,13 @@ const faqOpeningHours = engine.flowResolveTypedReply(faqDraft, "menu", "opening 
 assert.equal(faqOpeningHours.targetId, "hours");
 for (const answerId of ["services", "pricing", "hours"]) {
   const answerPath = engine.flowExecutionPath(faqDraft, answerId, "en");
-  assert.deepEqual(answerPath.steps.map((step) => step.id), [answerId, "after_answer"]);
-  assert.equal(answerPath.currentId, "after_answer", `${answerId} must stop at a customer choice before contact capture`);
-  assert.notEqual(faqDraft.nodes.find((item) => item.id === answerPath.currentId)?.type, "form");
+  assert.deepEqual(answerPath.steps.map((step) => step.id), [answerId]);
+  assert.equal(answerPath.currentId, answerId, `${answerId} must show its own reply buttons without an extra message`);
+  assert.equal(faqDraft.nodes.find((item) => item.id === answerId)?.type, "options");
 }
-const askAgain = engine.flowResolveChoice(faqDraft, "after_answer", 0, "en");
+const askAgain = engine.flowResolveChoice(faqDraft, "services", 0, "en");
 assert.equal(askAgain.targetId, "menu");
-const contactAfterAnswer = engine.flowResolveChoice(faqDraft, "after_answer", 1, "en");
+const contactAfterAnswer = engine.flowResolveChoice(faqDraft, "services", 1, "en");
 assert.equal(contactAfterAnswer.targetId, "lead");
 assert.equal(faqDraft.nodes.find((item) => item.id === contactAfterAnswer.targetId)?.type, "form");
 
@@ -162,13 +162,13 @@ const legacy = {
   nodes: [{ ...node("legacy", "message"), options: [{ label: "Continue", th: "ต่อ", target: "done" }] }, node("done", "end")],
 };
 engine.normalizeFlowDraftTranslations(legacy);
-assert.equal(legacy.schemaVersion, 4);
+assert.equal(legacy.schemaVersion, 5);
 assert.equal(legacy.nodes[0].type, "options");
 assert.deepEqual(legacy.nodes[0].options[0], { en: "Continue", th: "ต่อ", target: "done" });
 assert.equal(legacy.identity.languageMode, "customer-choice");
 
 const current = {
-  schemaVersion: 4,
+  schemaVersion: 5,
   entryId: "current",
   identity: {},
   nodes: [{ ...node("current", "message", "done"), options: [{ en: "Stored", th: "เก็บไว้", target: "done" }] }, node("done", "end")],
@@ -179,14 +179,39 @@ assert.deepEqual(engine.flowDraftErrors(current), []);
 
 const legacyFaq = engine.createFlowDraft("faq");
 legacyFaq.schemaVersion = 3;
-legacyFaq.nodes = legacyFaq.nodes.filter((item) => item.id !== "after_answer");
+for (const answerId of ["services", "pricing", "hours"]) {
+  const answer = legacyFaq.nodes.find((item) => item.id === answerId);
+  answer.type = "message";
+  answer.options = [];
+}
 legacyFaq.nodes.find((item) => item.id === "services").next = "lead";
 legacyFaq.nodes.find((item) => item.id === "pricing").next = "lead";
 legacyFaq.nodes.find((item) => item.id === "hours").next = "menu";
 engine.normalizeFlowDraftTranslations(legacyFaq);
-assert.equal(legacyFaq.schemaVersion, 4);
-assert.ok(legacyFaq.nodes.some((item) => item.id === "after_answer"), "saved FAQ drafts must gain the customer decision layer");
-for (const answerId of ["services", "pricing", "hours"]) assert.equal(legacyFaq.nodes.find((item) => item.id === answerId).next, "after_answer");
+assert.equal(legacyFaq.schemaVersion, 5);
+for (const answerId of ["services", "pricing", "hours"]) {
+  const answer = legacyFaq.nodes.find((item) => item.id === answerId);
+  assert.equal(answer.type, "options", "saved FAQ answers must show reply buttons directly");
+  assert.equal(answer.next, null);
+  assert.equal(answer.options.length, 2);
+}
+
+const versionFourFaq = engine.createFlowDraft("faq");
+versionFourFaq.schemaVersion = 4;
+for (const answerId of ["services", "pricing", "hours"]) {
+  const answer = versionFourFaq.nodes.find((item) => item.id === answerId);
+  answer.type = "message";
+  answer.options = [];
+  answer.next = "after_answer";
+}
+versionFourFaq.nodes.push(node("after_answer", "options", null, [
+  { en: "Ask another question", th: "ถามคำถามอื่น", target: "menu" },
+  { en: "Contact the team", th: "ติดต่อทีมงาน", target: "lead" },
+]));
+engine.normalizeFlowDraftTranslations(versionFourFaq);
+assert.equal(versionFourFaq.schemaVersion, 5);
+assert.ok(!versionFourFaq.nodes.some((item) => item.id === "after_answer"), "obsolete generic follow-up nodes must be removed");
+for (const answerId of ["services", "pricing", "hours"]) assert.equal(versionFourFaq.nodes.find((item) => item.id === answerId).type, "options");
 
 const loop = { ...structuredClone(draft), nodes: [node("a", "message", "b"), node("b", "message", "a")], entryId: "a" };
 assert.equal(engine.flowExecutionPath(loop, "a", "en", 3).status, "loop");

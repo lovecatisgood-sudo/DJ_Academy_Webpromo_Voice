@@ -60,8 +60,8 @@ try {
     return { problems, optionEdges, localizedChoices };
   });
   assert(treeAudit.problems.length === 0, `Built-in option tree audit failed: ${treeAudit.problems.join(" | ")}`);
-  assert(treeAudit.optionEdges === 29, `Expected 29 configured option edges, received ${treeAudit.optionEdges}.`);
-  assert(treeAudit.localizedChoices === 58, `Expected 58 localized option resolutions, received ${treeAudit.localizedChoices}.`);
+  assert(treeAudit.optionEdges === 33, `Expected 33 configured option edges, received ${treeAudit.optionEdges}.`);
+  assert(treeAudit.localizedChoices === 66, `Expected 66 localized option resolutions, received ${treeAudit.localizedChoices}.`);
 
   await page.locator('[data-flow-node="pricing"]').click();
   await page.locator("#flowClosePanel").click();
@@ -76,6 +76,7 @@ try {
   assert(await page.locator(".flow-test-message").filter({ hasText: "We are open Monday to Friday, 09:00 to 17:00." }).last().isVisible(), "Typed Opening hours intent did not follow its configured message path.");
   assert(await page.locator("[data-flow-test-option-index]").count() === 2, "Opening hours did not stop at the next customer decision layer.");
   assert(!await page.locator("#flowTestForm").isVisible(), "Opening hours opened a contact form without customer permission.");
+  assert(await page.locator(".flow-test-message").filter({ hasText: "What would you like to do next?" }).count() === 0, "Opening hours added an unnecessary generic follow-up message.");
   await page.getByRole("button", { name: "Ask another question", exact: true }).click();
   assert(await page.locator("[data-flow-test-option-index]").count() === 4, "Ask another question did not return to the Main menu.");
 
@@ -85,11 +86,13 @@ try {
   assert(await page.locator(".flow-test-message").filter({ hasText: "Our team can explain the approved package prices and help identify the right starting point." }).last().isVisible(), "Pricing question did not follow the configured Pricing path.");
   assert(await page.locator("[data-flow-test-option-index]").count() === 2, "Pricing did not stop at the next customer decision layer.");
   assert(!await page.locator("#flowTestForm").isVisible(), "Pricing opened a contact form without customer permission.");
+  assert(await page.locator(".flow-test-message").filter({ hasText: "What would you like to do next?" }).count() === 0, "Pricing added an unnecessary generic follow-up message.");
 
   await page.locator("#flowRestartTest").click();
   await page.getByRole("button", { name: "Services", exact: true }).click();
   assert(await page.locator("[data-flow-test-option-index]").count() === 2, "Services did not stop at the next customer decision layer.");
   assert(!await page.locator("#flowTestForm").isVisible(), "Services opened a contact form without customer permission.");
+  assert(await page.locator(".flow-test-message").filter({ hasText: "What would you like to do next?" }).count() === 0, "Services added an unnecessary generic follow-up message.");
   await page.getByRole("button", { name: "Contact the team", exact: true }).click();
   assert(await page.locator("#flowTestForm").isVisible(), "The explicit Contact the team choice did not open the contact form.");
 
