@@ -65,4 +65,29 @@ describe("restricted AI gateway", () => {
     expect(accepted.status).toBe(200);
     expect(JSON.stringify(await accepted.json())).not.toMatch(/xai|grok|gemini|model/i);
   });
+
+  it("accepts translation.v1 with its caller-supplied strict output schema", async () => {
+    const handler = createAiGatewayHandler({
+      serviceToken: "service-token-abcdefghijklmnopqrstuvwxyz",
+      provider: "xai",
+      apiKey: "restricted-provider-key-abcdefghijklmnopqrstuvwxyz",
+      model: "owner-selected-route",
+      fetchImpl: async (_input, init) => {
+        const body = JSON.parse(String(init?.body));
+        expect(body.response_format.json_schema.schema).toMatchObject({ required: ["translations"] });
+        return new Response(JSON.stringify({ choices: [{ message: { content: '{"translations":["บริการ"]}' } }], usage: { prompt_tokens: 3, completion_tokens: 2 } }), { status: 200 });
+      },
+    });
+    const response = await handler(new Request("https://internal.example/v1/generate", {
+      method: "POST",
+      headers: { authorization: "Bearer service-token-abcdefghijklmnopqrstuvwxyz", "content-type": "application/json" },
+      body: JSON.stringify({
+        capability: "translation", correlationId: "translation-1", locale: "th", systemPolicy: "Translate", messages: [],
+        customerMessage: '{"texts":["Services"]}', structuredOutputSchemaVersion: "translation.v1",
+        structuredOutputJsonSchema: { type: "object", properties: { translations: { type: "array", items: { type: "string" } } }, required: ["translations"], additionalProperties: false },
+      }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ output: { translations: ["บริการ"] } });
+  });
 });

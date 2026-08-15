@@ -18,7 +18,7 @@ export type TextGenerationRequest = Readonly<{
   systemPolicy: string;
   messages: readonly { role: "user" | "assistant"; content: string }[];
   customerMessage: string;
-  structuredOutputSchemaVersion: "sales-core.v1";
+  structuredOutputSchemaVersion: "sales-core.v1" | "translation.v1";
   structuredOutputJsonSchema?: Readonly<Record<string, unknown>>;
 }>;
 
@@ -60,7 +60,7 @@ export function createHttpTextProviderGateway(config: Readonly<{
             "Content-Type": "application/json",
             "Idempotency-Key": request.correlationId,
           },
-          body: JSON.stringify({ capability: "sales_text", ...request }),
+          body: JSON.stringify({ capability: request.structuredOutputSchemaVersion === "translation.v1" ? "translation" : "sales_text", ...request }),
           signal: AbortSignal.timeout(config.timeoutMs ?? 30_000),
         });
       } catch (error) {

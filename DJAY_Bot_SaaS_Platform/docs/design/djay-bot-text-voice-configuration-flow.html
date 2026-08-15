@@ -798,8 +798,19 @@
     .flow-inspector-fields label { color: #32423c; font-size: 11px; font-weight: 790; }
     .flow-inspector-fields textarea { min-height: 76px; }
     .flow-option-editor { display: grid; gap: 7px; padding: 10px; background: #f5f8f7; }
-    .flow-option-editor div { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; }
+    .flow-option-editor div { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; }
     .flow-option-editor input, .flow-option-editor select { min-width: 0; margin: 0; }
+    .flow-translation-summary { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:16px; }
+    .flow-translation-grid { display:grid; gap:12px; }
+    .flow-translation-card { border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#fff; }
+    .flow-translation-card header { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 13px; background:#f5f8f7; }
+    .flow-translation-card header strong { color:var(--forest); }
+    .flow-translation-card .status-missing { color:#9a5b00; }
+    .flow-translation-fields { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:12px; }
+    .flow-translation-fields label { margin:0; }
+    .flow-translation-option { display:grid; grid-template-columns:38px 1fr 1fr; gap:8px; align-items:center; padding:0 12px 12px; }
+    .flow-translation-option span { font-size:12px; color:var(--muted); }
+    @media (max-width: 760px) { .flow-translation-summary,.flow-translation-fields { display:grid; grid-template-columns:1fr; } .flow-translation-option { grid-template-columns:1fr; } }
     .flow-test-transcript { display: grid; gap: 8px; min-height: 260px; margin-top: 12px; padding: 12px; border: 1px solid var(--line); background: #f7f9f8; }
     .flow-test-message { max-width: 87%; padding: 9px 10px; border-radius: 9px; background: #fff; box-shadow: 0 2px 8px rgba(15,57,44,.05); }
     .flow-test-message.customer { margin-left: auto; color: #fff; background: var(--primary); }
@@ -1547,6 +1558,37 @@
     const flowState = {onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',testNodeId:null,testMessages:[]};
     const flowStorageKey = 'djbot-flow-builder-v2';
     const flowNode = (id,type,title,en,th,x,y,extra={}) => ({id,type,title,en,th,x,y,keywords:[],next:null,...extra});
+    const flowChoice = (en,th,target) => ({en,th,target});
+    function normalizeFlowDraftTranslations(draft) {
+      (draft?.nodes || []).forEach(node => {
+        node.en = String(node.en || ''); node.th = String(node.th || '');
+        (node.options || []).forEach(option => {
+          option.en = String(option.en || option.label || '');
+          option.th = String(option.th || '');
+          delete option.label;
+        });
+      });
+      return draft;
+    }
+    function flowOptionText(option,language) { return String(language === 'th' ? option.th || '' : option.en || '').trim(); }
+    async function requestFlowTranslations(texts,sourceLanguage='en',targetLanguage='th') {
+      const response = await fetch('/public/builder/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sourceLanguage,targetLanguage,texts})});
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body.status !== 'completed' || !Array.isArray(body.translations)) throw new Error(body.status || 'translation_failed');
+      return body.translations;
+    }
+    async function translateFlowNodeField(node,kind,index=null) {
+      const target = kind === 'message' ? node : node.options?.[index];
+      if (!target?.en?.trim()) return;
+      const source = target.en.trim();
+      target.th = '';
+      markFlowChanged(); renderFlowStudio();
+      try {
+        const [translation] = await requestFlowTranslations([source]);
+        if (target.en.trim() !== source) return;
+        target.th = translation; markFlowChanged(); renderFlowStudio(); showToast('Thai translation added. Review it in Translations.');
+      } catch (error) { renderFlowStudio(); showToast('Thai translation is still missing. Retry from Translations.'); }
+    }
     function createFlowDraft(kind) {
       const identity = {botName:'Your Bot',defaultLanguage:'English',greetingEn:'Welcome. What would you like help with?',greetingTh:'ยินดีต้อนรับ ต้องการให้เราช่วยเรื่องใด?',brandColor:'#126149',position:'Bottom right',businessHours:'',handoverContact:'',privacyUrl:''};
       const lead = {fields:[{label:'Name',type:'text',required:true},{label:'Email or phone',type:'text',required:true},{label:'Question or request',type:'textarea',required:false}],consent:'I agree that this business may use these details to respond to this request.'};
@@ -1554,7 +1596,7 @@
       let nodes = [];
       if (kind === 'faq') nodes = [
         flowNode('welcome','message','Welcome',identity.greetingEn,identity.greetingTh,30,70,{next:'menu'}),
-        flowNode('menu','options','Main menu','What would you like to know?','ต้องการทราบเรื่องใด?',270,70,{options:[{label:'Services',target:'services'},{label:'Pricing',target:'pricing'},{label:'Opening hours',target:'hours'},{label:'Contact the team',target:'lead'}]}),
+        flowNode('menu','options','Main menu','What would you like to know?','ต้องการทราบเรื่องใด?',270,70,{options:[flowChoice('Services','บริการ','services'),flowChoice('Pricing','ราคา','pricing'),flowChoice('Opening hours','เวลาเปิดทำการ','hours'),flowChoice('Contact the team','ติดต่อทีมงาน','lead')]}),
         flowNode('services','message','Services','We offer setup packages, consultations, demonstrations, and ongoing support.','เรามีแพ็กเกจติดตั้ง การให้คำปรึกษา การสาธิต และบริการดูแลต่อเนื่อง',520,10,{keywords:['services','service','บริการ'],next:'lead'}),
         flowNode('pricing','message','Pricing','Our team can explain the approved package prices and help identify the right starting point.','ทีมงานสามารถอธิบายราคาแพ็กเกจและช่วยเลือกจุดเริ่มต้นที่เหมาะสม',520,145,{keywords:['price','pricing','cost','ราคา'],next:'lead'}),
         flowNode('hours','message','Opening hours','We are open Monday to Friday, 09:00 to 17:00.','เปิดวันจันทร์ถึงวันศุกร์ เวลา 09:00 ถึง 17:00 น.',520,280,{keywords:['hours','open','เวลา'],next:'menu'}),
@@ -1564,8 +1606,8 @@
       ];
       else if (kind === 'lead') nodes = [
         flowNode('welcome','message','Welcome','Tell us what you are trying to achieve, and we will guide the next step.','บอกเราว่าคุณต้องการทำอะไร แล้วเราจะแนะนำขั้นตอนต่อไป',30,90,{next:'need'}),
-        flowNode('need','options','What do you need?','Which outcome best matches your enquiry?','เรื่องใดตรงกับความต้องการของคุณมากที่สุด?',280,90,{options:[{label:'Compare services',target:'qualify'},{label:'Request a consultation',target:'lead'},{label:'Speak with the team',target:'handover'}]}),
-        flowNode('qualify','options','Enquiry timing','When would you like to get started?','ต้องการเริ่มเมื่อใด?',530,30,{options:[{label:'As soon as possible',target:'lead'},{label:'This month',target:'lead'},{label:'Just researching',target:'summary'}]}),
+        flowNode('need','options','What do you need?','Which outcome best matches your enquiry?','เรื่องใดตรงกับความต้องการของคุณมากที่สุด?',280,90,{options:[flowChoice('Compare services','เปรียบเทียบบริการ','qualify'),flowChoice('Request a consultation','ขอรับคำปรึกษา','lead'),flowChoice('Speak with the team','พูดคุยกับทีมงาน','handover')]}),
+        flowNode('qualify','options','Enquiry timing','When would you like to get started?','ต้องการเริ่มเมื่อใด?',530,30,{options:[flowChoice('As soon as possible','เร็วที่สุด','lead'),flowChoice('This month','ภายในเดือนนี้','lead'),flowChoice('Just researching','กำลังหาข้อมูล','summary')]}),
         flowNode('summary','message','Information summary','You can review our approved service information now, without leaving contact details.','คุณสามารถดูข้อมูลบริการที่ได้รับอนุมัติโดยไม่ต้องให้ข้อมูลติดต่อ',530,195,{next:'lead'}),
         flowNode('lead','form','Follow-up details','Share your preferred contact details and enquiry.','กรอกข้อมูลติดต่อและรายละเอียดที่ต้องการสอบถาม',790,75,{fields:lead.fields,next:'thanks'}),
         flowNode('handover','handover','Human handover',handover.fallbackEn,handover.fallbackTh,530,360,{keywords:['human','person','agent','เจ้าหน้าที่']}),
@@ -1573,7 +1615,7 @@
       ];
       else if (kind === 'appointment') nodes = [
         flowNode('welcome','message','Appointment welcome','I can collect an appointment request for the team to confirm.','ฉันสามารถรับคำขอนัดหมายเพื่อให้ทีมงานยืนยัน',30,80,{next:'service'}),
-        flowNode('service','options','Choose service','Which service would you like?','ต้องการนัดหมายบริการใด?',280,80,{options:[{label:'Consultation',target:'time'},{label:'Product demonstration',target:'time'},{label:'Support assessment',target:'time'}]}),
+        flowNode('service','options','Choose service','Which service would you like?','ต้องการนัดหมายบริการใด?',280,80,{options:[flowChoice('Consultation','การให้คำปรึกษา','time'),flowChoice('Product demonstration','การสาธิตผลิตภัณฑ์','time'),flowChoice('Support assessment','ประเมินความต้องการด้านการสนับสนุน','time')]}),
         flowNode('time','input','Preferred time','What date and time work best for you?','วันและเวลาใดสะดวกที่สุด?',530,80,{next:'lead'}),
         flowNode('lead','form','Appointment details','Share the details the team should use to confirm your request.','กรอกข้อมูลสำหรับให้ทีมงานยืนยันคำขอ',780,80,{fields:[{label:'Name',type:'text',required:true},{label:'Phone',type:'tel',required:true},{label:'Preferred date and time',type:'text',required:true},{label:'Notes',type:'textarea',required:false}],next:'thanks'}),
         flowNode('handover','handover','Booking help',handover.fallbackEn,handover.fallbackTh,530,280,{keywords:['human','person','change','cancel','เจ้าหน้าที่']}),
@@ -1581,24 +1623,24 @@
       ];
       else if (kind === 'product') nodes = [
         flowNode('welcome','message','Welcome','I can guide you through our approved products and services.','ฉันสามารถแนะนำสินค้าและบริการที่ได้รับอนุมัติ',30,75,{next:'category'}),
-        flowNode('category','options','Choose category','What would you like to explore?','ต้องการดูหมวดหมู่ใด?',280,75,{options:[{label:'Starter setup',target:'starter'},{label:'Standard package',target:'standard'},{label:'Ongoing support',target:'support'}]}),
+        flowNode('category','options','Choose category','What would you like to explore?','ต้องการดูหมวดหมู่ใด?',280,75,{options:[flowChoice('Starter setup','แพ็กเกจเริ่มต้น','starter'),flowChoice('Standard package','แพ็กเกจมาตรฐาน','standard'),flowChoice('Ongoing support','บริการดูแลต่อเนื่อง','support')]}),
         flowNode('starter','card','Starter setup','A focused starting package for one clear customer journey.','แพ็กเกจเริ่มต้นสำหรับเส้นทางลูกค้าหนึ่งรูปแบบ',530,10,{next:'action'}),
         flowNode('standard','card','Standard package','A broader setup for businesses that need several customer paths.','แพ็กเกจมาตรฐานสำหรับธุรกิจที่ต้องการหลายเส้นทาง',530,145,{next:'action'}),
         flowNode('support','card','Ongoing support','Ongoing maintenance and practical support for the published setup.','บริการดูแลและช่วยเหลือการตั้งค่าที่เผยแพร่แล้ว',530,280,{next:'action'}),
-        flowNode('action','options','Next action','Would you like details or help from the team?','ต้องการข้อมูลเพิ่มเติมหรือให้ทีมงานช่วย?',780,90,{options:[{label:'Request details',target:'lead'},{label:'Return to categories',target:'category'}]}),
+        flowNode('action','options','Next action','Would you like details or help from the team?','ต้องการข้อมูลเพิ่มเติมหรือให้ทีมงานช่วย?',780,90,{options:[flowChoice('Request details','ขอรายละเอียด','lead'),flowChoice('Return to categories','กลับไปเลือกหมวดหมู่','category')]}),
         flowNode('lead','form','Product enquiry','Share your question and preferred contact method.','กรอกคำถามและช่องทางติดต่อที่ต้องการ',780,300,{fields:lead.fields,next:'thanks'}),
         flowNode('thanks','end','Enquiry received','Thank you. The team will follow up.','ขอบคุณ ทีมงานจะติดต่อกลับ',780,480)
       ];
       else if (kind === 'support') nodes = [
         flowNode('welcome','message','Support welcome','Choose the issue that best matches what happened.','เลือกปัญหาที่ตรงกับสิ่งที่เกิดขึ้นมากที่สุด',30,80,{next:'issue'}),
-        flowNode('issue','options','Issue category','What do you need help with?','ต้องการความช่วยเหลือเรื่องใด?',280,80,{options:[{label:'Account question',target:'context'},{label:'Service issue',target:'context'},{label:'Billing question',target:'handover'},{label:'Something else',target:'handover'}]}),
+        flowNode('issue','options','Issue category','What do you need help with?','ต้องการความช่วยเหลือเรื่องใด?',280,80,{options:[flowChoice('Account question','คำถามเกี่ยวกับบัญชี','context'),flowChoice('Service issue','ปัญหาการใช้งานบริการ','context'),flowChoice('Billing question','คำถามเกี่ยวกับการเรียกเก็บเงิน','handover'),flowChoice('Something else','เรื่องอื่น ๆ','handover')]}),
         flowNode('context','input','Collect context','Briefly describe what happened. Do not include passwords or sensitive account information.','อธิบายสิ่งที่เกิดขึ้นโดยย่อ และอย่าใส่รหัสผ่านหรือข้อมูลสำคัญ',530,45,{next:'guidance'}),
         flowNode('guidance','message','Approved guidance','Review the approved help steps. If the issue remains, the team can continue from this transcript.','ตรวจสอบขั้นตอนช่วยเหลือที่ได้รับอนุมัติ หากยังมีปัญหา ทีมงานสามารถรับช่วงจากบทสนทนานี้',530,225,{next:'handover'}),
         flowNode('handover','handover','Human handover',handover.fallbackEn,handover.fallbackTh,790,115,{keywords:['human','person','agent','เจ้าหน้าที่']}),
         flowNode('thanks','end','Support request recorded','Your request and the information already shared are ready for the team.','คำขอและข้อมูลที่ให้ไว้พร้อมส่งให้ทีมงานแล้ว',790,330)
       ];
       else nodes = [flowNode('welcome','message','Welcome',identity.greetingEn,identity.greetingTh,70,80)];
-      return {template:kind,identity,lead,handover,nodes,entryId:'welcome',widget:{domain:'',openOnLoad:false},reviewed:{}};
+      return normalizeFlowDraftTranslations({template:kind,identity,lead,handover,nodes,entryId:'welcome',widget:{domain:'',openOnLoad:false},reviewed:{}});
     }
     let flowDraft = createFlowDraft('faq');
     let flowPublishedDraft = JSON.parse(JSON.stringify(flowDraft));
@@ -1608,8 +1650,8 @@
     try {
       const savedFlow = JSON.parse(localStorage.getItem(flowStorageKey) || 'null');
       if (savedFlow?.draft) {
-        flowDraft = savedFlow.draft;
-        flowPublishedDraft = savedFlow.publishedDraft || JSON.parse(JSON.stringify(flowDraft));
+        flowDraft = normalizeFlowDraftTranslations(savedFlow.draft);
+        flowPublishedDraft = normalizeFlowDraftTranslations(savedFlow.publishedDraft || JSON.parse(JSON.stringify(flowDraft)));
         Object.assign(flowState,savedFlow.state || {});
       }
     } catch (error) { localStorage.removeItem(flowStorageKey); }
@@ -1991,6 +2033,7 @@
       return [
         {key:'identity',label:'Bot identity',group:'Configure'},
         {key:'map',label:'Flow map',group:'Configure'},
+        {key:'translations',label:'Translations',group:'Configure'},
         {key:'lead',label:'Lead capture',group:'Configure'},
         {key:'handover',label:'Fallback and handover',group:'Configure'},
         {key:'widget',label:'Widget appearance',group:'Website'},
@@ -2005,9 +2048,13 @@
       if (new Set(ids).size !== ids.length) errors.push('Every step must have a unique ID.');
       flowDraft.nodes.forEach(node => {
         if (!String(node.title || '').trim()) errors.push('Every step needs a title.');
+        if (!String(node.en || '').trim()) errors.push(`${node.title || node.id} needs an English customer message.`);
+        if (!String(node.th || '').trim()) errors.push(`${node.title || node.id} needs a Thai customer message.`);
         if (node.needsConnection && !node.next) errors.push(`${node.title || node.id} needs a destination or an explicit End path.`);
         (node.options || []).forEach(option => {
-          if (!option.target) errors.push(`${node.title || node.id}: “${option.label || 'Option'}” needs a destination.`);
+          if (!option.en?.trim()) errors.push(`${node.title || node.id} has a button without English text.`);
+          if (!option.th?.trim()) errors.push(`${node.title || node.id}: “${option.en || 'Option'}” needs Thai text.`);
+          if (!option.target) errors.push(`${node.title || node.id}: “${option.en || 'Option'}” needs a destination.`);
         });
         const targets = [...(node.next ? [node.next] : []),...(node.options || []).map(option => option.target).filter(Boolean)];
         targets.forEach(target => { if (!ids.includes(target)) errors.push(`${node.title || node.id} points to a missing step.`); });
@@ -2030,6 +2077,7 @@
     function flowSectionState(key) {
       if (key === 'identity' && (!flowDraft.identity.botName || !flowDraft.identity.greetingEn)) return {label:'Needs attention',className:'attention'};
       if (key === 'map' && flowStructuralErrors().length) return {label:'Invalid path',className:'attention'};
+      if (key === 'translations' && flowDraft.nodes.some(node => !node.en?.trim() || !node.th?.trim() || (node.options || []).some(option => !option.en?.trim() || !option.th?.trim()))) return {label:'Missing text',className:'attention'};
       if (key === 'lead' && !flowDraft.nodes.some(node => node.type === 'form')) return {label:'Optional',className:''};
       if (key === 'handover' && !flowDraft.nodes.some(node => node.type === 'handover')) return {label:'Optional',className:''};
       if (key === 'widget' && !flowDraft.widget.domain) return {label:'Needs domain',className:'attention'};
@@ -2072,13 +2120,28 @@
       return flowPageHead('Lead capture','Control exactly what a form collects. Optional details never prevent the customer from continuing.') + `<section class="flow-studio-panel"><div class="row between"><div><h2>Form fields</h2><p>These fields update every lead form in this draft.</p></div><button class="btn btn-green" id="flowAddLeadField">Add field</button></div><div class="flow-settings-list">${fields || '<div class="empty-box">No lead fields are configured.</div>'}</div><label style="display:block;margin-top:14px">Consent notice<textarea data-flow-bind="lead.consent">${escapeHtml(flowDraft.lead.consent)}</textarea></label></section>`;
     }
 
+    function flowTranslationsSection() {
+      const entries = flowDraft.nodes.flatMap(node => [{node,kind:'message'},...(node.options || []).map((option,index) => ({node,kind:'option',option,index}))]);
+      const complete = entries.filter(entry => entry.kind === 'message' ? entry.node.en?.trim() && entry.node.th?.trim() : entry.option.en?.trim() && entry.option.th?.trim()).length;
+      const cards = flowDraft.nodes.map((node,nodeIndex) => {
+        const messageComplete = Boolean(node.en?.trim() && node.th?.trim());
+        const options = (node.options || []).map((option,index) => `<div class="flow-translation-option"><span>Button ${index + 1}</span><input data-flow-translation-option-en="${index}" data-flow-translation-node="${nodeIndex}" value="${escapeHtml(option.en || '')}" aria-label="English button ${index + 1} for ${escapeHtml(node.title)}"><input data-flow-translation-option-th="${index}" data-flow-translation-node="${nodeIndex}" value="${escapeHtml(option.th || '')}" aria-label="Thai button ${index + 1} for ${escapeHtml(node.title)}"></div>`).join('');
+        return `<article class="flow-translation-card"><header><strong>${escapeHtml(node.title)}</strong><span class="${messageComplete && (node.options || []).every(option => option.en?.trim() && option.th?.trim()) ? '' : 'status-missing'}">${messageComplete && (node.options || []).every(option => option.en?.trim() && option.th?.trim()) ? 'Complete' : 'Needs translation'}</span></header><div class="flow-translation-fields"><label>English message<textarea data-flow-translation-node-en="${nodeIndex}">${escapeHtml(node.en || '')}</textarea></label><label>ข้อความภาษาไทย<textarea data-flow-translation-node-th="${nodeIndex}">${escapeHtml(node.th || '')}</textarea></label></div>${options}</article>`;
+      }).join('');
+      return flowPageHead('English and Thai translations','Review every customer message and choice side by side. English edits automatically generate Thai; you remain in control of the final wording.',`${complete} of ${entries.length} complete`) + `<section class="flow-studio-panel"><div class="flow-translation-summary"><div><h2>Translation coverage</h2><p>${entries.length - complete ? `${entries.length - complete} customer-facing item${entries.length - complete === 1 ? '' : 's'} still need translation.` : 'Every message and option has English and Thai copy.'}</p></div><button class="btn btn-green" id="flowTranslateMissing" ${complete === entries.length ? 'disabled' : ''}>Translate missing Thai</button></div><div class="flow-translation-grid">${cards}</div></section>`;
+    }
+
     function flowHandoverSection() {
       return flowPageHead('Fallback and human handover','Define what customers see when typed input does not match a keyword or they request a person.') + `<section class="flow-studio-panel"><div class="field-grid"><label>Destination team<input data-flow-bind="handover.team" value="${escapeHtml(flowDraft.handover.team)}"></label><label>Business hours<input data-flow-bind="identity.businessHours" value="${escapeHtml(flowDraft.identity.businessHours)}"></label><label class="wide">English fallback<textarea data-flow-bind="handover.fallbackEn">${escapeHtml(flowDraft.handover.fallbackEn)}</textarea></label><label class="wide">คำตอบสำรองภาษาไทย<textarea data-flow-bind="handover.fallbackTh">${escapeHtml(flowDraft.handover.fallbackTh)}</textarea></label><label class="wide">Outside-hours message<textarea data-flow-bind="handover.outsideHours">${escapeHtml(flowDraft.handover.outsideHours)}</textarea></label><label>Handover contact<input data-flow-bind="identity.handoverContact" value="${escapeHtml(flowDraft.identity.handoverContact)}"></label></div></section><div class="notice"><strong>i</strong><div><strong>Customer context is preserved</strong><p>The transcript, selected path, collected fields, Flow version, and handover reason travel to the shared inbox.</p></div></div>`;
     }
 
     function flowWidgetPreview(includeEditor = true) {
       const editor = includeEditor ? `<section class="flow-studio-panel"><h2>Website widget</h2><p>The trial is website-only. No social connection is enabled here.</p><div class="field-grid"><label class="wide">Website domain<input data-flow-bind="widget.domain" value="${escapeHtml(flowDraft.widget.domain)}"></label><label>Position<select data-flow-bind="identity.position">${optionList(['Bottom right','Bottom left'],flowDraft.identity.position)}</select></label><label>Brand color<input type="color" data-flow-bind="identity.brandColor" value="${escapeHtml(flowDraft.identity.brandColor)}"></label><label class="consent-row"><input type="checkbox" data-flow-widget-open ${flowDraft.widget.openOnLoad ? 'checked' : ''}><span>Open automatically on page load</span></label></div></section>` : '';
-      return `${editor}<section class="flow-widget-mini"><div class="flow-widget-panel" style="${flowDraft.identity.position === 'Bottom left' ? 'left:20px;right:auto' : ''}"><div class="flow-widget-head" style="background:${escapeHtml(flowDraft.identity.brandColor)}"><strong>${escapeHtml(flowDraft.identity.botName)}</strong><span>${flowDraft.identity.defaultLanguage === 'English and Thai' ? 'EN | TH' : escapeHtml(flowDraft.identity.defaultLanguage)}</span></div><div class="flow-widget-body"><p>${escapeHtml(flowDraft.identity.greetingEn || 'Welcome.')}</p><div class="flow-widget-options"><button>Services</button><button>Pricing</button><button>Hours</button><button>Contact</button></div></div></div><div class="flow-widget-launcher" style="background:${escapeHtml(flowDraft.identity.brandColor)};${flowDraft.identity.position === 'Bottom left' ? 'left:20px;right:auto' : ''}">D</div></section>`;
+      const language = flowDraft.identity.defaultLanguage === 'Thai' ? 'th' : 'en';
+      const entry = flowDraft.nodes.find(node => node.id === flowDraft.entryId);
+      const choiceNode = flowDraft.nodes.find(node => node.type === 'options');
+      const greeting = language === 'th' ? flowDraft.identity.greetingTh : flowDraft.identity.greetingEn;
+      return `${editor}<section class="flow-widget-mini"><div class="flow-widget-panel" style="${flowDraft.identity.position === 'Bottom left' ? 'left:20px;right:auto' : ''}"><div class="flow-widget-head" style="background:${escapeHtml(flowDraft.identity.brandColor)}"><strong>${escapeHtml(flowDraft.identity.botName)}</strong><span>${flowDraft.identity.defaultLanguage === 'English and Thai' ? 'EN | TH' : escapeHtml(flowDraft.identity.defaultLanguage)}</span></div><div class="flow-widget-body"><p>${escapeHtml(greeting || (language === 'th' ? entry?.th : entry?.en) || '')}</p><div class="flow-widget-options">${(choiceNode?.options || []).slice(0,4).map(option => `<button>${escapeHtml(flowOptionText(option,language) || (language === 'th' ? 'ยังไม่มีคำแปล' : 'Missing translation'))}</button>`).join('')}</div></div></div><div class="flow-widget-launcher" style="background:${escapeHtml(flowDraft.identity.brandColor)};${flowDraft.identity.position === 'Bottom left' ? 'left:20px;right:auto' : ''}">D</div></section>`;
     }
 
     function flowReleaseSection() {
@@ -2112,7 +2175,7 @@
       });
       const nodeHtml = flowDraft.nodes.map(node => {
         const outputPorts = node.type === 'options'
-          ? (node.options || []).map((option,index) => `<button class="flow-output-port ${option.target ? '' : 'unconnected'} ${flowConnection?.sourceId === node.id && flowConnection?.kind === 'option' && flowConnection?.optionIndex === index ? 'connecting' : ''}" data-flow-output-port data-flow-output-kind="option" data-flow-output-index="${index}" title="${option.target ? 'Drag to reconnect' : 'Drag to connect'}: ${escapeHtml(option.label)}" aria-label="${option.target ? 'Reconnect' : 'Connect'} ${escapeHtml(option.label)}"></button>`).join('')
+          ? (node.options || []).map((option,index) => `<button class="flow-output-port ${option.target ? '' : 'unconnected'} ${flowConnection?.sourceId === node.id && flowConnection?.kind === 'option' && flowConnection?.optionIndex === index ? 'connecting' : ''}" data-flow-output-port data-flow-output-kind="option" data-flow-output-index="${index}" title="${option.target ? 'Drag to reconnect' : 'Drag to connect'}: ${escapeHtml(option.en)}" aria-label="${option.target ? 'Reconnect' : 'Connect'} ${escapeHtml(option.en)}"></button>`).join('')
           : ['end','handover'].includes(node.type) ? ''
             : `<button class="flow-output-port ${node.next ? '' : 'unconnected'} ${flowConnection?.sourceId === node.id && flowConnection?.kind === 'next' ? 'connecting' : ''}" data-flow-output-port data-flow-output-kind="next" data-flow-output-index="0" title="${node.next ? 'Drag to reconnect next step' : 'Drag to connect next step'}" aria-label="${node.next ? 'Reconnect' : 'Connect'} next step"></button>`;
         return `<article class="flow-node-demo ${flowState.selectedNodeId === node.id ? 'selected' : ''} ${flowState.testNodeId === node.id ? 'test-active' : ''}" data-flow-node="${escapeHtml(node.id)}" style="left:${Number(node.x)}px;top:${Number(node.y)}px" tabindex="0"><button class="flow-input-port ${flowConnection && flowConnection.sourceId !== node.id ? 'connection-target' : ''}" data-flow-input-port title="Connect into ${escapeHtml(node.title)}" aria-label="Connect into ${escapeHtml(node.title)}"></button><header><span>${escapeHtml(node.type.replaceAll('_',' '))}${node.id === flowDraft.entryId ? ' · entry' : ''}</span><b>${node.type === 'options' ? '▦' : node.type === 'form' ? '□' : node.type === 'handover' ? 'H' : node.type === 'end' ? '✓' : 'T'}</b></header><strong>${escapeHtml(node.title)}</strong><small>${escapeHtml((node.en || '').slice(0,70))}</small>${outputPorts ? `<span class="flow-output-ports">${outputPorts}</span>` : ''}</article>`;
@@ -2204,7 +2267,7 @@
       const node = selectedFlowNode();
       if (!node) return '<div class="flow-inspector-empty"><strong>Select a step on the map</strong><p>Edit its message, buttons, destinations, keywords, or form fields here.</p></div>';
       const destinationOptions = flowDraft.nodes.filter(item => item.id !== node.id).map(item => `<option value="${escapeHtml(item.id)}" ${node.next === item.id ? 'selected' : ''}>${escapeHtml(item.title)}</option>`).join('');
-      const options = (node.options || []).map((option,index) => `<div><input data-flow-option-label="${index}" value="${escapeHtml(option.label)}" aria-label="Option label"><select data-flow-option-target="${index}" aria-label="Option destination"><option value="" ${!option.target ? 'selected' : ''}>Not connected</option>${flowDraft.nodes.filter(item => item.id !== node.id).map(item => `<option value="${escapeHtml(item.id)}" ${option.target === item.id ? 'selected' : ''}>${escapeHtml(item.title)}</option>`).join('')}</select><button class="btn" data-flow-remove-option="${index}">×</button></div>`).join('');
+      const options = (node.options || []).map((option,index) => `<div><input data-flow-option-en="${index}" value="${escapeHtml(option.en)}" aria-label="English option label"><input data-flow-option-th="${index}" value="${escapeHtml(option.th)}" aria-label="Thai option label"><select data-flow-option-target="${index}" aria-label="Option destination"><option value="" ${!option.target ? 'selected' : ''}>Not connected</option>${flowDraft.nodes.filter(item => item.id !== node.id).map(item => `<option value="${escapeHtml(item.id)}" ${option.target === item.id ? 'selected' : ''}>${escapeHtml(item.title)}</option>`).join('')}</select><button class="btn" data-flow-remove-option="${index}">×</button></div>`).join('');
       const formFields = (node.fields || []).map((field,index) => `<div class="flow-settings-row"><label>Label<input data-flow-node-field-label="${index}" value="${escapeHtml(field.label)}"></label><label>Type<select data-flow-node-field-type="${index}">${optionList(['text','email','tel','textarea'],field.type)}</select></label><button class="btn" data-flow-node-remove-field="${index}">Remove</button></div>`).join('');
       return `<div class="flow-inspector-head"><span class="eyebrow">Selected ${escapeHtml(node.type)} step</span><h2>${escapeHtml(node.title)}</h2><p class="help">Changes save to the draft only.</p></div><div class="flow-inspector-fields"><label>Step type<select data-flow-node-type>${optionList(['message','options','input','form','card','handover','end'],node.type)}</select></label><label>Step title<input data-flow-node-title value="${escapeHtml(node.title)}"></label><label>English customer message<textarea data-flow-node-en>${escapeHtml(node.en || '')}</textarea></label><label>ข้อความภาษาไทย<textarea data-flow-node-th>${escapeHtml(node.th || '')}</textarea></label>${node.type === 'options' ? `<label>Buttons and destinations</label><div class="flow-option-editor">${options || '<span class="help">No buttons yet.</span>'}<button class="btn" id="flowNodeAddOption">Add button</button></div>` : ''}${node.type === 'form' ? `<label>Form fields</label><div class="flow-settings-list">${formFields}<button class="btn" id="flowNodeAddField">Add form field</button></div>` : ''}${!['options','end','handover'].includes(node.type) ? `<label>Next step<select data-flow-node-next><option value="">End path here</option>${destinationOptions}</select></label>` : ''}<label>Typed-message keywords<input data-flow-node-keywords value="${escapeHtml((node.keywords || []).join(', '))}" placeholder="price, pricing, ราคา"></label><label class="consent-row"><input type="checkbox" data-flow-entry ${flowDraft.entryId === node.id ? 'checked' : ''}><span>Use as starting step</span></label><button class="btn btn-green" id="flowTestFromNode">Test from this step</button></div>`;
     }
@@ -2234,7 +2297,7 @@
     function renderFlowTester() {
       const node = flowDraft.nodes.find(item => item.id === flowState.testNodeId);
       const transcript = flowState.testMessages.map(message => `<div class="flow-test-message ${message.actor === 'customer' ? 'customer' : ''}"><small>${message.actor === 'customer' ? 'Customer' : 'Flow Bot'}</small>${escapeHtml(message.text)}</div>`).join('');
-      const options = node?.type === 'options' ? `<div class="flow-test-options">${(node.options || []).map(option => `<button data-flow-test-option="${escapeHtml(option.target)}" data-flow-test-label="${escapeHtml(option.label)}">${escapeHtml(option.label)}</button>`).join('')}</div>` : '';
+      const options = node?.type === 'options' ? `<div class="flow-test-options">${(node.options || []).map(option => { const label = flowOptionText(option,flowState.testLanguage) || (flowState.testLanguage === 'th' ? 'ยังไม่มีคำแปลภาษาไทย' : 'Missing English translation'); return `<button data-flow-test-option="${escapeHtml(option.target)}" data-flow-test-label="${escapeHtml(label)}" ${flowOptionText(option,flowState.testLanguage) ? '' : 'disabled'}>${escapeHtml(label)}</button>`; }).join('')}</div>` : '';
       const form = node?.type === 'form' ? `<form class="flow-test-form" id="flowTestForm">${(node.fields || flowDraft.lead.fields).map(field => `<label>${escapeHtml(field.label)}<input name="${escapeHtml(field.label)}" type="${field.type === 'textarea' ? 'text' : escapeHtml(field.type)}" ${field.required ? 'required' : ''}></label>`).join('')}<label class="consent-row"><input type="checkbox" required><span>${escapeHtml(flowDraft.lead.consent)}</span></label><button class="btn btn-green">Submit test form</button></form>` : '';
       return `<div class="flow-inspector-head"><span class="eyebrow">Draft simulation</span><h2>Test Flow Bot</h2><p class="help">No allowance, lead, booking, handover, or external action is created.</p></div><div class="row between"><select id="flowTestLanguage"><option value="en" ${flowState.testLanguage === 'en' ? 'selected' : ''}>English</option><option value="th" ${flowState.testLanguage === 'th' ? 'selected' : ''}>ไทย</option></select><button class="btn" id="flowRestartTest">Restart</button></div><div class="flow-test-transcript">${transcript || '<div class="flow-inspector-empty">Start at the entry step or select a map step.</div>'}${options}${form}</div><div class="flow-test-input-row"><input id="flowTypedTestInput" placeholder="Type a configured keyword or unmatched question"><button class="btn btn-green" id="flowTypedTestSend">Send</button></div><p class="help">Current step: <strong>${escapeHtml(node?.title || 'Not started')}</strong></p>`;
     }
@@ -2252,20 +2315,21 @@
         const updateNode = update => { rememberFlowDraft(); update(); markFlowChanged(); renderFlowStudio(); };
         if ($('[data-flow-node-type]')) $('[data-flow-node-type]').addEventListener('change',event => updateNode(() => {
           node.type = event.target.value;
-          if (node.type === 'options' && !node.options) node.options = [{label:'Continue',target:flowDraft.nodes.find(item => item.id !== node.id)?.id || node.id}];
+          if (node.type === 'options' && !node.options) node.options = [flowChoice('Continue','ดำเนินการต่อ',flowDraft.nodes.find(item => item.id !== node.id)?.id || node.id)];
           if (node.type === 'form' && !node.fields) node.fields = clone(flowDraft.lead.fields);
           if (['end','handover','options'].includes(node.type)) node.next = null;
         }));
         if ($('[data-flow-node-title]')) $('[data-flow-node-title]').addEventListener('change',event => updateNode(() => node.title = event.target.value.trim() || 'Untitled step'));
-        if ($('[data-flow-node-en]')) $('[data-flow-node-en]').addEventListener('change',event => updateNode(() => node.en = event.target.value));
+        if ($('[data-flow-node-en]')) $('[data-flow-node-en]').addEventListener('change',event => { rememberFlowDraft(); node.en = event.target.value.trim(); translateFlowNodeField(node,'message'); });
         if ($('[data-flow-node-th]')) $('[data-flow-node-th]').addEventListener('change',event => updateNode(() => node.th = event.target.value));
         if ($('[data-flow-node-next]')) $('[data-flow-node-next]').addEventListener('change',event => updateNode(() => { node.next = event.target.value || null; node.needsConnection = false; }));
         if ($('[data-flow-node-keywords]')) $('[data-flow-node-keywords]').addEventListener('change',event => updateNode(() => node.keywords = event.target.value.split(',').map(item => item.trim()).filter(Boolean)));
         if ($('[data-flow-entry]')) $('[data-flow-entry]').addEventListener('change',event => updateNode(() => { if (event.target.checked) flowDraft.entryId = node.id; }));
-        $$('[data-flow-option-label]').forEach(input => input.addEventListener('change',event => updateNode(() => node.options[Number(event.target.dataset.flowOptionLabel)].label = event.target.value.trim() || 'Option')));
+        $$('[data-flow-option-en]').forEach(input => input.addEventListener('change',event => { const index = Number(event.target.dataset.flowOptionEn); rememberFlowDraft(); node.options[index].en = event.target.value.trim() || 'Option'; translateFlowNodeField(node,'option',index); }));
+        $$('[data-flow-option-th]').forEach(input => input.addEventListener('change',event => updateNode(() => node.options[Number(event.target.dataset.flowOptionTh)].th = event.target.value.trim())));
         $$('[data-flow-option-target]').forEach(select => select.addEventListener('change',event => updateNode(() => node.options[Number(event.target.dataset.flowOptionTarget)].target = event.target.value)));
         $$('[data-flow-remove-option]').forEach(button => button.addEventListener('click',() => updateNode(() => node.options.splice(Number(button.dataset.flowRemoveOption),1))));
-        if ($('#flowNodeAddOption')) $('#flowNodeAddOption').addEventListener('click',() => updateNode(() => node.options.push({label:'New option',target:flowDraft.nodes.find(item => item.id !== node.id)?.id || node.id})));
+        if ($('#flowNodeAddOption')) $('#flowNodeAddOption').addEventListener('click',() => updateNode(() => node.options.push(flowChoice('New option','ตัวเลือกใหม่',flowDraft.nodes.find(item => item.id !== node.id)?.id || node.id))));
         $$('[data-flow-node-field-label]').forEach(input => input.addEventListener('change',event => updateNode(() => node.fields[Number(event.target.dataset.flowNodeFieldLabel)].label = event.target.value.trim() || 'Field')));
         $$('[data-flow-node-field-type]').forEach(select => select.addEventListener('change',event => updateNode(() => node.fields[Number(event.target.dataset.flowNodeFieldType)].type = event.target.value)));
         $$('[data-flow-node-remove-field]').forEach(button => button.addEventListener('click',() => updateNode(() => node.fields.splice(Number(button.dataset.flowNodeRemoveField),1))));
@@ -2275,7 +2339,7 @@
       if (flowState.panel === 'test') {
         if ($('#flowTestLanguage')) $('#flowTestLanguage').addEventListener('change',event => { flowState.testLanguage = event.target.value; flowTestStart(flowDraft.entryId); });
         if ($('#flowRestartTest')) $('#flowRestartTest').addEventListener('click',() => flowTestStart(flowDraft.entryId));
-        $$('[data-flow-test-option]').forEach(button => button.addEventListener('click',() => flowTestVisit(button.dataset.flowTestOption,`Selected: ${button.dataset.flowTestLabel}`)));
+        $$('[data-flow-test-option]').forEach(button => button.addEventListener('click',() => flowTestVisit(button.dataset.flowTestOption,button.dataset.flowTestLabel)));
         if ($('#flowTestForm')) $('#flowTestForm').addEventListener('submit',event => { event.preventDefault(); const next = node?.next; flowState.testMessages.push({actor:'customer',text:'Submitted test form with consent'}); if (next) flowTestVisit(next); else { flowState.tested = true; renderFlowStudio(); } });
         const sendTyped = () => {
           const input = $('#flowTypedTestInput'); const value = input?.value.trim(); if (!value) return;
@@ -2296,6 +2360,17 @@
     }
 
     function bindFlowSectionContent() {
+      $$('[data-flow-translation-node-en]').forEach(control => control.addEventListener('change',() => { const node = flowDraft.nodes[Number(control.dataset.flowTranslationNodeEn)]; rememberFlowDraft(); node.en = control.value.trim(); translateFlowNodeField(node,'message'); }));
+      $$('[data-flow-translation-node-th]').forEach(control => control.addEventListener('change',() => { rememberFlowDraft(); flowDraft.nodes[Number(control.dataset.flowTranslationNodeTh)].th = control.value.trim(); markFlowChanged(); renderFlowStudio(); }));
+      $$('[data-flow-translation-option-en]').forEach(control => control.addEventListener('change',() => { const node = flowDraft.nodes[Number(control.dataset.flowTranslationNode)]; const index = Number(control.dataset.flowTranslationOptionEn); rememberFlowDraft(); node.options[index].en = control.value.trim(); translateFlowNodeField(node,'option',index); }));
+      $$('[data-flow-translation-option-th]').forEach(control => control.addEventListener('change',() => { const node = flowDraft.nodes[Number(control.dataset.flowTranslationNode)]; rememberFlowDraft(); node.options[Number(control.dataset.flowTranslationOptionTh)].th = control.value.trim(); markFlowChanged(); renderFlowStudio(); }));
+      if ($('#flowTranslateMissing')) $('#flowTranslateMissing').addEventListener('click',async event => {
+        const targets = flowDraft.nodes.flatMap(node => [...(!node.th?.trim() && node.en?.trim() ? [node] : []),...(node.options || []).filter(option => !option.th?.trim() && option.en?.trim())]);
+        if (!targets.length) return;
+        event.currentTarget.disabled = true; event.currentTarget.textContent = 'Translating…';
+        try { const translations = await requestFlowTranslations(targets.map(target => target.en.trim())); targets.forEach((target,index) => target.th = translations[index]); markFlowChanged(); renderFlowStudio(); showToast(`${targets.length} Thai translation${targets.length === 1 ? '' : 's'} added for review.`); }
+        catch (error) { renderFlowStudio(); showToast('Translations could not be generated. Please retry.'); }
+      });
       $$('[data-flow-bind]').forEach(control => control.addEventListener('change',() => {
         const deploymentOnly = control.dataset.flowBind === 'widget.domain';
         if (!deploymentOnly) rememberFlowDraft();
@@ -2369,6 +2444,7 @@
       let html = '';
       if (flowState.section === 'identity') html = flowIdentitySection();
       else if (flowState.section === 'map') html = flowMapSection();
+      else if (flowState.section === 'translations') html = flowTranslationsSection();
       else if (flowState.section === 'lead') html = flowLeadSection();
       else if (flowState.section === 'handover') html = flowHandoverSection();
       else if (flowState.section === 'widget') html = flowPageHead('Widget appearance','Preview the website launcher on desktop and mobile before publication.') + flowWidgetPreview(true);

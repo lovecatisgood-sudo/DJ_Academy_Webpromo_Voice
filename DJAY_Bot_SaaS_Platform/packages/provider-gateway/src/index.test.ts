@@ -29,6 +29,17 @@ describe("internal text gateway", () => {
     await expect(gateway.generate(request)).resolves.toEqual({ output: { ok: true }, nativeUsage: { inputUnits: 12, outputUnits: 8 } });
   });
 
+  it("routes translation requests through the same owner-selected gateway", async () => {
+    const gateway = createHttpTextProviderGateway({
+      endpoint: "https://ai-gateway.internal/generate", serviceToken: "secret",
+      fetchImpl: async (_input, init) => {
+        expect(JSON.parse(String(init?.body))).toMatchObject({ capability: "translation", structuredOutputSchemaVersion: "translation.v1" });
+        return new Response(JSON.stringify({ output: { translations: ["จองคำปรึกษา"] }, nativeUsage: { inputUnits: 4, outputUnits: 3 } }), { status: 200 });
+      },
+    });
+    await expect(gateway.generate({ ...request, structuredOutputSchemaVersion: "translation.v1" })).resolves.toMatchObject({ output: { translations: ["จองคำปรึกษา"] } });
+  });
+
   it("returns only a stable safe error for upstream failures", async () => {
     const gateway = createHttpTextProviderGateway({
       endpoint: "https://ai-gateway.internal/generate", serviceToken: "secret",

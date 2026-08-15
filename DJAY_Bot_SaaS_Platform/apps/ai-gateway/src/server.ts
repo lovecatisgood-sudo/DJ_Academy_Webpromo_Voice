@@ -8,7 +8,7 @@ import { salesCoreOutputSchema } from "@djay/sales-core";
 import { z } from "zod";
 
 const requestSchema = z.object({
-  capability: z.literal("sales_text"),
+  capability: z.enum(["sales_text", "translation"]),
   correlationId: z.string().trim().min(1).max(200),
   locale: z.enum(["th", "en"]),
   systemPolicy: z.string().min(1).max(100_000),
@@ -16,8 +16,16 @@ const requestSchema = z.object({
     role: z.enum(["user", "assistant"]), content: z.string().max(20_000),
   }).strict()).max(100),
   customerMessage: z.string().min(1).max(20_000),
-  structuredOutputSchemaVersion: z.literal("sales-core.v1"),
-}).strict();
+  structuredOutputSchemaVersion: z.enum(["sales-core.v1", "translation.v1"]),
+  structuredOutputJsonSchema: z.record(z.string(), z.unknown()).optional(),
+}).strict().superRefine((value, context) => {
+  if (value.capability === "sales_text" && value.structuredOutputSchemaVersion !== "sales-core.v1") {
+    context.addIssue({ code: "custom", message: "Sales requests require sales-core.v1." });
+  }
+  if (value.capability === "translation" && value.structuredOutputSchemaVersion !== "translation.v1") {
+    context.addIssue({ code: "custom", message: "Translation requests require translation.v1." });
+  }
+});
 
 const salesCoreJsonSchema = z.toJSONSchema(salesCoreOutputSchema, { target: "draft-7" });
 
@@ -62,7 +70,11 @@ export function createAiGatewayHandler(config: Readonly<{
     }
     try {
       const parsed = requestSchema.parse(await request.json());
-      const result = await gateway.generate({ ...parsed, structuredOutputJsonSchema: salesCoreJsonSchema });
+      const structuredOutputJsonSchema = parsed.capability === "sales_text"
+        ? salesCoreJsonSchema
+        : parsed.structuredOutputJsonSchema;
+      if (!structuredOutputJsonSchema) return json({ status: "invalid_request" }, 400);
+      const result = await gateway.generate({ ...parsed, structuredOutputJsonSchema });
       return json(result, 200);
     } catch (error) {
       if (error instanceof ProviderGatewayError) {
