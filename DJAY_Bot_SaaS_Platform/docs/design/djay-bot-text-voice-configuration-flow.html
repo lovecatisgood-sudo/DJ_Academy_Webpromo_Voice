@@ -1275,7 +1275,7 @@
             </div>
           </form>
           <aside class="flow-widget-mini" aria-label="Flow Bot widget preview">
-            <div class="flow-widget-panel"><div class="flow-widget-head" id="flowIdentityWidgetHead"><strong id="flowIdentityWidgetName">Your Bot</strong><span>EN | ไทย</span></div><div class="flow-widget-body"><p id="flowIdentityWidgetGreeting">Choose language / เลือกภาษา</p><div class="flow-widget-options"><button>English</button><button>ไทย</button></div></div></div>
+            <div class="flow-widget-panel"><div class="flow-widget-head" id="flowIdentityWidgetHead"><strong id="flowIdentityWidgetName">Your Bot</strong><span>EN | ไทย</span></div><div class="flow-widget-body"><p id="flowIdentityWidgetGreeting">Choose a language to test this draft / เลือกภาษาเพื่อทดสอบ</p><div class="flow-widget-options"><button data-flow-onboarding-test-language="en">Test in English</button><button data-flow-onboarding-test-language="th">ทดสอบภาษาไทย</button></div></div></div>
             <div class="flow-widget-launcher" id="flowIdentityLauncher">D</div>
           </aside>
         </div>
@@ -1305,7 +1305,7 @@
             <div class="notice"><strong>i</strong><div><strong>Dashboard is always available</strong><p>If you leave now, Configuration will be highlighted as Not configured.</p></div></div>
           </aside>
         </div>
-        <div class="onboarding-actions"><button class="btn" id="flowOpenDashboardEarly">Enter dashboard now</button><button class="btn btn-green" id="flowOpenStudio">Open Flow Configuration Studio</button></div>
+        <div class="onboarding-actions"><button class="btn" id="flowOpenDashboardEarly">Enter dashboard now</button><button class="btn" id="flowTestReady">Test Flow Bot</button><button class="btn btn-green" id="flowOpenStudio">Open Flow Configuration Studio</button></div>
       </section>
     </main>
   </section>
@@ -1994,7 +1994,7 @@
     function syncFlowIdentityPreview() {
       const color = $('#flowBrandColor').value;
       $('#flowIdentityWidgetName').textContent = $('#flowBotName').value || 'Untitled Flow Bot';
-      $('#flowIdentityWidgetGreeting').textContent = 'Choose language / เลือกภาษา';
+      $('#flowIdentityWidgetGreeting').textContent = 'Choose a language to test this draft / เลือกภาษาเพื่อทดสอบ';
       $('#flowIdentityWidgetHead').style.background = color;
       $('#flowIdentityLauncher').style.background = color;
     }
@@ -2028,6 +2028,14 @@
       $('#flowStudioDemo').classList.remove('flow-panel-open');
       renderFlowStudio();
       $('#flowStudioContent').scrollTop = 0;
+    }
+
+    function openFlowDraftTest(language = flowState.testLanguage, nodeId = flowDraft.entryId) {
+      flowState.testLanguage = language;
+      flowState.panel = 'test';
+      openFlowStudio('map');
+      $('#flowStudioDemo').classList.add('flow-panel-open');
+      flowTestStart(nodeId || flowDraft.entryId);
     }
 
     function flowSections() {
@@ -3542,7 +3550,9 @@
     $('#flowIdentityForm').addEventListener('submit',event => event.preventDefault());
     ['flowBotName','flowGreetingEn','flowGreetingTh','flowBrandColor'].forEach(id => $('#' + id).addEventListener('input',syncFlowIdentityPreview));
     $('#flowContinueIdentity').addEventListener('click',() => { applyFlowIdentityForm(); showFlowOnboardingPage('ready'); });
+    $$('[data-flow-onboarding-test-language]').forEach(button => button.addEventListener('click',() => { applyFlowIdentityForm(); openFlowDraftTest(button.dataset.flowOnboardingTestLanguage,flowDraft.entryId); }));
     $('#flowOpenDashboardEarly').addEventListener('click',() => { state.product = 'flow'; state.configured = flowState.configured; state.dirty = flowState.dirty; showDashboard('overview'); });
+    $('#flowTestReady').addEventListener('click',() => openFlowDraftTest(flowState.testLanguage,flowDraft.entryId));
     $('#flowOpenStudio').addEventListener('click',() => openFlowStudio('map'));
     $('#flowTopDashboard').addEventListener('click',() => showDashboard('overview'));
     $('#flowUndo').addEventListener('click',() => restoreFlowHistory('undo'));
@@ -3561,7 +3571,10 @@
       renderFlowStudio();
       showToast('The local Flow Bot demo has been reset.');
     });
-    $$('[data-flow-panel]').forEach(button => button.addEventListener('click',() => { flowState.panel = button.dataset.flowPanel; $('#flowStudioDemo').classList.add('flow-panel-open'); renderFlowStudio(); }));
+    $$('[data-flow-panel]').forEach(button => button.addEventListener('click',() => {
+      if (button.dataset.flowPanel === 'test') { openFlowDraftTest(flowState.testLanguage,flowState.selectedNodeId || flowDraft.entryId); return; }
+      flowState.panel = button.dataset.flowPanel; $('#flowStudioDemo').classList.add('flow-panel-open'); renderFlowStudio();
+    }));
     $('#flowCancelPublish').addEventListener('click',() => $('#flowPublishDialog').close());
     $('#flowConfirmPublish').addEventListener('click',() => {
       flowPublishedDraft = clone(flowDraft); flowState.version += 1; flowState.configured = true; flowState.dirty = false; flowState.installVerified = false; flowState.live = false; flowState.snippetCopied = false; state.configured = true; state.version = flowState.version; state.dirty = false; saveFlowLocal(); $('#flowPublishDialog').close(); flowState.section = 'release'; renderFlowStudio(); showToast(`Flow Bot version ${flowState.version} published in this design simulation.`);

@@ -7,7 +7,7 @@ const read = (path) => readFileSync(resolve(root, path), "utf8");
 const failures = [];
 
 const builder = read("docs/design/djay-bot-text-voice-configuration-flow.html");
-for (const marker of ["English and Thai translations", "flowTranslateMissing", "/public/builder/translate", "flowOptionText(option,flowState.testLanguage)", "Choose language / เลือกภาษา", "widgetPreviewLanguage"]) {
+for (const marker of ["English and Thai translations", "flowTranslateMissing", "/public/builder/translate", "flowOptionText(option,flowState.testLanguage)", "Choose language / เลือกภาษา", "widgetPreviewLanguage", "flowTestReady", "data-flow-onboarding-test-language", "openFlowDraftTest"]) {
   if (!builder.includes(marker)) fail(`Flow translation experience is missing: ${marker}`);
 }
 if (builder.includes("data-flow-test-label=\"${escapeHtml(option.label)}\"")) fail("Thai Flow choices still use the legacy single-language label.");
