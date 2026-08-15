@@ -35,6 +35,11 @@ try {
   await page.locator("#flowOpenFullTest").click();
   assert(await page.getByText("Testing the complete customer journey from its starting message").isVisible(), "Full customer testing did not start from the configured entry message.");
   assert(await page.locator("[data-flow-test-option-index]").count() === 4, "The Main menu customer replies were not rendered.");
+  await page.locator("#flowTypedTestInput").fill("opening hour");
+  await page.locator("#flowTypedTestSend").click();
+  assert(await page.getByText("We are open Monday to Friday, 09:00 to 17:00.").isVisible(), "Typed Opening hours intent did not follow its configured message path.");
+  assert(await page.locator("[data-flow-test-option-index]").count() === 4, "Opening hours did not return to the configured Main menu.");
+  await page.locator("#flowRestartTest").click();
   await page.getByRole("button", { name: "Services", exact: true }).click();
   assert(await page.locator("#flowTestForm").isVisible(), "The Services reply did not follow its configured path to the contact form.");
   await page.locator("#flowTestLanguage").selectOption("th");

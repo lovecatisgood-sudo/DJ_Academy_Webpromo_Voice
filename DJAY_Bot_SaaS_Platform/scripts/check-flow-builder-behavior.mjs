@@ -33,15 +33,23 @@ function extractFunction(name) {
 
 const functionNames = [
   "normalizeFlowDraftTranslations",
+  "createFlowDraft",
   "flowOptionText",
   "flowActiveOptions",
   "flowExecutionPath",
   "flowResolveChoice",
+  "flowNormalizeMatchText",
+  "flowTextMatchesQuery",
+  "flowResolveTypedReply",
   "flowSetDestination",
   "flowRemoveNodeFromDraft",
   "flowDraftErrors",
 ];
-const body = `${functionNames.map(extractFunction).join("\n")}\nreturn { ${functionNames.join(",")} };`;
+const body = `
+const flowNode = (id,type,title,en,th,x,y,extra={}) => ({id,type,title,en,th,x,y,keywords:[],next:null,...extra});
+const flowChoice = (en,th,target) => ({en,th,target});
+${functionNames.map(extractFunction).join("\n")}
+return { ${functionNames.join(",")} };`;
 const engine = new Function("flowSchemaVersion", body)(3);
 
 const node = (id, type, next = null, options = []) => ({
@@ -56,9 +64,11 @@ const draft = {
     node("menu", "options", null, [
       { en: "Sales", th: "ฝ่ายขาย", target: "sales" },
       { en: "Support", th: "ฝ่ายช่วยเหลือ", target: "support" },
+      { en: "Opening hours", th: "เวลาเปิดทำการ", target: "hours" },
     ]),
     node("sales", "message", "done"),
     node("support", "message", "done"),
+    { ...node("hours", "message", "done"), keywords: ["hours", "open", "เวลา"] },
     node("done", "end"),
   ],
 };
@@ -72,6 +82,30 @@ const thaiChoice = engine.flowResolveChoice(draft, "menu", 1, "th");
 assert.deepEqual(thaiChoice, { status: "ready", label: "ฝ่ายช่วยเหลือ", targetId: "support", error: "" });
 const supportPath = engine.flowExecutionPath(draft, thaiChoice.targetId, "th");
 assert.deepEqual(supportPath.steps.map((step) => step.id), ["support", "done"]);
+
+for (const [customerText, language] of [["opening hour", "en"], ["what time do you open", "en"], ["เวลาเปิดทำการ", "th"]]) {
+  const openingHours = engine.flowResolveTypedReply(draft, "menu", customerText, language);
+  assert.equal(openingHours.status, "ready", `${customerText} should match the configured Opening hours route`);
+  assert.equal(openingHours.targetId, "hours");
+}
+assert.equal(engine.flowResolveTypedReply(draft, "menu", "unrelated question", "en").status, "unmatched");
+
+const expectedTemplateStops = { faq: "menu", lead: "need", appointment: "service", product: "category", support: "issue", blank: "welcome" };
+for (const [template, expectedStop] of Object.entries(expectedTemplateStops)) {
+  const templateDraft = engine.createFlowDraft(template);
+  const path = engine.flowExecutionPath(templateDraft, templateDraft.entryId, "en");
+  assert.equal(path.currentId, expectedStop, `${template} did not stop at its first designed customer action`);
+  for (const templateNode of templateDraft.nodes) {
+    for (const option of engine.flowActiveOptions(templateNode)) {
+      assert.ok(templateDraft.nodes.some((item) => item.id === option.target), `${template}:${templateNode.id} points to missing ${option.target}`);
+    }
+  }
+  assert.deepEqual(engine.flowDraftErrors(templateDraft), [], `${template} contains structural errors`);
+}
+const faqDraft = engine.createFlowDraft("faq");
+const faqOpeningHours = engine.flowResolveTypedReply(faqDraft, "menu", "opening hour", "en");
+assert.equal(faqOpeningHours.targetId, "hours");
+assert.deepEqual(engine.flowExecutionPath(faqDraft, faqOpeningHours.targetId, "en").steps.map((step) => step.id), ["hours", "menu"]);
 
 const looseMessage = node("loose", "message");
 looseMessage.needsConnection = true;
@@ -90,14 +124,14 @@ assert.equal(engine.flowSetDestination(disconnectedDraft, "menu", "option", 0, "
 
 const deletionDraft = structuredClone(draft);
 const deletion = engine.flowRemoveNodeFromDraft(deletionDraft, "done");
-assert.deepEqual(deletion, { removed: true, disconnected: 2 });
+assert.deepEqual(deletion, { removed: true, disconnected: 3 });
 assert.equal(deletionDraft.nodes.find((item) => item.id === "sales").next, null);
 assert.equal(deletionDraft.nodes.find((item) => item.id === "sales").needsConnection, true);
 assert.ok(engine.flowDraftErrors(deletionDraft).some((error) => error.includes("needs a destination")));
 
 const inactiveDeletionDraft = structuredClone(draft);
 inactiveDeletionDraft.nodes[0].options = [{ en: "Stored", th: "เก็บไว้", target: "done" }];
-assert.equal(engine.flowRemoveNodeFromDraft(inactiveDeletionDraft, "done").disconnected, 3);
+assert.equal(engine.flowRemoveNodeFromDraft(inactiveDeletionDraft, "done").disconnected, 4);
 assert.equal(inactiveDeletionDraft.nodes[0].options[0].target, "");
 
 const legacy = {
@@ -127,6 +161,8 @@ assert.equal(engine.flowExecutionPath(loop, "a", "en", 3).status, "loop");
 assert.match(source, /flowChoice\('New reply','คำตอบใหม่',''\)/, "new customer replies must start unconnected");
 assert.match(source, /openFlowDraftTest\(flowState\.testLanguage,flowDraft\.entryId,'entry'\)/, "normal customer testing must start at the entry message");
 assert.match(source, /flowTestStart\(node\.id,'selected'\)/, "selected-message testing must remain explicit");
+assert.match(source, /const node = flowState\.panel === 'test' \? flowDraft\.nodes\.find\(item => item\.id === flowState\.testNodeId\)/, "customer-test actions must bind to the active test message, not the selected editor message");
+assert.match(source, /flowResolveTypedReply\(flowDraft,flowState\.testNodeId,value,flowState\.testLanguage\)/, "typed replies must resolve from the active customer-test message");
 assert.doesNotMatch(source, /data-flow-test-option="\$\{escapeHtml\(option\.target\)\}"/, "tester must not use an unchecked destination as its button identity");
 
 for (const match of source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {

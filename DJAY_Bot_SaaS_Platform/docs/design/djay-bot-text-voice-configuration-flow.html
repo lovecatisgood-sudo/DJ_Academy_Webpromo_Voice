@@ -1632,6 +1632,36 @@
       if (!draft.nodes.some(item => item.id === option.target)) return {status:'missing-target',label,targetId:option.target,error:`“${label}” points to a message that no longer exists.`};
       return {status:'ready',label,targetId:option.target,error:''};
     }
+    function flowNormalizeMatchText(value) {
+      return String(value || '').toLocaleLowerCase().normalize('NFKC').replace(/[^\p{L}\p{N}\s]/gu,' ').replace(/\s+/g,' ').trim();
+    }
+    function flowTextMatchesQuery(query,candidate) {
+      const normalizedQuery = flowNormalizeMatchText(query);
+      const normalizedCandidate = flowNormalizeMatchText(candidate);
+      if (!normalizedQuery || !normalizedCandidate) return false;
+      if (normalizedQuery === normalizedCandidate || normalizedQuery.includes(normalizedCandidate)) return true;
+      const queryTokens = normalizedQuery.split(' ');
+      return normalizedCandidate.split(' ').every(candidateToken => queryTokens.some(queryToken => {
+        const singularQuery = queryToken.length > 3 && queryToken.endsWith('s') ? queryToken.slice(0,-1) : queryToken;
+        const singularCandidate = candidateToken.length > 3 && candidateToken.endsWith('s') ? candidateToken.slice(0,-1) : candidateToken;
+        return singularQuery === singularCandidate || (singularCandidate.length >= 4 && (singularQuery.startsWith(singularCandidate) || singularCandidate.startsWith(singularQuery)));
+      }));
+    }
+    function flowResolveTypedReply(draft,nodeId,value,language) {
+      const node = draft.nodes.find(item => item.id === nodeId);
+      if (!node) return {status:'missing',targetId:'',optionIndex:-1,error:'The active customer-test message no longer exists.'};
+      if (node.type === 'input') return node.next && draft.nodes.some(item => item.id === node.next)
+        ? {status:'ready',targetId:node.next,optionIndex:-1,error:''}
+        : {status:'unconnected',targetId:'',optionIndex:-1,error:'This typed-answer message is not connected to a destination yet.'};
+      if (node.type !== 'options') return {status:'unavailable',targetId:'',optionIndex:-1,error:'This message is not waiting for a typed customer reply.'};
+      const optionIndex = (node.options || []).findIndex(option => {
+        const target = draft.nodes.find(item => item.id === option.target);
+        return [option.en,option.th,...(target?.keywords || [])].some(candidate => flowTextMatchesQuery(value,candidate));
+      });
+      if (optionIndex < 0) return {status:'unmatched',targetId:'',optionIndex:-1,error:''};
+      const choice = flowResolveChoice(draft,node.id,optionIndex,language);
+      return {...choice,optionIndex};
+    }
     function flowSetDestination(draft,sourceId,kind,optionIndex,targetId) {
       const source = draft.nodes.find(node => node.id === sourceId);
       const targetExists = !targetId || draft.nodes.some(node => node.id === targetId);
@@ -2416,8 +2446,9 @@
       const transcript = flowState.testMessages.map(message => `<div class="flow-test-message ${message.actor === 'customer' ? 'customer' : ''}"><small>${message.actor === 'customer' ? 'Customer' : 'Flow Bot'}</small>${escapeHtml(message.text)}</div>`).join('');
       const options = node?.type === 'options' ? `<div class="flow-test-options">${(node.options || []).map((option,index) => { const label = flowOptionText(option,flowState.testLanguage) || (flowState.testLanguage === 'th' ? 'ยังไม่มีคำแปลภาษาไทย' : 'Missing English translation'); return `<button data-flow-test-option-index="${index}" ${flowOptionText(option,flowState.testLanguage) ? '' : 'disabled'}>${escapeHtml(label)}</button>`; }).join('')}</div>` : '';
       const form = node?.type === 'form' ? `<form class="flow-test-form" id="flowTestForm">${(node.fields || flowDraft.lead.fields).map(field => `<label>${escapeHtml(field.label)}<input name="${escapeHtml(field.label)}" type="${field.type === 'textarea' ? 'text' : escapeHtml(field.type)}" ${field.required ? 'required' : ''}></label>`).join('')}<label class="consent-row"><input type="checkbox" required><span>${escapeHtml(flowDraft.lead.consent)}</span></label><button class="btn btn-green">Submit test form</button></form>` : '';
+      const composer = ['input','options'].includes(node?.type) ? `<div class="flow-test-input-row"><input id="flowTypedTestInput" placeholder="Type a customer reply"><button class="btn btn-green" id="flowTypedTestSend">Send</button></div>` : '';
       const scope = flowState.testStartMode === 'selected' ? `Debugging from “${flowDraft.nodes.find(item => item.id === flowState.testStartNodeId)?.title || 'selected message'}”` : 'Testing the complete customer journey from its starting message';
-      return `<div class="flow-inspector-head"><span class="eyebrow">Current draft</span><h2>Customer test</h2><p class="help">${escapeHtml(scope)}. No allowance, lead, booking, handover, or external action is created.</p></div><div class="row between"><select id="flowTestLanguage"><option value="en" ${flowState.testLanguage === 'en' ? 'selected' : ''}>English</option><option value="th" ${flowState.testLanguage === 'th' ? 'selected' : ''}>ไทย</option></select><button class="btn" id="flowRestartTest">Restart</button></div><div class="flow-test-transcript">${transcript || '<div class="flow-inspector-empty">The customer journey has not started.</div>'}${options}${form}${flowState.testError ? `<div class="flow-test-path-error" role="alert"><strong>Flow needs attention</strong><br>${escapeHtml(flowState.testError)}</div>` : ''}</div><div class="flow-test-input-row"><input id="flowTypedTestInput" placeholder="Type a customer reply"><button class="btn btn-green" id="flowTypedTestSend">Send</button></div><p class="help">Current message: <strong>${escapeHtml(node?.title || 'Not started')}</strong></p>`;
+      return `<div class="flow-inspector-head"><span class="eyebrow">Current draft</span><h2>Customer test</h2><p class="help">${escapeHtml(scope)}. No allowance, lead, booking, handover, or external action is created.</p></div><div class="row between"><select id="flowTestLanguage"><option value="en" ${flowState.testLanguage === 'en' ? 'selected' : ''}>English</option><option value="th" ${flowState.testLanguage === 'th' ? 'selected' : ''}>ไทย</option></select><button class="btn" id="flowRestartTest">Restart</button></div><div class="flow-test-transcript">${transcript || '<div class="flow-inspector-empty">The customer journey has not started.</div>'}${options}${form}${flowState.testError ? `<div class="flow-test-path-error" role="alert"><strong>Flow needs attention</strong><br>${escapeHtml(flowState.testError)}</div>` : ''}</div>${composer}<p class="help">Current message: <strong>${escapeHtml(node?.title || 'Not started')}</strong></p>`;
     }
 
     function renderFlowRightPanel() {
@@ -2428,7 +2459,7 @@
 
     function bindFlowRightPanel() {
       if ($('#flowClosePanel')) $('#flowClosePanel').addEventListener('click',() => $('#flowStudioDemo').classList.remove('flow-panel-open'));
-      const node = selectedFlowNode();
+      const node = flowState.panel === 'test' ? flowDraft.nodes.find(item => item.id === flowState.testNodeId) || null : selectedFlowNode();
       if (flowState.panel === 'edit' && node) {
         const updateNode = update => { rememberFlowDraft(); update(); markFlowChanged(); renderFlowStudio(); };
         if ($('[data-flow-node-type]')) $('[data-flow-node-type]').addEventListener('change',event => updateNode(() => {
@@ -2467,28 +2498,10 @@
         });
         const sendTyped = () => {
           const input = $('#flowTypedTestInput'); const value = input?.value.trim(); if (!value) return;
-          const normalized = value.toLowerCase();
-          if (node?.type === 'input') {
-            flowState.testMessages.push({actor:'customer',text:value});
-            if (node.next) flowTestVisit(node.next);
-            else { flowState.testError = 'This typed-answer message is not connected to a destination yet.'; flowState.tested = true; saveFlowLocal(); renderFlowStudio(); }
-            return;
-          }
-          if (node?.type === 'options') {
-            const optionIndex = (node.options || []).findIndex(option => {
-              const target = flowDraft.nodes.find(item => item.id === option.target);
-              const labels = [option.en,option.th,...(target?.keywords || [])].map(item => String(item || '').toLowerCase()).filter(Boolean);
-              return labels.some(label => normalized === label || normalized.includes(label));
-            });
-            if (optionIndex >= 0) {
-              const resolution = flowResolveChoice(flowDraft,node.id,optionIndex,flowState.testLanguage);
-              flowState.testMessages.push({actor:'customer',text:value});
-              if (resolution.status === 'ready') flowTestVisit(resolution.targetId);
-              else { flowState.testError = resolution.error; flowState.tested = true; saveFlowLocal(); renderFlowStudio(); }
-              return;
-            }
-          }
+          const resolution = flowResolveTypedReply(flowDraft,flowState.testNodeId,value,flowState.testLanguage);
           flowState.testMessages.push({actor:'customer',text:value});
+          if (resolution.status === 'ready') { flowTestVisit(resolution.targetId); return; }
+          if (resolution.error) { flowState.testError = resolution.error; flowState.tested = true; saveFlowLocal(); renderFlowStudio(); return; }
           flowState.testNodeId = flowDraft.nodes.find(item => item.type === 'handover')?.id || null;
           flowState.testMessages.push({actor:'bot',text:flowState.testLanguage === 'th' ? flowDraft.handover.fallbackTh : flowDraft.handover.fallbackEn});
           flowState.testError = '';
