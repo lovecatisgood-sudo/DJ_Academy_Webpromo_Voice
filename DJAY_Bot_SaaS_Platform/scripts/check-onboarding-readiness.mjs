@@ -31,6 +31,9 @@ for (const marker of [
   "incoming connection",
   "live Grok testing",
   "fetch('/public/builder/ai-test'",
+  "fetch('/public/builder/website-profile'",
+  "applyImportedWebsiteProfile",
+  "No sample data was substituted",
 ]) {
   if (!builder.includes(marker)) failures.push(`approved anonymous builder is missing ${marker}`);
 }
@@ -38,6 +41,8 @@ for (const forbidden of [
   "Continue to AI Text Bot onboarding",
   "Start 30-day Text Bot trial</button>",
   "Start 30-day Flow Bot trial</button>",
+  "Harbor Studio",
+  "harbor-example",
 ]) {
   if (builder.includes(forbidden)) failures.push(`approved anonymous builder still contains ${forbidden}`);
 }
@@ -64,6 +69,15 @@ if (workspace.includes('window.location.replace("/workspace/setup")')) failures.
 const aiTest = read("apps/api/app/public/builder/ai-test/route.ts");
 for (const marker of ["runAiTextPreview", "public_builder_ai_test", "services.aiTextGateway", "hasTrustedOrigin"]) {
   if (!aiTest.includes(marker)) failures.push(`anonymous Grok test route is missing ${marker}`);
+}
+
+const websiteImport = read("apps/api/app/public/builder/website-profile/route.ts");
+const websiteProfile = read("apps/api/lib/public-website-profile.ts");
+for (const marker of ["crawlPublicWebsite", "extractPublicWebsiteProfile", "public_builder_website_profile", "hasTrustedOrigin"]) {
+  if (!websiteImport.includes(marker)) failures.push(`public website import route is missing ${marker}`);
+}
+for (const marker of ["isPublicWebsiteAddress", "website_response_too_large", "website_timeout", "comparableHost", "application/ld+json"]) {
+  if (!websiteProfile.includes(marker)) failures.push(`public website importer is missing ${marker}`);
 }
 
 if (failures.length) {

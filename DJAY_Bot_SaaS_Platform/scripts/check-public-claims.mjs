@@ -18,7 +18,7 @@ for (const pattern of unevidencedClaims) {
 }
 
 for (const marker of [
-  "Flow Bot", "AI Text Bot", "AI Voice Bot", "Approved preview build",
+  "Flow Bot", "AI Text Bot", "AI Voice Bot", "DJBOT Builder",
   "AI Voice Bot does not offer a free trial.",
   "30 days, Starter features, website only, 5,000 conversations, no card required.",
   "One Text trial per card.",

@@ -969,7 +969,7 @@
   </style>
 </head>
 <body>
-  <section class="journey-demo" id="journeyDemo" aria-label="DJBOT approved merchant preview build">
+  <section class="journey-demo" id="journeyDemo" aria-label="DJBOT merchant builder">
     <header class="public-nav">
       <div class="brand">
         <div class="brand-mark">D</div>
@@ -979,7 +979,7 @@
       <nav class="public-links" aria-label="Demo navigation">
         <button data-show-landing>Products</button>
         <button data-show-pricing>Pricing</button>
-        <span class="badge">Approved preview build</span>
+        <span class="badge">DJBOT Builder</span>
         <button class="btn btn-primary" data-show-pricing>View packages</button>
       </nav>
     </header>
@@ -1039,7 +1039,7 @@
           <div class="account-layout">
             <form class="account-card" id="accountForm" novalidate>
               <h2>Account and business</h2><p>This information will own the bot and its saved configuration.</p>
-              <div class="field-grid"><label>Work email<input id="accountEmail" type="email" value="owner@harbor.example" autocomplete="email"></label><label>Business name<input id="accountBusiness" value="Harbor Studio" autocomplete="organization"></label><label class="wide">Create password<input id="accountPassword" type="password" value="DemoPass123!" autocomplete="new-password"></label></div>
+              <div class="field-grid"><label>Work email<input id="accountEmail" type="email" autocomplete="email"></label><label>Business name<input id="accountBusiness" autocomplete="organization"></label><label class="wide">Create password<input id="accountPassword" type="password" autocomplete="new-password"></label></div>
               <div class="account-section" id="cardSection"><h3 id="cardSectionTitle">Payment card</h3><p class="help" id="cardSectionHelp">Required for this simulated selection. The demo never submits or stores card information.</p><div class="field-grid"><label class="wide">Card number<input id="accountCard" inputmode="numeric" value="4242 4242 4242 4242" autocomplete="cc-number"></label><label>Expiry<input id="accountExpiry" value="12/30" autocomplete="cc-exp"></label><label>Security code<input id="accountCvc" inputmode="numeric" value="123" autocomplete="cc-csc"></label></div></div>
               <label class="consent-row"><input type="checkbox" id="accountTerms" checked><span>I agree to the Terms and Privacy Notice and confirm I am authorized to create this business workspace.</span></label>
               <div class="account-error hidden" id="accountError" role="alert"></div>
@@ -1060,7 +1060,7 @@
         <div><strong>DJBOT</strong><small>BY DJAI</small></div>
       </div>
       <span class="onboarding-step-label" id="onboardingStepLabel">Onboarding step 1 of 4</span>
-      <span class="badge">Approved preview build</span>
+      <span class="badge">DJBOT Builder</span>
     </header>
     <div class="onboarding-progress" aria-hidden="true"><span id="onboardingProgress"></span></div>
 
@@ -1102,20 +1102,19 @@
             <div class="source-mode active" data-source-mode="website">
               <h2>Enter your public website</h2>
               <p>We will read relevant public pages and show you every fact and source before using them.</p>
-              <label>Website address<div class="url-row"><input id="businessUrl" type="url" value="https://harbor-example.com" placeholder="https://yourbusiness.com"><button class="btn btn-green" id="startWebsiteLearning">Learn from website</button></div></label>
+              <label>Website address<div class="url-row"><input id="businessUrl" inputmode="url" value="" placeholder="yourbusiness.com"><button class="btn btn-green" id="startWebsiteLearning">Learn from website</button></div></label>
               <label class="consent-row"><input type="checkbox" id="crawlConsent" checked><span>I confirm I am authorized to use this public business website to prepare my bot.</span></label>
               <div class="inline-error" id="crawlError" role="alert">
                 <strong id="crawlErrorTitle">We could not read this website completely.</strong>
                 <p id="crawlErrorMessage">The site may be unavailable, block automated access, require login, or contain too many pages. Nothing has been generated yet.</p>
                 <div class="row"><button class="btn" id="retryCrawl">Retry</button><button class="btn" id="usePartial">Continue with public pages found</button><button class="text-button" id="switchToManual">Enter details manually</button></div>
               </div>
-              <p class="demo-note"><button class="text-button" id="previewCrawlError">Preview crawl error state</button></p>
             </div>
             <div class="source-mode" data-source-mode="manual">
               <h2>Tell us the essentials</h2>
               <p>Plain language is fine. The AI will organize it into an editable business profile and role-specific draft.</p>
               <div class="field-grid">
-                <label>Business name<input id="manualBusinessName" value="Harbor Studio"></label>
+                <label>Business name<input id="manualBusinessName" placeholder="Your business name"></label>
                 <label>Industry<input value="Business services"></label>
                 <label class="wide">Products or services<textarea id="manualOfferings">Consultations, business setup packages, and ongoing support for small teams.</textarea></label>
                 <label class="wide">What should customers achieve?<textarea>Understand which package fits, receive clear answers, and book a consultation when useful.</textarea></label>
@@ -1146,11 +1145,11 @@
           <div class="process-card">
             <div class="process-icon">AI</div>
             <span class="eyebrow" style="color:#f2c14e">Preparing your editable draft</span>
-            <h1 id="processingTitle">Learning about Harbor Studio</h1>
+            <h1 id="processingTitle">Learning from your business information</h1>
             <p id="processingMessage">Connecting to the public website you provided.</p>
             <div class="process-track" role="progressbar" aria-label="Draft preparation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="8"><span id="processFill"></span></div>
             <div class="process-meta"><span id="processCount">Starting securely</span><span id="processPercent">8%</span></div>
-            <p class="demo-note" style="color:#b8cbc4">Interactive simulation only. The final product will report actual job stages, page counts, partial results, and errors.</p>
+            <p class="demo-note" style="color:#b8cbc4">The importer reads public pages only. You will review every extracted field before it can become approved Bot knowledge.</p>
           </div>
           <aside class="process-log">
             <h2>What is happening</h2>
@@ -1178,9 +1177,9 @@
           <div class="panel">
             <div class="row between"><div><h2>Business profile</h2><p>Generated from the source you provided.</p></div><span class="badge" id="sourceBadge">12 public pages</span></div>
             <div class="field-grid">
-              <label>Business name<input id="reviewBusinessName" value="Harbor Studio"></label>
+              <label>Business name<input id="reviewBusinessName"></label>
               <label>Business type<input id="reviewBusinessType" value="Business services"></label>
-              <label class="wide">Business summary<textarea id="reviewBusinessSummary">Harbor Studio helps small teams choose, set up, and maintain practical business service packages.</textarea></label>
+              <label class="wide">Business summary<textarea id="reviewBusinessSummary"></textarea></label>
               <label class="wide">Products and services<textarea id="reviewBusinessOffers">Starter setup, Standard package, ongoing support, consultations, and product demonstrations.</textarea></label>
               <label>Business hours<input id="reviewBusinessHours" value="Mon to Fri, 09:00 to 17:00"></label>
               <label>Primary contact<input id="reviewBusinessContact" value="support@harbor.example"></label>
@@ -1195,7 +1194,7 @@
             <div class="editable-list" id="businessFaqList" style="margin-top:12px"></div>
             <div class="divider"></div>
             <strong>Sources used</strong><br>
-            <span class="source-chip">Home</span><span class="source-chip">Services</span><span class="source-chip">Pricing</span><span class="source-chip">FAQ</span><span class="source-chip">Contact</span>
+            <span id="businessSourceList"></span>
             <p class="help">Login, account, checkout, form submissions, and unrelated pages were excluded.</p>
           </div>
           <aside class="panel">
@@ -1253,19 +1252,19 @@
         <div class="flow-identity-layout">
           <form class="panel" id="flowIdentityForm">
             <div class="field-grid">
-              <label>Bot name<input id="flowBotName" value="Harbor Guide"></label>
+              <label>Bot name<input id="flowBotName" value="Your Bot"></label>
               <label>Default language<select id="flowDefaultLanguage"><option>English</option><option>Thai</option><option>English and Thai</option></select></label>
-              <label class="wide">English greeting<textarea id="flowGreetingEn" maxlength="240">Welcome to Harbor Studio. What would you like help with?</textarea></label>
-              <label class="wide">คำทักทายภาษาไทย<textarea id="flowGreetingTh" maxlength="240">ยินดีต้อนรับสู่ Harbor Studio ต้องการให้เราช่วยเรื่องใด?</textarea></label>
+              <label class="wide">English greeting<textarea id="flowGreetingEn" maxlength="240">Welcome. What would you like help with?</textarea></label>
+              <label class="wide">คำทักทายภาษาไทย<textarea id="flowGreetingTh" maxlength="240">ยินดีต้อนรับ ต้องการให้เราช่วยเรื่องใด?</textarea></label>
               <label>Brand color<input id="flowBrandColor" type="color" value="#126149"></label>
               <label>Widget position<select id="flowWidgetPosition"><option>Bottom right</option><option>Bottom left</option></select></label>
-              <label>Business hours<input id="flowBusinessHours" value="Monday to Friday, 09:00 to 17:00"></label>
-              <label>Handover contact<input id="flowHandoverContact" value="support@harbor.example"></label>
-              <label class="wide">Privacy policy URL<input id="flowPrivacyUrl" type="url" value="https://www.harbor-example.com/privacy"></label>
+              <label>Business hours<input id="flowBusinessHours"></label>
+              <label>Handover contact<input id="flowHandoverContact"></label>
+              <label class="wide">Privacy policy URL<input id="flowPrivacyUrl" type="url" placeholder="https://yourbusiness.com/privacy"></label>
             </div>
           </form>
           <aside class="flow-widget-mini" aria-label="Flow Bot widget preview">
-            <div class="flow-widget-panel"><div class="flow-widget-head" id="flowIdentityWidgetHead"><strong id="flowIdentityWidgetName">Harbor Guide</strong><span>EN | TH</span></div><div class="flow-widget-body"><p id="flowIdentityWidgetGreeting">Welcome to Harbor Studio. What would you like help with?</p><div class="flow-widget-options"><button>Services</button><button>Pricing</button><button>Hours</button><button>Contact</button></div></div></div>
+            <div class="flow-widget-panel"><div class="flow-widget-head" id="flowIdentityWidgetHead"><strong id="flowIdentityWidgetName">Your Bot</strong><span>EN | TH</span></div><div class="flow-widget-body"><p id="flowIdentityWidgetGreeting">Welcome. What would you like help with?</p><div class="flow-widget-options"><button>Services</button><button>Pricing</button><button>Hours</button><button>Contact</button></div></div></div>
             <div class="flow-widget-launcher" id="flowIdentityLauncher">D</div>
           </aside>
         </div>
@@ -1404,7 +1403,7 @@
         </div>
         <div class="dashboard-workspace-picker">
           <span>Workspace</span>
-          <button type="button" id="dashboardWorkspaceName">Harbor Studio</button>
+          <button type="button" id="dashboardWorkspaceName">Your workspace</button>
         </div>
         <nav class="dashboard-nav" id="dashboardNav">
           <p class="dashboard-nav-label">Operate</p>
@@ -1509,7 +1508,7 @@
     };
 
     const state = { product: 'text', role: 'sales', publishedProduct: 'text', publishedRole: 'sales', section: 'business', testMode: 'draft', pendingRole: null, version: 0, configured: false, dirty: false, chatInitialized: false, accountCreated: false, deployReturn: null };
-    const onboardingState = { page: 'role', source: 'website', processTimer: null };
+    const onboardingState = { page: 'role', source: 'website', processTimer: null, importController: null, importedSources: [] };
     const commerceState = { product: 'text', plan: 'ai_chat_basic', intent: 'subscribe' };
     const commerceCatalog = {
       flow: {
@@ -1546,11 +1545,11 @@
       blank: {label:'Start from blank',copy:'One editable welcome step. Add every message, choice, form, branch, and action yourself.',path:['Welcome']}
     };
     const flowState = {onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',testNodeId:null,testMessages:[]};
-    const flowStorageKey = 'djbot-clickable-flow-demo-v1';
+    const flowStorageKey = 'djbot-flow-builder-v2';
     const flowNode = (id,type,title,en,th,x,y,extra={}) => ({id,type,title,en,th,x,y,keywords:[],next:null,...extra});
     function createFlowDraft(kind) {
-      const identity = {botName:'Harbor Guide',defaultLanguage:'English',greetingEn:'Welcome to Harbor Studio. What would you like help with?',greetingTh:'ยินดีต้อนรับสู่ Harbor Studio ต้องการให้เราช่วยเรื่องใด?',brandColor:'#126149',position:'Bottom right',businessHours:'Monday to Friday, 09:00 to 17:00',handoverContact:'support@harbor.example',privacyUrl:'https://www.harbor-example.com/privacy'};
-      const lead = {fields:[{label:'Name',type:'text',required:true},{label:'Email or phone',type:'text',required:true},{label:'Question or request',type:'textarea',required:false}],consent:'I agree that Harbor Studio may use these details to respond to this request.'};
+      const identity = {botName:'Your Bot',defaultLanguage:'English',greetingEn:'Welcome. What would you like help with?',greetingTh:'ยินดีต้อนรับ ต้องการให้เราช่วยเรื่องใด?',brandColor:'#126149',position:'Bottom right',businessHours:'',handoverContact:'',privacyUrl:''};
+      const lead = {fields:[{label:'Name',type:'text',required:true},{label:'Email or phone',type:'text',required:true},{label:'Question or request',type:'textarea',required:false}],consent:'I agree that this business may use these details to respond to this request.'};
       const handover = {team:'Shared inbox',fallbackEn:'I could not match that request. I can pass this conversation to our team with the information already shared.',fallbackTh:'ไม่พบคำตอบที่ตรงกัน ฉันสามารถส่งบทสนทนานี้ให้ทีมงานพร้อมข้อมูลที่ให้ไว้แล้ว',outsideHours:'The team is currently away. Leave your contact details and we will follow up during business hours.'};
       let nodes = [];
       if (kind === 'faq') nodes = [
@@ -1599,7 +1598,7 @@
         flowNode('thanks','end','Support request recorded','Your request and the information already shared are ready for the team.','คำขอและข้อมูลที่ให้ไว้พร้อมส่งให้ทีมงานแล้ว',790,330)
       ];
       else nodes = [flowNode('welcome','message','Welcome',identity.greetingEn,identity.greetingTh,70,80)];
-      return {template:kind,identity,lead,handover,nodes,entryId:'welcome',widget:{domain:'https://www.harbor-example.com',openOnLoad:false},reviewed:{}};
+      return {template:kind,identity,lead,handover,nodes,entryId:'welcome',widget:{domain:'',openOnLoad:false},reviewed:{}};
     }
     let flowDraft = createFlowDraft('faq');
     let flowPublishedDraft = JSON.parse(JSON.stringify(flowDraft));
@@ -1673,14 +1672,14 @@
         interest:'High',status:'pending_follow_up',summary:'Selected Services, reviewed the Standard package, and submitted a consultation request.',
         goal:'Compare service packages',problem:'Needs one setup for two clinic locations',objection:'Concerned about implementation time',service:'Standard package',next:'Call today before 15:00',path:'Welcome > Main menu > Services > Contact request',flowVersion:'Version 3',fallback:false,
         contact:{phone:'+66 81 234 7710',email:'nicha@northstar.example',preferred:'Phone',consent:'Follow-up consent given'},notes:'Decision maker. Confirm requirements for both clinic locations.',
-        transcript:[['bot','Welcome to Harbor Studio. What would you like help with?'],['customer','Selected: Services'],['bot','We offer setup packages, consultations, demonstrations, and ongoing support.'],['customer','Submitted contact request for two clinic locations.']]
+        transcript:[['bot','Welcome. What would you like help with?'],['customer','Selected: Services'],['bot','We offer setup packages, consultations, demonstrations, and ongoing support.'],['customer','Submitted contact request for two clinic locations.']]
       },
       {
         id:'flow-conv-1018',customer:'Kittipong Saelim',company:'Lanna Auto Care',channel:'Website Flow Bot',time:'4 minutes ago',minutesAgo:4,automationMode:'bot',starred:false,lead:true,
         interest:'Medium',status:'appointment_made',summary:'Completed the appointment-request path for a product demonstration on Friday.',
         goal:'Request a demonstration',problem:'Wants to see the customer journey',objection:'No objection recorded',service:'Product demonstration',next:'Confirm Friday, 13:30',path:'Welcome > Appointment > Product demonstration > Contact details',flowVersion:'Version 3',fallback:false,
         contact:{phone:'+66 89 440 2186',email:'kittipong@lannaauto.example',preferred:'Phone',consent:'Appointment consent given'},notes:'Show Thai and English options during the demonstration.',
-        transcript:[['bot','Welcome to Harbor Studio. What would you like help with?'],['customer','Selected: Book an appointment'],['bot','Which service would you like?'],['customer','Selected: Product demonstration'],['bot','Your request was received. It is not confirmed until the team contacts you.']]
+        transcript:[['bot','Welcome. What would you like help with?'],['customer','Selected: Book an appointment'],['bot','Which service would you like?'],['customer','Selected: Product demonstration'],['bot','Your request was received. It is not confirmed until the team contacts you.']]
       },
       {
         id:'flow-conv-0956',customer:'Maya Chen',company:'Maya Ceramics',channel:'Website Flow Bot',time:'Yesterday, 16:56',minutesAgo:1080,automationMode:'bot',starred:true,lead:true,
@@ -1718,19 +1717,19 @@
     ];
     const $ = (selector) => document.querySelector(selector);
     const $$ = (selector) => [...document.querySelectorAll(selector)];
-    const storageKey = 'djbot-clickable-configuration-demo-v1';
+    const storageKey = 'djbot-configuration-builder-v2';
     const defaultDraft = {
       business: {
-        name: 'Harbor Studio', type: 'Business services', summary: 'Harbor Studio helps small teams choose, set up, and maintain practical business service packages.',
-        offers: 'Starter setup, Standard package, ongoing support, consultations, and product demonstrations.', hours: 'Monday to Friday, 09:00 to 17:00', contact: 'support@harbor.example',
+        name: '', type: '', summary: '',
+        offers: '', hours: '', contact: '',
         behaviorRole: 'sales', agentObjective: behaviorDefaults.sales.objective, agentBehavior: behaviorDefaults.sales.behavior, agentBoundaries: behaviorDefaults.sales.boundaries,
-        faqs: [{question:'Which package is best for a small team?',answer:'The Standard package is usually the best starting point. The agent should ask about team size and the main goal before recommending it.'},{question:'Can I book a consultation?',answer:'Yes. The agent can help collect your preferred date and time, then confirm only after the calendar accepts the appointment.'}]
+        faqs: []
       },
-      botName: 'Harbor Sales Assistant',
+      botName: '',
       language: 'English and Thai',
-      greeting: 'Hello. I am the Harbor Sales Assistant. How can I help today?',
+      greeting: '',
       tone: 'Warm and concise',
-      disclosure: 'I am an AI assistant for Harbor. I can help with products, comparisons, and consultation requests.',
+      disclosure: '',
       uncertain: 'Say what is unknown and offer a person',
       unsupported: 'Do not guess or invent an answer',
       text: { suggestions: 'Show up to 3 suggested replies', links: 'Open business links in a new tab', forms: 'Ask in conversation, one field at a time', formatting: 'Short paragraphs and simple lists', citations: 'Show approved source links when useful' },
@@ -1740,7 +1739,7 @@
       voice: {
         name: 'Warm, neutral voice', speed: 'Natural', interruption: 'Stop speaking and listen', silence: 'Prompt once after 5 seconds',
         readback: 'Read back for confirmation', duration: '10 minutes, then offer callback',
-        disclosure: "Hello, I am Harbor's AI voice assistant. This call may be transcribed to help with your request.",
+        disclosure: "Hello, I am an AI voice assistant for this business. This call may be transcribed to help with your request.",
         lowConfidence: 'Ask the customer to repeat', misunderstanding: 'Offer transfer or callback', unavailable: 'Collect callback consent and details', recording: 'Off'
       },
       support: { questions: 'Maximum 3 relevant questions', attempts: 'Escalate after 2 attempts', boundaries: 'Refund approval, legal complaints, threats, account security changes, and urgent cases.' },
@@ -1763,7 +1762,7 @@
         test: [{a:'Happy path',b:'Grounded answer and valid next step',passed:false},{a:'Missing information',b:'Ask only a relevant question',passed:false},{a:'Unsupported claim',b:'Decline to guess and offer help',passed:false},{a:'Provider failure',b:'No false success message',passed:false}]
       },
       reviewed: {},
-      install: { snippetCopied: false, domain: 'https://www.harbor-example.com', verified: false, live: false, cardPromptOpen: false, cardVerified: false }
+      install: { snippetCopied: false, domain: '', verified: false, live: false, cardPromptOpen: false, cardVerified: false }
     };
     const clone = value => JSON.parse(JSON.stringify(value));
     let draft = clone(defaultDraft);
@@ -2503,6 +2502,9 @@
     function hydrateBusinessReview() {
       const map = {reviewBusinessName:'name',reviewBusinessType:'type',reviewBusinessSummary:'summary',reviewBusinessOffers:'offers',reviewBusinessHours:'hours',reviewBusinessContact:'contact',reviewAgentObjective:'agentObjective',reviewAgentBehavior:'agentBehavior',reviewAgentBoundaries:'agentBoundaries'};
       Object.entries(map).forEach(([id,key]) => { if ($('#' + id)) $('#' + id).value = draft.business[key] || ''; });
+      $('#businessSourceList').innerHTML = onboardingState.importedSources.length
+        ? onboardingState.importedSources.map(source => `<a class="source-chip" href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.name)}</a>`).join('')
+        : '<span class="source-chip">Information entered manually</span>';
       renderBusinessFaqs();
     }
 
@@ -2560,29 +2562,84 @@
       $('#generatedSections').innerHTML = [...shared, ...roleSpecific[state.role]].map(item => `<div class="generated-item"><b>✓</b><span>${item}</span></div>`).join('');
     }
 
+    function resetProcessingProgress(message, count, percent) {
+      $('#processingMessage').textContent = message;
+      $('#processCount').textContent = count;
+      $('#processPercent').textContent = `${percent}%`;
+      $('#processFill').style.width = `${percent}%`;
+      $('.process-track').setAttribute('aria-valuenow', String(percent));
+    }
+
+    function applyImportedWebsiteProfile(profile) {
+      draft.business.name = profile.name;
+      draft.business.type = profile.type;
+      draft.business.summary = profile.summary;
+      draft.business.offers = profile.offers;
+      draft.business.hours = profile.hours;
+      draft.business.contact = profile.contact;
+      draft.business.faqs = Array.isArray(profile.faqs) ? profile.faqs : [];
+      draft.botName = `${profile.name} ${roleData[state.role].short} Assistant`.slice(0, 100);
+      draft.greeting = `Hello. I am the ${profile.name} ${roleData[state.role].short} Assistant. How can I help today?`.slice(0, 200);
+      draft.disclosure = `I am an AI assistant for ${profile.name}. I use the approved business information shown in this configuration.`.slice(0, 200);
+      draft.install.domain = profile.websiteUrl;
+      draft.sources = (profile.sources || []).map((source,index) => ({id:index + 1,name:source.name,use:'Public business information from ' + source.url,status:'Ready'}));
+      if (!draft.sources.length) draft.sources = [{id:1,name:profile.websiteUrl,use:'Public business information',status:'Ready'}];
+      onboardingState.importedSources = profile.sources || [];
+      const serviceNames = String(profile.offers || '').split(',').map(value => value.trim()).filter(Boolean).slice(0, 8);
+      if (serviceNames.length) draft.rows.services = serviceNames.map(name => ({a:name,b:'Details and availability require merchant review'}));
+      $('#accountBusiness').value = profile.name;
+      savePrototype();
+    }
+
+    async function learnFromWebsite() {
+      onboardingState.source = 'website';
+      $('#crawlError').classList.remove('active');
+      showOnboardingPage('processing');
+      const submittedUrl = $('#businessUrl').value.trim();
+      $('#processingTitle').textContent = `Learning from ${submittedUrl}`;
+      resetProcessingProgress('Connecting to the public website you provided.','Checking website access',12);
+      onboardingState.importController?.abort();
+      onboardingState.importController = new AbortController();
+      try {
+        const response = await fetch('/public/builder/website-profile', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({url:submittedUrl}),
+          signal:onboardingState.importController.signal
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result.status !== 'completed' || !result.profile) throw new Error(result.reason || result.status || 'website_import_failed');
+        resetProcessingProgress('Organizing the public business information found.',`${result.profile.pageCount} public page${result.profile.pageCount === 1 ? '' : 's'} read`,78);
+        applyImportedWebsiteProfile(result.profile);
+        $('#processingTitle').textContent = `Learning about ${result.profile.name}`;
+        $('#sourceBadge').textContent = `${result.profile.pageCount} public page${result.profile.pageCount === 1 ? '' : 's'}`;
+        generatedSections();
+        resetProcessingProgress('Your imported business profile is ready for review.','No customer-facing changes made',100);
+        setTimeout(() => showOnboardingPage('review'), 350);
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        showOnboardingPage('source');
+        showCrawlError('We could not import this website.', 'No sample data was substituted. Check that the public HTTPS website is available, then retry or enter the information manually.');
+      } finally {
+        onboardingState.importController = null;
+      }
+    }
+
     function beginBusinessLearning(source) {
       onboardingState.source = source;
       $('#crawlError').classList.remove('active');
       showOnboardingPage('processing');
-      const isWebsite = source === 'website';
-      const business = isWebsite ? 'Harbor Studio' : ($('#manualBusinessName').value.trim() || 'your business');
-      if (!isWebsite) {
-        draft.business.name = business;
-        draft.business.offers = $('#manualOfferings').value.trim();
-        draft.botName = `${business} ${roleData[state.role].short} Assistant`;
-        draft.greeting = `Hello. I am the ${business} ${roleData[state.role].short} Assistant. How can I help today?`.slice(0, 200);
-      }
+      const isWebsite = false;
+      const business = $('#manualBusinessName').value.trim() || 'your business';
+      draft.business.name = business;
+      draft.business.offers = $('#manualOfferings').value.trim();
+      draft.business.faqs = [];
+      draft.botName = `${business} ${roleData[state.role].short} Assistant`;
+      draft.greeting = `Hello. I am the ${business} ${roleData[state.role].short} Assistant. How can I help today?`.slice(0, 200);
+      onboardingState.importedSources = [];
       $('#processingTitle').textContent = `Learning about ${business}`;
-      $('#sourceBadge').textContent = isWebsite ? '12 public pages' : 'Information you provided';
-      const messages = isWebsite ? [
-        ['Connecting to the public website you provided.','Checking website access',8],
-        ['Reading relevant public pages.','4 of 12 pages read',24],
-        ['Identifying services, policies, hours, and contact details.','9 of 12 pages read',43],
-        [`Organizing approved facts for a ${roleData[state.role].label}.`,'12 of 12 pages read',61],
-        ['Building your editable role-specific configuration.','5 configuration sections prepared',81],
-        ['Checking response boundaries and starter test cases.','12 test cases checked',96],
-        ['Your editable draft is ready for review.','No customer-facing changes made',100]
-      ] : [
+      $('#sourceBadge').textContent = 'Information you provided';
+      const messages = [
         ['Reading the business information you provided.','Checking required information',8],
         ['Organizing products, services, hours, and contacts.','Business profile prepared',24],
         ['Identifying missing or uncertain information.','2 review prompts prepared',43],
@@ -3437,17 +3494,16 @@
     $$('[data-source-tab]').forEach(button => button.addEventListener('click', () => selectSourceMode(button.dataset.sourceTab)));
     $('#startWebsiteLearning').addEventListener('click', () => {
       let valid = false;
-      try { const url = new URL($('#businessUrl').value); valid = ['http:','https:'].includes(url.protocol); } catch (error) { valid = false; }
-      if (!valid) { showCrawlError('Enter a valid public website address.', 'Use a complete address beginning with http:// or https://. You can also enter the business information manually.'); return; }
+      try { const raw = $('#businessUrl').value.trim(); const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`); valid = url.protocol === 'https:' && !url.username && !url.password && !url.port; } catch (error) { valid = false; }
+      if (!valid) { showCrawlError('Enter a valid public website address.', 'Enter a public domain such as djai.academy or a complete https:// address.'); return; }
       if (!$('#crawlConsent').checked) { showCrawlError('Authorization confirmation is required.', 'Confirm that you are authorized to use this public business website, or enter the business information manually.'); return; }
-      beginBusinessLearning('website');
+      learnFromWebsite();
     });
     $('#startManualLearning').addEventListener('click', () => beginBusinessLearning('manual'));
-    $('#previewCrawlError').addEventListener('click', () => showCrawlError('We could not read this website completely.', 'The site blocked some automated access. You can retry, continue with accessible public pages, or enter the information manually.'));
-    $('#retryCrawl').addEventListener('click', () => beginBusinessLearning('website'));
-    $('#usePartial').addEventListener('click', () => { beginBusinessLearning('website'); $('#sourceBadge').textContent = '7 accessible public pages'; });
+    $('#retryCrawl').addEventListener('click', () => learnFromWebsite());
+    $('#usePartial').addEventListener('click', () => learnFromWebsite());
     $('#switchToManual').addEventListener('click', () => selectSourceMode('manual'));
-    $('#cancelProcessing').addEventListener('click', () => { clearTimeout(onboardingState.processTimer); showOnboardingPage('source'); });
+    $('#cancelProcessing').addEventListener('click', () => { clearTimeout(onboardingState.processTimer); onboardingState.importController?.abort(); showOnboardingPage('source'); });
     const businessReviewMap = {reviewBusinessName:'name',reviewBusinessType:'type',reviewBusinessSummary:'summary',reviewBusinessOffers:'offers',reviewBusinessHours:'hours',reviewBusinessContact:'contact',reviewAgentObjective:'agentObjective',reviewAgentBehavior:'agentBehavior',reviewAgentBoundaries:'agentBoundaries'};
     Object.entries(businessReviewMap).forEach(([id,key]) => $('#' + id).addEventListener('input', event => { draft.business[key] = event.target.value; savePrototype(); }));
     $('#addBusinessFaq').addEventListener('click', () => {

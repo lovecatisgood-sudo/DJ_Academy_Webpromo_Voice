@@ -36,7 +36,10 @@ async function crawlPage(rawUrl: string) {
   const selected = addresses[0]!;
   const html = await new Promise<string>((resolve, reject) => {
     const outbound = request(url, { method: "GET", headers: { accept: "text/html,text/plain;q=0.9", "user-agent": "DJayBots-KnowledgeCrawler/1.0" },
-      timeout: 10_000, lookup: (_hostname, _options, callback) => callback(null, selected.address, selected.family) }, (response) => {
+      timeout: 10_000, lookup: (_hostname, options, callback) => {
+        if (typeof options === "object" && options.all) callback(null, [{ address: selected.address, family: selected.family }]);
+        else callback(null, selected.address, selected.family);
+      } }, (response) => {
       const status = response.statusCode ?? 500;
       const contentType = String(response.headers["content-type"] ?? "").toLowerCase();
       if (status < 200 || status >= 300 || (!contentType.includes("text/html") && !contentType.includes("text/plain"))) {

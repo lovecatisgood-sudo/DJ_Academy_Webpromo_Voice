@@ -118,6 +118,9 @@ importers:
       '@node-rs/argon2':
         specifier: 2.0.2
         version: 2.0.2
+      cheerio:
+        specifier: ^1.2.0
+        version: 1.2.0
       next:
         specifier: 16.2.11
         version: 16.2.11(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
