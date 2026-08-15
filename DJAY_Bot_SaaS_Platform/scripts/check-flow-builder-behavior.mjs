@@ -32,6 +32,7 @@ function extractFunction(name) {
 }
 
 const functionNames = [
+  "upgradeFlowDraftJourney",
   "normalizeFlowDraftTranslations",
   "createFlowDraft",
   "flowOptionText",
@@ -50,7 +51,7 @@ const flowNode = (id,type,title,en,th,x,y,extra={}) => ({id,type,title,en,th,x,y
 const flowChoice = (en,th,target) => ({en,th,target});
 ${functionNames.map(extractFunction).join("\n")}
 return { ${functionNames.join(",")} };`;
-const engine = new Function("flowSchemaVersion", body)(3);
+const engine = new Function("flowSchemaVersion", body)(4);
 
 const node = (id, type, next = null, options = []) => ({
   id, type, title: id, en: `English ${id}`, th: `ไทย ${id}`, next, options, needsConnection: false,
@@ -105,7 +106,28 @@ for (const [template, expectedStop] of Object.entries(expectedTemplateStops)) {
 const faqDraft = engine.createFlowDraft("faq");
 const faqOpeningHours = engine.flowResolveTypedReply(faqDraft, "menu", "opening hour", "en");
 assert.equal(faqOpeningHours.targetId, "hours");
-assert.deepEqual(engine.flowExecutionPath(faqDraft, faqOpeningHours.targetId, "en").steps.map((step) => step.id), ["hours", "menu"]);
+for (const answerId of ["services", "pricing", "hours"]) {
+  const answerPath = engine.flowExecutionPath(faqDraft, answerId, "en");
+  assert.deepEqual(answerPath.steps.map((step) => step.id), [answerId, "after_answer"]);
+  assert.equal(answerPath.currentId, "after_answer", `${answerId} must stop at a customer choice before contact capture`);
+  assert.notEqual(faqDraft.nodes.find((item) => item.id === answerPath.currentId)?.type, "form");
+}
+const askAgain = engine.flowResolveChoice(faqDraft, "after_answer", 0, "en");
+assert.equal(askAgain.targetId, "menu");
+const contactAfterAnswer = engine.flowResolveChoice(faqDraft, "after_answer", 1, "en");
+assert.equal(contactAfterAnswer.targetId, "lead");
+assert.equal(faqDraft.nodes.find((item) => item.id === contactAfterAnswer.targetId)?.type, "form");
+
+const leadDraft = engine.createFlowDraft("lead");
+assert.deepEqual(engine.flowExecutionPath(leadDraft, "summary", "en").steps.map((step) => step.id), ["summary", "summary_next"]);
+assert.equal(engine.flowResolveChoice(leadDraft, "summary_next", 0, "en").targetId, "need");
+assert.equal(engine.flowResolveChoice(leadDraft, "summary_next", 1, "en").targetId, "lead");
+assert.equal(engine.flowResolveChoice(leadDraft, "summary_next", 2, "en").targetId, "information_end");
+
+const supportDraft = engine.createFlowDraft("support");
+assert.deepEqual(engine.flowExecutionPath(supportDraft, "guidance", "en").steps.map((step) => step.id), ["guidance", "resolution"]);
+assert.equal(engine.flowResolveChoice(supportDraft, "resolution", 0, "en").targetId, "thanks");
+assert.equal(engine.flowResolveChoice(supportDraft, "resolution", 1, "en").targetId, "handover");
 
 const looseMessage = node("loose", "message");
 looseMessage.needsConnection = true;
@@ -140,13 +162,13 @@ const legacy = {
   nodes: [{ ...node("legacy", "message"), options: [{ label: "Continue", th: "ต่อ", target: "done" }] }, node("done", "end")],
 };
 engine.normalizeFlowDraftTranslations(legacy);
-assert.equal(legacy.schemaVersion, 3);
+assert.equal(legacy.schemaVersion, 4);
 assert.equal(legacy.nodes[0].type, "options");
 assert.deepEqual(legacy.nodes[0].options[0], { en: "Continue", th: "ต่อ", target: "done" });
 assert.equal(legacy.identity.languageMode, "customer-choice");
 
 const current = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   entryId: "current",
   identity: {},
   nodes: [{ ...node("current", "message", "done"), options: [{ en: "Stored", th: "เก็บไว้", target: "done" }] }, node("done", "end")],
@@ -154,6 +176,17 @@ const current = {
 engine.normalizeFlowDraftTranslations(current);
 assert.equal(current.nodes[0].type, "message", "inactive stored replies must not change an explicitly selected current behavior");
 assert.deepEqual(engine.flowDraftErrors(current), []);
+
+const legacyFaq = engine.createFlowDraft("faq");
+legacyFaq.schemaVersion = 3;
+legacyFaq.nodes = legacyFaq.nodes.filter((item) => item.id !== "after_answer");
+legacyFaq.nodes.find((item) => item.id === "services").next = "lead";
+legacyFaq.nodes.find((item) => item.id === "pricing").next = "lead";
+legacyFaq.nodes.find((item) => item.id === "hours").next = "menu";
+engine.normalizeFlowDraftTranslations(legacyFaq);
+assert.equal(legacyFaq.schemaVersion, 4);
+assert.ok(legacyFaq.nodes.some((item) => item.id === "after_answer"), "saved FAQ drafts must gain the customer decision layer");
+for (const answerId of ["services", "pricing", "hours"]) assert.equal(legacyFaq.nodes.find((item) => item.id === answerId).next, "after_answer");
 
 const loop = { ...structuredClone(draft), nodes: [node("a", "message", "b"), node("b", "message", "a")], entryId: "a" };
 assert.equal(engine.flowExecutionPath(loop, "a", "en", 3).status, "loop");

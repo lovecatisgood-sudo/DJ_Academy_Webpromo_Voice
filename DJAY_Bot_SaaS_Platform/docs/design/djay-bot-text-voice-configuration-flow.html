@@ -1562,11 +1562,42 @@
     };
     const flowState = {onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',widgetPreviewLanguage:null,testNodeId:null,testMessages:[],testError:'',testStartMode:'entry',testStartNodeId:null};
     const flowStorageKey = 'djbot-flow-builder-v2';
-    const flowSchemaVersion = 3;
+    const flowSchemaVersion = 4;
     const flowNode = (id,type,title,en,th,x,y,extra={}) => ({id,type,title,en,th,x,y,keywords:[],next:null,...extra});
     const flowChoice = (en,th,target) => ({en,th,target});
+    function upgradeFlowDraftJourney(draft,fromVersion) {
+      if (!draft?.nodes || fromVersion >= 4) return draft;
+      const byId = id => draft.nodes.find(node => node.id === id);
+      if (draft.template === 'faq') {
+        const answerNodes = ['services','pricing','hours'].map(byId).filter(Boolean);
+        const legacyTargets = {services:'lead',pricing:'lead',hours:'menu'};
+        const nodesToRepair = answerNodes.filter(node => node.next === legacyTargets[node.id]);
+        if (nodesToRepair.length) {
+          if (!byId('after_answer')) draft.nodes.push(flowNode('after_answer','options','After an answer','What would you like to do next?','ต้องการทำอะไรต่อ?',750,170,{options:[flowChoice('Ask another question','ถามคำถามอื่น','menu'),flowChoice('Contact the team','ติดต่อทีมงาน','lead')]}));
+          nodesToRepair.forEach(node => { node.next = 'after_answer'; });
+        }
+      }
+      if (draft.template === 'lead') {
+        const summary = byId('summary');
+        if (summary?.next === 'lead') {
+          if (!byId('summary_next')) draft.nodes.push(flowNode('summary_next','options','Choose next step','What would you like to do next?','ต้องการทำอะไรต่อ?',750,210,{options:[flowChoice('Review options again','ดูตัวเลือกอีกครั้ง','need'),flowChoice('Contact the team','ติดต่อทีมงาน','lead'),flowChoice('Finish for now','จบเพียงเท่านี้','information_end')]}));
+          if (!byId('information_end')) draft.nodes.push(flowNode('information_end','end','Information reviewed','Thanks for visiting. You can return whenever you are ready.','ขอบคุณที่เข้าชม คุณสามารถกลับมาได้เมื่อพร้อม',860,430));
+          summary.next = 'summary_next';
+        }
+      }
+      if (draft.template === 'support') {
+        const guidance = byId('guidance');
+        if (guidance?.next === 'handover') {
+          if (!byId('resolution')) draft.nodes.push(flowNode('resolution','options','Check resolution','Did these steps solve the issue?','ขั้นตอนเหล่านี้ช่วยแก้ปัญหาได้หรือไม่?',750,225,{options:[flowChoice('Yes, it is solved','แก้ไขได้แล้ว','thanks'),flowChoice('I still need help','ยังต้องการความช่วยเหลือ','handover')]}));
+          guidance.next = 'resolution';
+        }
+      }
+      return draft;
+    }
     function normalizeFlowDraftTranslations(draft) {
-      const isLegacyDraft = Number(draft?.schemaVersion || 2) < flowSchemaVersion;
+      const previousSchemaVersion = Number(draft?.schemaVersion || 2);
+      const isLegacyDraft = previousSchemaVersion < flowSchemaVersion;
+      upgradeFlowDraftJourney(draft,previousSchemaVersion);
       (draft?.nodes || []).forEach(node => {
         node.en = String(node.en || ''); node.th = String(node.th || '');
         node.options = Array.isArray(node.options) ? node.options : [];
@@ -1735,10 +1766,11 @@
       if (kind === 'faq') nodes = [
         flowNode('welcome','message','Welcome',identity.greetingEn,identity.greetingTh,30,70,{next:'menu'}),
         flowNode('menu','options','Main menu','What would you like to know?','ต้องการทราบเรื่องใด?',270,70,{options:[flowChoice('Services','บริการ','services'),flowChoice('Pricing','ราคา','pricing'),flowChoice('Opening hours','เวลาเปิดทำการ','hours'),flowChoice('Contact the team','ติดต่อทีมงาน','lead')]}),
-        flowNode('services','message','Services','We offer setup packages, consultations, demonstrations, and ongoing support.','เรามีแพ็กเกจติดตั้ง การให้คำปรึกษา การสาธิต และบริการดูแลต่อเนื่อง',520,10,{keywords:['services','service','บริการ'],next:'lead'}),
-        flowNode('pricing','message','Pricing','Our team can explain the approved package prices and help identify the right starting point.','ทีมงานสามารถอธิบายราคาแพ็กเกจและช่วยเลือกจุดเริ่มต้นที่เหมาะสม',520,145,{keywords:['price','pricing','cost','ราคา'],next:'lead'}),
-        flowNode('hours','message','Opening hours','We are open Monday to Friday, 09:00 to 17:00.','เปิดวันจันทร์ถึงวันศุกร์ เวลา 09:00 ถึง 17:00 น.',520,280,{keywords:['hours','open','เวลา'],next:'menu'}),
-        flowNode('lead','form','Contact request','Share the details you want our team to follow up on.','กรอกข้อมูลที่ต้องการให้ทีมงานติดต่อกลับ',780,70,{fields:lead.fields,next:'thanks'}),
+        flowNode('services','message','Services','We offer setup packages, consultations, demonstrations, and ongoing support.','เรามีแพ็กเกจติดตั้ง การให้คำปรึกษา การสาธิต และบริการดูแลต่อเนื่อง',520,10,{keywords:['services','service','บริการ'],next:'after_answer'}),
+        flowNode('pricing','message','Pricing','Our team can explain the approved package prices and help identify the right starting point.','ทีมงานสามารถอธิบายราคาแพ็กเกจและช่วยเลือกจุดเริ่มต้นที่เหมาะสม',520,145,{keywords:['price','pricing','cost','ราคา'],next:'after_answer'}),
+        flowNode('hours','message','Opening hours','We are open Monday to Friday, 09:00 to 17:00.','เปิดวันจันทร์ถึงวันศุกร์ เวลา 09:00 ถึง 17:00 น.',520,280,{keywords:['hours','open','เวลา'],next:'after_answer'}),
+        flowNode('after_answer','options','After an answer','What would you like to do next?','ต้องการทำอะไรต่อ?',750,170,{options:[flowChoice('Ask another question','ถามคำถามอื่น','menu'),flowChoice('Contact the team','ติดต่อทีมงาน','lead')]}),
+        flowNode('lead','form','Contact request','Share the details you want our team to follow up on.','กรอกข้อมูลที่ต้องการให้ทีมงานติดต่อกลับ',850,10,{fields:lead.fields,next:'thanks'}),
         flowNode('handover','handover','Human handover',handover.fallbackEn,handover.fallbackTh,780,255,{keywords:['human','person','agent','เจ้าหน้าที่']}),
         flowNode('thanks','end','Request received','Thank you. The team will follow up using the details you provided.','ขอบคุณ ทีมงานจะติดต่อกลับตามข้อมูลที่ให้ไว้',780,420)
       ];
@@ -1746,10 +1778,12 @@
         flowNode('welcome','message','Welcome','Tell us what you are trying to achieve, and we will guide the next step.','บอกเราว่าคุณต้องการทำอะไร แล้วเราจะแนะนำขั้นตอนต่อไป',30,90,{next:'need'}),
         flowNode('need','options','What do you need?','Which outcome best matches your enquiry?','เรื่องใดตรงกับความต้องการของคุณมากที่สุด?',280,90,{options:[flowChoice('Compare services','เปรียบเทียบบริการ','qualify'),flowChoice('Request a consultation','ขอรับคำปรึกษา','lead'),flowChoice('Speak with the team','พูดคุยกับทีมงาน','handover')]}),
         flowNode('qualify','options','Enquiry timing','When would you like to get started?','ต้องการเริ่มเมื่อใด?',530,30,{options:[flowChoice('As soon as possible','เร็วที่สุด','lead'),flowChoice('This month','ภายในเดือนนี้','lead'),flowChoice('Just researching','กำลังหาข้อมูล','summary')]}),
-        flowNode('summary','message','Information summary','You can review our approved service information now, without leaving contact details.','คุณสามารถดูข้อมูลบริการที่ได้รับอนุมัติโดยไม่ต้องให้ข้อมูลติดต่อ',530,195,{next:'lead'}),
+        flowNode('summary','message','Information summary','You can review our approved service information now, without leaving contact details.','คุณสามารถดูข้อมูลบริการที่ได้รับอนุมัติโดยไม่ต้องให้ข้อมูลติดต่อ',530,195,{next:'summary_next'}),
+        flowNode('summary_next','options','Choose next step','What would you like to do next?','ต้องการทำอะไรต่อ?',750,210,{options:[flowChoice('Review options again','ดูตัวเลือกอีกครั้ง','need'),flowChoice('Contact the team','ติดต่อทีมงาน','lead'),flowChoice('Finish for now','จบเพียงเท่านี้','information_end')]}),
         flowNode('lead','form','Follow-up details','Share your preferred contact details and enquiry.','กรอกข้อมูลติดต่อและรายละเอียดที่ต้องการสอบถาม',790,75,{fields:lead.fields,next:'thanks'}),
         flowNode('handover','handover','Human handover',handover.fallbackEn,handover.fallbackTh,530,360,{keywords:['human','person','agent','เจ้าหน้าที่']}),
-        flowNode('thanks','end','Lead captured','Thank you. The team will follow up during business hours.','ขอบคุณ ทีมงานจะติดต่อกลับในเวลาทำการ',790,300)
+        flowNode('thanks','end','Lead captured','Thank you. The team will follow up during business hours.','ขอบคุณ ทีมงานจะติดต่อกลับในเวลาทำการ',790,360),
+        flowNode('information_end','end','Information reviewed','Thanks for visiting. You can return whenever you are ready.','ขอบคุณที่เข้าชม คุณสามารถกลับมาได้เมื่อพร้อม',860,500)
       ];
       else if (kind === 'appointment') nodes = [
         flowNode('welcome','message','Appointment welcome','I can collect an appointment request for the team to confirm.','ฉันสามารถรับคำขอนัดหมายเพื่อให้ทีมงานยืนยัน',30,80,{next:'service'}),
@@ -1773,7 +1807,8 @@
         flowNode('welcome','message','Support welcome','Choose the issue that best matches what happened.','เลือกปัญหาที่ตรงกับสิ่งที่เกิดขึ้นมากที่สุด',30,80,{next:'issue'}),
         flowNode('issue','options','Issue category','What do you need help with?','ต้องการความช่วยเหลือเรื่องใด?',280,80,{options:[flowChoice('Account question','คำถามเกี่ยวกับบัญชี','context'),flowChoice('Service issue','ปัญหาการใช้งานบริการ','context'),flowChoice('Billing question','คำถามเกี่ยวกับการเรียกเก็บเงิน','handover'),flowChoice('Something else','เรื่องอื่น ๆ','handover')]}),
         flowNode('context','input','Collect context','Briefly describe what happened. Do not include passwords or sensitive account information.','อธิบายสิ่งที่เกิดขึ้นโดยย่อ และอย่าใส่รหัสผ่านหรือข้อมูลสำคัญ',530,45,{next:'guidance'}),
-        flowNode('guidance','message','Approved guidance','Review the approved help steps. If the issue remains, the team can continue from this transcript.','ตรวจสอบขั้นตอนช่วยเหลือที่ได้รับอนุมัติ หากยังมีปัญหา ทีมงานสามารถรับช่วงจากบทสนทนานี้',530,225,{next:'handover'}),
+        flowNode('guidance','message','Approved guidance','Review the approved help steps. If the issue remains, the team can continue from this transcript.','ตรวจสอบขั้นตอนช่วยเหลือที่ได้รับอนุมัติ หากยังมีปัญหา ทีมงานสามารถรับช่วงจากบทสนทนานี้',530,225,{next:'resolution'}),
+        flowNode('resolution','options','Check resolution','Did these steps solve the issue?','ขั้นตอนเหล่านี้ช่วยแก้ปัญหาได้หรือไม่?',750,225,{options:[flowChoice('Yes, it is solved','แก้ไขได้แล้ว','thanks'),flowChoice('I still need help','ยังต้องการความช่วยเหลือ','handover')]}),
         flowNode('handover','handover','Human handover',handover.fallbackEn,handover.fallbackTh,790,115,{keywords:['human','person','agent','เจ้าหน้าที่']}),
         flowNode('thanks','end','Support request recorded','Your request and the information already shared are ready for the team.','คำขอและข้อมูลที่ให้ไว้พร้อมส่งให้ทีมงานแล้ว',790,330)
       ];

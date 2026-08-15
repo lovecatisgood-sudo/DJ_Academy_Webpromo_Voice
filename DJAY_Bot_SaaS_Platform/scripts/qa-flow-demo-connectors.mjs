@@ -60,8 +60,8 @@ try {
     return { problems, optionEdges, localizedChoices };
   });
   assert(treeAudit.problems.length === 0, `Built-in option tree audit failed: ${treeAudit.problems.join(" | ")}`);
-  assert(treeAudit.optionEdges === 22, `Expected 22 configured option edges, received ${treeAudit.optionEdges}.`);
-  assert(treeAudit.localizedChoices === 44, `Expected 44 localized option resolutions, received ${treeAudit.localizedChoices}.`);
+  assert(treeAudit.optionEdges === 29, `Expected 29 configured option edges, received ${treeAudit.optionEdges}.`);
+  assert(treeAudit.localizedChoices === 58, `Expected 58 localized option resolutions, received ${treeAudit.localizedChoices}.`);
 
   await page.locator('[data-flow-node="pricing"]').click();
   await page.locator("#flowClosePanel").click();
@@ -74,17 +74,24 @@ try {
   await page.locator("#flowTypedTestInput").fill("opening hour");
   await page.locator("#flowTypedTestSend").click();
   assert(await page.locator(".flow-test-message").filter({ hasText: "We are open Monday to Friday, 09:00 to 17:00." }).last().isVisible(), "Typed Opening hours intent did not follow its configured message path.");
-  assert(await page.locator("[data-flow-test-option-index]").count() === 4, "Opening hours did not return to the configured Main menu.");
+  assert(await page.locator("[data-flow-test-option-index]").count() === 2, "Opening hours did not stop at the next customer decision layer.");
+  assert(!await page.locator("#flowTestForm").isVisible(), "Opening hours opened a contact form without customer permission.");
+  await page.getByRole("button", { name: "Ask another question", exact: true }).click();
+  assert(await page.locator("[data-flow-test-option-index]").count() === 4, "Ask another question did not return to the Main menu.");
 
   await page.locator("#flowRestartTest").click();
   await page.locator("#flowTypedTestInput").fill("how much does it cost");
   await page.locator("#flowTypedTestSend").click();
   assert(await page.locator(".flow-test-message").filter({ hasText: "Our team can explain the approved package prices and help identify the right starting point." }).last().isVisible(), "Pricing question did not follow the configured Pricing path.");
-  assert(await page.locator("#flowTestForm").isVisible(), "Pricing path did not reach its configured contact form.");
+  assert(await page.locator("[data-flow-test-option-index]").count() === 2, "Pricing did not stop at the next customer decision layer.");
+  assert(!await page.locator("#flowTestForm").isVisible(), "Pricing opened a contact form without customer permission.");
 
   await page.locator("#flowRestartTest").click();
   await page.getByRole("button", { name: "Services", exact: true }).click();
-  assert(await page.locator("#flowTestForm").isVisible(), "The Services reply did not follow its configured path to the contact form.");
+  assert(await page.locator("[data-flow-test-option-index]").count() === 2, "Services did not stop at the next customer decision layer.");
+  assert(!await page.locator("#flowTestForm").isVisible(), "Services opened a contact form without customer permission.");
+  await page.getByRole("button", { name: "Contact the team", exact: true }).click();
+  assert(await page.locator("#flowTestForm").isVisible(), "The explicit Contact the team choice did not open the contact form.");
 
   await page.locator("#flowRestartTest").click();
   await page.getByRole("button", { name: "Contact the team", exact: true }).click();
@@ -95,7 +102,9 @@ try {
   await page.locator("#flowTypedTestInput").fill("เวลาเปิดทำการ");
   await page.locator("#flowTypedTestSend").click();
   assert(await page.locator(".flow-test-message").filter({ hasText: "เปิดวันจันทร์ถึงวันศุกร์ เวลา 09:00 ถึง 17:00 น." }).last().isVisible(), "Thai Opening hours question did not follow its configured path.");
-  assert(await page.locator("[data-flow-test-option-index]").count() === 4, "Thai Opening hours path did not return to the configured Main menu.");
+  assert(await page.locator("[data-flow-test-option-index]").count() === 2, "Thai Opening hours did not stop at its translated customer decision layer.");
+  assert(!await page.locator("#flowTestForm").isVisible(), "Thai Opening hours opened a contact form without customer permission.");
+  assert(await page.getByRole("button", { name: "ถามคำถามอื่น", exact: true }).isVisible(), "Thai next-step choices were not translated.");
   await page.locator("#flowClosePanel").click();
 
   await page.locator("#flowAddNode").click();
