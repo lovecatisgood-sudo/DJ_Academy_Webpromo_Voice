@@ -1264,7 +1264,7 @@
           <form class="panel" id="flowIdentityForm">
             <div class="field-grid">
               <label>Bot name<input id="flowBotName" value="Your Bot"></label>
-              <label>Default language<select id="flowDefaultLanguage"><option>English</option><option>Thai</option><option>English and Thai</option></select></label>
+              <div><strong>Customer language choice</strong><p class="help">Every visitor chooses English or ไทย before the conversation starts.</p></div>
               <label class="wide">English greeting<textarea id="flowGreetingEn" maxlength="240">Welcome. What would you like help with?</textarea></label>
               <label class="wide">คำทักทายภาษาไทย<textarea id="flowGreetingTh" maxlength="240">ยินดีต้อนรับ ต้องการให้เราช่วยเรื่องใด?</textarea></label>
               <label>Brand color<input id="flowBrandColor" type="color" value="#126149"></label>
@@ -1275,7 +1275,7 @@
             </div>
           </form>
           <aside class="flow-widget-mini" aria-label="Flow Bot widget preview">
-            <div class="flow-widget-panel"><div class="flow-widget-head" id="flowIdentityWidgetHead"><strong id="flowIdentityWidgetName">Your Bot</strong><span>EN | TH</span></div><div class="flow-widget-body"><p id="flowIdentityWidgetGreeting">Welcome. What would you like help with?</p><div class="flow-widget-options"><button>Services</button><button>Pricing</button><button>Hours</button><button>Contact</button></div></div></div>
+            <div class="flow-widget-panel"><div class="flow-widget-head" id="flowIdentityWidgetHead"><strong id="flowIdentityWidgetName">Your Bot</strong><span>EN | ไทย</span></div><div class="flow-widget-body"><p id="flowIdentityWidgetGreeting">Choose language / เลือกภาษา</p><div class="flow-widget-options"><button>English</button><button>ไทย</button></div></div></div>
             <div class="flow-widget-launcher" id="flowIdentityLauncher">D</div>
           </aside>
         </div>
@@ -1555,7 +1555,7 @@
       support: {label:'Support routing',copy:'A guided support path that gathers context, offers approved help, and routes unresolved cases.',path:['Welcome','Choose issue','Collect context','Approved guidance','Human handover']},
       blank: {label:'Start from blank',copy:'One editable welcome step. Add every message, choice, form, branch, and action yourself.',path:['Welcome']}
     };
-    const flowState = {onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',testNodeId:null,testMessages:[]};
+    const flowState = {onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',widgetPreviewLanguage:null,testNodeId:null,testMessages:[]};
     const flowStorageKey = 'djbot-flow-builder-v2';
     const flowNode = (id,type,title,en,th,x,y,extra={}) => ({id,type,title,en,th,x,y,keywords:[],next:null,...extra});
     const flowChoice = (en,th,target) => ({en,th,target});
@@ -1568,6 +1568,7 @@
           delete option.label;
         });
       });
+      if (draft?.identity) { draft.identity.languageMode = 'customer-choice'; delete draft.identity.defaultLanguage; }
       return draft;
     }
     function flowOptionText(option,language) { return String(language === 'th' ? option.th || '' : option.en || '').trim(); }
@@ -1590,7 +1591,7 @@
       } catch (error) { renderFlowStudio(); showToast('Thai translation is still missing. Retry from Translations.'); }
     }
     function createFlowDraft(kind) {
-      const identity = {botName:'Your Bot',defaultLanguage:'English',greetingEn:'Welcome. What would you like help with?',greetingTh:'ยินดีต้อนรับ ต้องการให้เราช่วยเรื่องใด?',brandColor:'#126149',position:'Bottom right',businessHours:'',handoverContact:'',privacyUrl:''};
+      const identity = {botName:'Your Bot',languageMode:'customer-choice',greetingEn:'Welcome. What would you like help with?',greetingTh:'ยินดีต้อนรับ ต้องการให้เราช่วยเรื่องใด?',brandColor:'#126149',position:'Bottom right',businessHours:'',handoverContact:'',privacyUrl:''};
       const lead = {fields:[{label:'Name',type:'text',required:true},{label:'Email or phone',type:'text',required:true},{label:'Question or request',type:'textarea',required:false}],consent:'I agree that this business may use these details to respond to this request.'};
       const handover = {team:'Shared inbox',fallbackEn:'I could not match that request. I can pass this conversation to our team with the information already shared.',fallbackTh:'ไม่พบคำตอบที่ตรงกัน ฉันสามารถส่งบทสนทนานี้ให้ทีมงานพร้อมข้อมูลที่ให้ไว้แล้ว',outsideHours:'The team is currently away. Leave your contact details and we will follow up during business hours.'};
       let nodes = [];
@@ -1993,7 +1994,7 @@
     function syncFlowIdentityPreview() {
       const color = $('#flowBrandColor').value;
       $('#flowIdentityWidgetName').textContent = $('#flowBotName').value || 'Untitled Flow Bot';
-      $('#flowIdentityWidgetGreeting').textContent = $('#flowGreetingEn').value || 'Welcome.';
+      $('#flowIdentityWidgetGreeting').textContent = 'Choose language / เลือกภาษา';
       $('#flowIdentityWidgetHead').style.background = color;
       $('#flowIdentityLauncher').style.background = color;
     }
@@ -2001,7 +2002,7 @@
     function applyFlowIdentityForm() {
       flowDraft.identity = {
         botName:$('#flowBotName').value.trim() || 'Untitled Flow Bot',
-        defaultLanguage:$('#flowDefaultLanguage').value,
+        languageMode:'customer-choice',
         greetingEn:$('#flowGreetingEn').value.trim(),
         greetingTh:$('#flowGreetingTh').value.trim(),
         brandColor:$('#flowBrandColor').value,
@@ -2106,7 +2107,7 @@
 
     function flowIdentitySection() {
       return flowPageHead('Bot identity','Edit how the widget introduces the business. These values are shared with the actual Welcome step.') +
-        `<section class="flow-studio-panel"><h2>Customer-facing identity</h2><p>Changes save to the Flow draft and update the preview.</p><div class="field-grid"><label>Bot name<input data-flow-bind="identity.botName" value="${escapeHtml(flowDraft.identity.botName)}"></label><label>Default language<select data-flow-bind="identity.defaultLanguage">${optionList(['English','Thai','English and Thai'],flowDraft.identity.defaultLanguage)}</select></label><label class="wide">English greeting<textarea data-flow-bind="identity.greetingEn">${escapeHtml(flowDraft.identity.greetingEn)}</textarea></label><label class="wide">คำทักทายภาษาไทย<textarea data-flow-bind="identity.greetingTh">${escapeHtml(flowDraft.identity.greetingTh)}</textarea></label><label>Brand color<input type="color" data-flow-bind="identity.brandColor" value="${escapeHtml(flowDraft.identity.brandColor)}"></label><label>Widget position<select data-flow-bind="identity.position">${optionList(['Bottom right','Bottom left'],flowDraft.identity.position)}</select></label><label>Business hours<input data-flow-bind="identity.businessHours" value="${escapeHtml(flowDraft.identity.businessHours)}"></label><label>Handover contact<input data-flow-bind="identity.handoverContact" value="${escapeHtml(flowDraft.identity.handoverContact)}"></label><label class="wide">Privacy policy URL<input data-flow-bind="identity.privacyUrl" value="${escapeHtml(flowDraft.identity.privacyUrl)}"></label></div></section>` + flowWidgetPreview(false);
+        `<section class="flow-studio-panel"><h2>Customer-facing identity</h2><p>Changes save to the Flow draft and update the preview.</p><div class="field-grid"><label>Bot name<input data-flow-bind="identity.botName" value="${escapeHtml(flowDraft.identity.botName)}"></label><div><strong>Conversation language</strong><p class="help">The customer chooses English or ไทย before the first message. The choice stays with that conversation.</p></div><label class="wide">English greeting<textarea data-flow-bind="identity.greetingEn">${escapeHtml(flowDraft.identity.greetingEn)}</textarea></label><label class="wide">คำทักทายภาษาไทย<textarea data-flow-bind="identity.greetingTh">${escapeHtml(flowDraft.identity.greetingTh)}</textarea></label><label>Brand color<input type="color" data-flow-bind="identity.brandColor" value="${escapeHtml(flowDraft.identity.brandColor)}"></label><label>Widget position<select data-flow-bind="identity.position">${optionList(['Bottom right','Bottom left'],flowDraft.identity.position)}</select></label><label>Business hours<input data-flow-bind="identity.businessHours" value="${escapeHtml(flowDraft.identity.businessHours)}"></label><label>Handover contact<input data-flow-bind="identity.handoverContact" value="${escapeHtml(flowDraft.identity.handoverContact)}"></label><label class="wide">Privacy policy URL<input data-flow-bind="identity.privacyUrl" value="${escapeHtml(flowDraft.identity.privacyUrl)}"></label></div></section>` + flowWidgetPreview(false);
     }
 
     function flowMapSection() {
@@ -2137,11 +2138,14 @@
 
     function flowWidgetPreview(includeEditor = true) {
       const editor = includeEditor ? `<section class="flow-studio-panel"><h2>Website widget</h2><p>The trial is website-only. No social connection is enabled here.</p><div class="field-grid"><label class="wide">Website domain<input data-flow-bind="widget.domain" value="${escapeHtml(flowDraft.widget.domain)}"></label><label>Position<select data-flow-bind="identity.position">${optionList(['Bottom right','Bottom left'],flowDraft.identity.position)}</select></label><label>Brand color<input type="color" data-flow-bind="identity.brandColor" value="${escapeHtml(flowDraft.identity.brandColor)}"></label><label class="consent-row"><input type="checkbox" data-flow-widget-open ${flowDraft.widget.openOnLoad ? 'checked' : ''}><span>Open automatically on page load</span></label></div></section>` : '';
-      const language = flowDraft.identity.defaultLanguage === 'Thai' ? 'th' : 'en';
+      const language = flowState.widgetPreviewLanguage;
       const entry = flowDraft.nodes.find(node => node.id === flowDraft.entryId);
       const choiceNode = flowDraft.nodes.find(node => node.type === 'options');
       const greeting = language === 'th' ? flowDraft.identity.greetingTh : flowDraft.identity.greetingEn;
-      return `${editor}<section class="flow-widget-mini"><div class="flow-widget-panel" style="${flowDraft.identity.position === 'Bottom left' ? 'left:20px;right:auto' : ''}"><div class="flow-widget-head" style="background:${escapeHtml(flowDraft.identity.brandColor)}"><strong>${escapeHtml(flowDraft.identity.botName)}</strong><span>${flowDraft.identity.defaultLanguage === 'English and Thai' ? 'EN | TH' : escapeHtml(flowDraft.identity.defaultLanguage)}</span></div><div class="flow-widget-body"><p>${escapeHtml(greeting || (language === 'th' ? entry?.th : entry?.en) || '')}</p><div class="flow-widget-options">${(choiceNode?.options || []).slice(0,4).map(option => `<button>${escapeHtml(flowOptionText(option,language) || (language === 'th' ? 'ยังไม่มีคำแปล' : 'Missing translation'))}</button>`).join('')}</div></div></div><div class="flow-widget-launcher" style="background:${escapeHtml(flowDraft.identity.brandColor)};${flowDraft.identity.position === 'Bottom left' ? 'left:20px;right:auto' : ''}">D</div></section>`;
+      const body = language
+        ? `<p>${escapeHtml(greeting || (language === 'th' ? entry?.th : entry?.en) || '')}</p><div class="flow-widget-options">${(choiceNode?.options || []).slice(0,4).map(option => `<button>${escapeHtml(flowOptionText(option,language) || (language === 'th' ? 'ยังไม่มีคำแปล' : 'Missing translation'))}</button>`).join('')}</div><button class="btn" data-flow-widget-language="">Change language / เปลี่ยนภาษา</button>`
+        : `<p><strong>Choose language / เลือกภาษา</strong><br><span class="help">Your choice stays with this conversation.</span></p><div class="flow-widget-options"><button data-flow-widget-language="en">English</button><button data-flow-widget-language="th">ไทย</button></div>`;
+      return `${editor}<section class="flow-widget-mini"><div class="flow-widget-panel" style="${flowDraft.identity.position === 'Bottom left' ? 'left:20px;right:auto' : ''}"><div class="flow-widget-head" style="background:${escapeHtml(flowDraft.identity.brandColor)}"><strong>${escapeHtml(flowDraft.identity.botName)}</strong><span>${language === 'th' ? 'ไทย' : language === 'en' ? 'EN' : 'EN | ไทย'}</span></div><div class="flow-widget-body">${body}</div></div><div class="flow-widget-launcher" style="background:${escapeHtml(flowDraft.identity.brandColor)};${flowDraft.identity.position === 'Bottom left' ? 'left:20px;right:auto' : ''}">D</div></section>`;
     }
 
     function flowReleaseSection() {
@@ -2360,6 +2364,7 @@
     }
 
     function bindFlowSectionContent() {
+      $$('[data-flow-widget-language]').forEach(button => button.addEventListener('click',() => { flowState.widgetPreviewLanguage = button.dataset.flowWidgetLanguage || null; saveFlowLocal(); renderFlowStudio(); }));
       $$('[data-flow-translation-node-en]').forEach(control => control.addEventListener('change',() => { const node = flowDraft.nodes[Number(control.dataset.flowTranslationNodeEn)]; rememberFlowDraft(); node.en = control.value.trim(); translateFlowNodeField(node,'message'); }));
       $$('[data-flow-translation-node-th]').forEach(control => control.addEventListener('change',() => { rememberFlowDraft(); flowDraft.nodes[Number(control.dataset.flowTranslationNodeTh)].th = control.value.trim(); markFlowChanged(); renderFlowStudio(); }));
       $$('[data-flow-translation-option-en]').forEach(control => control.addEventListener('change',() => { const node = flowDraft.nodes[Number(control.dataset.flowTranslationNode)]; const index = Number(control.dataset.flowTranslationOptionEn); rememberFlowDraft(); node.options[index].en = control.value.trim(); translateFlowNodeField(node,'option',index); }));
@@ -3530,7 +3535,7 @@
       if (welcome) { welcome.en = identity.greetingEn; welcome.th = identity.greetingTh; }
       flowState.selectedNodeId = flowDraft.nodes.find(node => node.id === 'menu')?.id || flowDraft.entryId;
       markFlowChanged(); showFlowOnboardingPage('identity');
-      $('#flowBotName').value = flowDraft.identity.botName; $('#flowDefaultLanguage').value = flowDraft.identity.defaultLanguage; $('#flowGreetingEn').value = flowDraft.identity.greetingEn; $('#flowGreetingTh').value = flowDraft.identity.greetingTh; $('#flowBrandColor').value = flowDraft.identity.brandColor; $('#flowWidgetPosition').value = flowDraft.identity.position; $('#flowBusinessHours').value = flowDraft.identity.businessHours; $('#flowHandoverContact').value = flowDraft.identity.handoverContact; $('#flowPrivacyUrl').value = flowDraft.identity.privacyUrl; syncFlowIdentityPreview();
+      $('#flowBotName').value = flowDraft.identity.botName; $('#flowGreetingEn').value = flowDraft.identity.greetingEn; $('#flowGreetingTh').value = flowDraft.identity.greetingTh; $('#flowBrandColor').value = flowDraft.identity.brandColor; $('#flowWidgetPosition').value = flowDraft.identity.position; $('#flowBusinessHours').value = flowDraft.identity.businessHours; $('#flowHandoverContact').value = flowDraft.identity.handoverContact; $('#flowPrivacyUrl').value = flowDraft.identity.privacyUrl; syncFlowIdentityPreview();
     });
     $('#flowBackToPricing').addEventListener('click',() => { $('#flowOnboardingDemo').classList.add('hidden'); $('#journeyDemo').classList.remove('hidden'); renderCommercePricing(); showCommerceScreen('pricing'); });
     $('#flowBackToTemplate').addEventListener('click',() => showFlowOnboardingPage('template'));
@@ -3679,7 +3684,7 @@
       localStorage.removeItem(flowStorageKey);
       draft = clone(defaultDraft);
       publishedDraft = clone(defaultDraft);
-      flowDraft = createFlowDraft('faq'); flowPublishedDraft = clone(flowDraft); Object.assign(flowState,{onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',testNodeId:null,testMessages:[]}); flowUndoStack = []; flowRedoStack = [];
+      flowDraft = createFlowDraft('faq'); flowPublishedDraft = clone(flowDraft); Object.assign(flowState,{onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',widgetPreviewLanguage:null,testNodeId:null,testMessages:[]}); flowUndoStack = []; flowRedoStack = [];
       state.product = 'text'; state.role = 'sales'; state.publishedProduct = 'text'; state.publishedRole = 'sales'; state.section = 'business'; state.testMode = 'draft'; state.version = 0; state.configured = false; state.dirty = false; state.chatInitialized = false;
       undoStack = []; redoStack = []; lastDraftSnapshot = JSON.stringify(draft);
       $('#saveStatus').innerHTML = '<span class="dot"></span>Draft saved';

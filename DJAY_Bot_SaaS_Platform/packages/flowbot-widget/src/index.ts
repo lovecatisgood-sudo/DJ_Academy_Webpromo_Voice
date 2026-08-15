@@ -44,6 +44,10 @@ export function flowbotSessionStorageKey(deploymentKey: string) {
   return `djay:flowbot:${deploymentKey.slice(0, 24)}:session`;
 }
 
+export function flowbotLanguageStorageKey(deploymentKey: string) {
+  return `djay:flowbot:${deploymentKey.slice(0, 24)}:language`;
+}
+
 export function mountFlowbotWidget(options: FlowbotWidgetOptions): HTMLElement {
   return new FlowbotWidget(options).mount();
 }
@@ -61,6 +65,7 @@ class FlowbotWidget {
   private config: PublicConfig | null = null;
   private sessionToken: string | null = null;
   private language: "th" | "en";
+  private languageSelected = false;
   private status: RuntimeResponse["status"] = "active";
   private messages: RuntimeMessage[] = [];
   private lastMessageSequence = 0;
@@ -71,8 +76,8 @@ class FlowbotWidget {
 
   constructor(private readonly options: FlowbotWidgetOptions) {
     this.apiBaseUrl = normalizeApiBaseUrl(options.apiBaseUrl);
-    // Thai first: this is the pre-connect language. Once the session starts, the deployment's
-    // configured defaultLanguage takes over unless the embedder pinned one explicitly.
+    // Thai is used only for pre-connect accessibility copy. A new customer explicitly chooses
+    // the conversation language before a session is created.
     this.language = options.language ?? "th";
     this.opened = Boolean(options.openOnLoad);
     this.storage = options.storage ?? safeStorage();
@@ -94,8 +99,14 @@ class FlowbotWidget {
       const result = await this.request<{ status: "available"; config: PublicConfig }>("/public/flowbot/config");
       this.config = result.config;
       await this.request<{ status: "recorded" }>("/public/flowbot/install", { method: "POST", body: "{}" });
-      this.language = this.options.language ?? result.config.defaultLanguage;
       this.sessionToken = this.storage?.getItem(flowbotSessionStorageKey(this.options.deploymentKey)) ?? null;
+      const storedLanguage = this.storage?.getItem(flowbotLanguageStorageKey(this.options.deploymentKey));
+      if (this.sessionToken) {
+        this.language = storedLanguage === "en" || storedLanguage === "th"
+          ? storedLanguage
+          : this.options.language ?? result.config.defaultLanguage;
+        this.languageSelected = true;
+      }
       if (this.sessionToken) await this.sync(false);
       this.offline = false;
     } catch {
@@ -106,8 +117,16 @@ class FlowbotWidget {
       this.render();
       if (this.opened) this.focusComposer();
     }
-    if (this.opened && !this.sessionToken) await this.startSession();
+    if (this.opened && !this.sessionToken && this.languageSelected) await this.startSession();
     this.startPolling();
+  }
+
+  private chooseLanguage(language: "th" | "en") {
+    if (this.sessionToken || this.loading) return;
+    this.language = language;
+    this.languageSelected = true;
+    this.storage?.setItem(flowbotLanguageStorageKey(this.options.deploymentKey), language);
+    void this.startSession();
   }
 
   private async startSession() {
@@ -121,6 +140,7 @@ class FlowbotWidget {
       });
       this.sessionToken = result.sessionToken;
       this.storage?.setItem(flowbotSessionStorageKey(this.options.deploymentKey), result.sessionToken);
+      this.storage?.setItem(flowbotLanguageStorageKey(this.options.deploymentKey), this.language);
       this.messages = [];
       this.lastMessageSequence = 0;
       await this.sync(false);
@@ -262,6 +282,19 @@ class FlowbotWidget {
       header.append(identity, close);
       const stream = element("div", "stream");
       stream.setAttribute("aria-busy", String(this.loading));
+      if (!this.sessionToken && !this.languageSelected && !this.loading && !this.offline) {
+        const chooser = element("section", "language-choice");
+        chooser.setAttribute("aria-labelledby", `${this.panelId}-language-title`);
+        const title = element("strong", "language-title", "Choose language / เลือกภาษา");
+        title.id = `${this.panelId}-language-title`;
+        chooser.append(title, element("p", "language-help", "Your choice will be used for this conversation. / ภาษาที่เลือกจะใช้ตลอดการสนทนานี้"));
+        const choices = element("div", "language-actions");
+        const english = button("English", "Continue in English", "language-button");
+        const thai = button("ไทย", "สนทนาต่อเป็นภาษาไทย", "language-button");
+        english.addEventListener("click", () => this.chooseLanguage("en"));
+        thai.addEventListener("click", () => this.chooseLanguage("th"));
+        choices.append(english, thai); chooser.append(choices); stream.append(chooser);
+      }
       for (const message of this.messages) stream.append(this.renderMessage(message));
       if (this.loading) stream.append(element("div", "notice", text.loading));
       if (this.offline) {
@@ -286,14 +319,15 @@ class FlowbotWidget {
       input.value = draft;
       input.autocomplete = "off";
       input.setAttribute("aria-label", text.placeholder);
-      input.disabled = this.loading || this.status === "waiting" || this.status === "handover" || this.status === "completed";
+      input.disabled = !this.sessionToken || this.loading || this.status === "waiting" || this.status === "handover" || this.status === "completed";
       const send = button(text.send, text.send, "send"); send.type = "submit"; send.disabled = input.disabled;
       composer.append(input, send);
       composer.addEventListener("submit", (event) => {
         event.preventDefault(); const value = input.value.trim();
         if (value) void this.send({ type: "text", payload: { text: value } });
       });
-      panel.append(header, stream, composer);
+      panel.append(header, stream);
+      if (this.sessionToken || this.languageSelected) panel.append(composer);
       if (!this.config?.brandingRemoved) panel.append(element("div", "brand", text.powered));
       shell.append(panel);
     }
@@ -302,7 +336,6 @@ class FlowbotWidget {
     launcher.setAttribute("aria-controls", this.panelId);
     launcher.addEventListener("click", () => {
       this.setOpened(!this.opened);
-      if (this.opened && !this.sessionToken) void this.startSession();
     });
     shell.append(launcher);
     this.shadow.append(shell);
@@ -435,6 +468,12 @@ const styles = `
   ${djayWidgetBaseStyles}
   .panel { height: min(640px, calc(100vh - 108px)); height: min(640px, calc(100dvh - 108px)); min-height: 360px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; }
   .stream { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px; background: var(--djay-widget-canvas); }
+  .language-choice { align-self: stretch; display: grid; gap: 10px; margin: auto 0; padding: 18px; border: 1px solid var(--djay-widget-border); border-radius: 12px; background: var(--djay-widget-surface); text-align: center; }
+  .language-title { color: var(--djay-widget-ink); font-size: 17px; }
+  .language-help { margin: 0; color: var(--djay-widget-muted); font-size: 13px; line-height: 1.45; }
+  .language-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .language-button { min-height: 46px; border: 1px solid var(--djay-widget-green); border-radius: 6px; background: var(--djay-widget-green); color: #fff; font-weight: 800; cursor: pointer; }
+  .language-button:hover, .language-button:focus-visible { background: var(--djay-widget-green-hover); }
   .message { max-width: 92%; align-self: flex-start; display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--djay-widget-border); border-radius: 12px; background: var(--djay-widget-surface); }
   .message p { margin: 0; overflow-wrap: anywhere; color: var(--djay-widget-ink); font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
   .message.media { width: min(92%, 360px); }

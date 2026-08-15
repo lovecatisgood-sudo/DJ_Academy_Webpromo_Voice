@@ -212,7 +212,7 @@ export default function FlowBotPage() {
 
   async function createBot(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setWorking(true); setMessage(""); const form = event.currentTarget; const data = new FormData(form);
-    const response = await safeMutationFetch("/tenant/flowbot/bots", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), defaultLanguage: data.get("defaultLanguage") }) });
+    const response = await safeMutationFetch("/tenant/flowbot/bots", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: data.get("name"), defaultLanguage: "th" }) });
     const result = await response.json(); setWorking(false);
     if (!response.ok) { setMessage(result.status === "limit_reached" ? "Active bot limit reached." : "Bot could not be created."); return; }
     form.reset(); await loadBots(); setSelectedBotId(result.botId); setMessage("Bot created.");
@@ -336,7 +336,7 @@ export default function FlowBotPage() {
     <section id="workspace-main" className="workspace-main" tabIndex={-1}><WorkspaceSupportBanner tenantId={session.selectedTenantId} />
       <header className="workspace-header"><div><p>ระบบอัตโนมัติบนเว็บไซต์</p><h1>FlowBot</h1></div><span className="role-label">{humanizePlanKey(capabilities?.planKey)} · {humanizeAccessMode(capabilities?.accessMode)}</span></header>
       <section className="tool-band flowbot-control-band"><div className="band-heading"><div><p>บอต</p><h2>ผู้ช่วยที่เผยแพร่แล้ว</h2></div><span>{bots.length}{capabilities?.limits.activeBots ? ` / ${capabilities.limits.activeBots}` : ""}</span></div>
-        {canAuthor ? <form className="flowbot-create" onSubmit={createBot}><label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label><label>ภาษา<select name="defaultLanguage" defaultValue="th"><option value="th">ไทย</option><option value="en">English</option></select></label><button type="submit" disabled={working}>สร้างบอต</button></form> : null}
+        {canAuthor ? <form className="flowbot-create" onSubmit={createBot}><label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label><div><strong>ภาษาของลูกค้า</strong><span>ลูกค้าเลือก English หรือ ไทย ก่อนเริ่มสนทนา</span></div><button type="submit" disabled={working}>สร้างบอต</button></form> : null}
         <div className="flowbot-bot-tabs" role="tablist" aria-label="FlowBot">{bots.map((bot) => <button type="button" role="tab" id={`flowbot-bot-${bot.id}`} aria-controls="flowbot-studio-panels" aria-selected={bot.id === selectedBotId} className={bot.id === selectedBotId ? "selected" : ""} key={bot.id} onClick={() => setSelectedBotId(bot.id)}><strong data-no-localize>{bot.name}</strong><span>{bot.status} / {bot.deploymentCount} deployments</span></button>)}</div>
         {!bots.length ? <div className="pending-line"><strong>ยังไม่มี FlowBot</strong><span>{canAuthor ? "Create the first bot." : "An administrator can create one."}</span></div> : null}
         <p className="field-help"><a href="/workspace/setup">เปิดตัวช่วยตั้งค่าทีละขั้น</a> สำหรับการเปิดใช้ครั้งแรก ส่วนแท็บสตูดิโอด้านล่างใช้ปรับแต่งหลังเปิดใช้</p>
