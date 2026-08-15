@@ -3,7 +3,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { chromium } from "playwright";
 
 const rootDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const demoUrl = pathToFileURL(resolve(rootDirectory, "docs/design/djay-bot-text-voice-configuration-flow.html"));
+const demoUrl = process.env.FLOW_DEMO_URL
+  ? new URL(process.env.FLOW_DEMO_URL)
+  : pathToFileURL(resolve(rootDirectory, "docs/design/djay-bot-text-voice-configuration-flow.html"));
 demoUrl.searchParams.set("connector-check", "1");
 
 function assert(condition, message) {
@@ -32,18 +34,68 @@ try {
   await page.reload();
   await page.evaluate(() => openFlowStudio("map"));
 
+  const treeAudit = await page.evaluate(() => {
+    const problems = [];
+    let optionEdges = 0;
+    let localizedChoices = 0;
+    for (const template of ["faq", "lead", "appointment", "product", "support", "blank"]) {
+      const draft = createFlowDraft(template);
+      const entryPath = flowExecutionPath(draft, draft.entryId, "en");
+      if (!entryPath.steps.length || entryPath.steps[0].id !== draft.entryId) problems.push(`${template}: entry path skipped ${draft.entryId}`);
+      for (const node of draft.nodes) {
+        for (let optionIndex = 0; optionIndex < flowActiveOptions(node).length; optionIndex += 1) {
+          optionEdges += 1;
+          const option = node.options[optionIndex];
+          for (const language of ["en", "th"]) {
+            localizedChoices += 1;
+            const resolution = flowResolveChoice(draft, node.id, optionIndex, language);
+            if (resolution.status !== "ready") problems.push(`${template}:${node.id}:${optionIndex}:${language} ${resolution.status}`);
+            const path = flowExecutionPath(draft, resolution.targetId, language);
+            if (path.steps[0]?.id !== option.target) problems.push(`${template}:${node.id}:${optionIndex}:${language} skipped ${option.target}`);
+          }
+        }
+      }
+      problems.push(...flowDraftErrors(draft).map((error) => `${template}: ${error}`));
+    }
+    return { problems, optionEdges, localizedChoices };
+  });
+  assert(treeAudit.problems.length === 0, `Built-in option tree audit failed: ${treeAudit.problems.join(" | ")}`);
+  assert(treeAudit.optionEdges === 22, `Expected 22 configured option edges, received ${treeAudit.optionEdges}.`);
+  assert(treeAudit.localizedChoices === 44, `Expected 44 localized option resolutions, received ${treeAudit.localizedChoices}.`);
+
+  await page.locator('[data-flow-node="pricing"]').click();
+  await page.locator("#flowClosePanel").click();
+
   await page.locator("#flowOpenFullTest").click();
   assert(await page.getByText("Testing the complete customer journey from its starting message").isVisible(), "Full customer testing did not start from the configured entry message.");
+  const initialState = await page.evaluate(() => ({ selected: flowState.selectedNodeId, active: flowState.testNodeId }));
+  assert(initialState.selected === "pricing" && initialState.active === "menu", `Editor/test state isolation failed: ${JSON.stringify(initialState)}`);
   assert(await page.locator("[data-flow-test-option-index]").count() === 4, "The Main menu customer replies were not rendered.");
   await page.locator("#flowTypedTestInput").fill("opening hour");
   await page.locator("#flowTypedTestSend").click();
-  assert(await page.getByText("We are open Monday to Friday, 09:00 to 17:00.").isVisible(), "Typed Opening hours intent did not follow its configured message path.");
+  assert(await page.locator(".flow-test-message").filter({ hasText: "We are open Monday to Friday, 09:00 to 17:00." }).last().isVisible(), "Typed Opening hours intent did not follow its configured message path.");
   assert(await page.locator("[data-flow-test-option-index]").count() === 4, "Opening hours did not return to the configured Main menu.");
+
+  await page.locator("#flowRestartTest").click();
+  await page.locator("#flowTypedTestInput").fill("how much does it cost");
+  await page.locator("#flowTypedTestSend").click();
+  assert(await page.locator(".flow-test-message").filter({ hasText: "Our team can explain the approved package prices and help identify the right starting point." }).last().isVisible(), "Pricing question did not follow the configured Pricing path.");
+  assert(await page.locator("#flowTestForm").isVisible(), "Pricing path did not reach its configured contact form.");
+
   await page.locator("#flowRestartTest").click();
   await page.getByRole("button", { name: "Services", exact: true }).click();
   assert(await page.locator("#flowTestForm").isVisible(), "The Services reply did not follow its configured path to the contact form.");
+
+  await page.locator("#flowRestartTest").click();
+  await page.getByRole("button", { name: "Contact the team", exact: true }).click();
+  assert(await page.locator("#flowTestForm").isVisible(), "The Contact the team reply did not follow its configured form path.");
+
   await page.locator("#flowTestLanguage").selectOption("th");
   assert(await page.getByRole("button", { name: "บริการ", exact: true }).isVisible(), "Thai testing did not render the translated customer replies.");
+  await page.locator("#flowTypedTestInput").fill("เวลาเปิดทำการ");
+  await page.locator("#flowTypedTestSend").click();
+  assert(await page.locator(".flow-test-message").filter({ hasText: "เปิดวันจันทร์ถึงวันศุกร์ เวลา 09:00 ถึง 17:00 น." }).last().isVisible(), "Thai Opening hours question did not follow its configured path.");
+  assert(await page.locator("[data-flow-test-option-index]").count() === 4, "Thai Opening hours path did not return to the configured Main menu.");
   await page.locator("#flowClosePanel").click();
 
   await page.locator("#flowAddNode").click();
@@ -83,7 +135,7 @@ try {
   assert(!deletion.targetExists && deletion.next === null && deletion.needsConnection === true, `Connected deletion did not leave a repairable loose end: ${JSON.stringify(deletion)}`);
   assert(pageErrors.length === 0, `Browser page errors: ${pageErrors.join(" | ")}`);
 
-  console.log(`PASS: created ${newId}, connected it, rerouted it, and removed its connected target with a repairable loose end.`);
+  console.log(`PASS: audited ${treeAudit.optionEdges} option edges in both languages, exercised question routing, and verified connector repair with ${newId}.`);
 } finally {
   await browser?.close().catch(() => undefined);
 }
