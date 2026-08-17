@@ -2748,7 +2748,8 @@
       ],
       "runbooks": [],
       "evidence": [
-        "docs/validation/production-master-plan-pr07-pr08-builder-ai-materialization-2026-08-17.md"
+        "docs/validation/production-master-plan-pr07-pr08-builder-ai-materialization-2026-08-17.md",
+        "docs/validation/ai-text-approved-business-grounding-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null
@@ -3260,16 +3261,37 @@
         "AI-03",
         "AI-06"
       ],
-      "implementation_paths": [],
+      "implementation_paths": [
+        "docs/design/djay-bot-text-voice-configuration-flow.html",
+        "packages/sales-core/src/index.ts",
+        "packages/ai-chat-runtime/src/index.ts",
+        "packages/db/src/tenant-workspace-store.ts",
+        "apps/tenant-web/app/workspace/ai-chat/AiPlaybookEditor.tsx"
+      ],
       "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "api_contracts": [
+        "GET|PATCH /public/builder/draft",
+        "GET|PATCH /tenant/ai-chat/agents/:agentId/draft",
+        "POST /tenant/ai-chat/agents/:agentId/test",
+        "POST /public/ai-chat/message"
+      ],
+      "ui_routes": [
+        "/build",
+        "/workspace/ai-chat"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "packages/sales-core/src/index.test.ts",
+        "packages/ai-chat-runtime/src/index.test.ts",
+        "packages/db/src/anonymous-builder-store.integration.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/ai-text-approved-business-grounding-2026-08-17.md",
+        "docs/validation/production-master-plan-pr07-pr08-builder-ai-materialization-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {

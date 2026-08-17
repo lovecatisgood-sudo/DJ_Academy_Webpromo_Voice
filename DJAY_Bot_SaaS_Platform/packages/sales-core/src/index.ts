@@ -366,6 +366,10 @@ export type SalesCoreContext = Readonly<{
   behaviorInstructions?: string;
   behaviorBoundaries?: string;
   approvedClaims: readonly string[];
+  approvedBusinessFacts: readonly Readonly<{
+    kind: "business_type" | "business_summary" | "offers" | "business_hours" | "contact";
+    content: string;
+  }>[];
   prohibitedClaims: readonly string[];
   discoveryQuestions: readonly string[];
   ctaPolicy: readonly string[];
@@ -421,6 +425,7 @@ export function buildSalesCorePolicy(context: SalesCoreContext): string {
     ...(context.behaviorInstructions?.trim() ? [`Conversation behavior: ${context.behaviorInstructions.trim()}`] : []),
     ...(context.behaviorBoundaries?.trim() ? [`Behavior boundaries and human handover: ${context.behaviorBoundaries.trim()}`] : []),
     `Approved claims: ${JSON.stringify(context.approvedClaims)}`,
+    `Approved business-profile evidence: ${JSON.stringify(context.approvedBusinessFacts)}`,
     `Prohibited claims: ${JSON.stringify(context.prohibitedClaims)}`,
     `Discovery questions: ${JSON.stringify(context.discoveryQuestions)}`,
     `CTA policy: ${JSON.stringify(context.ctaPolicy)}`,
@@ -461,6 +466,27 @@ export function selectRelevantKnowledge(
     score: [...terms].reduce((score, term) => score + (chunk.content.toLocaleLowerCase().includes(term) ? 1 : 0), 0),
   })).sort((left, right) => right.score - left.score || left.chunk.chunkId.localeCompare(right.chunk.chunkId))
     .filter((item, index) => item.score > 0 || index === 0).slice(0, limit).map((item) => item.chunk);
+}
+
+export type ApprovedBusinessFact = Readonly<{
+  kind: "business_type" | "business_summary" | "offers" | "business_hours" | "contact";
+  content: string;
+}>;
+
+export function selectRelevantBusinessFacts(
+  facts: readonly ApprovedBusinessFact[],
+  query: string,
+  locale: "th" | "en",
+  limit = 5,
+) {
+  const terms = new Set([...new Intl.Segmenter(locale, { granularity: "word" }).segment(query.toLocaleLowerCase())]
+    .filter((segment) => segment.isWordLike && segment.segment.trim().length >= 2)
+    .map((segment) => segment.segment.trim()));
+  return facts.filter((fact) => fact.content.trim() && !containsDocumentPromptInjection(fact.content)).map((fact, index) => {
+    const searchable = `${fact.kind.replaceAll("_", " ")} ${fact.content}`.toLocaleLowerCase();
+    return { fact, index, score: [...terms].reduce((score, term) => score + (searchable.includes(term) ? 1 : 0), 0) };
+  }).sort((left, right) => right.score - left.score || left.index - right.index)
+    .filter((item) => item.score > 0).slice(0, limit).map((item) => item.fact);
 }
 
 export function selectRelevantFaqs(

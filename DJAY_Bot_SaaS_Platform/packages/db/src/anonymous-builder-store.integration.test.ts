@@ -408,6 +408,8 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
             handover: { en: customerMessages.handover, th: "ข้อความส่งต่อที่อนุมัติ" },
             bookingPrompt: { en: customerMessages.bookingPrompt, th: "ข้อความขอนัดหมายที่อนุมัติ" } },
           approvedFaqs: [{ question: { en: "When?", th: "เปิดเมื่อไร" }, answer: { en: "Weekdays", th: "วันธรรมดา" } }],
+          builderContext: { businessType: "Services", businessSummary: "Appointments",
+            offers: "Consultation", businessHours: "Mon-Fri", contact: "team@example.test" },
         } });
       expect(evidence[0]?.materialized_ai_agent_id).toMatch(/^[0-9a-f-]{36}$/);
       if (family === "text") {
@@ -421,6 +423,7 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
         expect(claimedDraft).toMatchObject({ revision: 1, definition: {
           behaviorInstructions: "Confirm details", behaviorBoundaries: "Never claim confirmation",
           approvedFaqs: [{ question: { en: "When?", th: "เปิดเมื่อไร" }, answer: { en: "Weekdays", th: "วันธรรมดา" } }],
+          builderContext: { offers: "Consultation", businessHours: "Mon-Fri" },
         } });
         await expect(aiChat.updateDraft(context, agentId, {
           revision: claimedDraft!.revision, definition: claimedDraft!.definition, knowledgeRevisionIds: [],

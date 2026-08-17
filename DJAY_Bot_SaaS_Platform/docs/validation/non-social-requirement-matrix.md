@@ -1,6 +1,6 @@
 # Non-social production-readiness requirement matrix
 
-Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; formally accepted: **0**; requirements with at least one existing mapped artifact: **64**; requirements containing stale or missing path references: **1**.
+Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; formally accepted: **0**; requirements with at least one existing mapped artifact: **65**; requirements containing stale or missing path references: **1**.
 
 > An existing file is mapping evidence, not acceptance evidence. A requirement remains unaccepted until its named tests, environment evidence, and authorized reviewer are recorded in the release registry. Social-channel implementation may exist in source but is outside the current release scope.
 
@@ -110,7 +110,7 @@ Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; f
 | FLA-016 | FLOW-05 | flowbot_premium | planned | 0/0 | 0/0 | 0/0 | — | Support reusable tenant templates and DJAI-provided versioned starter templates. |
 | FLA-017 | FLOW-05 | flowbot_premium | planned | 0/0 | 0/0 | 0/0 | — | Remove DJay Bots branding and permit up to three administrators. |
 | AIT-001 | AI-02 | ai_chat_basic, ai_chat_premium | implemented | 6/6 | 4/4 | 1/1 | — | Route production model calls only through the restricted DJAI AI gateway; browser clients and general application code MUST NOT hold provider credentials. |
-| AIT-002 | AI-02 | ai_chat_basic, ai_chat_premium | in_progress | 4/4 | 4/4 | 1/1 | — | Ground answers in the tenant's active knowledge revision, approved catalogues, bot instructions, and conversation context. |
+| AIT-002 | AI-02 | ai_chat_basic, ai_chat_premium | in_progress | 4/4 | 4/4 | 2/2 | — | Ground answers in the tenant's active knowledge revision, approved catalogues, bot instructions, and conversation context. |
 | AIT-003 | AI-02 | ai_chat_basic, ai_chat_premium | implemented | 6/6 | 5/5 | 2/2 | — | Use strict structured outputs for customer text, citations/source references, confidence, intent, typed actions, lead updates, escalation, and safety metadata. |
 | AIT-004 | AI-02 | ai_chat_basic, ai_chat_premium | implemented | 3/3 | 2/2 | 2/2 | — | Validate every model response against the application schema. Invalid output MUST be retried within policy or replaced with a safe customer-facing fallback. |
 | AIT-005 | AI-02 | ai_chat_basic, ai_chat_premium | implemented | 5/5 | 4/4 | 2/2 | — | Treat provider refusal, policy violation, timeout, quota exhaustion, and dependency failure as explicit states with safe fallbacks and operator telemetry. |
@@ -125,7 +125,7 @@ Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; f
 | KNO-004 | AI-01 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Normalize, chunk, index, and version extracted content. Retrieval MUST reference only an active, published knowledge revision. |
 | KNO-005 | AI-01 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Allow source preview, exclusion, correction, reprocessing, deletion, and full reindexing. |
 | KNO-006 | AI-01 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Apply weekly knowledge refresh to AI Text Starter and monthly knowledge review workflow to AI Text Advanced, with customer-visible status and actionable failures. |
-| KNO-007 | AI-01 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Provide product and service information on Starter and structured product/service catalogue support on Advanced. |
+| KNO-007 | AI-01 | ai_chat_basic, ai_chat_premium | in_progress | 5/5 | 3/3 | 2/2 | — | Provide product and service information on Starter and structured product/service catalogue support on Advanced. |
 | KNO-008 | AI-01 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Deleting source content MUST remove it from future retrieval and complete provider/vector cleanup within the stated retention window. |
 | ATS-001 | AI-03 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Allow one AI Text Bot in one business workspace with one administrator. |
 | ATS-002 | AI-03 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Provide the website chat widget and include up to 2,000 AI-generated replies per monthly allowance period. |

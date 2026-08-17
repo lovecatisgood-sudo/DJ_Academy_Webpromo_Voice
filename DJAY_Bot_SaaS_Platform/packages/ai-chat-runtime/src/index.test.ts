@@ -85,6 +85,40 @@ describe("AI text runtime", () => {
     expect(events).toEqual(["begin", "commit:25"]);
   });
 
+  it("grounds a business-offer answer in the immutable Builder profile", async () => {
+    const events: string[] = [];
+    let policy = "";
+    const businessContext: AiTurnContext = {
+      ...context,
+      playbook: { ...(context.playbook as object), approvedClaims: [], builderContext: {
+        productFamily: "text", disclosure: { en: "AI assistant", th: "ผู้ช่วย AI" },
+        businessType: "Consulting", businessSummary: "Conversion advisory for small businesses",
+        offers: "A 30-minute conversion consultation", businessHours: "Monday to Friday",
+        contact: "team@example.test", agentBehavior: "Ask one useful question",
+        agentBoundaries: "Never invent availability", faqs: [],
+      } },
+      knowledgeChunks: [],
+      recentMessages: [],
+    };
+    const runtime = new AiTextRuntime({
+      ...repository(events), async begin() { events.push("begin"); return businessContext; },
+    }, { async generate(request) {
+      policy = request.systemPolicy;
+      return { output: {
+        schemaVersion: "sales-core.v1", stage: "S4_RECOMMENDATION", intent: "answer_services",
+        facts: [], knowledgeCitations: [], responseGoal: "answer the service question", proposedActions: [], handover: null,
+        customerResponse: "A 30-minute conversion consultation is available.",
+        channelResponse: { format: "text", quickReplies: [] },
+      }, nativeUsage: { inputUnits: 22, outputUnits: 7 } };
+    } });
+    await expect(runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "What consultation do you offer?",
+    })).resolves.toMatchObject({ status: "completed", text: "A 30-minute conversion consultation is available." });
+    expect(policy).toContain('"kind":"offers","content":"A 30-minute conversion consultation"');
+    expect(events).toEqual(["begin", "commit:22"]);
+  });
+
   it("allows a Sales Associate to propose a pending appointment after discovery without changing roles", async () => {
     const events: string[] = [];
     let committedOutput: unknown;

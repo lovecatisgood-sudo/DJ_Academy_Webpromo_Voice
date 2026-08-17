@@ -1,6 +1,7 @@
 import { assertProviderNeutralCustomerText, ProviderGatewayError, type TextProviderGateway } from "@djay/provider-gateway";
 import {
-  aiPlaybookSchema, buildSalesCorePolicy, countVisibleWords, salesCoreOutputBaseSchema, salesCoreOutputSchema, selectRelevantFaqs, selectRelevantKnowledge,
+  aiPlaybookSchema, buildSalesCorePolicy, countVisibleWords, salesCoreOutputBaseSchema, salesCoreOutputSchema,
+  selectRelevantBusinessFacts, selectRelevantFaqs, selectRelevantKnowledge,
   type SalesCoreOutput,
 } from "@djay/sales-core";
 import { z } from "zod";
@@ -18,6 +19,18 @@ const authoritySchema = z.object({
 
 type GatewayRequest = Parameters<TextProviderGateway["generate"]>[0];
 type GatewayResult = Awaited<ReturnType<TextProviderGateway["generate"]>>;
+
+function playbookBusinessFacts(playbook: z.infer<typeof aiPlaybookSchema>) {
+  const context = playbook.builderContext;
+  if (!context) return [];
+  return [
+    { kind: "business_type" as const, content: context.businessType },
+    { kind: "business_summary" as const, content: context.businessSummary },
+    { kind: "offers" as const, content: context.offers },
+    { kind: "business_hours" as const, content: context.businessHours },
+    { kind: "contact" as const, content: context.contact },
+  ].filter((fact) => fact.content.trim());
+}
 
 function responseInvariant(value: SalesCoreOutput) {
   return JSON.stringify({
@@ -584,15 +597,20 @@ export async function generateAiTurn(input: Readonly<{
   const allChunks = chunkSchema.parse(input.context.knowledgeChunks);
   const selectedChunks = selectRelevantKnowledge(allChunks, input.message, 6);
   const selectedFaqs = selectRelevantFaqs(playbook.approvedFaqs, input.message, input.context.language);
+  const selectedBusinessFacts = selectRelevantBusinessFacts(
+    playbookBusinessFacts(playbook), input.message, input.context.language,
+  );
   const matchedClaimCount = countRelevantClaims(playbook.approvedClaims, input.message, input.context.language);
   const approvedEvidence = [...playbook.approvedClaims, ...selectedFaqs.map((faq) =>
-    `FAQ: ${faq.question[input.context.language]} Answer: ${faq.answer[input.context.language]}`)];
+    `FAQ: ${faq.question[input.context.language]} Answer: ${faq.answer[input.context.language]}`),
+  ...selectedBusinessFacts.map((fact) => `Business ${fact.kind}: ${fact.content}`)];
   const recentMessages = history.at(-1)?.role === "user" ? history.slice(0, -1) : history;
   const systemPolicy = buildSalesCorePolicy({
     locale: input.context.language, agentRole: playbook.agentRole, businessName: playbook.businessName, agentName: playbook.agentName,
     tone: playbook.tone, salesGoal: playbook.salesGoal,
     behaviorInstructions: playbook.behaviorInstructions, behaviorBoundaries: playbook.behaviorBoundaries,
     approvedClaims: approvedEvidence,
+    approvedBusinessFacts: selectedBusinessFacts,
     prohibitedClaims: playbook.prohibitedClaims, discoveryQuestions: playbook.discoveryQuestions,
     ctaPolicy: playbook.ctaPolicy, customerMessages: playbook.customerMessages, knowledge: selectedChunks, recentMessages,
     customerMessage: input.message,
@@ -605,7 +623,8 @@ export async function generateAiTurn(input: Readonly<{
   let output = generated.output;
   assertProviderNeutralCustomerText(JSON.stringify(output));
   validateCitations(output, selectedChunks, generated.nativeUsage);
-  const confidence = responseConfidence(output, selectedChunks.length, matchedClaimCount + selectedFaqs.length);
+  const confidence = responseConfidence(output, selectedChunks.length,
+    matchedClaimCount + selectedFaqs.length + selectedBusinessFacts.length);
   output = salesCoreOutputSchema.parse({ ...output, confidence });
   if (confidence < playbook.confidenceThreshold && !output.handover) {
     const reason = `confidence_below_threshold:${confidence.toFixed(2)}`;
@@ -791,8 +810,10 @@ export async function runAiTextPreview(input: Readonly<{
   const recentMessages = history.map(({ role, content }) => ({ role, content }));
   const selectedChunks = selectRelevantKnowledge(allChunks, input.message, 6);
   const selectedFaqs = selectRelevantFaqs(playbook.approvedFaqs, input.message, input.language);
+  const selectedBusinessFacts = selectRelevantBusinessFacts(playbookBusinessFacts(playbook), input.message, input.language);
   const approvedEvidence = [...playbook.approvedClaims, ...selectedFaqs.map((faq) =>
-    `FAQ: ${faq.question[input.language]} Answer: ${faq.answer[input.language]}`)];
+    `FAQ: ${faq.question[input.language]} Answer: ${faq.answer[input.language]}`),
+  ...selectedBusinessFacts.map((fact) => `Business ${fact.kind}: ${fact.content}`)];
   const systemPolicy = buildSalesCorePolicy({
     locale: input.language,
     agentRole: playbook.agentRole,
@@ -803,6 +824,7 @@ export async function runAiTextPreview(input: Readonly<{
     behaviorInstructions: playbook.behaviorInstructions,
     behaviorBoundaries: playbook.behaviorBoundaries,
     approvedClaims: approvedEvidence,
+    approvedBusinessFacts: selectedBusinessFacts,
     prohibitedClaims: playbook.prohibitedClaims,
     discoveryQuestions: playbook.discoveryQuestions,
     ctaPolicy: playbook.ctaPolicy,

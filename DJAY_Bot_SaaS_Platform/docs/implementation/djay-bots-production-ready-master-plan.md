@@ -311,6 +311,8 @@ Operational-message fidelity checkpoint, 2026-08-17: fallback, pending handover,
 
 Package-first AI Text role checkpoint, 2026-08-17: executable source checks now preserve the approved sequence from AI Text family/package and subscribe/eligible-trial selection into the first role page with exactly Customer Support, Sales Associate and Appointment Booking. The saved role remains server-draft and claimed-playbook authority. Sales runtime policy and tests prove that Sales Associate retains typed appointment requests after discovery and resolved objections without changing roles, while lead, entitlement, time-option and pending-confirmation invariants remain enforced. `AIT-010` is implemented but unaccepted; browser, live-provider and named-merchant acceptance remain open.
 
+Approved business-grounding checkpoint, 2026-08-17: Builder business type, summary, products/services, hours and contact now become query-relevant typed grounding records from the exact immutable claimed playbook in both preview and deployed Text runtime. Records are encoded as untrusted JSON data, prompt-control content is excluded and the selected evidence contributes to deterministic confidence. PostgreSQL proves the profile survives Text and Voice claim materialization. Advanced structured catalogue authoring/versioning/import and browser/live-provider/human quality acceptance remain open, so `AIT-002` and `KNO-007` remain `in_progress`.
+
 Exit gate:
 
 - Unmocked staging Builder → API → gateway → provider → Sales Core journeys pass.
