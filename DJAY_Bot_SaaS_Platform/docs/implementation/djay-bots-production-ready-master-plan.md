@@ -211,6 +211,8 @@ Exit gate:
 
 Implementation checkpoint, 2026-08-17: migration `0112_purchase_intent_kind.sql` separates `subscribe` and `trial` intent. The Builder API and PostgreSQL both allow trial intent only for Flow Starter and AI Text Starter; Voice and Advanced trial attempts fail closed. New-account verification and existing-account claim preserve the exact server draft intent. No entitlement is granted and no fixed trial clock begins in this pending-intent slice.
 
+Flow activation checkpoint, 2026-08-17: migration `0113_flow_starter_trial_activation.sql` and `POST /tenant/trials/flow/activate` add the server-authoritative Flow Starter activation command. It requires a claimed published Builder version, completed versioned onboarding and a verified active Master Admin email; then atomically starts exactly 30 days, grants website-only Starter authority, fixes the allowance/safety cap at 5,000 Flow conversations, disables overage/social/Advanced capabilities, consumes the trial intent and emits audit/outbox evidence. Replays are idempotent and a normalized verified email can fund only one Flow trial. Text provider verification, expiry experience and external acceptance remain open.
+
 Work:
 
 - Serve one immutable catalogue version to Pricing, registration, Checkout, entitlements, billing and Platform operations.

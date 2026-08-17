@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
           await resolved.services.purchaseIntents.createPurchaseIntent({
             planKey: resolved.body.planKey,
             tenantId: resolved.context.tenantId,
-          });
+          }, resolved.context);
         }
         return safeJson(result, result.status === "created" ? 201 : 409);
       } catch (error) {

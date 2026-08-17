@@ -618,16 +618,35 @@
         "COM-03",
         "CORE-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
+      "implementation_paths": [
+        "apps/api/app/tenant/trials/flow/activate/route.ts",
+        "packages/db/src/trial-store.ts"
+      ],
+      "migration_ids": [
+        "0113_flow_starter_trial_activation"
+      ],
+      "api_contracts": [
+        "POST /tenant/trials/flow/activate"
+      ],
       "ui_routes": [],
-      "entitlement_keys": [],
-      "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "entitlement_keys": [
+        "channel.web",
+        "channel.social"
+      ],
+      "meter_keys": [
+        "flow_execution"
+      ],
+      "test_ids": [
+        "packages/db/src/trial-store.integration.test.ts",
+        "packages/db/src/migration-invariants.test.ts"
+      ],
+      "runbooks": [
+        "docs/implementation/djay-bots-production-ready-master-plan.md"
+      ],
+      "evidence": [
+        "docs/validation/production-master-plan-pr04-flow-trial-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {
@@ -712,15 +731,18 @@
         "apps/api/lib/public-builder-draft.ts",
         "packages/db/src/auth-store.ts",
         "packages/db/src/anonymous-builder-store.ts",
-        "packages/db/src/purchase-intent-store.ts"
+        "packages/db/src/purchase-intent-store.ts",
+        "packages/db/src/trial-store.ts"
       ],
       "migration_ids": [
-        "0112_purchase_intent_kind"
+        "0112_purchase_intent_kind",
+        "0113_flow_starter_trial_activation"
       ],
       "api_contracts": [
         "PATCH /public/builder/draft",
         "POST /public/auth/register",
-        "POST /public/builder/claim"
+        "POST /public/builder/claim",
+        "POST /tenant/trials/flow/activate"
       ],
       "ui_routes": [],
       "entitlement_keys": [],
@@ -728,13 +750,15 @@
       "test_ids": [
         "apps/api/lib/public-builder-draft.test.ts",
         "packages/db/src/auth-store.integration.test.ts",
-        "packages/db/src/anonymous-builder-store.integration.test.ts"
+        "packages/db/src/anonymous-builder-store.integration.test.ts",
+        "packages/db/src/trial-store.integration.test.ts"
       ],
       "runbooks": [
         "docs/implementation/djay-bots-production-ready-master-plan.md"
       ],
       "evidence": [
-        "docs/validation/production-master-plan-pr04-trial-intent-2026-08-17.md"
+        "docs/validation/production-master-plan-pr04-trial-intent-2026-08-17.md",
+        "docs/validation/production-master-plan-pr04-flow-trial-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null
@@ -752,16 +776,28 @@
         "COM-03",
         "CORE-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
+      "implementation_paths": [
+        "packages/db/src/trial-store.ts"
+      ],
+      "migration_ids": [
+        "0113_flow_starter_trial_activation"
+      ],
+      "api_contracts": [
+        "POST /tenant/trials/flow/activate"
+      ],
       "ui_routes": [],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "test_ids": [
+        "packages/db/src/trial-store.integration.test.ts"
+      ],
+      "runbooks": [
+        "docs/implementation/djay-bots-production-ready-master-plan.md"
+      ],
+      "evidence": [
+        "docs/validation/production-master-plan-pr04-flow-trial-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {
@@ -827,16 +863,30 @@
         "COM-03",
         "CORE-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
+      "implementation_paths": [
+        "packages/db/src/trial-store.ts"
+      ],
+      "migration_ids": [
+        "0113_flow_starter_trial_activation"
+      ],
+      "api_contracts": [
+        "POST /tenant/trials/flow/activate"
+      ],
       "ui_routes": [],
       "entitlement_keys": [],
-      "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "meter_keys": [
+        "flow_execution"
+      ],
+      "test_ids": [
+        "packages/db/src/trial-store.integration.test.ts"
+      ],
+      "runbooks": [
+        "docs/implementation/djay-bots-production-ready-master-plan.md"
+      ],
+      "evidence": [
+        "docs/validation/production-master-plan-pr04-flow-trial-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {
@@ -852,16 +902,29 @@
         "COM-03",
         "CORE-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
+      "implementation_paths": [
+        "packages/db/src/trial-store.ts"
+      ],
+      "migration_ids": [
+        "0113_flow_starter_trial_activation"
+      ],
+      "api_contracts": [
+        "POST /tenant/trials/flow/activate"
+      ],
       "ui_routes": [],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "test_ids": [
+        "packages/db/src/trial-store.integration.test.ts",
+        "packages/db/src/migration-invariants.test.ts"
+      ],
+      "runbooks": [
+        "docs/implementation/djay-bots-production-ready-master-plan.md"
+      ],
+      "evidence": [
+        "docs/validation/production-master-plan-pr04-flow-trial-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {

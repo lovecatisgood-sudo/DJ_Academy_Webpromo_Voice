@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0112_purchase_intent_kind";
+export const currentSchemaVersion = "0113_flow_starter_trial_activation";
 
 export { PostgresAuthStore } from "./auth-store";
 export { AccountingReconciliationWorkerStore, AccountingSyncWorkerStore, BillingWebhookRecoveryWorkerStore, BillingWebhookStore, FinancialEventReconciliationWorkerStore, FinancialReconciliationWorkerStore, SubscriptionLifecycleWorkerStore } from "./billing-webhook-store";
@@ -8,6 +8,7 @@ export {
   UsageAlertWorkerStore, UsagePeriodWorkerStore,
 } from "./commerce-store";
 export { PurchaseIntentStore } from "./purchase-intent-store";
+export { TrialStore } from "./trial-store";
 export { AnonymousBuilderStore, type AnonymousBuilderDraft } from "./anonymous-builder-store";
 export { AnonymousBuilderImportStore, type AnonymousBuilderImportJob } from "./anonymous-builder-import-store";
 export { SharedDomainStore } from "./shared-domain-store";

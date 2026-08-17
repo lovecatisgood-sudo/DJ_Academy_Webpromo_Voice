@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { PublicPlanKey } from "@djay/shared";
 import type { TenantContext } from "@djay/tenancy";
-import type { DatabaseClient } from "./client";
+import type { DatabaseClient, DatabaseTransaction } from "./client";
 import { withTenantTransaction } from "./scoped-transaction";
 
 const defaultTtlHours = 72;
@@ -17,7 +17,7 @@ export class PurchaseIntentStore {
     now?: Date;
     intentId?: string;
     commerceIntent?: "subscribe" | "trial";
-  }>): Promise<
+  }>, context?: TenantContext): Promise<
     | Readonly<{ status: "created"; intentId: string; planVersionId: string }>
     | Readonly<{ status: "plan_unavailable" }>
   > {
@@ -30,43 +30,48 @@ export class PurchaseIntentStore {
       return { status: "plan_unavailable" };
     }
 
-    const planRows = await this.client<{ plan_version_id: string }[]>`
-      SELECT version.id AS plan_version_id
-      FROM catalog.catalog_versions catalog_version
-      JOIN catalog.plan_commercial_terms terms ON terms.catalog_version_id = catalog_version.id
-      JOIN catalog.plan_versions version ON version.id = terms.plan_version_id
-      JOIN catalog.plans plan ON plan.id = version.plan_id
-      WHERE plan.plan_key = ${input.planKey}
-        AND plan.status = 'active'
-        AND catalog_version.status = 'active'
-        AND catalog_version.effective_from <= ${now}
-        AND (catalog_version.effective_to IS NULL OR catalog_version.effective_to > ${now})
-        AND version.status = 'published'
-        AND version.effective_from <= ${now}
-        AND (version.effective_to IS NULL OR version.effective_to > ${now})
-      ORDER BY version.version DESC
-      LIMIT 1
-    `;
-    const planVersionId = planRows[0]?.plan_version_id;
-    if (!planVersionId) return { status: "plan_unavailable" };
+    const create = async (sql: DatabaseClient | DatabaseTransaction) => {
+      const planRows = await sql<{ plan_version_id: string }[]>`
+        SELECT version.id AS plan_version_id
+        FROM catalog.catalog_versions catalog_version
+        JOIN catalog.plan_commercial_terms terms ON terms.catalog_version_id = catalog_version.id
+        JOIN catalog.plan_versions version ON version.id = terms.plan_version_id
+        JOIN catalog.plans plan ON plan.id = version.plan_id
+        WHERE plan.plan_key = ${input.planKey}
+          AND plan.status = 'active'
+          AND catalog_version.status = 'active'
+          AND catalog_version.effective_from <= ${now}
+          AND (catalog_version.effective_to IS NULL OR catalog_version.effective_to > ${now})
+          AND version.status = 'published'
+          AND version.effective_from <= ${now}
+          AND (version.effective_to IS NULL OR version.effective_to > ${now})
+        ORDER BY version.version DESC
+        LIMIT 1
+      `;
+      const planVersionId = planRows[0]?.plan_version_id;
+      if (!planVersionId) return { status: "plan_unavailable" as const };
 
-    await this.client`
-      INSERT INTO billing.purchase_intents (
-        id, registration_id, tenant_id, plan_key, plan_version_id,
-        commerce_intent, status, created_at, expires_at
-      ) VALUES (
-        ${intentId}::uuid,
-        ${input.registrationId ?? null}::uuid,
-        ${input.tenantId ?? null}::uuid,
-        ${input.planKey},
-        ${planVersionId}::uuid,
-        ${commerceIntent}, 'open',
-        ${now},
-        ${expiresAt}
-      )
-    `;
+      await sql`
+        INSERT INTO billing.purchase_intents (
+          id, registration_id, tenant_id, plan_key, plan_version_id,
+          commerce_intent, status, created_at, expires_at
+        ) VALUES (
+          ${intentId}::uuid,
+          ${input.registrationId ?? null}::uuid,
+          ${input.tenantId ?? null}::uuid,
+          ${input.planKey},
+          ${planVersionId}::uuid,
+          ${commerceIntent}, 'open',
+          ${now},
+          ${expiresAt}
+        )
+      `;
 
-    return Object.freeze({ status: "created" as const, intentId, planVersionId });
+      return Object.freeze({ status: "created" as const, intentId, planVersionId });
+    };
+    if (!input.tenantId) return create(this.client);
+    if (!context || context.tenantId !== input.tenantId) return { status: "plan_unavailable" };
+    return withTenantTransaction(this.client, context, async ({ sql }) => create(sql));
   }
 
   async attachPurchaseIntentToTenant(input: Readonly<{

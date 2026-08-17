@@ -186,6 +186,17 @@ if [[ "${PURCHASE_INTENT_ONLY:-false}" == "true" ]]; then
   exit 0
 fi
 
+if [[ "${FLOW_TRIAL_ONLY:-false}" == "true" ]]; then
+  echo "Preparing seed for Flow Starter trial activation test."
+  run_sql /workspace/packages/db/tests/seed.sql
+  echo "Running focused Flow Starter trial integration test."
+  TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+    "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/trial-store.integration.test.ts
+  echo "Focused Flow Starter trial activation passed."
+  exit 0
+fi
+
 if [[ "${ANONYMOUS_BUILDER_ONLY:-false}" == "true" ]]; then
   echo "Preparing tenant seed for anonymous Builder claim tests."
   run_sql /workspace/packages/db/tests/seed.sql

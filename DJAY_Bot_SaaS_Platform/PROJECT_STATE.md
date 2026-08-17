@@ -24,6 +24,8 @@ Migrations `0109_anonymous_builder_draft_claim.sql` and `0110_existing_account_b
 
 Migration `0112_purchase_intent_kind.sql` preserves `subscribe` versus `trial` through both account-claim paths. Builder and database validation permit trials only for Flow Starter and AI Text Starter; Voice and Advanced trial attempts fail closed. Fresh PostgreSQL gates pass all 108 migrations plus purchase-intent, auth/provisioning and existing-account claim coverage. No trial entitlement, clock, provider action or sellability is claimed.
 
+Migration `0113_flow_starter_trial_activation.sql` adds tenant-scoped Flow Starter activation after a claimed published Builder version and completed onboarding. It uses only the active Master Admin's normalized verified-email digest for one-trial eligibility, starts a fixed 30-day website-only grant atomically, sets the Flow quota and safety cap to 5,000, removes overage/social/Advanced authority, consumes the pending trial intent, and emits audit/outbox evidence. A fresh 109-migration PostgreSQL run passed activation, replay, pre-publication denial and repeat prevention. Text trial, trial-expiry UX/worker behavior and external acceptance remain open.
+
 ## Approved SaaS Owner analytics contract (2026-08-16)
 
 The Product Owner approved a complete Platform Master analytics and merchant-intelligence scope. `docs/design/djay-bots-saas-owner-analytics-contract.md` is the single source of truth for Owner Overview, merchant and SaaS-user directories, subscription lifecycle, revenue definitions, Text replies/tokens, Voice seconds/minutes, provider/model economics, trials/conversion, reports/alerts, Merchant 360 expansion and governed exports.

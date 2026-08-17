@@ -89,6 +89,7 @@ const anonymousBuilderClaimMigration = readFileSync(resolve(import.meta.dirname,
 const existingAccountBuilderClaimMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0110_existing_account_builder_claim.sql"), "utf8");
 const versionedMerchantOnboardingMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0111_versioned_merchant_onboarding.sql"), "utf8");
 const purchaseIntentKindMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0112_purchase_intent_kind.sql"), "utf8");
+const flowTrialActivationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0113_flow_starter_trial_activation.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -150,6 +151,18 @@ describe("Merchant experience migration invariants", () => {
     expect(purchaseIntentKindMigration).toContain("CHECK (commerce_intent IN ('subscribe', 'trial'))");
     expect(purchaseIntentKindMigration).toContain("plan_key IN ('flowbot_basic', 'ai_chat_basic')");
     expect(purchaseIntentKindMigration).not.toMatch(/voice_basic_gen1|voice_advanced_gen2|flowbot_premium|ai_chat_premium/);
+  });
+
+  it("pins Flow Starter trials to one verified-email subject, 30 days, website and 5,000 conversations", () => {
+    expect(flowTrialActivationMigration).toContain("CREATE TABLE billing.trial_grants");
+    expect(flowTrialActivationMigration).toContain("trial_grants_subject_product_uidx");
+    expect(flowTrialActivationMigration).toContain("expires_at = starts_at + interval '30 days'");
+    expect(flowTrialActivationMigration).toContain("channel_scope = ARRAY['website']::text[]");
+    expect(flowTrialActivationMigration).toContain("allowance_quantity = 5000");
+    expect(flowTrialActivationMigration).toContain("eligibility_subject_kind = 'verified_email'");
+    expect(flowTrialActivationMigration).toContain("current_tenant_verified_owner_email_hash");
+    expect(flowTrialActivationMigration).toContain("SECURITY DEFINER");
+    expect(flowTrialActivationMigration).toContain("FORCE ROW LEVEL SECURITY");
   });
 
   it("keeps appointment recovery independently reviewed, bounded, optimistic, and replay-safe", () => {
