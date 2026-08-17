@@ -87,6 +87,7 @@ const anonymousBuilderDraftMigration = readFileSync(resolve(import.meta.dirname,
 const anonymousBuilderImportMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0108_anonymous_builder_import_jobs.sql"), "utf8");
 const anonymousBuilderClaimMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0109_anonymous_builder_draft_claim.sql"), "utf8");
 const existingAccountBuilderClaimMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0110_existing_account_builder_claim.sql"), "utf8");
+const versionedMerchantOnboardingMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0111_versioned_merchant_onboarding.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -134,6 +135,13 @@ describe("Merchant experience migration invariants", () => {
     expect(existingAccountBuilderClaimMigration).toContain("status IN ('issued', 'consumed', 'superseded')");
     expect(existingAccountBuilderClaimMigration).toContain("builder_claim_continuations_one_active_session_uidx");
     expect(existingAccountBuilderClaimMigration).toContain("FORCE ROW LEVEL SECURITY");
+  });
+
+  it("stores versioned merchant guideline acceptance with server onboarding completion", () => {
+    expect(versionedMerchantOnboardingMigration).toContain("merchant_onboarding_version integer NOT NULL DEFAULT 0");
+    expect(versionedMerchantOnboardingMigration).toContain("guidelines_version text");
+    expect(versionedMerchantOnboardingMigration).toContain("guidelines_accepted_at timestamptz");
+    expect(versionedMerchantOnboardingMigration).toContain("preferences_completed_at IS NOT NULL");
   });
 
   it("keeps appointment recovery independently reviewed, bounded, optimistic, and replay-safe", () => {

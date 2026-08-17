@@ -90,6 +90,9 @@ export const tenantOnboarding = tenancySchema.table("tenant_onboarding", {
   profileCompletedAt: timestamp("profile_completed_at", { withTimezone: true }),
   productSelectedAt: timestamp("product_selected_at", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  merchantOnboardingVersion: integer("merchant_onboarding_version").notNull().default(0),
+  guidelinesVersion: text("guidelines_version"),
+  guidelinesAcceptedAt: timestamp("guidelines_accepted_at", { withTimezone: true }),
   updatedAt: updatedAt(),
 });
 

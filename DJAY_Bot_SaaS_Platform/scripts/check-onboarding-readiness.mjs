@@ -112,6 +112,21 @@ const login = read("apps/tenant-web/app/page.tsx");
 if (login.includes('return "/workspace/start"')) failures.push("tenant login still forces the retired first-login wizard");
 const workspace = read("apps/tenant-web/app/workspace/page.tsx");
 if (workspace.includes('window.location.replace("/workspace/setup")')) failures.push("workspace still traps incomplete accounts in the retired setup wizard");
+const merchantOnboarding = read("apps/tenant-web/app/workspace/onboarding/page.tsx");
+const onboardingApi = read("apps/api/app/tenant/onboarding/route.ts");
+const onboardingStore = read("packages/db/src/tenant-workspace-store.ts");
+for (const marker of ["Responsible use guidelines", "complete_merchant_onboarding", "acceptedGuidelines", "claimedProduct", "productDestinations"]) {
+  if (!merchantOnboarding.includes(marker)) failures.push(`Versioned merchant onboarding UI is missing ${marker}`);
+}
+for (const marker of ["complete_merchant_onboarding", "z.literal(1)", "z.literal(true)", "completeMerchantOnboarding"]) {
+  if (!onboardingApi.includes(marker)) failures.push(`Merchant onboarding API is missing ${marker}`);
+}
+for (const marker of ["currentMerchantOnboardingVersion", "currentMerchantGuidelinesVersion", "FOR UPDATE OF onboarding", "tenant.merchant_onboarding_completed", "already_completed"]) {
+  if (!onboardingStore.includes(marker)) failures.push(`Server-authoritative merchant onboarding is missing ${marker}`);
+}
+if (merchantOnboarding.includes("firstProduct: data.get") || merchantOnboarding.includes("firstProduct:")) {
+  failures.push("Merchant onboarding still accepts the claimed product from the browser");
+}
 
 const aiTest = read("apps/api/app/public/builder/ai-test/route.ts");
 for (const marker of ["runAiTextPreview", "public_builder_ai_test", "services.aiTextGateway", "hasTrustedOrigin", "publicBuilderAiTestContext", "draftRevision"]) {

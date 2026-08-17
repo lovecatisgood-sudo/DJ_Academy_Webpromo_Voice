@@ -5,6 +5,8 @@ import { withTenantTransaction } from "./scoped-transaction";
 export type OnboardingStage = "account_created" | "business_profile" | "product_selection" | "ready";
 export type ManagedTenantRole = Exclude<TenantRole, "tenant_master_admin" | "tenant_readonly_support">;
 type OnboardingProductKey = "flowbot" | "ai_chat" | "voice";
+export const currentMerchantOnboardingVersion = 1;
+export const currentMerchantGuidelinesVersion = "merchant-guidelines-v1";
 
 export type OnboardingChecklistStep = Readonly<{
   key: string;
@@ -26,6 +28,13 @@ type OnboardingRecord = Readonly<{
   slug: string;
   locale: string;
   timezone: string;
+  accountOnboarding: Readonly<{
+    version: number;
+    currentVersion: number;
+    guidelinesVersion: string | null;
+    complete: boolean;
+    claimedProduct: OnboardingProductKey | null;
+  }>;
   preferences: Readonly<{
     businessGoal: "answer_questions" | "capture_leads" | "recommend_products" | "book_appointments" | "customer_support" | null;
     industry: "retail" | "services" | "restaurant" | "education" | "property" | "health" | "other" | null;
@@ -195,12 +204,20 @@ async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Pro
     launchChannel: OnboardingRecord["preferences"]["launchChannel"];
     preferencesComplete: boolean;
     conversationExamplesReviewed: boolean;
+    merchantOnboardingVersion: number;
+    guidelinesVersion: string | null;
+    guidelinesAccepted: boolean;
+    claimedProduct: OnboardingProductKey | null;
   }[]>`
     SELECT tenant.id AS tenant_id, tenant.business_name, tenant.slug, tenant.locale, tenant.timezone,
       onboarding.business_goal AS "businessGoal", onboarding.industry,
       onboarding.first_product AS "firstProduct",
       onboarding.launch_channel AS "launchChannel",
       onboarding.preferences_completed_at IS NOT NULL AS "preferencesComplete",
+      onboarding.merchant_onboarding_version AS "merchantOnboardingVersion",
+      onboarding.guidelines_version AS "guidelinesVersion",
+      onboarding.guidelines_accepted_at IS NOT NULL AS "guidelinesAccepted",
+      latest_claim."claimedProduct",
       EXISTS (
         SELECT 1 FROM tenancy.audit_logs audit
         WHERE audit.tenant_id = tenant.id
@@ -208,6 +225,14 @@ async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Pro
           AND audit.result = 'succeeded'
       ) AS "conversationExamplesReviewed"
     FROM tenancy.tenants tenant JOIN tenancy.tenant_onboarding onboarding ON onboarding.tenant_id = tenant.id
+    LEFT JOIN LATERAL (
+      SELECT CASE claim.product_family
+        WHEN 'flow' THEN 'flowbot' WHEN 'text' THEN 'ai_chat' WHEN 'voice' THEN 'voice'
+      END::text AS "claimedProduct"
+      FROM tenancy.builder_draft_claims claim
+      WHERE claim.tenant_id = tenant.id
+      ORDER BY claim.claimed_at DESC, claim.id DESC LIMIT 1
+    ) latest_claim ON true
     WHERE tenant.id = ${tenantId}::uuid
   `;
   const subscriptionsPromise = sql<{
@@ -371,6 +396,14 @@ async function onboardingRecord(sql: DatabaseTransaction, tenantId: string): Pro
   return {
     tenant_id: tenant.tenant_id, business_name: tenant.business_name, slug: tenant.slug,
     locale: tenant.locale, timezone: tenant.timezone,
+    accountOnboarding: {
+      version: tenant.merchantOnboardingVersion,
+      currentVersion: currentMerchantOnboardingVersion,
+      guidelinesVersion: tenant.guidelinesVersion,
+      complete: tenant.merchantOnboardingVersion >= currentMerchantOnboardingVersion
+        && tenant.guidelinesAccepted && tenant.preferencesComplete,
+      claimedProduct: tenant.claimedProduct,
+    },
     preferences: {
       businessGoal: tenant.businessGoal, industry: tenant.industry,
       firstProduct: tenant.firstProduct, launchChannel: tenant.launchChannel,
@@ -390,6 +423,70 @@ export class TenantWorkspaceStore {
   async getOnboarding(context: TenantContext) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       return onboardingRecord(sql, context.tenantId);
+    });
+  }
+
+  async completeMerchantOnboarding(context: TenantContext, input: Readonly<{
+    version: number;
+    acceptedGuidelines: true;
+    businessGoal: "answer_questions" | "capture_leads" | "recommend_products" | "book_appointments" | "customer_support";
+    industry: "retail" | "services" | "restaurant" | "education" | "property" | "health" | "other";
+  }>) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      if (input.version !== currentMerchantOnboardingVersion || input.acceptedGuidelines !== true) {
+        return { status: "version_mismatch" as const };
+      }
+      const rows = await sql<{
+        version: number; completedAt: Date | null; claimedProduct: OnboardingProductKey | null;
+      }[]>`
+        SELECT onboarding.merchant_onboarding_version AS version,
+          onboarding.preferences_completed_at AS "completedAt",
+          CASE claim.product_family
+            WHEN 'flow' THEN 'flowbot' WHEN 'text' THEN 'ai_chat' WHEN 'voice' THEN 'voice'
+          END::text AS "claimedProduct"
+        FROM tenancy.tenant_onboarding onboarding
+        LEFT JOIN LATERAL (
+          SELECT product_family FROM tenancy.builder_draft_claims candidate
+          WHERE candidate.tenant_id = onboarding.tenant_id
+          ORDER BY candidate.claimed_at DESC, candidate.id DESC LIMIT 1
+        ) claim ON true
+        WHERE onboarding.tenant_id = ${context.tenantId}::uuid
+        FOR UPDATE OF onboarding
+      `;
+      const existing = rows[0];
+      if (!existing) return { status: "not_found" as const };
+      if (existing.version >= currentMerchantOnboardingVersion && existing.completedAt) {
+        const onboarding = await onboardingRecord(sql, context.tenantId);
+        return { status: "already_completed" as const, onboarding };
+      }
+      if (!existing.claimedProduct) return { status: "claim_required" as const };
+      await sql`
+        UPDATE tenancy.tenant_onboarding SET
+          business_goal = ${input.businessGoal}, industry = ${input.industry},
+          first_product = ${existing.claimedProduct}, launch_channel = 'website',
+          preferences_completed_at = COALESCE(preferences_completed_at, now()),
+          merchant_onboarding_version = ${currentMerchantOnboardingVersion},
+          guidelines_version = ${currentMerchantGuidelinesVersion},
+          guidelines_accepted_at = COALESCE(guidelines_accepted_at, now()),
+          updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid
+      `;
+      await sql`INSERT INTO tenancy.audit_logs (
+        tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id,
+        request_id, result, metadata
+      ) VALUES (
+        ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+        'tenant.merchant_onboarding_completed', 'tenant', ${context.tenantId}, ${context.requestId},
+        'succeeded', ${sql.json({
+          version: currentMerchantOnboardingVersion,
+          guidelinesVersion: currentMerchantGuidelinesVersion,
+          businessGoal: input.businessGoal,
+          industry: input.industry,
+          firstProduct: existing.claimedProduct,
+        })}
+      )`;
+      const onboarding = await onboardingRecord(sql, context.tenantId);
+      return { status: "completed" as const, onboarding };
     });
   }
 

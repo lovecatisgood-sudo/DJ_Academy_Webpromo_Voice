@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0110_existing_account_builder_claim";
+export const currentSchemaVersion = "0111_versioned_merchant_onboarding";
 
 export { PostgresAuthStore } from "./auth-store";
 export { AccountingReconciliationWorkerStore, AccountingSyncWorkerStore, BillingWebhookRecoveryWorkerStore, BillingWebhookStore, FinancialEventReconciliationWorkerStore, FinancialReconciliationWorkerStore, SubscriptionLifecycleWorkerStore } from "./billing-webhook-store";

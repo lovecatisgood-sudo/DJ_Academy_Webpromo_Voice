@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
+import { createTenantContext } from "@djay/tenancy";
 import { AnonymousBuilderStore } from "./anonymous-builder-store";
 import { createDatabaseClient } from "./client";
+import { TenantWorkspaceStore } from "./tenant-workspace-store";
 
 const authUrl = process.env.AUTH_DATABASE_URL;
 const tenantUrl = process.env.TENANT_DATABASE_URL;
@@ -88,10 +90,10 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
 
   it("pins and atomically claims an existing-account continuation into one authorized workspace", async () => {
     const store = new AnonymousBuilderStore(authClient!);
-    const now = new Date("2026-08-17T06:00:00.000Z");
+    const now = new Date();
     const sessionId = randomUUID();
     const draft = await store.ensureDraft({
-      sessionId, issuedAt: now, expiresAt: new Date("2026-09-16T06:00:00.000Z"), now,
+      sessionId, issuedAt: now, expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60_000), now,
     });
     await store.updateDraft({
       sessionId, revision: draft!.revision, schemaVersion: 1,
@@ -142,5 +144,36 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
           WHERE source_session_id = ${sessionId}::uuid) AS bot_name
     `;
     expect(evidence[0]).toEqual({ claims: 1, intents: 1, audits: 1, bot_name: "Existing Account Bot" });
+
+    const workspace = new TenantWorkspaceStore(tenantClient!);
+    const tenantContext = createTenantContext({
+      tenantId: command.tenantId, userId: command.userId, membershipId: command.membershipId,
+      requestId: command.requestId, sessionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa13", role: "tenant_master_admin",
+    });
+    await expect(workspace.completeMerchantOnboarding(tenantContext, {
+      version: 1, acceptedGuidelines: true, businessGoal: "capture_leads", industry: "services",
+    })).resolves.toMatchObject({
+      status: "completed",
+      onboarding: { accountOnboarding: { complete: true, version: 1, claimedProduct: "ai_chat" } },
+    });
+    const firstCompletion = await adminClient!<{ completed_at: Date; audits: number; first_product: string }[]>`
+      SELECT onboarding.preferences_completed_at AS completed_at, onboarding.first_product,
+        (SELECT count(*)::int FROM tenancy.audit_logs audit
+          WHERE audit.tenant_id = onboarding.tenant_id
+            AND audit.action = 'tenant.merchant_onboarding_completed') AS audits
+      FROM tenancy.tenant_onboarding onboarding WHERE onboarding.tenant_id = ${command.tenantId}::uuid
+    `;
+    await expect(workspace.completeMerchantOnboarding(tenantContext, {
+      version: 1, acceptedGuidelines: true, businessGoal: "book_appointments", industry: "education",
+    })).resolves.toMatchObject({ status: "already_completed" });
+    const repeatedCompletion = await adminClient!<{ completed_at: Date; audits: number; first_product: string }[]>`
+      SELECT onboarding.preferences_completed_at AS completed_at, onboarding.first_product,
+        (SELECT count(*)::int FROM tenancy.audit_logs audit
+          WHERE audit.tenant_id = onboarding.tenant_id
+            AND audit.action = 'tenant.merchant_onboarding_completed') AS audits
+      FROM tenancy.tenant_onboarding onboarding WHERE onboarding.tenant_id = ${command.tenantId}::uuid
+    `;
+    expect(repeatedCompletion[0]).toEqual(firstCompletion[0]);
+    expect(repeatedCompletion[0]).toMatchObject({ audits: 1, first_product: "ai_chat" });
   });
 });

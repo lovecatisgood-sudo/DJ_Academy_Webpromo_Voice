@@ -71,6 +71,9 @@ for (const marker of ["destination.hash", "builder_claim", "/public/builder/clai
 for (const marker of ["retainBrowserOneTimeValues", "clearBrowserOneTimeValues", "/public/builder/claim", "workspace_required"]) {
   if (!login.includes(marker)) failures.push(`Tenant Builder claim continuation is missing ${marker}`);
 }
+for (const marker of ["/workspace/onboarding", "claimAndContinue", "clearBrowserOneTimeValues"]) {
+  if (!login.includes(marker)) failures.push(`Post-claim merchant onboarding continuation is missing ${marker}`);
+}
 if (registration.includes("searchParams.set(\"builder_claim\"") || login.includes("searchParams.get(\"builder_claim\"")) {
   failures.push("Builder claim continuation exposes its one-time token in the query string");
 }

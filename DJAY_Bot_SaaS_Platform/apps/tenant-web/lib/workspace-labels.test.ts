@@ -28,11 +28,11 @@ describe("workspace labels and homes", () => {
     expect(defaultWorkspaceHome({
       role: "tenant_master_admin",
       launchReady: false,
-    })).toBe("/workspace");
+    })).toBe("/workspace/onboarding");
     expect(defaultWorkspaceHome({
       role: "tenant_master_admin",
       launchReady: true,
-    })).toBe("/workspace");
+    })).toBe("/workspace/onboarding");
     expect(defaultWorkspaceHome({
       role: "tenant_human_agent",
       explicitNext: "/workspace/team",

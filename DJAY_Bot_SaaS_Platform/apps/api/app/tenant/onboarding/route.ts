@@ -8,6 +8,13 @@ const updateSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("refresh") }).strict(),
   z.object({ action: z.literal("review_conversations") }).strict(),
   z.object({
+    action: z.literal("complete_merchant_onboarding"),
+    version: z.literal(1),
+    acceptedGuidelines: z.literal(true),
+    businessGoal: z.enum(["answer_questions","capture_leads","recommend_products","book_appointments","customer_support"]),
+    industry: z.enum(["retail","services","restaurant","education","property","health","other"]),
+  }).strict(),
+  z.object({
     action: z.literal("save_preferences"),
     businessGoal: z.enum(["answer_questions","capture_leads","recommend_products","book_appointments","customer_support"]),
     industry: z.enum(["retail","services","restaurant","education","property","health","other"]),
@@ -32,6 +39,13 @@ export async function PATCH(request: NextRequest) {
   }
   try {
     const body = updateSchema.parse(await readJson(request));
+    if (body.action === "complete_merchant_onboarding") {
+      const result = await resolved.services.tenantWorkspace.completeMerchantOnboarding(resolved.context, body);
+      const status = result.status === "completed" || result.status === "already_completed" ? 200
+        : result.status === "claim_required" ? 409
+          : result.status === "version_mismatch" ? 412 : 404;
+      return safeJson(result, status);
+    }
     if (body.action === "save_preferences") {
       const result = await resolved.services.tenantWorkspace.updateOnboardingPreferences(resolved.context, body);
       return safeJson(result, result.status === "updated" ? 200 : 404);

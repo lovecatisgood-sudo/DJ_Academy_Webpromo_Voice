@@ -65,7 +65,7 @@ export default function TenantLoginPage() {
     setBuilderClaimToken("");
     setStatus("authenticated");
     setMessage("Bot attached. Opening your workspace...");
-    window.setTimeout(() => window.location.replace("/workspace"), 250);
+    window.setTimeout(() => window.location.replace("/workspace/onboarding"), 250);
   }
 
   async function chooseWorkspace(tenantId: string) {

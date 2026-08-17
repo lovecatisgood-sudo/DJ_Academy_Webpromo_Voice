@@ -6452,28 +6452,34 @@
         "apps/api/lib/public-builder-test-quota.ts",
         "packages/auth/src/registration.ts",
         "packages/db/src/auth-store.ts",
+        "packages/db/src/tenant-workspace-store.ts",
         "apps/public-site/app/register/page.tsx",
         "apps/tenant-web/app/page.tsx",
+        "apps/tenant-web/app/workspace/onboarding/page.tsx",
         "docs/design/djay-bot-text-voice-configuration-flow.html"
       ],
       "migration_ids": [
         "0107_anonymous_builder_drafts",
         "0108_anonymous_builder_import_jobs",
         "0109_anonymous_builder_draft_claim",
-        "0110_existing_account_builder_claim"
+        "0110_existing_account_builder_claim",
+        "0111_versioned_merchant_onboarding"
       ],
       "api_contracts": [
         "GET /public/builder/draft",
         "PATCH /public/builder/draft",
         "POST /public/builder/claim-continuation",
         "POST /public/builder/claim",
+        "GET /tenant/onboarding",
+        "PATCH /tenant/onboarding complete_merchant_onboarding",
         "POST /public/auth/register",
         "POST /public/auth/verify-email"
       ],
       "ui_routes": [
         "/build",
         "/register",
-        "tenant login"
+        "tenant login",
+        "/workspace/onboarding"
       ],
       "entitlement_keys": [],
       "meter_keys": [],
@@ -6498,7 +6504,8 @@
         "docs/validation/production-master-plan-pr02-translations-2026-08-17.md",
         "docs/validation/production-master-plan-pr03-draft-claim-2026-08-17.md",
         "docs/validation/production-master-plan-pr03-deploy-handoff-2026-08-17.md",
-        "docs/validation/production-master-plan-pr03-existing-account-claim-2026-08-17.md"
+        "docs/validation/production-master-plan-pr03-existing-account-claim-2026-08-17.md",
+        "docs/validation/production-master-plan-pr03-versioned-onboarding-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null
