@@ -20,5 +20,5 @@ This checkpoint adds AI Text parity for separate deployment creation, installati
 ## Gates intentionally open
 
 - Real-site browser, CORS, accessibility/responsive and staging rollback acceptance.
-- Voice install/verify/go-live parity and immutable version-pinned widget artifacts.
+- Real-site Voice/provider acceptance. Voice lifecycle parity and immutable live-version pinning are covered by later PR-05 checkpoints.
 - Requirements `BOT-004`, `UX-017` and `WEB-002` remain `in_progress`; zero requirements are accepted and all packages remain non-sellable.

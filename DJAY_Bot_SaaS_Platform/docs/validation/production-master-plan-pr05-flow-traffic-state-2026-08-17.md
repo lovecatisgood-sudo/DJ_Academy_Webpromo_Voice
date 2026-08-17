@@ -23,5 +23,5 @@ This checkpoint separates Flow publication, deployment creation, installation ve
 
 - Real-site browser installation, accessibility/responsive and staging rollback acceptance.
 - Equivalent explicit traffic state for AI Text and Voice.
-- Immutable version-pinned widget artifacts, duplicate-launcher detection and remaining theme/preview controls.
+- Duplicate-launcher detection and remaining theme/preview controls. Immutable live-version pinning is covered by the later `production-master-plan-pr05-immutable-live-artifacts-2026-08-17.md` checkpoint.
 - Requirements `BOT-004`, `UX-017` and `WEB-002` remain `in_progress`; zero requirements are accepted and all packages remain non-sellable.

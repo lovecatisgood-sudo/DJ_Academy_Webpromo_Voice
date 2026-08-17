@@ -137,7 +137,7 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
 
     const repository = new AiChatRuntimeStore(runtimeClient!);
     expect(await authoring.listDeployments(context, agent.agentId)).toMatchObject([
-      { id: deployment.deploymentId, trafficStatus: "inactive", liveAt: null },
+      { id: deployment.deploymentId, trafficStatus: "inactive", livePlaybookVersionId: null, liveAt: null },
     ]);
     await expect(repository.config(deployment.deploymentKey, "https://merchant.example")).resolves.toBeNull();
     await expect(authoring.changeDeploymentTraffic(context, deployment.deploymentId, "go_live"))
@@ -159,6 +159,9 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
     ]);
     await expect(authoring.changeDeploymentTraffic(context, deployment.deploymentId, "go_live"))
       .resolves.toEqual({ status: "updated", trafficStatus: "live" });
+    expect(await authoring.listDeployments(context, agent.agentId)).toMatchObject([
+      { id: deployment.deploymentId, trafficStatus: "live", livePlaybookVersionId: published.playbookVersionId },
+    ]);
     await expect(repository.config(deployment.deploymentKey, "https://merchant.example"))
       .resolves.toMatchObject({ agentName: "Mali", defaultLanguage: "en", brandingRemoved: false });
     await expect(repository.config(deployment.deploymentKey, "https://evil.example")).resolves.toBeNull();
@@ -170,6 +173,9 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
 
     const replacement = await authoring.publish(context, agent.agentId);
     expect(replacement.status).toBe("published");
+    expect(await authoring.listDeployments(context, agent.agentId)).toMatchObject([
+      { id: deployment.deploymentId, livePlaybookVersionId: published.playbookVersionId },
+    ]);
     const history = await authoring.listVersions(context, agent.agentId);
     expect(history).toHaveLength(2);
     expect(history[0]?.knowledgeCount).toBe(1);

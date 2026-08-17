@@ -21,7 +21,7 @@ type Playbook = {
 type Deployment = {
   id: string; name: string; keyPrefix: string; allowedOrigins: string[]; defaultLocale: "th" | "en";
   maxCallSeconds: number; reconnectWindowSeconds: number; status: "active" | "disabled" | "revoked";
-  trafficStatus: "inactive" | "live"; liveAt: string | null;
+  trafficStatus: "inactive" | "live"; livePlaybookVersionId: string | null; liveAt: string | null;
   agentName: string; businessName: string;
   publicLabel: "First-Generation Voice Engine" | "Second-Generation Voice Engine";
 };

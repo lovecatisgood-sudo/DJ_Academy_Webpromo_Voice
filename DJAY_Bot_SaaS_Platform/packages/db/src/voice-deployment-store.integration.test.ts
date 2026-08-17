@@ -93,7 +93,7 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
     expect(listed.deployments).toEqual(expect.arrayContaining([expect.objectContaining({
       id: created.deploymentId, keyPrefix: created.deploymentKey.slice(0, 20),
       allowedOrigins: ["https://merchant.example"], status: "active",
-      trafficStatus: "inactive", liveAt: null,
+      trafficStatus: "inactive", livePlaybookVersionId: null, liveAt: null,
       agentName: "Mali", businessName: "Merchant Store",
     })]));
     expect(JSON.stringify(listed)).not.toContain(created.deploymentKey);
@@ -128,7 +128,9 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
       maxCallSeconds: 120, reconnectWindowSeconds: 20,
       definition: studio.deployment.definition, knowledgeRevisionIds: [],
     })).resolves.toEqual({ status: "conflict" });
-    await expect(store.publishStudio(owner, created.deploymentId)).resolves.toMatchObject({ status: "published", version: 2 });
+    const publishedStudio = await store.publishStudio(owner, created.deploymentId);
+    expect(publishedStudio).toMatchObject({ status: "published", version: 2 });
+    if (publishedStudio.status !== "published") throw new Error("Expected published Voice playbook.");
     await expect(store.getStudio(owner, created.deploymentId)).resolves.toMatchObject({
       deployment: {
         name: "Primary website voice", agentName: "Mali Voice", defaultLocale: "th",
@@ -154,6 +156,10 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
     ]);
     await expect(store.changeTraffic(owner, created.deploymentId, "go_live"))
       .resolves.toEqual({ status: "updated", trafficStatus: "live" });
+    const liveListed = await store.list(owner);
+    expect(liveListed.deployments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: created.deploymentId, livePlaybookVersionId: publishedStudio.playbookVersionId }),
+    ]));
     await expect(runtime.issue({
       deploymentKey: created.deploymentKey, origin: "https://merchant.example", locale: "en",
       expiresAt: new Date(Date.now() + 60_000),

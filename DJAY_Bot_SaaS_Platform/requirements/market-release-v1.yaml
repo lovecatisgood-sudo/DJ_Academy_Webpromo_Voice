@@ -1568,7 +1568,10 @@
       "migration_ids": [
         "0116_flow_deployment_traffic_state",
         "0117_ai_text_deployment_traffic_state",
-        "0118_voice_deployment_traffic_state"
+        "0118_voice_deployment_traffic_state",
+        "0119_flow_deployment_live_version",
+        "0120_ai_text_deployment_live_version",
+        "0121_voice_deployment_live_version"
       ],
       "api_contracts": [
         "POST /tenant/flowbot/deployments/:deploymentId/traffic",
@@ -1596,7 +1599,8 @@
       "evidence": [
         "docs/validation/production-master-plan-pr05-flow-traffic-state-2026-08-17.md",
         "docs/validation/production-master-plan-pr05-ai-text-traffic-state-2026-08-17.md",
-        "docs/validation/production-master-plan-pr05-voice-traffic-state-2026-08-17.md"
+        "docs/validation/production-master-plan-pr05-voice-traffic-state-2026-08-17.md",
+        "docs/validation/production-master-plan-pr05-immutable-live-artifacts-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null
@@ -6228,7 +6232,10 @@
       "migration_ids": [
         "0116_flow_deployment_traffic_state",
         "0117_ai_text_deployment_traffic_state",
-        "0118_voice_deployment_traffic_state"
+        "0118_voice_deployment_traffic_state",
+        "0119_flow_deployment_live_version",
+        "0120_ai_text_deployment_live_version",
+        "0121_voice_deployment_live_version"
       ],
       "api_contracts": [
         "POST /tenant/flowbot/deployments/:deploymentId/traffic",
@@ -6255,7 +6262,8 @@
       "evidence": [
         "docs/validation/production-master-plan-pr05-flow-traffic-state-2026-08-17.md",
         "docs/validation/production-master-plan-pr05-ai-text-traffic-state-2026-08-17.md",
-        "docs/validation/production-master-plan-pr05-voice-traffic-state-2026-08-17.md"
+        "docs/validation/production-master-plan-pr05-voice-traffic-state-2026-08-17.md",
+        "docs/validation/production-master-plan-pr05-immutable-live-artifacts-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null
@@ -7645,7 +7653,10 @@
       "migration_ids": [
         "0116_flow_deployment_traffic_state",
         "0117_ai_text_deployment_traffic_state",
-        "0118_voice_deployment_traffic_state"
+        "0118_voice_deployment_traffic_state",
+        "0119_flow_deployment_live_version",
+        "0120_ai_text_deployment_live_version",
+        "0121_voice_deployment_live_version"
       ],
       "api_contracts": [
         "POST /tenant/flowbot/install-checks",
@@ -7677,7 +7688,8 @@
       "evidence": [
         "docs/validation/production-master-plan-pr05-flow-traffic-state-2026-08-17.md",
         "docs/validation/production-master-plan-pr05-ai-text-traffic-state-2026-08-17.md",
-        "docs/validation/production-master-plan-pr05-voice-traffic-state-2026-08-17.md"
+        "docs/validation/production-master-plan-pr05-voice-traffic-state-2026-08-17.md",
+        "docs/validation/production-master-plan-pr05-immutable-live-artifacts-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null

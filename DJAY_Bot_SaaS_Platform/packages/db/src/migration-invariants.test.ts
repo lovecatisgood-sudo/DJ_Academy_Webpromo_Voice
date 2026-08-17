@@ -95,6 +95,9 @@ const trialLifecycleMigration = readFileSync(resolve(import.meta.dirname, "../mi
 const flowDeploymentTrafficMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0116_flow_deployment_traffic_state.sql"), "utf8");
 const aiTextDeploymentTrafficMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0117_ai_text_deployment_traffic_state.sql"), "utf8");
 const voiceDeploymentTrafficMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0118_voice_deployment_traffic_state.sql"), "utf8");
+const flowDeploymentLiveVersionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0119_flow_deployment_live_version.sql"), "utf8");
+const aiTextDeploymentLiveVersionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0120_ai_text_deployment_live_version.sql"), "utf8");
+const voiceDeploymentLiveVersionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0121_voice_deployment_live_version.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -218,6 +221,32 @@ describe("Merchant experience migration invariants", () => {
     expect(voiceDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.voice_runtime_config");
     expect(voiceDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.issue_voice_session_grant");
     expect(voiceDeploymentTrafficMigration).toContain("session_user <> 'djay_voice_runtime'");
+  });
+
+  it("pins Flow live traffic to an immutable published version", () => {
+    expect(flowDeploymentLiveVersionMigration).toContain("ADD COLUMN live_version_id uuid");
+    expect(flowDeploymentLiveVersionMigration).toContain("tenancy_flow_deployment_live_version_fk");
+    expect(flowDeploymentLiveVersionMigration).toContain("traffic_status <> 'live' OR live_version_id IS NOT NULL");
+    expect(flowDeploymentLiveVersionMigration).toContain("version.id = deployment.live_version_id");
+    expect(flowDeploymentLiveVersionMigration).not.toContain("version.id = bot.current_published_version_id");
+  });
+
+  it("pins AI Text live traffic to an immutable published playbook", () => {
+    expect(aiTextDeploymentLiveVersionMigration).toContain("ADD COLUMN live_playbook_version_id uuid");
+    expect(aiTextDeploymentLiveVersionMigration).toContain("tenancy_ai_deployment_live_playbook_fk");
+    expect(aiTextDeploymentLiveVersionMigration).toContain("live_playbook_version_id IS NOT NULL");
+    expect(aiTextDeploymentLiveVersionMigration).toContain("playbook.id = deployment.live_playbook_version_id");
+    expect(aiTextDeploymentLiveVersionMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.start_ai_session");
+    expect(aiTextDeploymentLiveVersionMigration).not.toContain("playbook.id = agent.current_published_playbook_version_id");
+  });
+
+  it("pins Voice live traffic to an immutable published playbook", () => {
+    expect(voiceDeploymentLiveVersionMigration).toContain("ADD COLUMN live_playbook_version_id uuid");
+    expect(voiceDeploymentLiveVersionMigration).toContain("tenancy_voice_deployment_live_playbook_fk");
+    expect(voiceDeploymentLiveVersionMigration).toContain("traffic_status <> 'live' OR live_playbook_version_id IS NOT NULL");
+    expect(voiceDeploymentLiveVersionMigration).toContain("playbook.id = deployment.live_playbook_version_id");
+    expect(voiceDeploymentLiveVersionMigration).toContain("resolved.live_playbook_version_id");
+    expect(voiceDeploymentLiveVersionMigration.match(/agent\.current_published_playbook_version_id/g)).toHaveLength(1);
   });
 
   it("keeps appointment recovery independently reviewed, bounded, optimistic, and replay-safe", () => {

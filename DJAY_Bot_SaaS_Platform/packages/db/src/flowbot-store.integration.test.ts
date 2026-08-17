@@ -121,7 +121,7 @@ describe.runIf(enabled)("P4 FlowBot authoring repository", () => {
       const stored = await adminClient!<{ raw_count: number }[]>`SELECT count(*)::int AS raw_count FROM tenancy.flow_deployments WHERE deployment_key_hash = digest(${deployment.deploymentKey}, 'sha256') AND deployment_key_hash::text NOT LIKE ${`%${deployment.deploymentKey}%`}`;
       expect(stored[0]?.raw_count).toBe(1);
       expect(await store.listDeployments(contextA, basic.botId)).toMatchObject([
-        { id: deployment.deploymentId, trafficStatus: "inactive", liveAt: null },
+        { id: deployment.deploymentId, trafficStatus: "inactive", liveVersionId: null, liveAt: null },
       ]);
       await expect(store.changeDeploymentTraffic(contextA, deployment.deploymentId, "go_live"))
         .resolves.toEqual({ status: "verification_required" });
@@ -139,7 +139,7 @@ describe.runIf(enabled)("P4 FlowBot authoring repository", () => {
       await expect(store.changeDeploymentTraffic(contextA, deployment.deploymentId, "go_live"))
         .resolves.toEqual({ status: "updated", trafficStatus: "live" });
       expect(await store.listDeployments(contextA, basic.botId)).toMatchObject([
-        { id: deployment.deploymentId, trafficStatus: "live", liveAt: expect.any(Date) },
+        { id: deployment.deploymentId, trafficStatus: "live", liveVersionId: first.versionId, liveAt: expect.any(Date) },
       ]);
       await expect(store.changeDeploymentTraffic(contextA, deployment.deploymentId, "stop"))
         .resolves.toEqual({ status: "updated", trafficStatus: "inactive" });

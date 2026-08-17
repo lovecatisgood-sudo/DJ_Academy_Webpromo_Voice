@@ -105,14 +105,15 @@ export class VoiceDeploymentStore {
           id: string; name: string; keyPrefix: string; allowedOrigins: string[];
           defaultLocale: "th" | "en"; maxCallSeconds: number; reconnectWindowSeconds: number;
           status: "active" | "disabled" | "revoked"; agentName: string; businessName: string;
-          trafficStatus: "inactive" | "live"; liveAt: Date | null;
+          trafficStatus: "inactive" | "live"; livePlaybookVersionId: string | null; liveAt: Date | null;
           publicLabel: VoicePublicLabel; createdAt: Date; updatedAt: Date;
         }[]>`
           SELECT deployment.id, deployment.name, deployment.key_prefix AS "keyPrefix",
                  deployment.allowed_origins AS "allowedOrigins",
                  deployment.default_locale AS "defaultLocale", deployment.max_call_seconds AS "maxCallSeconds",
                  reconnect_window_seconds AS "reconnectWindowSeconds", deployment.status,
-                 deployment.traffic_status AS "trafficStatus", deployment.live_at AS "liveAt",
+                 deployment.traffic_status AS "trafficStatus",
+                 deployment.live_playbook_version_id AS "livePlaybookVersionId", deployment.live_at AS "liveAt",
                  agent.name AS "agentName", playbook.playbook_json->>'businessName' AS "businessName",
                  CASE deployment.capability_profile WHEN 'voice_gen1' THEN 'First-Generation Voice Engine'
                    ELSE 'Second-Generation Voice Engine' END AS "publicLabel",
@@ -136,7 +137,7 @@ export class VoiceDeploymentStore {
         automatedDisclosureTh: string; automatedDisclosureEn: string;
         maxCallSeconds: number; reconnectWindowSeconds: number;
         status: "active" | "disabled" | "revoked"; trafficStatus: "inactive" | "live";
-        liveAt: Date | null; agentId: string; agentName: string;
+        livePlaybookVersionId: string | null; liveAt: Date | null; agentId: string; agentName: string;
         capabilityProfile: VoiceCapabilityProfile;
         currentPublishedPlaybookVersionId: string | null; currentPublishedVersion: number | null;
         draftRevision: number; definition: unknown; knowledgeRevisionIds: string[]; draftUpdatedAt: Date;
@@ -148,7 +149,8 @@ export class VoiceDeploymentStore {
                deployment.automated_disclosure_en AS "automatedDisclosureEn",
                deployment.max_call_seconds AS "maxCallSeconds",
                deployment.reconnect_window_seconds AS "reconnectWindowSeconds", deployment.status,
-               deployment.traffic_status AS "trafficStatus", deployment.live_at AS "liveAt",
+               deployment.traffic_status AS "trafficStatus",
+               deployment.live_playbook_version_id AS "livePlaybookVersionId", deployment.live_at AS "liveAt",
                deployment.capability_profile AS "capabilityProfile",
                agent.id AS "agentId", agent.name AS "agentName",
                agent.current_published_playbook_version_id AS "currentPublishedPlaybookVersionId",
@@ -676,10 +678,12 @@ export class VoiceDeploymentStore {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const rows = await sql<{
         status: "active" | "disabled" | "revoked"; traffic_status: "inactive" | "live";
+        live_playbook_version_id: string | null;
         capability_profile: VoiceCapabilityProfile; allowed_origins: string[];
         current_published_playbook_version_id: string | null; agent_status: string;
       }[]>`
-        SELECT deployment.status, deployment.traffic_status, deployment.capability_profile,
+        SELECT deployment.status, deployment.traffic_status, deployment.live_playbook_version_id,
+               deployment.capability_profile,
                deployment.allowed_origins, agent.current_published_playbook_version_id,
                agent.status AS agent_status
         FROM tenancy.voice_deployments deployment
@@ -723,7 +727,8 @@ export class VoiceDeploymentStore {
               OR account.reserved_quantity + account.settled_quantity < account.safety_cap_quantity)) AS available
       `;
       if (!quota[0]?.available) return { status: "quota_unavailable" as const };
-      await sql`UPDATE tenancy.voice_deployments SET traffic_status = 'live', live_at = now(),
+      await sql`UPDATE tenancy.voice_deployments SET traffic_status = 'live',
+        live_playbook_version_id = ${deployment.current_published_playbook_version_id}::uuid, live_at = now(),
         live_by_membership_id = ${context.membershipId}::uuid, updated_at = now()
         WHERE tenant_id = ${context.tenantId}::uuid AND id = ${deploymentId}::uuid`;
       await sql`INSERT INTO tenancy.audit_logs (tenant_id, actor_user_id, actor_membership_id, action,
@@ -733,7 +738,9 @@ export class VoiceDeploymentStore {
           publishedVersionId: deployment.current_published_playbook_version_id,
           allowedOrigins: deployment.allowed_origins,
         })})`;
-      return { status: deployment.traffic_status === "live" ? "unchanged" as const : "updated" as const,
+      return { status: deployment.traffic_status === "live"
+        && deployment.live_playbook_version_id === deployment.current_published_playbook_version_id
+        ? "unchanged" as const : "updated" as const,
         trafficStatus: "live" as const };
     });
   }

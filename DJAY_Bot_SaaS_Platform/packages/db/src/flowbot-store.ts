@@ -383,9 +383,10 @@ export class FlowBotStore {
   }
 
   async listDeployments(context: TenantContext, botId: string) {
-    return withTenantTransaction(this.client, context, async ({ sql }) => sql<{ id: string; name: string; keyPrefix: string; status: string; trafficStatus: "inactive" | "live"; liveAt: Date | null; allowedOrigins: string[]; createdAt: Date }[]>`
+    return withTenantTransaction(this.client, context, async ({ sql }) => sql<{ id: string; name: string; keyPrefix: string; status: string; trafficStatus: "inactive" | "live"; liveVersionId: string | null; liveAt: Date | null; allowedOrigins: string[]; createdAt: Date }[]>`
       SELECT id, name, key_prefix AS "keyPrefix", status, traffic_status AS "trafficStatus",
-             live_at AS "liveAt", allowed_origins AS "allowedOrigins", created_at AS "createdAt"
+             live_version_id AS "liveVersionId", live_at AS "liveAt",
+             allowed_origins AS "allowedOrigins", created_at AS "createdAt"
       FROM tenancy.flow_deployments WHERE tenant_id = ${context.tenantId}::uuid AND bot_id = ${botId}::uuid ORDER BY created_at DESC
     `);
   }
@@ -393,10 +394,10 @@ export class FlowBotStore {
   async changeDeploymentTraffic(context: TenantContext, deploymentId: string, action: "go_live" | "stop") {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const deployments = await sql<{
-        bot_id: string; status: string; traffic_status: "inactive" | "live";
+        bot_id: string; status: string; traffic_status: "inactive" | "live"; live_version_id: string | null;
         allowed_origins: string[]; current_published_version_id: string | null; bot_status: string;
       }[]>`
-        SELECT deployment.bot_id, deployment.status, deployment.traffic_status,
+        SELECT deployment.bot_id, deployment.status, deployment.traffic_status, deployment.live_version_id,
                deployment.allowed_origins, bot.current_published_version_id, bot.status AS bot_status
         FROM tenancy.flow_deployments deployment
         JOIN tenancy.flow_bots bot ON bot.tenant_id = deployment.tenant_id AND bot.id = deployment.bot_id
@@ -453,7 +454,8 @@ export class FlowBotStore {
       if (!quota[0]?.available) return { status: "quota_unavailable" as const };
       await sql`
         UPDATE tenancy.flow_deployments
-        SET traffic_status = 'live', live_at = now(), live_by_membership_id = ${context.membershipId}::uuid
+        SET traffic_status = 'live', live_version_id = ${deployment.current_published_version_id}::uuid,
+            live_at = now(), live_by_membership_id = ${context.membershipId}::uuid
         WHERE tenant_id = ${context.tenantId}::uuid AND id = ${deploymentId}::uuid
       `;
       await sql`
@@ -462,7 +464,9 @@ export class FlowBotStore {
           'flowbot.deployment.go_live', 'flow_deployment', ${deploymentId}, ${context.requestId}, 'succeeded',
           ${sql.json({ publishedVersionId: deployment.current_published_version_id, allowedOrigins: deployment.allowed_origins })})
       `;
-      return { status: deployment.traffic_status === "live" ? "unchanged" as const : "updated" as const, trafficStatus: "live" as const };
+      return { status: deployment.traffic_status === "live"
+        && deployment.live_version_id === deployment.current_published_version_id
+        ? "unchanged" as const : "updated" as const, trafficStatus: "live" as const };
     });
   }
 

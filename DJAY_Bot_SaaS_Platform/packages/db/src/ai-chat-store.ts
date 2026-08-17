@@ -297,10 +297,12 @@ export class AiChatStore {
     return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
       id: string; name: string; channel: "web" | "line" | "whatsapp" | "messenger";
       keyPrefix: string | null; allowedOrigins: string[]; status: "active" | "disabled" | "revoked";
-      trafficStatus: "inactive" | "live"; liveAt: Date | null; createdAt: Date; rotatedAt: Date | null;
+      trafficStatus: "inactive" | "live"; livePlaybookVersionId: string | null;
+      liveAt: Date | null; createdAt: Date; rotatedAt: Date | null;
     }[]>`
       SELECT id, name, channel, key_prefix AS "keyPrefix", allowed_origins AS "allowedOrigins",
-             status, traffic_status AS "trafficStatus", live_at AS "liveAt",
+             status, traffic_status AS "trafficStatus",
+             live_playbook_version_id AS "livePlaybookVersionId", live_at AS "liveAt",
              created_at AS "createdAt", rotated_at AS "rotatedAt"
       FROM tenancy.ai_deployments
       WHERE tenant_id = ${context.tenantId}::uuid AND agent_id = ${agentId}::uuid
@@ -350,10 +352,12 @@ export class AiChatStore {
   async changeDeploymentTraffic(context: TenantContext, deploymentId: string, action: "go_live" | "stop") {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const rows = await sql<{
-        agent_id: string; status: string; traffic_status: "inactive" | "live"; allowed_origins: string[];
+        agent_id: string; status: string; traffic_status: "inactive" | "live";
+        live_playbook_version_id: string | null; allowed_origins: string[];
         current_published_playbook_version_id: string | null; agent_status: string;
       }[]>`
-        SELECT deployment.agent_id, deployment.status, deployment.traffic_status, deployment.allowed_origins,
+        SELECT deployment.agent_id, deployment.status, deployment.traffic_status,
+               deployment.live_playbook_version_id, deployment.allowed_origins,
                agent.current_published_playbook_version_id, agent.status AS agent_status
         FROM tenancy.ai_deployments deployment
         JOIN tenancy.ai_agents agent ON agent.tenant_id = deployment.tenant_id AND agent.id = deployment.agent_id
@@ -398,7 +402,8 @@ export class AiChatStore {
               OR account.reserved_quantity + account.settled_quantity < account.safety_cap_quantity)) AS available
       `;
       if (!quota[0]?.available) return { status: "quota_unavailable" as const };
-      await sql`UPDATE tenancy.ai_deployments SET traffic_status = 'live', live_at = now(),
+      await sql`UPDATE tenancy.ai_deployments SET traffic_status = 'live',
+        live_playbook_version_id = ${deployment.current_published_playbook_version_id}::uuid, live_at = now(),
         live_by_membership_id = ${context.membershipId}::uuid
         WHERE tenant_id = ${context.tenantId}::uuid AND id = ${deploymentId}::uuid`;
       await sql`INSERT INTO tenancy.audit_logs (tenant_id, actor_user_id, actor_membership_id, action, target_type,
@@ -408,7 +413,9 @@ export class AiChatStore {
           publishedVersionId: deployment.current_published_playbook_version_id,
           allowedOrigins: deployment.allowed_origins,
         })})`;
-      return { status: deployment.traffic_status === "live" ? "unchanged" as const : "updated" as const, trafficStatus: "live" as const };
+      return { status: deployment.traffic_status === "live"
+        && deployment.live_playbook_version_id === deployment.current_published_playbook_version_id
+        ? "unchanged" as const : "updated" as const, trafficStatus: "live" as const };
     });
   }
 

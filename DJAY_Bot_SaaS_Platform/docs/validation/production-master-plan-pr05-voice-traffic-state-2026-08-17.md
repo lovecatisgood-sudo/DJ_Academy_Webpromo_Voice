@@ -20,5 +20,5 @@ This checkpoint adds separate publication, web installation verification and liv
 ## Gates intentionally open
 
 - Real-site CORS, accessibility/responsive, microphone and staging rollback acceptance.
-- Immutable version-pinned widget artifacts and live telephony/provider qualification.
+- Live telephony/provider qualification. Immutable live-version pinning is covered by the later `production-master-plan-pr05-immutable-live-artifacts-2026-08-17.md` checkpoint.
 - Requirements `BOT-004`, `UX-017` and `WEB-002` remain `in_progress`; zero requirements are accepted and all packages remain non-sellable.
