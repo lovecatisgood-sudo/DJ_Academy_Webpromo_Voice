@@ -91,7 +91,10 @@ class AiChatWidget {
       this.loading = true; this.render();
       const result = await this.jsonRequest<{
         status: "started"; sessionToken: string; greeting: string; nextMessageSequence: number;
-      }>("/public/ai-chat/session", { method: "POST", body: JSON.stringify({ language: this.language }) });
+      }>("/public/ai-chat/session", { method: "POST", body: JSON.stringify({
+        language: this.language,
+        languageOverride: this.options.language,
+      }) });
       this.sessionToken = result.sessionToken;
       this.storage?.setItem(aiChatSessionStorageKey(this.options.deploymentKey), result.sessionToken);
       this.messages = [{ role: "assistant", text: result.greeting, sequence: 1 }];

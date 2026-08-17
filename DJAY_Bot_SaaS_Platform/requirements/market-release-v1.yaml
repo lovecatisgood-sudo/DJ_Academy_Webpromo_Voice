@@ -3646,16 +3646,41 @@
         "AI-01",
         "AI-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
-      "entitlement_keys": [],
+      "implementation_paths": [
+        "packages/db/src/ai-chat-runtime-store.ts",
+        "packages/ai-chat-runtime/src/index.ts",
+        "packages/ai-chat-widget/src/index.ts",
+        "apps/api/app/public/ai-chat/session/route.ts",
+        "apps/tenant-web/app/workspace/ai-chat/page.tsx"
+      ],
+      "migration_ids": [
+        "0043_market_release_catalog.sql",
+        "0133_ai_text_language_authority.sql"
+      ],
+      "api_contracts": [
+        "POST /public/ai-chat/session",
+        "POST /public/ai-chat/message"
+      ],
+      "ui_routes": [
+        "/workspace/ai-chat"
+      ],
+      "entitlement_keys": [
+        "languages.th",
+        "languages.en"
+      ],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "packages/db/src/ai-chat-runtime-store.integration.test.ts",
+        "packages/ai-chat-runtime/src/index.test.ts",
+        "packages/ai-chat-widget/src/index.test.ts",
+        "packages/ai-evals/src/index.test.ts",
+        "packages/db/src/migration-invariants.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/ai-text-language-authority-2026-08-17.md"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {

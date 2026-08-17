@@ -26,7 +26,9 @@ export class AiChatRuntimeStore implements AiTurnRepository {
     return rows[0]?.report_ai_chat_install ?? 0;
   }
 
-  async start(input: Readonly<{ deploymentKey: string; origin: string; language: "th" | "en" }>) {
+  async start(input: Readonly<{
+    deploymentKey: string; origin: string; language: "th" | "en"; languageOverride?: "th" | "en";
+  }>) {
     const sessionToken = `djay_ai_session_${createOpaqueToken()}`;
     const deploymentKeyHash = hashOpaqueToken(input.deploymentKey);
     const active = await this.client<{ active: boolean }[]>`
@@ -36,10 +38,10 @@ export class AiChatRuntimeStore implements AiTurnRepository {
     const rows = await this.client<{ sessionId: string; conversationId: string; greeting: string; nextMessageSequence: number }[]>`
       SELECT session_id AS "sessionId", conversation_id AS "conversationId", greeting,
              next_message_sequence AS "nextMessageSequence"
-      FROM tenancy.start_ai_session(
+      FROM tenancy.start_ai_session_localized(
         ${deploymentKeyHash}, ${hashOpaqueToken(sessionToken)}, ${input.origin},
         ${randomUUID()}::uuid, ${randomUUID()}::uuid, ${randomUUID()}::uuid,
-        ${new Date(Date.now() + 24 * 60 * 60 * 1000)}, ${input.language}
+        ${new Date(Date.now() + 24 * 60 * 60 * 1000)}, ${input.language}, ${input.languageOverride ?? null}
       )
     `;
     return rows[0] ? { sessionToken, ...rows[0] } : null;
@@ -60,7 +62,7 @@ export class AiChatRuntimeStore implements AiTurnRepository {
              playbook_json AS playbook, language, authority_json AS authority,
              turn_sequence AS "turnSequence", recent_messages AS "recentMessages",
              knowledge_chunks AS "knowledgeChunks", replay_response_json AS "replayResponse"
-      FROM tenancy.begin_ai_turn(
+      FROM tenancy.begin_ai_turn_localized(
         ${deploymentKeyHash}, ${hashOpaqueToken(input.sessionToken)},
         ${input.origin}, ${input.inputId}::uuid,
         ${randomUUID()}::uuid, ${randomUUID()}::uuid, ${input.message},
@@ -86,7 +88,7 @@ export class AiChatRuntimeStore implements AiTurnRepository {
 
   async fail(input: Readonly<{ deploymentKey: string; sessionToken: string; origin: string; inputId: string; errorCode: string }>) {
     await this.client`
-      SELECT tenancy.fail_ai_turn(
+      SELECT tenancy.fail_ai_turn_safe(
         ${hashOpaqueToken(input.deploymentKey)}, ${hashOpaqueToken(input.sessionToken)},
         ${input.origin}, ${input.inputId}::uuid, ${input.errorCode}
       )

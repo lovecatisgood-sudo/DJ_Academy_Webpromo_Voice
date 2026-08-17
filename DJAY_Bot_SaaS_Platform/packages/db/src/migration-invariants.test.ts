@@ -109,6 +109,7 @@ const knowledgeRefreshReviewMigration = readFileSync(resolve(import.meta.dirname
 const knowledgeSourceCleanupMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0130_knowledge_source_cleanup.sql"), "utf8");
 const aiTextStarterAdmissionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0131_ai_text_starter_admission.sql"), "utf8");
 const knowledgeCollectionAdmissionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0132_knowledge_collection_admission.sql"), "utf8");
+const aiTextLanguageAuthorityMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0133_ai_text_language_authority.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -191,6 +192,18 @@ describe("Merchant experience migration invariants", () => {
     expect(knowledgeCollectionAdmissionMigration).toContain("pg_advisory_xact_lock");
     expect(knowledgeCollectionAdmissionMigration).toContain("knowledge_collection_limit_reached");
     expect(knowledgeCollectionAdmissionMigration).toContain("BEFORE INSERT OR UPDATE OF tenant_id, status");
+  });
+
+  it("detects Thai and English per turn while preserving an explicit session override", () => {
+    expect(aiTextLanguageAuthorityMigration).toContain("ADD COLUMN language_override");
+    expect(aiTextLanguageAuthorityMigration).toContain("customer_message ~ '[ก-๛]'");
+    expect(aiTextLanguageAuthorityMigration).toContain("customer_message ~ '[A-Za-z]'");
+    expect(aiTextLanguageAuthorityMigration).toContain("COALESCE(\n      fixed_language");
+    expect(aiTextLanguageAuthorityMigration).toContain("UPDATE tenancy.ai_sessions session");
+    expect(aiTextLanguageAuthorityMigration).toContain("UPDATE tenancy.contacts contact");
+    expect(aiTextLanguageAuthorityMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.fail_ai_turn_safe");
+    expect(aiTextLanguageAuthorityMigration).toContain("target_safe_error_code");
+    expect(aiTextLanguageAuthorityMigration).toContain("TO djay_ai_runtime");
   });
 
   it("keeps anonymous Builder drafts versioned, expiring, pre-tenant, and unavailable to tenant runtime", () => {

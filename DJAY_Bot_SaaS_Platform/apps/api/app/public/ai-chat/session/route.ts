@@ -4,7 +4,10 @@ import { aiChatCorsHeaders, aiChatRequestCredentials } from "../../../../lib/ai-
 import { getServices } from "../../../../lib/container";
 import { clientAddress, enforceRateLimit, readJson, safeJson } from "../../../../lib/http";
 
-const startSchema = z.object({ language: z.enum(["th", "en"]).default("th") }).strict();
+const startSchema = z.object({
+  language: z.enum(["th", "en"]).default("th"),
+  languageOverride: z.enum(["th", "en"]).optional(),
+}).strict();
 
 export async function POST(request: NextRequest) {
   const credentials = aiChatRequestCredentials(request);
@@ -15,7 +18,10 @@ export async function POST(request: NextRequest) {
   if (!allowed.allowed) return safeJson({ status: "rate_limited" }, 429, aiChatCorsHeaders(credentials.origin));
   try {
     const body = startSchema.parse(await readJson(request, 2_000));
-    const started = await services.aiChatRuntimeStore.start({ ...credentials, language: body.language });
+    const started = await services.aiChatRuntimeStore.start({
+      ...credentials, language: body.language,
+      ...(body.languageOverride ? { languageOverride: body.languageOverride } : {}),
+    });
     return started
       ? safeJson({ status: "started", ...started }, 201, aiChatCorsHeaders(credentials.origin))
       : safeJson({ status: "not_found" }, 404, aiChatCorsHeaders(credentials.origin));

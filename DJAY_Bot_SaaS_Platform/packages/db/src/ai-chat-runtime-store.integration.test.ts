@@ -222,6 +222,54 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
     expect(started).toMatchObject({ greeting: expect.any(String), nextMessageSequence: 2 });
     if (!started) throw new Error("Expected AI session.");
 
+    const detectedSession = await repository.start({
+      deploymentKey: deployment.deploymentKey, origin: "https://merchant.example", language: "en",
+    });
+    if (!detectedSession) throw new Error("Expected language-detection session.");
+    const detectedInputId = randomUUID();
+    const detected = await repository.begin({
+      deploymentKey: deployment.deploymentKey, sessionToken: detectedSession.sessionToken,
+      origin: "https://merchant.example", inputId: detectedInputId,
+      message: "สวัสดีค่ะ ขอทราบข้อมูลบริการ",
+    });
+    expect(detected.language).toBe("th");
+    await repository.fail({
+      deploymentKey: deployment.deploymentKey, sessionToken: detectedSession.sessionToken,
+      origin: "https://merchant.example", inputId: detectedInputId, errorCode: "language_detection_test",
+    });
+
+    const overriddenSession = await repository.start({
+      deploymentKey: deployment.deploymentKey, origin: "https://merchant.example",
+      language: "th", languageOverride: "en",
+    });
+    if (!overriddenSession) throw new Error("Expected language-override session.");
+    const overriddenInputId = randomUUID();
+    const overridden = await repository.begin({
+      deploymentKey: deployment.deploymentKey, sessionToken: overriddenSession.sessionToken,
+      origin: "https://merchant.example", inputId: overriddenInputId,
+      message: "สวัสดีค่ะ แต่กรุณาตอบเป็นภาษาอังกฤษ",
+    });
+    expect(overridden.language).toBe("en");
+    await repository.fail({
+      deploymentKey: deployment.deploymentKey, sessionToken: overriddenSession.sessionToken,
+      origin: "https://merchant.example", inputId: overriddenInputId, errorCode: "language_override_test",
+    });
+    const languageEvidence = await adminClient!<{
+      sessionId: string; language: string; languageOverride: string | null; contactLocale: string;
+    }[]>`
+      SELECT session.id AS "sessionId", session.language,
+        session.language_override AS "languageOverride", contact.locale AS "contactLocale"
+      FROM tenancy.ai_sessions session
+      JOIN tenancy.contacts contact
+        ON contact.tenant_id = session.tenant_id AND contact.id = session.contact_id
+      WHERE session.id IN (${detectedSession.sessionId}::uuid, ${overriddenSession.sessionId}::uuid)
+      ORDER BY session.id
+    `;
+    expect(languageEvidence).toEqual(expect.arrayContaining([
+      { sessionId: detectedSession.sessionId, language: "th", languageOverride: null, contactLocale: "th" },
+      { sessionId: overriddenSession.sessionId, language: "en", languageOverride: "en", contactLocale: "en" },
+    ]));
+
     const replacement = await authoring.publish(context, agent.agentId);
     expect(replacement.status).toBe("published");
     expect(await authoring.listDeployments(context, agent.agentId)).toMatchObject([
