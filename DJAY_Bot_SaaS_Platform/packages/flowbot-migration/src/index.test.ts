@@ -34,7 +34,13 @@ describe("claimed Builder Flow adapter", () => {
     const input = {
       schemaVersion: 1, locale: "en", family: "flow",
       configuration: { flowDraft: {
-        identity: { botName: "Claimed Flow Bot", languageMode: "customer-choice" }, entryId: "welcome",
+        template: "lead",
+        identity: { botName: "Claimed Flow Bot", languageMode: "customer-choice",
+          greetingEn: "Welcome", greetingTh: "ยินดีต้อนรับ", brandColor: "#126149", position: "Bottom left",
+          businessHours: "Monday-Friday 09:00-17:00", handoverContact: "Shared inbox", privacyUrl: "https://example.test/privacy" },
+        lead: { fields: [{ label: "Contact", type: "email", required: true }, { label: "Contact", type: "tel", required: false }], consent: "I agree to follow-up." },
+        handover: { team: "Shared inbox", fallbackEn: "A person can help.", fallbackTh: "ทีมงานช่วยได้", outsideHours: "We will reply during business hours." },
+        widget: { domain: "https://example.test", openOnLoad: false }, entryId: "welcome",
         nodes: [
           { id: "welcome", type: "options", title: "Welcome", en: "Choose", th: "เลือก", x: 10, y: 20, keywords: ["hello"], next: null,
             options: [{ en: "Contact", th: "ติดต่อ", target: "lead" }, { en: "Person", th: "เจ้าหน้าที่", target: "handover" }], fields: [] },
@@ -52,6 +58,17 @@ describe("claimed Builder Flow adapter", () => {
     expect(Object.values(first.snapshot.nodes).map((node) => node.type).sort()).toEqual(["end", "form", "handover", "options"]);
     expect(first.snapshot.keywords).toHaveLength(2);
     expect(first.snapshot.editor?.positions).toHaveProperty(first.snapshot.rootNodeId, { x: 10, y: 20 });
+    expect(first.snapshot.authoring).toEqual({
+      templateKey: "lead",
+      identity: { greeting: { en: "Welcome", th: "ยินดีต้อนรับ" }, brandColor: "#126149", widgetPosition: "bottom_left",
+        businessHours: "Monday-Friday 09:00-17:00", handoverContact: "Shared inbox", privacyUrl: "https://example.test/privacy" },
+      lead: { fields: [
+        { key: "contact", label: { en: "Contact", th: "Contact" }, type: "email", required: true },
+        { key: "contact_2", label: { en: "Contact", th: "Contact" }, type: "phone", required: false },
+      ], consent: "I agree to follow-up." },
+      handover: { teamLabel: "Shared inbox", fallback: { en: "A person can help.", th: "ทีมงานช่วยได้" }, outsideHoursMessage: "We will reply during business hours." },
+      widget: { domain: "https://example.test", openOnLoad: false },
+    });
   });
 
   it("rejects dangling paths instead of silently dropping claimed behavior", () => {

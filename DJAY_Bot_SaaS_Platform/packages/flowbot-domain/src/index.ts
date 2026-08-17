@@ -86,6 +86,27 @@ export const flowKeywordSchema = z.object({
 export const flowSnapshotSchema = z.object({
   schemaVersion: z.literal(1), flowVersionId: z.uuid(), rootNodeId: z.uuid(),
   nodes: z.record(z.uuid(), flowNodeSchema), keywords: z.array(flowKeywordSchema).max(2000).default([]),
+  authoring: z.object({
+    templateKey: z.enum(["faq", "lead", "appointment", "product", "support", "blank"]).optional(),
+    identity: z.object({
+      greeting: localizedTextSchema.optional(),
+      brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+      widgetPosition: z.enum(["bottom_right", "bottom_left"]).optional(),
+      businessHours: z.string().trim().max(1000).optional(),
+      handoverContact: z.string().trim().max(500).optional(),
+      privacyUrl: z.union([z.literal(""), httpsUrlSchema]).optional(),
+    }).strict().optional(),
+    lead: z.object({
+      fields: z.array(formFieldSchema).max(20),
+      consent: z.string().trim().max(2000),
+    }).strict().optional(),
+    handover: z.object({
+      teamLabel: z.string().trim().max(160),
+      fallback: localizedTextSchema,
+      outsideHoursMessage: z.string().trim().max(2000),
+    }).strict().optional(),
+    widget: z.object({ domain: z.string().trim().max(2000), openOnLoad: z.boolean() }).strict().optional(),
+  }).strict().optional(),
   editor: z.object({
     positions: z.record(z.uuid(), z.object({
       x: z.number().finite().min(-1_000_000).max(1_000_000),

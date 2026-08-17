@@ -53,10 +53,24 @@ const builderFlowNodeSchema = z.object({
 }).passthrough();
 
 const builderFlowDraftSchema = z.object({
+  template: z.enum(["faq", "lead", "appointment", "product", "support", "blank"]).optional(),
   identity: z.object({
     botName: z.string().trim().min(2).max(160),
     languageMode: z.literal("customer-choice").optional(),
+    greetingEn: z.string().trim().min(1).max(5000).optional(),
+    greetingTh: z.string().trim().min(1).max(5000).optional(),
+    brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+    position: z.enum(["Bottom right", "Bottom left"]).optional(),
+    businessHours: z.string().trim().max(1000).optional(),
+    handoverContact: z.string().trim().max(500).optional(),
+    privacyUrl: z.string().trim().max(2000).optional(),
   }).passthrough(),
+  lead: z.object({ fields: z.array(builderFlowFieldSchema).max(20), consent: z.string().trim().max(2000) }).strict().optional(),
+  handover: z.object({
+    team: z.string().trim().max(160), fallbackEn: z.string().trim().max(5000),
+    fallbackTh: z.string().trim().max(5000), outsideHours: z.string().trim().max(2000),
+  }).strict().optional(),
+  widget: z.object({ domain: z.string().trim().max(2000), openOnLoad: z.boolean() }).strict().optional(),
   nodes: z.array(builderFlowNodeSchema).min(1).max(500),
   entryId: z.string().trim().min(1).max(200),
 }).passthrough().superRefine((draft, context) => {
@@ -92,6 +106,14 @@ function builderFieldKey(label: string, index: number, used: Set<string>) {
   return key;
 }
 
+function convertBuilderFields(source: readonly z.infer<typeof builderFlowFieldSchema>[]) {
+  const used = new Set<string>();
+  return source.map((field, index) => ({
+    key: builderFieldKey(field.label, index, used), label: { en: field.label, th: field.label },
+    type: field.type === "tel" ? "phone" as const : field.type, required: field.required,
+  }));
+}
+
 /** Converts the approved anonymous Flow Builder shape into the production deterministic graph. */
 export function convertClaimedBuilderFlow(input: unknown, targetFlowVersionId: string): Readonly<{
   status: "converted"; snapshot: FlowSnapshot; botName: string; defaultLanguage: "th" | "en"; warnings: readonly string[];
@@ -118,15 +140,9 @@ export function convertClaimedBuilderFlow(input: unknown, targetFlowVersionId: s
         variableKey: `answer_${index + 1}`, nextNodeId: targetId(node.next),
       }];
       if (node.type === "form") {
-        const used = new Set<string>();
         return [id, {
           id, type: "form", title: node.title, prompt: localized,
-          fields: node.fields.map((field, fieldIndex) => ({
-            key: builderFieldKey(field.label, fieldIndex, used),
-            label: { th: field.label, en: field.label },
-            type: field.type === "tel" ? "phone" : field.type,
-            required: field.required,
-          })),
+          fields: convertBuilderFields(node.fields),
           nextNodeId: targetId(node.next),
         }];
       }
@@ -142,6 +158,23 @@ export function convertClaimedBuilderFlow(input: unknown, targetFlowVersionId: s
     const snapshot = flowSnapshotSchema.parse({
       schemaVersion: 1, flowVersionId: targetFlowVersionId,
       rootNodeId: nodeIds.get(source.entryId), nodes, keywords,
+      authoring: {
+        ...(source.template ? { templateKey: source.template } : {}),
+        identity: {
+          ...(source.identity.greetingEn && source.identity.greetingTh
+            ? { greeting: { en: source.identity.greetingEn, th: source.identity.greetingTh } } : {}),
+          ...(source.identity.brandColor ? { brandColor: source.identity.brandColor } : {}),
+          ...(source.identity.position ? { widgetPosition: source.identity.position === "Bottom left" ? "bottom_left" : "bottom_right" } : {}),
+          ...(source.identity.businessHours !== undefined ? { businessHours: source.identity.businessHours } : {}),
+          ...(source.identity.handoverContact !== undefined ? { handoverContact: source.identity.handoverContact } : {}),
+          ...(source.identity.privacyUrl !== undefined ? { privacyUrl: source.identity.privacyUrl } : {}),
+        },
+        ...(source.lead ? { lead: { fields: convertBuilderFields(source.lead.fields), consent: source.lead.consent } } : {}),
+        ...(source.handover ? { handover: { teamLabel: source.handover.team,
+          fallback: { en: source.handover.fallbackEn, th: source.handover.fallbackTh },
+          outsideHoursMessage: source.handover.outsideHours } } : {}),
+        ...(source.widget ? { widget: source.widget } : {}),
+      },
       editor: { positions: Object.fromEntries(source.nodes.map((node) => [nodeIds.get(node.id), { x: node.x, y: node.y }])) },
     });
     return { status: "converted", snapshot, botName: source.identity.botName, defaultLanguage: parsed.data.locale, warnings };

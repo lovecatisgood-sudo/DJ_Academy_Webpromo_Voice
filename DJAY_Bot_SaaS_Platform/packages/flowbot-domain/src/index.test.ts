@@ -18,6 +18,21 @@ describe("FlowBot plan validation", () => {
     expect(flowNodeEdges(positioned.nodes[root]!)).toEqual([{ targetNodeId: premium, kind: "next" }]);
     expect(flowSnapshotSchema.safeParse({ ...positioned, editor: { positions: { [root]: { x: Number.POSITIVE_INFINITY, y: 0 } } } }).success).toBe(false);
   });
+  it("preserves bounded Builder authoring context without changing runtime edges", () => {
+    const configured = { ...snapshot, authoring: {
+      templateKey: "faq" as const,
+      identity: { greeting: { th: "สวัสดี", en: "Welcome" }, brandColor: "#126149" as const,
+        widgetPosition: "bottom_right" as const, businessHours: "Mon-Fri", handoverContact: "Inbox",
+        privacyUrl: "https://example.test/privacy" },
+      lead: { fields: [{ key: "email", label: { th: "อีเมล", en: "Email" }, type: "email" as const, required: true }], consent: "Contact me" },
+      handover: { teamLabel: "Shared inbox", fallback: { th: "ส่งต่อ", en: "Handover" }, outsideHoursMessage: "We will reply later." },
+      widget: { domain: "https://example.test", openOnLoad: false },
+    } };
+    expect(flowSnapshotSchema.safeParse(configured).success).toBe(true);
+    expect(flowNodeEdges(configured.nodes[root]!)).toEqual([{ targetNodeId: premium, kind: "next" }]);
+    expect(flowSnapshotSchema.safeParse({ ...configured, authoring: { ...configured.authoring,
+      identity: { ...configured.authoring.identity, privacyUrl: "javascript:alert(1)" } } }).success).toBe(false);
+  });
   it("rejects Premium nodes for Basic and accepts them for Premium", () => {
     expect(validateFlowForPublish(snapshot, basic)).toContainEqual({ code: "premium_node_not_entitled", nodeId: premium, detail: "delay" });
     expect(validateFlowForPublish(snapshot, premiumAuthority)).toEqual([]);

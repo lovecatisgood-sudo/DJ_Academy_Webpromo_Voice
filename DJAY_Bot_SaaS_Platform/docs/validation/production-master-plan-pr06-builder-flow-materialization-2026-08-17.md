@@ -8,21 +8,24 @@ This checkpoint preserves a valid anonymous Flow Builder graph as an editable te
 
 - Migration `0122_builder_flow_materialization.sql` records a tenant-scoped, one-time link from the claimed Builder draft to its materialized Flow bot.
 - The deterministic converter preserves supported bilingual graph content and stable relationships while rejecting duplicate IDs, dangling paths and incomplete interactive nodes.
+- Bounded production authoring metadata preserves the selected six-template key, bilingual greeting, brand and widget settings, business-hours/contact/privacy context, lead fields/consent and handover copy without affecting runtime edges.
 - Onboarding creates exactly one non-archived bot and one draft, remains idempotent on replay, and never overwrites an existing tenant Flow bot.
 - Invalid graphs remain durably claimed and produce failed audit evidence instead of a false successful import.
 - Builder cards become ordinary messages with the explicit `card_materialized_as_message` warning because the anonymous card schema has no production product-card payload.
 
 ## Verification
 
-- `@djay/flowbot-migration`: 5 tests passed, including deterministic conversion and invalid-edge rejection.
+- `@djay/flowbot-domain`: 19 tests passed, including authoring-metadata validation and runtime-edge invariance.
+- `@djay/flowbot-migration`: 5 tests passed, including deterministic full-context conversion and invalid-edge rejection.
 - Database unit suite: 171 passed, 74 skipped without integration credentials; 136 migration invariants passed.
-- `TEST_DB_PORT=55511 pnpm test:db`: all 118 migrations and every wired PostgreSQL integration, RLS, recovery and guarded rollback suite passed.
+- `TEST_DB_PORT=55514 pnpm test:db`: all 118 migrations and every wired PostgreSQL integration, RLS, recovery and guarded rollback suite passed after the canonical snapshot expansion.
 - Materialization integration proves one bot, one draft, zero published versions and one audit across repeated onboarding.
 - No browser or GUI was opened.
 
 ## Gates intentionally open
 
-- Text and Voice claim materialization.
+- Text and Voice claim materialization; Voice first requires an honest pre-deployment configuration resource because the current model creates Voice identity only with a key and allowed origin.
+- Authenticated editing of every preserved Flow authoring-metadata field.
 - Existing-account trial subscription/entitlement provisioning.
 - All six approved Flow templates, real website/browser acceptance and named-merchant acceptance.
 - `ONB-004` remains `in_progress`; zero requirements are accepted and all six packages remain non-sellable.

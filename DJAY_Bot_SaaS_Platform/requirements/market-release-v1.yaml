@@ -7056,6 +7056,7 @@
         "CORE-03"
       ],
       "implementation_paths": [
+        "packages/flowbot-domain/src/index.ts",
         "packages/flowbot-migration/src/index.ts",
         "packages/db/src/tenant-workspace-store.ts"
       ],
@@ -7067,6 +7068,7 @@
       "entitlement_keys": [],
       "meter_keys": [],
       "test_ids": [
+        "packages/flowbot-domain/src/index.test.ts",
         "packages/flowbot-migration/src/index.test.ts",
         "packages/db/src/anonymous-builder-store.integration.test.ts",
         "packages/db/src/migration-invariants.test.ts"
