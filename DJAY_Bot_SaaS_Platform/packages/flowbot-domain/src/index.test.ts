@@ -11,6 +11,21 @@ const snapshot: FlowSnapshot = { schemaVersion: 1, flowVersionId: randomUUID(), 
 const basic: FlowEntitlements = { planKey: "flowbot_basic", accessMode: "active", entitlements: { "ai.enabled": false, "flow.nodes.advanced": false, "flow.webhook": false, "flow.team_routing": "limited", "branding.remove": false }, limits: { active_bots: 1, flow_nodes_per_bot: 100 } };
 const premiumAuthority: FlowEntitlements = { planKey: "flowbot_premium", accessMode: "active", entitlements: { "ai.enabled": false, "flow.nodes.advanced": true, "flow.delays": true, "flow.webhook": "approved", "flow.team_routing": true, "branding.remove": true }, limits: { active_bots: 5, flow_nodes_per_bot: 500 } };
 
+function canReachTerminal(snapshot: FlowSnapshot, nodeId: string, visiting = new Set<string>()): boolean {
+  if (visiting.has(nodeId)) return false;
+  const node = snapshot.nodes[nodeId];
+  if (!node) return false;
+  const edges = flowNodeEdges(node);
+  if (edges.length === 0) return true;
+  const nextVisiting = new Set(visiting).add(nodeId);
+  return edges.some((edge) => canReachTerminal(snapshot, edge.targetNodeId, nextVisiting));
+}
+
+function expectBilingual(value: Readonly<{ th: string; en: string }>) {
+  expect(value.th.trim().length).toBeGreaterThan(0);
+  expect(value.en.trim().length).toBeGreaterThan(0);
+}
+
 describe("FlowBot plan validation", () => {
   it("creates all six approved editable bilingual starting journeys for Flow Starter", () => {
     const authority: FlowEntitlements = { ...basic, entitlements: {
@@ -26,6 +41,34 @@ describe("FlowBot plan validation", () => {
       for (const node of Object.values(template.nodes)) {
         if ("prompt" in node && node.prompt) expect(node.prompt).toEqual(expect.objectContaining({ th: expect.any(String), en: expect.any(String) }));
       }
+    }
+  });
+
+  it("proves every approved template node and customer choice is reachable, bilingual, and terminates", () => {
+    for (const templateKey of flowStarterTemplateKeys) {
+      const template = createFlowStarterTemplate(templateKey, randomUUID);
+      const reachable = new Set<string>();
+      const queue = [template.rootNodeId];
+      while (queue.length) {
+        const nodeId = queue.shift()!;
+        if (reachable.has(nodeId)) continue;
+        reachable.add(nodeId);
+        const node = template.nodes[nodeId];
+        expect(node, `${templateKey}:${nodeId}`).toBeTruthy();
+        if (!node) continue;
+        for (const edge of flowNodeEdges(node)) {
+          expect(template.nodes[edge.targetNodeId], `${templateKey}:${nodeId}:${edge.kind}`).toBeTruthy();
+          if (edge.label) expectBilingual(edge.label);
+          queue.push(edge.targetNodeId);
+        }
+        if ("content" in node) expectBilingual(node.content);
+        if ("prompt" in node && node.prompt) expectBilingual(node.prompt);
+        if ("message" in node && node.message) expectBilingual(node.message);
+        if (node.type === "form") for (const field of node.fields) expectBilingual(field.label);
+        expect(canReachTerminal(template, nodeId), `${templateKey}:${nodeId} cannot reach a terminal outcome`).toBe(true);
+      }
+      expect([...reachable].sort()).toEqual(Object.keys(template.nodes).sort());
+      expect(flowGraphAdvisories(template).some((issue) => issue.code === "unreachable_node")).toBe(false);
     }
   });
 

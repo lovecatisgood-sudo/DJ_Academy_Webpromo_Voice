@@ -18,7 +18,7 @@ This checkpoint preserves a valid anonymous Flow Builder graph as an editable te
 
 ## Verification
 
-- `@djay/flowbot-domain`: 20 tests passed, including authoring-metadata validation, runtime-edge invariance and all six bilingual Basic-compatible starting journeys.
+- `@djay/flowbot-domain`: 21 tests passed, including authoring-metadata validation, runtime-edge invariance and exhaustive reachable/bilingual/terminal route proofs for all six Basic-compatible starting journeys.
 - `@djay/flowbot-migration`: 5 tests passed, including deterministic full-context conversion and invalid-edge rejection.
 - Database unit suite: 171 passed, 74 skipped without integration credentials; 136 migration invariants passed.
 - `TEST_DB_PORT=55523 pnpm test:db`: all 119 migrations and every wired PostgreSQL integration, RLS, recovery and guarded rollback suite passed with the Flow continuation assertions.
