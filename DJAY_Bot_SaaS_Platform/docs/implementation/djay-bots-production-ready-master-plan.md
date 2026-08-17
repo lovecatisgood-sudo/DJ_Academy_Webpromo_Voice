@@ -315,6 +315,8 @@ Approved business-grounding checkpoint, 2026-08-17: Builder business type, summa
 
 Structured catalogue lifecycle checkpoint, 2026-08-17: the superseding Advanced catalogue implementation now provides stable item identity, immutable draft versions, explicit publish/archive, bilingual product/service fields, category, price display, availability, options, typed customer-action references, bounded attributes and atomic CSV draft import. Advanced entitlement and tenant boundaries are server-authoritative. Explicit collection-to-agent mapping replaces only mapped agents' draft knowledge pins when a catalogue revision is published; live playbooks and traffic remain unchanged until their separate publication path. Starter retains approved business-profile product/service grounding. `AIT-002` and `KNO-007` are implemented but unaccepted; browser, live-provider and named-merchant quality acceptance remain open.
 
+Manual FAQ lifecycle checkpoint, 2026-08-17: the authenticated guided Text configuration already provides bilingual manual FAQ add/edit/remove with server-validated draft persistence. It now also accepts strict bilingual CSV files with quoted-field support, atomic whole-file rejection, duplicate protection and the approved 100-item aggregate limit. Import changes only the editable draft; immutable publication, deployment and live traffic remain separate explicit actions. `KNO-001` is implemented but unaccepted; browser accessibility/responsive and named Thai merchant usability acceptance remain open.
+
 Exit gate:
 
 - Unmocked staging Builder → API → gateway → provider → Sales Core journeys pass.

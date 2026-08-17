@@ -3126,16 +3126,32 @@
         "AI-03",
         "AI-06"
       ],
-      "implementation_paths": [],
+      "implementation_paths": [
+        "packages/sales-core/src/index.ts",
+        "packages/db/src/ai-chat-store.ts",
+        "apps/api/app/tenant/ai-chat/agents/[agentId]/draft/route.ts",
+        "apps/tenant-web/app/workspace/ai-chat/AiPlaybookEditor.tsx",
+        "apps/tenant-web/lib/ai-faq-csv.ts"
+      ],
       "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "api_contracts": [
+        "GET|PATCH /tenant/ai-chat/agents/:agentId/draft"
+      ],
+      "ui_routes": [
+        "/workspace/ai-chat"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "packages/sales-core/src/index.test.ts",
+        "packages/db/src/anonymous-builder-store.integration.test.ts",
+        "apps/tenant-web/lib/ai-faq-csv.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/manual-bilingual-faq-authoring-import-2026-08-17.md"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {

@@ -1,6 +1,8 @@
 "use client";
 
 import { aiPlaybookFieldLimits, type AiPlaybook } from "@djay/sales-core";
+import { useState, type ChangeEvent } from "react";
+import { parseAiFaqCsv } from "../../../lib/ai-faq-csv";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 const CONTACT_FIELDS = ["name", "email", "phone"] as const;
@@ -43,6 +45,7 @@ function issueFor(validationPath: string, path: string): boolean {
 }
 
 export function AiPlaybookEditor(props: Props) {
+  const [faqImportMessage, setFaqImportMessage] = useState("");
   const disabled = props.readOnly || props.advancedPending;
   const update = <Key extends keyof AiPlaybook>(key: Key, value: AiPlaybook[Key]) => {
     props.onDefinitionChange({ ...props.definition, [key]: value });
@@ -57,6 +60,18 @@ export function AiPlaybookEditor(props: Props) {
     update("approvedFaqs", props.definition.approvedFaqs.map((item, itemIndex) => itemIndex === index ? next : item));
   };
   const updateBuilderContext = (next: NonNullable<AiPlaybook["builderContext"]>) => update("builderContext", next);
+  const importFaqs = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; event.target.value = "";
+    if (!file) return;
+    try {
+      const imported = parseAiFaqCsv(await file.text());
+      const combined = [...props.definition.approvedFaqs, ...imported];
+      if (combined.length > aiPlaybookFieldLimits.faqQuestion.maxItems) throw new Error("faq_total_limit");
+      const identities = combined.map((faq) => `${faq.question.th.toLocaleLowerCase()}\u0000${faq.question.en.toLocaleLowerCase()}`);
+      if (new Set(identities).size !== identities.length) throw new Error("faq_duplicate_existing");
+      update("approvedFaqs", combined); setFaqImportMessage(`${imported.length} FAQ rows added to this draft. Save the draft to persist them.`);
+    } catch { setFaqImportMessage("FAQ import was rejected. Use the four required bilingual columns, complete every row, and remove duplicates."); }
+  };
 
   return <div className="ai-playbook-editor">
     {props.advancedPending ? <div className="flow-editor-invalid" role="alert">
@@ -148,7 +163,12 @@ export function AiPlaybookEditor(props: Props) {
         </div>)}
         {!props.definition.approvedFaqs.length ? <p className="field-help">ยังไม่มี FAQ ที่อนุมัติ</p> : null}
       </div>
-      {!props.readOnly ? <button type="button" className="secondary-command ai-playbook-add-window" disabled={props.advancedPending || props.definition.approvedFaqs.length >= aiPlaybookFieldLimits.faqQuestion.maxItems} onClick={() => update("approvedFaqs", [...props.definition.approvedFaqs, { question: { en: "New question", th: "คำถามใหม่" }, answer: { en: "Enter the approved answer", th: "กรอกคำตอบที่อนุมัติ" } }])}>เพิ่ม FAQ</button> : null}
+      {!props.readOnly ? <div className="ai-playbook-add-window">
+        <button type="button" className="secondary-command" disabled={props.advancedPending || props.definition.approvedFaqs.length >= aiPlaybookFieldLimits.faqQuestion.maxItems} onClick={() => update("approvedFaqs", [...props.definition.approvedFaqs, { question: { en: "New question", th: "คำถามใหม่" }, answer: { en: "Enter the approved answer", th: "กรอกคำตอบที่อนุมัติ" } }])}>เพิ่ม FAQ</button>
+        <label className="secondary-command">Import bilingual CSV<input type="file" accept=".csv,text/csv" disabled={props.advancedPending} onChange={(event) => void importFaqs(event)} /></label>
+        <small>Required headers: question_th, question_en, answer_th, answer_en. Import updates this draft only.</small>
+      </div> : null}
+      {faqImportMessage ? <p className="field-help" role="status">{faqImportMessage}</p> : null}
     </fieldset>
 
     <fieldset disabled={disabled} className="ai-playbook-fieldset">
