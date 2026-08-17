@@ -95,6 +95,11 @@ describe.runIf(enabled)("document knowledge lifecycle", () => {
     await expect(ingestion.reprocessSource(context, readyUpload.sourceId)).resolves.toMatchObject({ status: "queued" });
     await expect(ingestion.reprocessSource(context, readyUpload.sourceId)).resolves.toMatchObject({ status: "already_queued" });
     await expect(ingestion.setSourceInclusion(context, readyUpload.sourceId, true)).resolves.toEqual({ status: "included" });
+    await adminClient!`WITH target AS (SELECT chunk.id FROM tenancy.knowledge_chunks chunk
+      JOIN tenancy.knowledge_source_revisions revision ON revision.tenant_id = chunk.tenant_id AND revision.id = chunk.source_revision_id
+      WHERE revision.tenant_id = ${context.tenantId}::uuid AND revision.source_id = ${readyUpload.sourceId}::uuid
+      ORDER BY chunk.created_at LIMIT 1) UPDATE tenancy.knowledge_chunks chunk SET vector_ref = 'vector-fixture-1'
+      FROM target WHERE chunk.id = target.id`;
     await expect(ingestion.deleteSource(otherContext, readyUpload.sourceId)).resolves.toEqual({ status: "not_found" });
     await expect(ingestion.deleteSource(context, readyUpload.sourceId)).resolves.toMatchObject({ status: "deleted" });
     await expect(ingestion.getSource(context, readyUpload.sourceId)).resolves.toBeNull();
@@ -109,6 +114,32 @@ describe.runIf(enabled)("document knowledge lifecycle", () => {
       WHERE source.tenant_id = ${context.tenantId}::uuid AND source.id = ${readyUpload.sourceId}::uuid
       ORDER BY job.created_at DESC LIMIT 1`;
     expect(deletedState[0]).toEqual({ sourceStatus: "erased", objectStatus: "deleted", jobStatus: "dead_letter", revisionCount: 3 });
+    const queuedCleanup = await adminClient!<{ status: string; retentionDays: number; remainingDays: number }[]>`
+      SELECT cleanup.status, policy.knowledge_days::int AS "retentionDays",
+        floor(extract(epoch FROM (cleanup.purge_by - cleanup.created_at)) / 86400)::int AS "remainingDays"
+      FROM tenancy.knowledge_source_cleanup_jobs cleanup JOIN tenancy.retention_policies policy ON policy.tenant_id = cleanup.tenant_id
+      WHERE cleanup.tenant_id = ${context.tenantId}::uuid AND cleanup.source_id = ${readyUpload.sourceId}::uuid`;
+    expect(queuedCleanup[0]).toEqual({ status: "pending", retentionDays: 730, remainingDays: 730 });
+    const cleanup = await worker.claimCleanup();
+    expect(cleanup).toMatchObject({ tenant_id: context.tenantId, source_id: readyUpload.sourceId,
+      object_keys: [readyUpload.objectKey], vector_refs: ["vector-fixture-1"], attempt_count: 1 });
+    await expect(worker.completeCleanup(cleanup!.job_id, 0, cleanup!.vector_refs.length)).rejects.toThrow(/knowledge_cleanup_count_mismatch/);
+    await expect(worker.completeCleanup(cleanup!.job_id, cleanup!.object_keys.length, cleanup!.vector_refs.length)).resolves.toBe(true);
+    const purged = await adminClient!<{ cleanupStatus: string; objectCount: number; vectorCount: number;
+      chunks: number; liveContent: number; tombstones: number }[]>`SELECT cleanup.status AS "cleanupStatus",
+        cleanup.object_count::int AS "objectCount", cleanup.vector_count::int AS "vectorCount",
+        (SELECT count(*)::int FROM tenancy.knowledge_chunks chunk JOIN tenancy.knowledge_source_revisions revision
+          ON revision.tenant_id = chunk.tenant_id AND revision.id = chunk.source_revision_id
+          WHERE revision.tenant_id = cleanup.tenant_id AND revision.source_id = cleanup.source_id) AS chunks,
+        (SELECT count(*)::int FROM tenancy.knowledge_source_revisions revision WHERE revision.tenant_id = cleanup.tenant_id
+          AND revision.source_id = cleanup.source_id AND revision.content_text <> '[knowledge source deleted]') AS "liveContent",
+        (SELECT count(*)::int FROM tenancy.knowledge_source_revisions revision WHERE revision.tenant_id = cleanup.tenant_id
+          AND revision.source_id = cleanup.source_id AND revision.content_text = '[knowledge source deleted]') AS tombstones
+      FROM tenancy.knowledge_source_cleanup_jobs cleanup
+      WHERE cleanup.tenant_id = ${context.tenantId}::uuid AND cleanup.source_id = ${readyUpload.sourceId}::uuid`;
+    expect(purged[0]).toEqual({ cleanupStatus: "completed", objectCount: 1, vectorCount: 1, chunks: 0, liveContent: 0, tombstones: 3 });
+    await expect(adminClient!`UPDATE tenancy.knowledge_source_cleanup_jobs SET object_count = 99
+      WHERE tenant_id = ${context.tenantId}::uuid AND source_id = ${readyUpload.sourceId}::uuid`).rejects.toThrow(/knowledge_cleanup_evidence_immutable/);
 
     const rejected = await ingestion.initiateUpload(context, {
       collectionId, name: "Rejected guide", filename: "rejected.pdf", mediaType: "application/pdf", size: 20,

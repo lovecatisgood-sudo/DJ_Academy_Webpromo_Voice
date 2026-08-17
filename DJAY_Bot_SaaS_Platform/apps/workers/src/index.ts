@@ -26,7 +26,7 @@ import { createSocialDeliveryClient, flowMessagesToSocialReplyInput, renderSocia
 import { deliveryErrorClass, emitChannelDeliveryResult, emitConversationFirstResponse, emitLineReplyWindowHit } from "@djay/shared";
 import { z } from "zod";
 import { deliverFlowbotIntegration } from "./flowbot-integration";
-import { runKnowledgeIngestionBatch } from "./knowledge-ingestion";
+import { runKnowledgeCleanupBatch, runKnowledgeIngestionBatch } from "./knowledge-ingestion";
 import { deliverAiIntegration } from "./ai-integration";
 import { runSupportAttachmentBatch } from "./support-attachments";
 import { appointmentSyncErrorCode, deliverAppointmentSync } from "./appointment-sync";
@@ -58,6 +58,8 @@ const envSchema = z.object({
   APPOINTMENT_SYNC_WORKER_ENABLED: z.enum(["true", "false"]).default("false"),
   VOICE_TELEPHONY_ENVELOPE_KEY: z.string().min(40).optional(),
   KNOWLEDGE_OBJECT_BUCKET: z.string().min(3).max(222).optional(),
+  KNOWLEDGE_VECTOR_DELETE_ENDPOINT: z.string().url().optional(),
+  KNOWLEDGE_VECTOR_DELETE_TOKEN: z.string().min(16).optional(),
   MALWARE_SCANNER_ENDPOINT: z.string().url().optional(),
   MALWARE_SCANNER_TOKEN: z.string().min(16).optional(),
   AI_NOTIFICATION_ENVELOPE_KEY: z.string().min(40).optional(),
@@ -126,6 +128,9 @@ if (env.AI_WORKER_ENABLED === "true" && !env.AI_NOTIFICATION_ENVELOPE_KEY) throw
 if (env.AI_INTEGRATION_WORKER_ENABLED === "true" && !env.AI_INTEGRATION_ENVELOPE_KEY) throw new Error("AI_INTEGRATION_ENVELOPE_KEY is required when AI integration processing is enabled.");
 if (env.KNOWLEDGE_WORKER_ENABLED === "true" && (!env.KNOWLEDGE_OBJECT_BUCKET || !env.MALWARE_SCANNER_ENDPOINT || !env.MALWARE_SCANNER_TOKEN)) {
   throw new Error("Knowledge object storage and malware scanner configuration is incomplete.");
+}
+if (Boolean(env.KNOWLEDGE_VECTOR_DELETE_ENDPOINT) !== Boolean(env.KNOWLEDGE_VECTOR_DELETE_TOKEN)) {
+  throw new Error("Knowledge vector deletion endpoint and token must be configured together.");
 }
 if (env.SUPPORT_ATTACHMENT_WORKER_ENABLED === "true" && (!env.KNOWLEDGE_OBJECT_BUCKET || !env.MALWARE_SCANNER_ENDPOINT || !env.MALWARE_SCANNER_TOKEN)) {
   throw new Error("Support attachment object storage and malware scanner configuration is incomplete.");
@@ -551,10 +556,15 @@ do {
     if (notification.status !== "idle") console.info("ai_chat_notification_result", notification);
   }
   if (env.KNOWLEDGE_WORKER_ENABLED === "true") {
-    const processed = await runKnowledgeIngestionBatch(knowledgeWorker, {
+    const knowledgeConfig = {
       bucket: env.KNOWLEDGE_OBJECT_BUCKET!, malwareScannerEndpoint: env.MALWARE_SCANNER_ENDPOINT!,
       malwareScannerToken: env.MALWARE_SCANNER_TOKEN!,
-    });
+      ...(env.KNOWLEDGE_VECTOR_DELETE_ENDPOINT ? { vectorDeleteEndpoint: env.KNOWLEDGE_VECTOR_DELETE_ENDPOINT } : {}),
+      ...(env.KNOWLEDGE_VECTOR_DELETE_TOKEN ? { vectorDeleteToken: env.KNOWLEDGE_VECTOR_DELETE_TOKEN } : {}),
+    };
+    const cleaned = await runKnowledgeCleanupBatch(knowledgeWorker, knowledgeConfig);
+    if (cleaned > 0) console.info("knowledge_cleanup_batch_complete", { processed: cleaned });
+    const processed = await runKnowledgeIngestionBatch(knowledgeWorker, knowledgeConfig);
     if (processed > 0) console.info("knowledge_ingestion_batch_complete", { processed });
   }
   if (env.SUPPORT_ATTACHMENT_WORKER_ENABLED === "true") {

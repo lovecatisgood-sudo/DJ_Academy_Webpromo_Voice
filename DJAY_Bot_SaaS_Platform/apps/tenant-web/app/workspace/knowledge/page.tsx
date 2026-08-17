@@ -123,7 +123,8 @@ export default function KnowledgePage() {
     if (!window.confirm("Delete this source? It will be removed from future answers and all bot drafts immediately.")) return;
     setWorking(true); setMessage(""); const response = await safeMutationFetch(`/tenant/knowledge/${sourceId}`, { method: "DELETE" }); setWorking(false);
     if (!response.ok) { setMessage("The source could not be deleted."); return; }
-    setSelectedSource(null); setMessage("Source deleted from active knowledge. Governed storage cleanup remains auditable."); await load();
+    const result = await response.json(); setSelectedSource(null);
+    setMessage(`Source removed from every future answer. Physical cleanup is queued and must complete by ${new Date(result.purgeBy).toLocaleDateString(currentIntlLocale())}.`); await load();
   }
   async function updateReview(event: FormEvent<HTMLFormElement>, action: "start" | "complete") {
     event.preventDefault(); const data = new FormData(event.currentTarget); setWorking(true); setMessage("");

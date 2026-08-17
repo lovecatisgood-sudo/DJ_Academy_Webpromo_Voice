@@ -106,6 +106,7 @@ const knowledgeIngestionDigestMigration = readFileSync(resolve(import.meta.dirna
 const governedKnowledgeCrawlingMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0127_governed_knowledge_crawling.sql"), "utf8");
 const activePublishedKnowledgeMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0128_active_published_knowledge_retrieval.sql"), "utf8");
 const knowledgeRefreshReviewMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0129_plan_bound_knowledge_refresh_reviews.sql"), "utf8");
+const knowledgeSourceCleanupMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0130_knowledge_source_cleanup.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -152,6 +153,19 @@ describe("Merchant experience migration invariants", () => {
     expect(knowledgeRefreshReviewMigration).toContain("UNIQUE (tenant_id, cycle_month)");
     expect(knowledgeRefreshReviewMigration).toContain("CREATE TRIGGER tenancy_knowledge_review_evidence_immutable");
     expect(knowledgeRefreshReviewMigration).toContain("OLD.status = 'completed'");
+    expect(knowledgeSourceCleanupMigration).toContain("CREATE TABLE tenancy.knowledge_source_cleanup_jobs");
+    expect(knowledgeSourceCleanupMigration).toContain("policy.knowledge_days");
+    expect(knowledgeSourceCleanupMigration).toContain("CREATE TRIGGER tenancy_queue_knowledge_source_cleanup");
+    expect(knowledgeSourceCleanupMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.claim_knowledge_source_cleanup");
+    expect(knowledgeSourceCleanupMigration).toContain("DELETE FROM tenancy.knowledge_chunks");
+    expect(knowledgeSourceCleanupMigration).toContain("'[knowledge source deleted]'");
+    expect(knowledgeSourceCleanupMigration).toContain("public.digest(tombstone, 'sha256')");
+    expect(knowledgeSourceCleanupMigration).toContain("knowledge_cleanup_count_mismatch");
+    expect(knowledgeSourceCleanupMigration).toContain("current_setting('app.knowledge_cleanup', true) = 'true'");
+    expect(knowledgeSourceCleanupMigration).toContain("TG_TABLE_NAME IN ('knowledge_chunks', 'knowledge_source_revisions')");
+    expect(knowledgeSourceCleanupMigration).toContain("TG_TABLE_NAME IN ('messages', 'action_results')");
+    expect(knowledgeSourceCleanupMigration).toContain("OLD.status = 'completed'");
+    expect(knowledgeSourceCleanupMigration).not.toMatch(/GRANT (INSERT|UPDATE|DELETE) ON tenancy\.knowledge_source_cleanup_jobs TO djay_runtime/i);
   });
   it("keeps anonymous Builder drafts versioned, expiring, pre-tenant, and unavailable to tenant runtime", () => {
     expect(anonymousBuilderDraftMigration).toContain("CREATE TABLE builder.anonymous_sessions");

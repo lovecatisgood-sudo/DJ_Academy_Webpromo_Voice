@@ -444,7 +444,10 @@ export class TenantKnowledgeIngestionStore {
         WHERE draft.tenant_id = ${context.tenantId}::uuid AND draft.knowledge_revision_ids && ARRAY(
           SELECT revision.id FROM tenancy.knowledge_source_revisions revision WHERE revision.tenant_id = ${context.tenantId}::uuid
             AND revision.source_id = ${sourceId}::uuid) RETURNING draft.agent_id AS "agentId"`;
-      return { status: "deleted" as const, affectedAgentDrafts: changed.length };
+      const cleanup = await sql<{ cleanupId: string; cleanupStatus: string; purgeBy: Date }[]>`SELECT id AS "cleanupId", status AS "cleanupStatus", purge_by AS "purgeBy"
+        FROM tenancy.knowledge_source_cleanup_jobs WHERE tenant_id = ${context.tenantId}::uuid AND source_id = ${sourceId}::uuid`;
+      if (!cleanup[0]) throw new Error("knowledge_cleanup_not_queued");
+      return { status: "deleted" as const, affectedAgentDrafts: changed.length, ...cleanup[0] };
     });
   }
 
@@ -670,6 +673,12 @@ const claimSchema = z.object({
 }).strict();
 export type KnowledgeIngestionClaim = z.infer<typeof claimSchema>;
 
+const cleanupClaimSchema = z.object({
+  job_id: z.uuid(), tenant_id: z.uuid(), source_id: z.uuid(), purge_by: z.coerce.date(),
+  object_keys: z.array(z.string()), vector_refs: z.array(z.string()), attempt_count: z.number().int().positive(),
+}).strict();
+export type KnowledgeSourceCleanupClaim = z.infer<typeof cleanupClaimSchema>;
+
 export class KnowledgeIngestionWorkerStore {
   constructor(private readonly client: DatabaseClient) {}
   async enqueueDue(limit = 100) {
@@ -685,6 +694,30 @@ export class KnowledgeIngestionWorkerStore {
       return sql<{ count: number }[]>`SELECT tenancy.enqueue_due_knowledge_reviews(${limit})::int AS count`;
     });
     return rows[0]?.count ?? 0;
+  }
+  async claimCleanup(now = new Date()) {
+    const rows = await this.client.begin(async (sql) => {
+      await sql`SELECT set_config('app.service', 'knowledge_worker', true)`;
+      return sql<Record<string, unknown>[]>`SELECT * FROM tenancy.claim_knowledge_source_cleanup(
+        ${now}, ${new Date(now.getTime() - 5 * 60_000)})`;
+    });
+    return rows[0] ? cleanupClaimSchema.parse(rows[0]) : null;
+  }
+  async completeCleanup(jobId: string, objectCount: number, vectorCount: number, completedAt = new Date()) {
+    const rows = await this.client.begin(async (sql) => {
+      await sql`SELECT set_config('app.service', 'knowledge_worker', true)`;
+      return sql<{ completed: boolean }[]>`SELECT tenancy.complete_knowledge_source_cleanup(
+        ${jobId}::uuid, ${objectCount}, ${vectorCount}, ${completedAt}) AS completed`;
+    });
+    return rows[0]?.completed ?? false;
+  }
+  async failCleanup(jobId: string, safeErrorCode: string) {
+    const rows = await this.client.begin(async (sql) => {
+      await sql`SELECT set_config('app.service', 'knowledge_worker', true)`;
+      return sql<{ failed: boolean }[]>`SELECT tenancy.fail_knowledge_source_cleanup(
+        ${jobId}::uuid, ${safeErrorCode}) AS failed`;
+    });
+    return rows[0]?.failed ?? false;
   }
   async reserveCrawlHost(hostname: string, minimumIntervalMs: number) {
     const rows = await this.client.begin(async (sql) => {

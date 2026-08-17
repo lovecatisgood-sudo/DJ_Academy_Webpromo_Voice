@@ -3445,16 +3445,35 @@
         "AI-03",
         "AI-06"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "implementation_paths": [
+        "packages/db/src/knowledge-ingestion-store.ts",
+        "apps/workers/src/knowledge-ingestion.ts",
+        "apps/api/app/tenant/knowledge/[sourceId]/route.ts",
+        "apps/tenant-web/app/workspace/knowledge/page.tsx"
+      ],
+      "migration_ids": [
+        "0128_active_published_knowledge_retrieval.sql",
+        "0130_knowledge_source_cleanup.sql"
+      ],
+      "api_contracts": [
+        "DELETE /tenant/knowledge/:sourceId"
+      ],
+      "ui_routes": [
+        "/workspace/knowledge"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "test_ids": [
+        "packages/db/src/knowledge-document-lifecycle.integration.test.ts",
+        "apps/workers/src/knowledge-ingestion.test.ts"
+      ],
+      "runbooks": [
+        "docs/runbooks/knowledge-source-cleanup.md"
+      ],
+      "evidence": [
+        "docs/validation/knowledge-source-cleanup-2026-08-17.md"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {

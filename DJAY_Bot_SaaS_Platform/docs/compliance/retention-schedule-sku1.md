@@ -63,9 +63,9 @@ their periods before the code exists would put a false statement in the Privacy 
    status machine already has `restricted`; the workspace does not yet honour it as read-only.
 5. **Backup expiry policy.** `docs/runbooks/backup-restore.md` says only "according to data
    retention policy" — it must state 35 days and the automation must enforce it.
-6. **Dead columns.** `conversation_days` and `knowledge_days` (`0007_shared_domain.sql:357-359`)
-   are read by nothing. Either implement them or drop them, so no future reader mistakes them for
-   enforced policy.
+6. **Dead column.** `conversation_days` (`0007_shared_domain.sql:357`) is read by nothing. Either
+   implement it or drop it, so no future reader mistakes it for enforced policy. `knowledge_days`
+   is enforced as the maximum source-cleanup deadline by `0130_knowledge_source_cleanup.sql`.
 
 Gaps 3 and 4 are not launch-blocking only because nothing is published about them until the
 post-cancellation flow ships; if the Privacy Notice describes the export window, gap 4 joins the

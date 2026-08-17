@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0129_plan_bound_knowledge_refresh_reviews";
+export const currentSchemaVersion = "0130_knowledge_source_cleanup";
 
 export { PostgresAuthStore } from "./auth-store";
 export { AccountingReconciliationWorkerStore, AccountingSyncWorkerStore, BillingWebhookRecoveryWorkerStore, BillingWebhookStore, FinancialEventReconciliationWorkerStore, FinancialReconciliationWorkerStore, SubscriptionLifecycleWorkerStore } from "./billing-webhook-store";
@@ -64,7 +64,7 @@ export { TenantWorkspaceStore, type OnboardingStage, type OnboardingChecklistSte
 export {
   KnowledgeIngestionWorkerStore, TenantKnowledgeIngestionStore,
   type CatalogueActionReference, type KnowledgeCatalogueDraft, type KnowledgeIngestionClaim,
-  type KnowledgeMediaType, type LocalizedCatalogueText,
+  type KnowledgeMediaType, type LocalizedCatalogueText, type KnowledgeSourceCleanupClaim,
 } from "./knowledge-ingestion-store";
 export { AiIntegrationWorkerStore, TenantAiOperationsStore, type AiIntegrationClaim, type AiIntegrationEvent, type AiIntegrationKind } from "./ai-operations-store";
 export { PlatformVoiceCarrierStore, TenantVoiceTelephonyStore } from "./voice-telephony-store";

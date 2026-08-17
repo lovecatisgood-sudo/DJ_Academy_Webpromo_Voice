@@ -3,13 +3,14 @@ import { lookup } from "node:dns/promises";
 import { request } from "node:https";
 import { isIP } from "node:net";
 import { Storage } from "@google-cloud/storage";
-import type { KnowledgeIngestionClaim, KnowledgeIngestionWorkerStore } from "@djay/db";
+import type { KnowledgeIngestionClaim, KnowledgeIngestionWorkerStore, KnowledgeSourceCleanupClaim } from "@djay/db";
 import { load } from "cheerio";
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 
-type KnowledgeWorkerConfig = Readonly<{
+export type KnowledgeWorkerConfig = Readonly<{
   bucket: string; malwareScannerEndpoint: string; malwareScannerToken: string;
+  vectorDeleteEndpoint?: string; vectorDeleteToken?: string;
 }>;
 
 export type KnowledgeDocumentSection = Readonly<{ label: string; text: string }>;
@@ -264,6 +265,48 @@ export async function runKnowledgeIngestionBatch(store: KnowledgeIngestionWorker
   for (; processed < limit; processed += 1) {
     const claim = await store.claim(); if (!claim) break;
     await processClaim(claim, store, config);
+  }
+  return processed;
+}
+
+type CleanupDependencies = Readonly<{
+  removeObject: (objectKey: string) => Promise<void>;
+  removeVectors: (vectorRefs: readonly string[]) => Promise<void>;
+}>;
+
+export async function processKnowledgeCleanupClaim(
+  claim: KnowledgeSourceCleanupClaim,
+  store: Pick<KnowledgeIngestionWorkerStore, "completeCleanup" | "failCleanup">,
+  dependencies: CleanupDependencies,
+) {
+  try {
+    for (const objectKey of claim.object_keys) await dependencies.removeObject(objectKey);
+    await dependencies.removeVectors(claim.vector_refs);
+    if (!(await store.completeCleanup(claim.job_id, claim.object_keys.length, claim.vector_refs.length))) {
+      throw new Error("knowledge_cleanup_state_conflict");
+    }
+    return "completed" as const;
+  } catch (error) {
+    await store.failCleanup(claim.job_id, safeError(error));
+    return "failed" as const;
+  }
+}
+
+export async function runKnowledgeCleanupBatch(store: KnowledgeIngestionWorkerStore, config: KnowledgeWorkerConfig, limit = 5) {
+  const bucket = new Storage().bucket(config.bucket); let processed = 0;
+  const removeVectors = async (vectorRefs: readonly string[]) => {
+    if (!vectorRefs.length) return;
+    if (!config.vectorDeleteEndpoint || !config.vectorDeleteToken) throw new Error("vector_cleanup_unconfigured");
+    const response = await fetch(config.vectorDeleteEndpoint, { method: "POST", headers: {
+      authorization: `Bearer ${config.vectorDeleteToken}`, "content-type": "application/json",
+    }, body: JSON.stringify({ references: vectorRefs }), signal: AbortSignal.timeout(30_000) });
+    if (!response.ok && response.status !== 404) throw new Error("vector_cleanup_failed");
+  };
+  for (; processed < limit; processed += 1) {
+    const claim = await store.claimCleanup(); if (!claim) break;
+    await processKnowledgeCleanupClaim(claim, store, {
+      removeObject: async (objectKey) => { await bucket.file(objectKey).delete({ ignoreNotFound: true }); }, removeVectors,
+    });
   }
   return processed;
 }

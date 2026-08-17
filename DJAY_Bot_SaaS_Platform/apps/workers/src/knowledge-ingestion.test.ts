@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAttributedDocument, canonicalCrawlUrl, crawlWebsite, robotsPolicy, validateKnowledgeFileSignature } from "./knowledge-ingestion";
+import { buildAttributedDocument, canonicalCrawlUrl, crawlWebsite, processKnowledgeCleanupClaim, robotsPolicy, validateKnowledgeFileSignature } from "./knowledge-ingestion";
 
 describe("knowledge document ingestion", () => {
   it("accepts only the admitted file signatures", () => {
@@ -25,6 +25,39 @@ describe("knowledge document ingestion", () => {
     expect(() => buildAttributedDocument([{ label: "Source page 1", text: "  " }])).toThrow("extracted_content_empty");
     const paragraphs = Array.from({ length: 5001 }, (_, index) => `paragraph ${index}`).join("\n\n");
     expect(() => buildAttributedDocument([{ label: "Source document", text: paragraphs }])).toThrow("extracted_content_too_many_chunks");
+  });
+});
+
+describe("knowledge deletion cleanup", () => {
+  it("deletes every external artifact before committing local cleanup evidence", async () => {
+    const calls: string[] = [];
+    const completed: unknown[][] = []; const failed: unknown[][] = [];
+    const result = await processKnowledgeCleanupClaim({ job_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", source_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+      purge_by: new Date("2028-08-17T00:00:00Z"), object_keys: ["knowledge/a", "knowledge/b"],
+      vector_refs: ["vector-1"], attempt_count: 1 }, {
+      completeCleanup: async (...args: unknown[]) => { completed.push(args); return true; },
+      failCleanup: async (...args: unknown[]) => { failed.push(args); return true; },
+    } as never, {
+      removeObject: async (key) => { calls.push(`object:${key}`); },
+      removeVectors: async (refs) => { calls.push(`vectors:${refs.join(",")}`); },
+    });
+    expect(result).toBe("completed");
+    expect(calls).toEqual(["object:knowledge/a", "object:knowledge/b", "vectors:vector-1"]);
+    expect(completed[0]?.slice(0, 3)).toEqual(["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", 2, 1]);
+    expect(failed).toEqual([]);
+  });
+
+  it("keeps local content intact and records a retry when external cleanup fails", async () => {
+    const completed: unknown[][] = []; const failed: unknown[][] = [];
+    const result = await processKnowledgeCleanupClaim({ job_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", source_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+      purge_by: new Date("2028-08-17T00:00:00Z"), object_keys: ["knowledge/a"], vector_refs: [], attempt_count: 1 }, {
+      completeCleanup: async (...args: unknown[]) => { completed.push(args); return true; },
+      failCleanup: async (...args: unknown[]) => { failed.push(args); return true; },
+    } as never, { removeObject: async () => { throw new Error("object_cleanup_failed"); }, removeVectors: async () => undefined });
+    expect(result).toBe("failed"); expect(completed).toEqual([]);
+    expect(failed).toEqual([["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", "object_cleanup_failed"]]);
   });
 });
 
