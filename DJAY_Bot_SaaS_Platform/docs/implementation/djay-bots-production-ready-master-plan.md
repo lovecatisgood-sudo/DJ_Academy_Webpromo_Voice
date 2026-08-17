@@ -349,6 +349,8 @@ Work:
 - Provide truthful loading/empty/partial/dependency/error states and clear recovery actions.
 - Add Standard/Priority support routing and staffed escalation ownership.
 
+Five-minute takeover checkpoint, 2026-08-17: the merchant Inbox and tenant API now derive takeover eligibility from the latest committed outbound Flow, Text or Voice Bot message. The tenant transaction locks the conversation, revalidates that automation still owns it and uses PostgreSQL time to require an age strictly below five minutes. Exactly 5:00, a missing Bot response, a closed conversation or an unsupported state fails without changing ownership. The UI exposes the server-derived state, disables unavailable takeover and explains the follow-up path; a stale UI action is rechecked by the server. PostgreSQL evidence proves equality denial, inside-window acceptance, tenant isolation, human reply gating and Voice continuation compatibility. Deterministic Flow return-to-main-menu, explicit AI safe-continuation evidence, permissioned browser acceptance and named-merchant acceptance remain open, so PR-09 and `OPS-012` remain `in_progress`.
+
 Exit gate:
 
 - Every tenant role passes its route/action matrix and negative authorization tests.

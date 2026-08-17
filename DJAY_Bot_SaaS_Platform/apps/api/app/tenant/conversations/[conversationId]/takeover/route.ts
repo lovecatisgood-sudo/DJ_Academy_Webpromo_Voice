@@ -11,5 +11,6 @@ export async function POST(request: NextRequest, route: { params: Promise<{ conv
     return safeJson({ status: "not_found" }, 404);
   }
   const result = await resolved.services.sharedDomain.takeOverConversation(resolved.context, parsed.data);
-  return safeJson(result, result.status === "accepted" ? 200 : result.status === "transition_denied" ? 409 : 404);
+  return safeJson(result, result.status === "accepted" ? 200
+    : ["transition_denied", "takeover_unavailable", "takeover_window_expired"].includes(result.status) ? 409 : 404);
 }

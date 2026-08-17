@@ -82,7 +82,26 @@ describe.runIf(enabled)("P3 shared domain repositories", () => {
     await expect(store.appendMessage(contextA, conversation.conversationId, {
       actorType: "human", direction: "outbound", text: "Premature reply",
     })).resolves.toEqual({ status: "handover_required" });
-    await expect(store.takeOverConversation(contextA, conversation.conversationId)).resolves.toEqual({ status: "accepted", replayed: false });
+    await adminClient!`INSERT INTO tenancy.messages (
+        id, tenant_id, conversation_id, sequence, actor_type, direction, content_json, created_at
+      ) VALUES (${randomUUID()}::uuid, ${contextA.tenantId}::uuid, ${conversation.conversationId}::uuid,
+        1, 'ai', 'outbound', ${adminClient!.json({ text: "This response is exactly at the cutoff." })},
+        now() - interval '5 minutes')`;
+    await adminClient!`UPDATE tenancy.conversations SET next_sequence = 2
+      WHERE tenant_id = ${contextA.tenantId}::uuid AND id = ${conversation.conversationId}::uuid`;
+    await expect(store.takeOverConversation({ ...contextA, requestId: "takeover-at-five-minutes" }, conversation.conversationId))
+      .resolves.toMatchObject({ status: "takeover_window_expired" });
+    expect((await store.listInbox(contextA))[0]).toMatchObject({ takeoverEligible: false });
+    await adminClient!`INSERT INTO tenancy.messages (
+        id, tenant_id, conversation_id, sequence, actor_type, direction, content_json, created_at
+      ) VALUES (${randomUUID()}::uuid, ${contextA.tenantId}::uuid, ${conversation.conversationId}::uuid,
+        2, 'ai', 'outbound', ${adminClient!.json({ text: "This response is inside the takeover window." })},
+        now() - interval '4 minutes')`;
+    await adminClient!`UPDATE tenancy.conversations SET next_sequence = 3
+      WHERE tenant_id = ${contextA.tenantId}::uuid AND id = ${conversation.conversationId}::uuid`;
+    expect((await store.listInbox(contextA))[0]).toMatchObject({ takeoverEligible: true });
+    await expect(store.takeOverConversation({ ...contextA, requestId: "takeover-inside-five-minutes" }, conversation.conversationId))
+      .resolves.toEqual({ status: "accepted", replayed: false });
     await expect(store.appendMessage(contextA, conversation.conversationId, {
       actorType: "human", direction: "outbound", text: "   ",
     })).rejects.toThrow();
@@ -94,12 +113,12 @@ describe.runIf(enabled)("P3 shared domain repositories", () => {
         actorType: "human", direction: "outbound", text: "  We can help with that  ",
       }),
     ]);
-    expect([first, second].map((item) => "sequence" in item ? item.sequence : 0).sort()).toEqual([1, 2]);
+    expect([first, second].map((item) => "sequence" in item ? item.sequence : 0).sort()).toEqual([3, 4]);
     await expect(store.appendMessage(contextA, conversation.conversationId, {
       actorType: "customer", direction: "inbound", text: "duplicate body ignored", externalMessageId: "external-message-1",
     })).resolves.toMatchObject({ status: "replayed" });
     const conversationMessages = await store.listMessages(contextA, conversation.conversationId);
-    expect(conversationMessages).toHaveLength(2);
+    expect(conversationMessages).toHaveLength(4);
     expect(conversationMessages.some((message) => message.text === "We can help with that")).toBe(true);
     expect(await store.listMessages(contextB, conversation.conversationId)).toHaveLength(0);
     expect(await store.listInbox(contextA)).toHaveLength(1);

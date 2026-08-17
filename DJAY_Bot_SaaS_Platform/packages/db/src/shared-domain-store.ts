@@ -667,7 +667,8 @@ export class SharedDomainStore {
       productKey: string; publicPlanKey: string; channelKind: string; automationMode: string;
       status: string; assignedMembershipId: string | null; legalHold: boolean;
       lastMessage: string | null;
-      lastMessageAt: Date | null; updatedAt: Date; voiceStatus: string | null;
+      lastMessageAt: Date | null; updatedAt: Date; takeoverEligible: boolean; takeoverExpiresAt: Date | null;
+      voiceStatus: string | null;
       voiceTerminalReason: string | null; voiceMinutes: number | null;
       voiceDurationSeconds: number | null; voiceOutcome: string | null;
       voiceSummary: string | null; callbackStatus: string | null; callbackDueAt: Date | null;
@@ -680,6 +681,10 @@ export class SharedDomainStore {
              conversation.legal_hold AS "legalHold",
              COALESCE(last_message.content_json->>'text', last_message.content_json->'content'->>'text') AS "lastMessage",
              last_message.created_at AS "lastMessageAt", conversation.updated_at AS "updatedAt",
+             (conversation.status = 'open'
+               AND conversation.automation_mode IN ('flowbot', 'ai_text', 'voice')
+               AND latest_bot.created_at > now() - interval '5 minutes') AS "takeoverEligible",
+             latest_bot.created_at + interval '5 minutes' AS "takeoverExpiresAt",
              voice.status AS "voiceStatus", voice.terminal_reason AS "voiceTerminalReason",
              voice.settled_minutes AS "voiceMinutes",
              voice.settled_elapsed_seconds AS "voiceDurationSeconds",
@@ -693,6 +698,12 @@ export class SharedDomainStore {
         WHERE message.tenant_id = conversation.tenant_id AND message.conversation_id = conversation.id
         ORDER BY message.sequence DESC LIMIT 1
       ) last_message ON true
+      LEFT JOIN LATERAL (
+        SELECT created_at FROM tenancy.messages message
+        WHERE message.tenant_id = conversation.tenant_id AND message.conversation_id = conversation.id
+          AND message.actor_type IN ('flowbot', 'ai') AND message.direction = 'outbound'
+        ORDER BY message.sequence DESC LIMIT 1
+      ) latest_bot ON true
       LEFT JOIN tenancy.voice_sessions voice
         ON voice.tenant_id = conversation.tenant_id AND voice.conversation_id = conversation.id
       LEFT JOIN tenancy.voice_call_outcomes outcome
@@ -831,6 +842,21 @@ export class SharedDomainStore {
       if (!conversation || conversation.status === "closed") return { status: "not_found" as const };
       if (conversation.automation_mode === "human") return { status: "accepted" as const, replayed: true as const };
       if (!canTransitionMode(conversation.automation_mode, "human")) return { status: "transition_denied" as const };
+      if (!["flowbot", "ai_text", "voice"].includes(conversation.automation_mode)) {
+        return { status: "takeover_unavailable" as const };
+      }
+      const latestBotResponses = await sql<{ eligible: boolean; expires_at: Date }[]>`
+        SELECT created_at > now() - interval '5 minutes' AS eligible,
+               created_at + interval '5 minutes' AS expires_at
+        FROM tenancy.messages
+        WHERE tenant_id = ${context.tenantId}::uuid AND conversation_id = ${conversationId}::uuid
+          AND actor_type IN ('flowbot', 'ai') AND direction = 'outbound'
+        ORDER BY sequence DESC LIMIT 1
+      `;
+      if (!latestBotResponses[0]?.eligible) {
+        return { status: "takeover_window_expired" as const,
+          expiresAt: latestBotResponses[0]?.expires_at ?? null };
+      }
       await sql`
         UPDATE tenancy.conversations
         SET automation_mode = 'human', assigned_membership_id = ${context.membershipId}::uuid, updated_at = now()

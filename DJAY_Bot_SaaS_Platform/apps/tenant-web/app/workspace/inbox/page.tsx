@@ -18,6 +18,7 @@ type Conversation = {
   id: string; contactName: string; productKey: string; channelKind: string;
   automationMode: string; status: string; legalHold?: boolean;
   lastMessage: string | null; lastMessageAt: string | null;
+  takeoverEligible: boolean; takeoverExpiresAt: string | null;
   voiceStatus: string | null; voiceTerminalReason: string | null; voiceMinutes: number | null;
   voiceDurationSeconds: number | null; voiceOutcome: string | null; voiceSummary: string | null;
   callbackStatus: string | null; callbackDueAt: string | null;
@@ -125,8 +126,12 @@ export default function InboxPage() {
     const response = await safeMutationFetch(`/tenant/conversations/${selectedId}/${action}`, { method: "POST" });
     setWorking(false);
     if (!response.ok) {
+      const result = await response.json().catch(() => null) as { status?: string } | null;
       setNoticeTone("error");
-      setNotice(action === "takeover" ? "Conversation could not be taken over." : "Conversation could not be released.");
+      setNotice(action === "takeover" && result?.status === "takeover_window_expired"
+        ? "Takeover is available only while the latest Bot response is less than five minutes old. The conversation was not changed."
+        : action === "takeover" ? "Conversation could not be taken over." : "Conversation could not be released.");
+      if (action === "takeover") await loadInbox();
       return;
     }
     setNoticeTone("success");
@@ -222,10 +227,13 @@ export default function InboxPage() {
                     {canAssign && selected.status === "open"
                       ? selected.automationMode === "human"
                         ? <button type="button" className="secondary-command" disabled={working} onClick={() => void transition("release")}>ระบบเผยแพร่อัตโนมัติ</button>
-                        : <button type="button" className="secondary-command" disabled={working} onClick={() => void transition("takeover")}>รับช่วงการสนทนา</button>
+                        : <button type="button" className="secondary-command" disabled={working || !selected.takeoverEligible} onClick={() => void transition("takeover")}>รับช่วงการสนทนา</button>
                       : null}
                   </div>
                 </header>
+                {canAssign && selected.status === "open" && selected.automationMode !== "human" && !selected.takeoverEligible ? (
+                  <div className="closed-line">Takeover is unavailable. It requires a Bot response less than five minutes old.</div>
+                ) : null}
                 {selected.productKey === "voice" ? (
                   <section className="voice-call-summary" aria-label="ผลลัพธ์ของสาย">
                     <div>

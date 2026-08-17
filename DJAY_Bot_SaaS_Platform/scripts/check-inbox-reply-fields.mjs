@@ -19,7 +19,12 @@ const domain = read("packages/domain/src/index.ts");
 if (!domain.includes("text: conversationMessageTextSchema")) failures.push("Domain messages do not use the shared normalized text contract");
 
 const store = read("packages/db/src/shared-domain-store.ts");
-for (const marker of ["messageInputSchema.parse(input)", "sql.json({ text: parsed.text })"]) {
+for (const marker of [
+  "messageInputSchema.parse(input)", "sql.json({ text: parsed.text })",
+  "created_at > now() - interval '5 minutes' AS eligible",
+  'status: "takeover_window_expired"',
+  "FOR UPDATE",
+]) {
   if (!store.includes(marker)) failures.push(`Shared-domain repository is missing ${marker}`);
 }
 
@@ -30,8 +35,15 @@ for (const marker of [
   "conversationMessageFieldConstraints",
   "reportValidity()",
   "Reply sent.",
+  "takeoverEligible",
+  "latest Bot response is less than five minutes old",
   'role={noticeTone === "error" ? "alert" : "status"}',
 ]) if (!inbox.includes(marker)) failures.push(`Inbox reply journey is missing ${marker}`);
+
+const takeoverRoute = read("apps/api/app/tenant/conversations/[conversationId]/takeover/route.ts");
+for (const marker of ["conversations.assign", "hasTrustedOrigin", "takeover_window_expired"]) {
+  if (!takeoverRoute.includes(marker)) failures.push(`Takeover route is missing ${marker}`);
+}
 
 const browser = read("scripts/qa-p3-ui.mjs");
 for (const marker of [
@@ -45,4 +57,4 @@ if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
-console.info("Inbox replies match the shared normalized message contract and accessible recovery journey.");
+console.info("Inbox replies and the server-authoritative five-minute takeover boundary match the approved contract.");

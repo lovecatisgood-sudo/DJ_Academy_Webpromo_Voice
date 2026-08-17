@@ -7701,16 +7701,34 @@
         "OPS-02",
         "OPS-05"
       ],
-      "implementation_paths": [],
+      "implementation_paths": [
+        "packages/db/src/shared-domain-store.ts",
+        "apps/api/app/tenant/conversations/[conversationId]/takeover/route.ts",
+        "apps/api/app/tenant/conversations/[conversationId]/release/route.ts",
+        "apps/tenant-web/app/workspace/inbox/page.tsx"
+      ],
       "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "api_contracts": [
+        "GET /tenant/conversations",
+        "POST /tenant/conversations/:conversationId/takeover",
+        "POST /tenant/conversations/:conversationId/release"
+      ],
+      "ui_routes": [
+        "/workspace/inbox"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "packages/db/src/shared-domain-store.integration.test.ts",
+        "packages/db/src/ai-chat-runtime-store.integration.test.ts",
+        "packages/db/src/voice-runtime-store.integration.test.ts",
+        "scripts/check-inbox-reply-fields.mjs"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/production-master-plan-pr09-five-minute-takeover-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {

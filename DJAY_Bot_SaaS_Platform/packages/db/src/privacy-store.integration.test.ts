@@ -64,7 +64,7 @@ describe.runIf(enabled)("P3 privacy processing", () => {
     const artifact = await tenantPrivacy.readExport(contextA, exportJob.id, encryptionKey);
     expect(artifact?.format).toBe("djay-privacy-export-v1");
     expect(artifact?.data.contacts).toHaveLength(1);
-    expect(artifact?.data.messages).toHaveLength(3);
+    expect(artifact?.data.messages).toHaveLength(5);
     expect(artifact?.data.leads).toHaveLength(1);
     await expect(tenantPrivacy.readExport(contextB, exportJob.id, encryptionKey)).resolves.toBeNull();
 
