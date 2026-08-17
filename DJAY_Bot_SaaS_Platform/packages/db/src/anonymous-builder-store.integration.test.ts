@@ -301,4 +301,71 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
     });
     expect(evidence[0]?.materialized_bot_id).toMatch(/^[0-9a-f-]{36}$/);
   });
+
+  it("materializes complete claimed Text and Voice configurations without publishing or deploying", async () => {
+    const store = new AnonymousBuilderStore(authClient!);
+    for (const family of ["text", "voice"] as const) {
+      const now = new Date(); const sessionId = randomUUID(); const tenantId = randomUUID(); const membershipId = randomUUID();
+      const userId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+      await adminClient!.begin(async (sql) => {
+        await sql`INSERT INTO tenancy.tenants (id, slug, business_name, status, locale, timezone)
+          VALUES (${tenantId}::uuid, ${`${family}-materialization-${tenantId.slice(0, 8)}`},
+            ${`${family} Materialization Test`}, 'active', 'en', 'Asia/Bangkok')`;
+        await sql`INSERT INTO tenancy.memberships (id, tenant_id, user_id, role, status, accepted_at)
+          VALUES (${membershipId}::uuid, ${tenantId}::uuid, ${userId}::uuid,
+            'tenant_master_admin', 'active', ${now})`;
+        await sql`INSERT INTO tenancy.tenant_onboarding (tenant_id, stage) VALUES (${tenantId}::uuid, 'account_created')`;
+      });
+      const draft = await store.ensureDraft({ sessionId, issuedAt: now,
+        expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60_000), now });
+      const greeting = "Hello, how can I help?"; const disclosure = "I am an AI assistant.";
+      const voiceDisclosure = "I am an AI voice assistant and this call may be transcribed.";
+      const translated = (en: string, th: string) => ({ en, th, sourceEn: en, status: "needs_review", reviewed: false });
+      const state = {
+        schemaVersion: 1, locale: "en", family, access: { product: family,
+          plan: family === "text" ? "ai_chat_basic" : "voice_basic_gen1", intent: family === "text" ? "trial" : "subscribe" },
+        templateOrRole: { role: "booking" }, configuration: { textDraft: {
+          business: { name: "Siamese Studio", type: "Services", summary: "Appointments", offers: "Consultation",
+            hours: "Mon-Fri", contact: "team@example.test", agentObjective: "Collect appointment requests",
+            agentBehavior: "Confirm details", agentBoundaries: "Never claim confirmation", faqs: [{ question: "When?", answer: "Weekdays" }] },
+          botName: `${family} Booking Assistant`, language: "English and Thai", greeting, tone: "Warm and concise",
+          disclosure, neverInvent: "Never invent availability", voice: { disclosure: voiceDisclosure },
+          translations: { customerCopy: { greeting: translated(greeting, "สวัสดี มีอะไรให้ช่วย"),
+            disclosure: translated(disclosure, "ฉันเป็นผู้ช่วย AI"),
+            voiceDisclosure: translated(voiceDisclosure, "ฉันเป็นผู้ช่วยเสียง AI และสายนี้อาจถูกถอดความ") } },
+        } } };
+      await expect(store.updateDraft({ sessionId, revision: draft!.revision, schemaVersion: 1, productFamily: family,
+        planKey: family === "text" ? "ai_chat_basic" : "voice_basic_gen1", state,
+        now: new Date(now.getTime() + 1_000) })).resolves.toMatchObject({ status: "updated" });
+      const tokenHash = createHash("sha256").update(`${family}:${sessionId}`).digest();
+      await store.issueClaimContinuation({ sessionId, tokenHash, now: new Date(now.getTime() + 2_000),
+        expiresAt: new Date(now.getTime() + 15 * 60_000) });
+      const requestId = `${family}-materialization-${sessionId}`;
+      await expect(store.claimExistingAccountDraft({ tokenHash, tenantId, userId, membershipId, requestId,
+        now: new Date(now.getTime() + 3_000) })).resolves.toMatchObject({ status: "claimed" });
+      const workspace = new TenantWorkspaceStore(tenantClient!);
+      const context = createTenantContext({ tenantId, userId, membershipId, requestId, sessionId: randomUUID(), role: "tenant_master_admin" });
+      await expect(workspace.completeMerchantOnboarding(context, { version: 1, acceptedGuidelines: true,
+        businessGoal: "book_appointments", industry: "services" })).resolves.toMatchObject({ status: "completed" });
+      await expect(workspace.completeMerchantOnboarding(context, { version: 1, acceptedGuidelines: true,
+        businessGoal: "book_appointments", industry: "services" })).resolves.toMatchObject({ status: "already_completed" });
+      const evidence = await adminClient!<{
+        agents: number; drafts: number; versions: number; voice_deployments: number;
+        product_family: string; materialized_ai_agent_id: string | null; audits: number;
+      }[]>`SELECT
+        (SELECT count(*)::int FROM tenancy.ai_agents WHERE tenant_id = ${tenantId}::uuid) AS agents,
+        (SELECT count(*)::int FROM tenancy.ai_playbook_drafts WHERE tenant_id = ${tenantId}::uuid) AS drafts,
+        (SELECT count(*)::int FROM tenancy.ai_playbook_versions WHERE tenant_id = ${tenantId}::uuid) AS versions,
+        (SELECT count(*)::int FROM tenancy.voice_deployments WHERE tenant_id = ${tenantId}::uuid) AS voice_deployments,
+        agent.product_family, claim.materialized_ai_agent_id,
+        (SELECT count(*)::int FROM tenancy.audit_logs WHERE tenant_id = ${tenantId}::uuid
+          AND action = 'tenant.builder_ai_materialized') AS audits
+        FROM tenancy.builder_draft_claims claim
+        JOIN tenancy.ai_agents agent ON agent.tenant_id = claim.tenant_id AND agent.id = claim.materialized_ai_agent_id
+        WHERE claim.source_session_id = ${sessionId}::uuid`;
+      expect(evidence[0]).toMatchObject({ agents: 1, drafts: 1, versions: 0, voice_deployments: 0,
+        product_family: family, audits: 1 });
+      expect(evidence[0]?.materialized_ai_agent_id).toMatch(/^[0-9a-f-]{36}$/);
+    }
+  });
 });

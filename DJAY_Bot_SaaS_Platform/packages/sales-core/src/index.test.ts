@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aiPlaybookFieldLimits, aiPlaybookSchema, buildSalesCorePolicy, chunkKnowledge, countVisibleCharacters, countVisibleWords, salesCoreOutputSchema, selectRelevantKnowledge } from "./index";
+import { aiPlaybookFieldLimits, aiPlaybookSchema, buildSalesCorePolicy, chunkKnowledge, convertClaimedBuilderPlaybook, countVisibleCharacters, countVisibleWords, salesCoreOutputSchema, selectRelevantKnowledge } from "./index";
 
 const ids = {
   revision: "11111111-1111-4111-8111-111111111111",
@@ -95,5 +95,42 @@ describe("Sales Conversation Core contract", () => {
     const chunks = chunkKnowledge("Website plans improve conversion.\n\nAppointment requests require confirmation.", 80)
       .map((content, index) => ({ sourceRevisionId: ids.revision, chunkId: chunkIds[index]!, content }));
     expect(selectRelevantKnowledge(chunks, "appointment confirmation", 1)[0]?.content).toContain("confirmation");
+  });
+
+  it("converts a complete claimed bilingual Voice draft without creating deployment state", () => {
+    const source = "Hello, how can I help?";
+    const disclosure = "I am an AI assistant.";
+    const voiceDisclosure = "I am an AI voice assistant and this call may be transcribed.";
+    const translated = (en: string, th: string) => ({ en, th, sourceEn: en, status: "needs_review", reviewed: false });
+    const converted = convertClaimedBuilderPlaybook({
+      schemaVersion: 1, locale: "en", family: "voice", templateOrRole: { role: "booking" },
+      configuration: { textDraft: {
+        business: { name: "Siamese Studio", type: "Services", summary: "Appointments", offers: "Consultation",
+          hours: "Mon-Fri", contact: "team@example.test", agentObjective: "Collect an appointment request safely",
+          agentBehavior: "Confirm details", agentBoundaries: "Never claim confirmation", faqs: [{ question: "When?", answer: "Weekdays" }] },
+        botName: "Siamese Booking Assistant", language: "English and Thai", greeting: source,
+        tone: "Warm and concise", disclosure, neverInvent: "Never invent availability", voice: { disclosure: voiceDisclosure },
+        translations: { customerCopy: { greeting: translated(source, "สวัสดี มีอะไรให้ช่วย"),
+          disclosure: translated(disclosure, "ฉันเป็นผู้ช่วย AI"),
+          voiceDisclosure: translated(voiceDisclosure, "ฉันเป็นผู้ช่วยเสียง AI และสายนี้อาจถูกถอดความ") } },
+      } },
+    }, "54000000-0000-4000-8000-000000000099");
+    expect(converted).toMatchObject({ status: "converted", productFamily: "voice", agentName: "Siamese Booking Assistant" });
+    if (converted.status !== "converted") throw new Error("Expected conversion.");
+    expect(converted.playbook).toMatchObject({ agentRole: "booking", languages: ["th", "en"],
+      greeting: { en: source, th: "สวัสดี มีอะไรให้ช่วย" }, builderContext: { productFamily: "voice",
+        businessHours: "Mon-Fri", faqs: [{ question: "When?", answer: "Weekdays" }] } });
+  });
+
+  it("rejects stale required Thai copy instead of publishing English as Thai", () => {
+    expect(convertClaimedBuilderPlaybook({
+      schemaVersion: 1, locale: "th", family: "text", templateOrRole: { role: "sales" },
+      configuration: { textDraft: { business: { name: "Studio", agentObjective: "Qualify needs" },
+        botName: "Studio Assistant", language: "English and Thai", greeting: "Hello", tone: "Warm", disclosure: "AI assistant",
+        translations: { customerCopy: {
+          greeting: { en: "Hello", th: "สวัสดี", sourceEn: "Older", status: "stale", reviewed: false },
+          disclosure: { en: "AI assistant", th: "ผู้ช่วย AI", sourceEn: "AI assistant", status: "current", reviewed: true },
+        } } } },
+    }, "54000000-0000-4000-8000-000000000098")).toMatchObject({ status: "invalid", reasonCode: "builder_translation_incomplete" });
   });
 });

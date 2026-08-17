@@ -79,7 +79,8 @@ export class AiChatStore {
       LEFT JOIN tenancy.ai_playbook_drafts draft ON draft.tenant_id = agent.tenant_id AND draft.agent_id = agent.id
       LEFT JOIN tenancy.ai_deployments deployment ON deployment.tenant_id = agent.tenant_id
         AND deployment.agent_id = agent.id AND deployment.status = 'active'
-      WHERE agent.tenant_id = ${context.tenantId}::uuid AND agent.status <> 'archived'
+      WHERE agent.tenant_id = ${context.tenantId}::uuid AND agent.product_family = 'text'
+        AND agent.status <> 'archived'
       GROUP BY agent.id, draft.revision ORDER BY agent.updated_at DESC, agent.id
     `);
   }
@@ -92,8 +93,7 @@ export class AiChatStore {
       await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${context.tenantId}:ai_chat:active_bots`}, 0))`;
       const counts = await sql<{ count: number }[]>`
         SELECT count(*)::int AS count FROM tenancy.ai_agents
-        WHERE tenant_id = ${context.tenantId}::uuid AND status <> 'archived'
-          AND id NOT IN (SELECT agent_id FROM tenancy.voice_deployments WHERE tenant_id = ${context.tenantId}::uuid)
+        WHERE tenant_id = ${context.tenantId}::uuid AND product_family = 'text' AND status <> 'archived'
       `;
       const activeBotLimit = authority.limits.active_bots;
       if (typeof activeBotLimit === "number" && (counts[0]?.count ?? 0) >= activeBotLimit) {
@@ -115,8 +115,8 @@ export class AiChatStore {
         timezone: "Asia/Bangkok", weeklyWindows: [1, 2, 3, 4, 5].map((dayOfWeek) => ({ dayOfWeek, startMinute: 540, endMinute: 1020 })),
       };
       await sql`
-        INSERT INTO tenancy.ai_agents (id, tenant_id, name, default_language, created_by_membership_id)
-        VALUES (${agentId}::uuid, ${context.tenantId}::uuid, ${input.name}, ${input.defaultLanguage}, ${context.membershipId}::uuid)
+        INSERT INTO tenancy.ai_agents (id, tenant_id, name, product_family, default_language, created_by_membership_id)
+        VALUES (${agentId}::uuid, ${context.tenantId}::uuid, ${input.name}, 'text', ${input.defaultLanguage}, ${context.membershipId}::uuid)
       `;
       await sql`
         INSERT INTO tenancy.ai_playbook_drafts (tenant_id, agent_id, definition_json, updated_by_membership_id)

@@ -72,9 +72,108 @@ export const aiPlaybookSchema = z.object({
       catch { context.addIssue({ code: "custom", path: ["url"], message: "Actions require an HTTPS URL." }); }
     }
   })).max(12).default([]),
+  builderContext: z.object({
+    productFamily: z.enum(["text", "voice"]),
+    disclosure: z.object({ th: z.string().max(500), en: z.string().max(500) }).strict(),
+    voiceDisclosure: z.object({ th: z.string().max(500), en: z.string().max(500) }).strict().optional(),
+    businessType: z.string().max(300), businessSummary: z.string().max(5000),
+    offers: z.string().max(5000), businessHours: z.string().max(1000), contact: z.string().max(1000),
+    agentBehavior: z.string().max(5000), agentBoundaries: z.string().max(5000),
+    faqs: z.array(z.object({ question: z.string().max(1000), answer: z.string().max(5000) }).strict()).max(100),
+  }).strict().optional(),
 }).strict();
 
 export type AiPlaybook = z.infer<typeof aiPlaybookSchema>;
+
+const builderTranslationSchema = z.object({
+  en: z.string().max(5000), th: z.string().max(5000), sourceEn: z.string().max(5000),
+  status: z.enum(["missing", "stale", "needs_review", "current"]), reviewed: z.boolean(),
+}).passthrough();
+
+const claimedBuilderPlaybookSchema = z.object({
+  schemaVersion: z.literal(1), locale: z.enum(["th", "en"]), family: z.enum(["text", "voice"]),
+  templateOrRole: z.object({ role: z.enum(["support", "sales", "booking"]) }).passthrough(),
+  configuration: z.object({ textDraft: z.object({
+    business: z.object({
+      name: z.string().trim().min(2).max(200), type: z.string().max(300).default(""),
+      summary: z.string().max(5000).default(""), offers: z.string().max(5000).default(""),
+      hours: z.string().max(1000).default(""), contact: z.string().max(1000).default(""),
+      agentObjective: z.string().trim().min(2).max(500), agentBehavior: z.string().max(5000).default(""),
+      agentBoundaries: z.string().max(5000).default(""),
+      faqs: z.array(z.object({ question: z.string().max(1000), answer: z.string().max(5000) }).passthrough()).max(100).default([]),
+    }).passthrough(),
+    botName: z.string().trim().min(2).max(100), language: z.enum(["English", "Thai", "English and Thai"]),
+    greeting: z.string().trim().min(1).max(500), tone: z.string().trim().min(2).max(200),
+    disclosure: z.string().trim().min(1).max(500), neverInvent: z.string().max(5000).default(""),
+    voice: z.object({ disclosure: z.string().trim().min(1).max(500) }).passthrough().optional(),
+    translations: z.object({ customerCopy: z.object({
+      greeting: builderTranslationSchema, disclosure: builderTranslationSchema,
+      voiceDisclosure: builderTranslationSchema.optional(),
+    }).passthrough() }).passthrough(),
+  }).passthrough() }).passthrough(),
+}).passthrough();
+
+function translatedCopy(
+  source: string,
+  record: z.infer<typeof builderTranslationSchema> | undefined,
+  thaiRequired: boolean,
+  safeThaiDefault: string,
+) {
+  if (!thaiRequired) return { en: source, th: safeThaiDefault };
+  if (!record) return null;
+  if (record.en !== source || record.sourceEn !== source
+    || !record.th.trim() || !["needs_review", "current"].includes(record.status)) return null;
+  return { en: source, th: record.th.trim() };
+}
+
+/** Converts a complete claimed Text/Voice Builder draft into an unpublished production playbook. */
+export function convertClaimedBuilderPlaybook(input: unknown, playbookVersionId: string): Readonly<
+  { status: "converted"; playbook: AiPlaybook; productFamily: "text" | "voice"; agentName: string; defaultLanguage: "th" | "en" }
+  | { status: "invalid"; reasonCode: string; detail: string }
+> {
+  const parsed = claimedBuilderPlaybookSchema.safeParse(input);
+  if (!parsed.success) return { status: "invalid", reasonCode: "builder_playbook_invalid", detail: parsed.error.issues[0]?.message ?? "invalid" };
+  const source = parsed.data.configuration.textDraft;
+  const thaiRequired = source.language !== "English";
+  const greeting = translatedCopy(source.greeting, source.translations.customerCopy.greeting, thaiRequired,
+    "สวัสดี ต้องการให้ช่วยเรื่องใด?");
+  const disclosure = translatedCopy(source.disclosure, source.translations.customerCopy.disclosure, thaiRequired,
+    "ฉันเป็นผู้ช่วย AI ของธุรกิจนี้");
+  const voiceDisclosure = source.voice
+    ? translatedCopy(source.voice.disclosure, source.translations.customerCopy.voiceDisclosure, thaiRequired,
+      "ฉันเป็นผู้ช่วยเสียง AI และสายนี้อาจถูกถอดความ") : undefined;
+  if (!greeting || !disclosure || (parsed.data.family === "voice" && !voiceDisclosure)) {
+    return { status: "invalid", reasonCode: "builder_translation_incomplete", detail: "Required customer copy is missing or stale." };
+  }
+  const role = parsed.data.templateOrRole.role;
+  const roleQuestion = role === "support" ? "What issue would you like help resolving?"
+    : role === "booking" ? "Which service and time would you like to request?"
+      : "What outcome are you trying to achieve?";
+  const cta = role === "support" ? "Offer human help when the issue cannot be resolved from approved information"
+    : role === "booking" ? "Create only a merchant-confirmed appointment request"
+      : "Offer a relevant next step after understanding the customer's need";
+  try {
+    const playbook = aiPlaybookSchema.parse({
+      schemaVersion: 1, playbookVersionId, agentRole: role,
+      businessName: source.business.name, agentName: source.botName,
+      languages: source.language === "English" ? ["en"] : source.language === "Thai" ? ["th"] : ["th", "en"],
+      tone: source.tone, salesGoal: source.business.agentObjective,
+      approvedClaims: [], prohibitedClaims: [source.business.agentBoundaries, source.neverInvent].map((value) => value.trim()).filter(Boolean),
+      discoveryQuestions: [roleQuestion], ctaPolicy: [cta], requiredContactFields: ["name", "email", "phone"],
+      greeting, offlineMessage: { en: "Our team will follow up during business hours.", th: "ทีมงานจะติดต่อกลับในเวลาทำการ" },
+      timezone: "Asia/Bangkok", weeklyWindows: [1, 2, 3, 4, 5].map((dayOfWeek) => ({ dayOfWeek, startMinute: 540, endMinute: 1020 })),
+      builderContext: { productFamily: parsed.data.family, disclosure, ...(voiceDisclosure ? { voiceDisclosure } : {}),
+        businessType: source.business.type, businessSummary: source.business.summary, offers: source.business.offers,
+        businessHours: source.business.hours, contact: source.business.contact,
+        agentBehavior: source.business.agentBehavior, agentBoundaries: source.business.agentBoundaries,
+        faqs: source.business.faqs.map(({ question, answer }) => ({ question, answer })) },
+    });
+    return { status: "converted", playbook, productFamily: parsed.data.family,
+      agentName: source.botName, defaultLanguage: parsed.data.locale };
+  } catch (error) {
+    return { status: "invalid", reasonCode: "builder_playbook_target_invalid", detail: error instanceof Error ? error.message.slice(0, 300) : "invalid" };
+  }
+}
 
 export const salesFactSchema = z.object({
   type: z.enum([

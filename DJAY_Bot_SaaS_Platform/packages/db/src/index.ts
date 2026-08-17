@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0122_builder_flow_materialization";
+export const currentSchemaVersion = "0123_predeployment_ai_configurations";
 
 export { PostgresAuthStore } from "./auth-store";
 export { AccountingReconciliationWorkerStore, AccountingSyncWorkerStore, BillingWebhookRecoveryWorkerStore, BillingWebhookStore, FinancialEventReconciliationWorkerStore, FinancialReconciliationWorkerStore, SubscriptionLifecycleWorkerStore } from "./billing-webhook-store";

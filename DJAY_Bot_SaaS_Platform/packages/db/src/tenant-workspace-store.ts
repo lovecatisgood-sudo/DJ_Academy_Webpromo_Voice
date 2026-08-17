@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { convertClaimedBuilderFlow } from "@djay/flowbot-migration";
+import { convertClaimedBuilderPlaybook } from "@djay/sales-core";
 import type { TenantContext, TenantRole } from "@djay/tenancy";
 import type { DatabaseClient, DatabaseTransaction } from "./client";
 import { withTenantTransaction } from "./scoped-transaction";
@@ -96,6 +97,7 @@ type LatestBuilderClaim = Readonly<{
   sourceRevision: number;
   state: unknown;
   materializedFlowBotId: string | null;
+  materializedAiAgentId: string | null;
 }>;
 
 async function materializeClaimedFlow(
@@ -151,6 +153,60 @@ async function materializeClaimedFlow(
       sourceClaimId: claim.id, sourceRevision: claim.sourceRevision,
       warnings: converted.warnings, publicationState: "draft",
     })}
+  )`;
+}
+
+async function materializeClaimedAiConfiguration(
+  sql: DatabaseTransaction,
+  context: TenantContext,
+  claim: LatestBuilderClaim,
+) {
+  if ((claim.productFamily !== "text" && claim.productFamily !== "voice") || claim.materializedAiAgentId) return;
+  const existing = await sql<{ id: string }[]>`
+    SELECT id FROM tenancy.ai_agents
+    WHERE tenant_id = ${context.tenantId}::uuid AND product_family = ${claim.productFamily}
+      AND status <> 'archived'
+    ORDER BY created_at, id LIMIT 1
+  `;
+  if (existing[0]) return;
+  const draftVersionId = randomUUID();
+  const converted = convertClaimedBuilderPlaybook(claim.state, draftVersionId);
+  if (converted.status !== "converted") {
+    await sql`INSERT INTO tenancy.audit_logs (
+      tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id,
+      request_id, result, metadata
+    ) VALUES (
+      ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+      'tenant.builder_ai_materialization', 'builder_draft_claim', ${claim.id},
+      ${context.requestId}, 'failed', ${sql.json({ reasonCode: converted.reasonCode,
+        productFamily: claim.productFamily, sourceRevision: claim.sourceRevision })}
+    )`;
+    return;
+  }
+  const agentId = randomUUID();
+  await sql`INSERT INTO tenancy.ai_agents (
+    id, tenant_id, name, product_family, status, default_language, created_by_membership_id
+  ) VALUES (
+    ${agentId}::uuid, ${context.tenantId}::uuid, ${converted.agentName}, ${converted.productFamily},
+    'draft', ${converted.defaultLanguage}, ${context.membershipId}::uuid
+  )`;
+  await sql`INSERT INTO tenancy.ai_playbook_drafts (
+    tenant_id, agent_id, definition_json, updated_by_membership_id
+  ) VALUES (
+    ${context.tenantId}::uuid, ${agentId}::uuid, ${sql.json(converted.playbook)}, ${context.membershipId}::uuid
+  )`;
+  await sql`UPDATE tenancy.builder_draft_claims
+    SET materialized_ai_agent_id = ${agentId}::uuid, materialized_ai_at = now()
+    WHERE tenant_id = ${context.tenantId}::uuid AND id = ${claim.id}::uuid
+      AND materialized_ai_agent_id IS NULL`;
+  await sql`INSERT INTO tenancy.audit_logs (
+    tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id,
+    request_id, result, metadata
+  ) VALUES (
+    ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+    'tenant.builder_ai_materialized', 'ai_agent', ${agentId}, ${context.requestId}, 'succeeded',
+    ${sql.json({ sourceClaimId: claim.id, sourceRevision: claim.sourceRevision,
+      productFamily: converted.productFamily, publicationState: "draft", deploymentCreated: false })}
   )`;
 }
 
@@ -515,7 +571,8 @@ export class TenantWorkspaceStore {
       if (!existing) return { status: "not_found" as const };
       const claims = await sql<LatestBuilderClaim[]>`
         SELECT id, product_family AS "productFamily", source_revision AS "sourceRevision",
-          state_json AS state, materialized_flow_bot_id AS "materializedFlowBotId"
+          state_json AS state, materialized_flow_bot_id AS "materializedFlowBotId",
+          materialized_ai_agent_id AS "materializedAiAgentId"
         FROM tenancy.builder_draft_claims
         WHERE tenant_id = ${context.tenantId}::uuid
         ORDER BY claimed_at DESC, id DESC LIMIT 1
@@ -525,7 +582,10 @@ export class TenantWorkspaceStore {
       const claimedProduct: OnboardingProductKey | null = claim?.productFamily === "flow" ? "flowbot"
         : claim?.productFamily === "text" ? "ai_chat"
           : claim?.productFamily === "voice" ? "voice" : null;
-      if (claim) await materializeClaimedFlow(sql, context, claim);
+      if (claim) {
+        await materializeClaimedFlow(sql, context, claim);
+        await materializeClaimedAiConfiguration(sql, context, claim);
+      }
       if (existing.version >= currentMerchantOnboardingVersion && existing.completedAt) {
         const onboarding = await onboardingRecord(sql, context.tenantId);
         return { status: "already_completed" as const, onboarding };

@@ -99,6 +99,7 @@ const flowDeploymentLiveVersionMigration = readFileSync(resolve(import.meta.dirn
 const aiTextDeploymentLiveVersionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0120_ai_text_deployment_live_version.sql"), "utf8");
 const voiceDeploymentLiveVersionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0121_voice_deployment_live_version.sql"), "utf8");
 const builderFlowMaterializationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0122_builder_flow_materialization.sql"), "utf8");
+const predeploymentAiConfigurationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0123_predeployment_ai_configurations.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -154,6 +155,16 @@ describe("Merchant experience migration invariants", () => {
     expect(builderFlowMaterializationMigration).toContain("builder_draft_claims_materialized_flow_bot_uidx");
     expect(builderFlowMaterializationMigration).toContain("product_family = 'flow'");
     expect(builderFlowMaterializationMigration).toContain("GRANT UPDATE (materialized_flow_bot_id, materialized_at)");
+  });
+
+  it("separates Text and Voice configuration identity before deployment", () => {
+    expect(predeploymentAiConfigurationMigration).toContain("ADD COLUMN product_family text");
+    expect(predeploymentAiConfigurationMigration).toContain("product_family IN ('text', 'voice')");
+    expect(predeploymentAiConfigurationMigration).toContain("materialized_ai_agent_id uuid");
+    expect(predeploymentAiConfigurationMigration).toContain("builder_draft_claims_materialized_ai_agent_fk");
+    expect(predeploymentAiConfigurationMigration).toContain("builder_draft_claims_materialized_ai_agent_uidx");
+    expect(predeploymentAiConfigurationMigration).toContain("GRANT UPDATE (materialized_ai_agent_id, materialized_ai_at)");
+    expect(predeploymentAiConfigurationMigration).not.toMatch(/deployment_key_hash|allowed_origins|INSERT INTO tenancy\.voice_deployments/);
   });
 
   it("stores versioned merchant guideline acceptance with server onboarding completion", () => {

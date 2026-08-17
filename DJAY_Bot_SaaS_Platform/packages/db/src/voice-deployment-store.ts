@@ -586,9 +586,9 @@ export class VoiceDeploymentStore {
       const serializedPlaybook = JSON.stringify(playbook);
       await sql`
         INSERT INTO tenancy.ai_agents (
-          id, tenant_id, name, status, default_language, created_by_membership_id
+          id, tenant_id, name, status, product_family, default_language, created_by_membership_id
         ) VALUES (
-          ${agentId}::uuid, ${context.tenantId}::uuid, ${agentName}, 'active', ${input.defaultLocale}, ${context.membershipId}::uuid
+          ${agentId}::uuid, ${context.tenantId}::uuid, ${agentName}, 'active', 'voice', ${input.defaultLocale}, ${context.membershipId}::uuid
         )
       `;
       await sql`

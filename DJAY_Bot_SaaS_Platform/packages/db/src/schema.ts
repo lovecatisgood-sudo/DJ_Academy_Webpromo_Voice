@@ -168,6 +168,8 @@ export const tenantBuilderDraftClaims = tenancySchema.table("builder_draft_claim
   claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull(),
   materializedFlowBotId: uuid("materialized_flow_bot_id"),
   materializedAt: timestamp("materialized_at", { withTimezone: true }),
+  materializedAiAgentId: uuid("materialized_ai_agent_id"),
+  materializedAiAt: timestamp("materialized_ai_at", { withTimezone: true }),
 });
 
 export const anonymousBuilderClaimContinuations = builderSchema.table("claim_continuations", {

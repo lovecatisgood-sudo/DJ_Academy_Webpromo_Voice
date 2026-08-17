@@ -299,6 +299,8 @@ Work:
 - Finish Support, Sales and Booking role behavior, actions, handover, website widget and advanced integrations/analytics.
 - Validate Thai and English grounding, sales behavior, safety and adversarial cases with human review.
 
+Builder materialization checkpoint, 2026-08-17: migration `0123_predeployment_ai_configurations.sql` labels AI agents as Text or Voice before deployment. A complete claimed Text configuration now becomes exactly one tenant-owned draft agent and unpublished playbook during one-time onboarding. The converter preserves role, business profile, behavior/boundaries, FAQ, disclosure and bilingual greeting context; missing or stale required Thai copy records a failed materialization rather than substituting English. No playbook version, deployment, entitlement or traffic is created. Authenticated Studio continuation, publish acceptance and live-provider evidence remain open, so PR-07 and `ONB-006` remain `in_progress`.
+
 Exit gate:
 
 - Unmocked staging Builder → API → gateway → provider → Sales Core journeys pass.
@@ -318,6 +320,8 @@ Work:
 - Finish Starter web voice and Advanced telephone number/carrier, routing, live/department transfer, scheduling, CRM/Sheets/webhooks and reporting.
 - Validate retention, transcript access, recording consent, privacy and emergency limitations.
 - Run Thai/English human quality, latency, interruption, load, provider-outage and settlement acceptance.
+
+Pre-deployment Voice checkpoint, 2026-08-17: the same family-labelled agent model allows a complete claimed Voice configuration to become one tenant-owned unpublished playbook draft without fabricating a deployment key, website origin or install state. Existing deployed Voice agents are backfilled as Voice; Text queries now filter explicitly by family. Voice disclosure and complete-but-unreviewed bilingual copy are preserved, while missing/stale required copy fails with audit evidence. The Voice Configuration UI, explicit publication-to-install transition, real media/provider qualification and acceptance remain open, so PR-08 and `ONB-008` remain `in_progress`.
 
 Exit gate:
 
