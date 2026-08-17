@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aiPlaybookFieldLimits, aiPlaybookSchema, buildSalesCorePolicy, chunkKnowledge, convertClaimedBuilderPlaybook, countVisibleCharacters, countVisibleWords, salesCoreOutputSchema, selectRelevantKnowledge } from "./index";
+import { aiPlaybookFieldLimits, aiPlaybookSchema, buildSalesCorePolicy, chunkKnowledge, convertClaimedBuilderPlaybook, countVisibleCharacters, countVisibleWords, salesCoreOutputSchema, selectRelevantFaqs, selectRelevantKnowledge } from "./index";
 
 const ids = {
   revision: "11111111-1111-4111-8111-111111111111",
@@ -57,7 +57,8 @@ describe("Sales Conversation Core contract", () => {
   it("instructs providers about cross-field action and handover invariants", () => {
     const policy = buildSalesCorePolicy({
       locale: "en", agentRole: "sales", businessName: "Studio", agentName: "Mali", tone: "Warm",
-      salesGoal: "Qualify interest", approvedClaims: [], prohibitedClaims: [],
+      salesGoal: "Qualify interest", behaviorInstructions: "Ask one focused question at a time",
+      behaviorBoundaries: "Escalate regulated requests", approvedClaims: [], prohibitedClaims: [],
       discoveryQuestions: [], ctaPolicy: [], knowledge: [], recentMessages: [], customerMessage: "Hello",
     });
     expect(policy).toContain("only when the same proposedActions array also contains a valid lead.capture action");
@@ -71,6 +72,8 @@ describe("Sales Conversation Core contract", () => {
     expect(policy).toContain("direct conservative paraphrase of approved claims or approved knowledge");
     expect(policy).toContain("avoid repeating the same feature list");
     expect(policy).toContain("Do not offer to send, email, schedule, register, book");
+    expect(policy).toContain("Conversation behavior: Ask one focused question at a time");
+    expect(policy).toContain("Behavior boundaries and human handover: Escalate regulated requests");
     expect(policy).not.toContain("After two clear refusals");
   });
 
@@ -101,25 +104,39 @@ describe("Sales Conversation Core contract", () => {
     const source = "Hello, how can I help?";
     const disclosure = "I am an AI assistant.";
     const voiceDisclosure = "I am an AI voice assistant and this call may be transcribed.";
+    const faqKey = "64000000-0000-4000-8000-000000000099";
     const translated = (en: string, th: string) => ({ en, th, sourceEn: en, status: "needs_review", reviewed: false });
     const converted = convertClaimedBuilderPlaybook({
       schemaVersion: 1, locale: "en", family: "voice", templateOrRole: { role: "booking" },
       configuration: { textDraft: {
         business: { name: "Siamese Studio", type: "Services", summary: "Appointments", offers: "Consultation",
           hours: "Mon-Fri", contact: "team@example.test", agentObjective: "Collect an appointment request safely",
-          agentBehavior: "Confirm details", agentBoundaries: "Never claim confirmation", faqs: [{ question: "When?", answer: "Weekdays" }] },
+          agentBehavior: "Confirm details", agentBoundaries: "Never claim confirmation", faqs: [{ question: "When?", answer: "Weekdays", translationKey: faqKey }] },
         botName: "Siamese Booking Assistant", language: "English and Thai", greeting: source,
         tone: "Warm and concise", disclosure, neverInvent: "Never invent availability", voice: { disclosure: voiceDisclosure },
         translations: { customerCopy: { greeting: translated(source, "สวัสดี มีอะไรให้ช่วย"),
           disclosure: translated(disclosure, "ฉันเป็นผู้ช่วย AI"),
-          voiceDisclosure: translated(voiceDisclosure, "ฉันเป็นผู้ช่วยเสียง AI และสายนี้อาจถูกถอดความ") } },
+          voiceDisclosure: translated(voiceDisclosure, "ฉันเป็นผู้ช่วยเสียง AI และสายนี้อาจถูกถอดความ") },
+          faqs: { [faqKey]: { question: translated("When?", "เปิดเมื่อไร"), answer: translated("Weekdays", "วันธรรมดา") } } },
       } },
     }, "54000000-0000-4000-8000-000000000099");
     expect(converted).toMatchObject({ status: "converted", productFamily: "voice", agentName: "Siamese Booking Assistant" });
     if (converted.status !== "converted") throw new Error("Expected conversion.");
     expect(converted.playbook).toMatchObject({ agentRole: "booking", languages: ["th", "en"],
-      greeting: { en: source, th: "สวัสดี มีอะไรให้ช่วย" }, builderContext: { productFamily: "voice",
+      greeting: { en: source, th: "สวัสดี มีอะไรให้ช่วย" }, behaviorInstructions: "Confirm details",
+      behaviorBoundaries: "Never claim confirmation", approvedFaqs: [{ question: { en: "When?", th: "เปิดเมื่อไร" }, answer: { en: "Weekdays", th: "วันธรรมดา" } }],
+      builderContext: { productFamily: "voice",
         businessHours: "Mon-Fri", faqs: [{ question: "When?", answer: "Weekdays" }] } });
+  });
+
+  it("selects only locale-relevant approved FAQs for grounded replies", () => {
+    const faqs = [
+      { question: { en: "When are you open?", th: "เปิดกี่โมง" }, answer: { en: "Weekdays", th: "วันธรรมดา" } },
+      { question: { en: "What does setup cost?", th: "ค่าติดตั้งเท่าไร" }, answer: { en: "Ask for a quotation", th: "ขอใบเสนอราคา" } },
+    ];
+    expect(selectRelevantFaqs(faqs, "What does setup cost?", "en")).toEqual([faqs[1]]);
+    expect(selectRelevantFaqs(faqs, "วันนี้ร้านเปิดกี่โมงครับ", "th")).toEqual([faqs[0]]);
+    expect(selectRelevantFaqs(faqs, "unrelated", "en")).toEqual([]);
   });
 
   it("rejects stale required Thai copy instead of publishing English as Thai", () => {

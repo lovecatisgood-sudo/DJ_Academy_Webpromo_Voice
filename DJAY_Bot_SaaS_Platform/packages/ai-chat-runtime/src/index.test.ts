@@ -49,6 +49,53 @@ describe("AI text runtime", () => {
     expect(events).toEqual(["begin", "commit:100"]);
   });
 
+  it("uses claimed behavior and a matching bilingual FAQ as operational grounding", async () => {
+    const events: string[] = [];
+    let policy = "";
+    const faqContext: AiTurnContext = {
+      ...context,
+      playbook: { ...(context.playbook as object), behaviorInstructions: "Answer the question before offering a next step",
+        behaviorBoundaries: "Escalate requests outside approved hours",
+        approvedFaqs: [{ question: { en: "When are you open?", th: "เปิดกี่โมง" }, answer: { en: "We are open on weekdays.", th: "เปิดวันธรรมดา" } }] },
+      knowledgeChunks: [],
+    };
+    const runtime = new AiTextRuntime({
+      ...repository(events), async begin() { events.push("begin"); return faqContext; },
+    }, { async generate(request) {
+      policy = request.systemPolicy;
+      return { output: {
+        schemaVersion: "sales-core.v1", stage: "S4_RECOMMENDATION", intent: "answer_hours",
+        facts: [], knowledgeCitations: [], responseGoal: "answer opening hours", proposedActions: [], handover: null,
+        customerResponse: "We are open on weekdays.", channelResponse: { format: "text", quickReplies: [] },
+      }, nativeUsage: { inputUnits: 25, outputUnits: 8 } };
+    } });
+    await expect(runtime.turn({ deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "When are you open?" })).resolves.toMatchObject({ status: "completed", text: "We are open on weekdays." });
+    expect(policy).toContain("Conversation behavior: Answer the question before offering a next step");
+    expect(policy).toContain("Behavior boundaries and human handover: Escalate requests outside approved hours");
+    expect(policy).toContain("FAQ: When are you open? Answer: We are open on weekdays.");
+    expect(events).toEqual(["begin", "commit:25"]);
+  });
+
+  it("does not treat an unrelated approved claim as grounding for a recommendation", async () => {
+    const events: string[] = [];
+    const ungroundedContext: AiTurnContext = {
+      ...context,
+      authority: { entitlements: { "lead_capture.enabled": true, "human_handover.enabled": true }, limits: {} },
+      knowledgeChunks: [],
+    };
+    const runtime = new AiTextRuntime({
+      ...repository(events), async begin() { events.push("begin"); return ungroundedContext; },
+    }, { async generate() { return { output: {
+      schemaVersion: "sales-core.v1", stage: "S4_RECOMMENDATION", intent: "answer_refund",
+      facts: [], knowledgeCitations: [], responseGoal: "answer refund question", proposedActions: [], handover: null,
+      customerResponse: "Refunds are available within 30 days.", channelResponse: { format: "text", quickReplies: [] },
+    }, nativeUsage: { inputUnits: 20, outputUnits: 7 } }; } });
+    await expect(runtime.turn({ deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "What is your refund policy?" })).resolves.toMatchObject({ status: "handover" });
+    expect(events).toEqual(["begin", "commit:20"]);
+  });
+
   it("rewrites one oversized reply without cutting it and preserves structured evidence", async () => {
     const events: string[] = [];
     let calls = 0;

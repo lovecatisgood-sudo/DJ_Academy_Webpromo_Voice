@@ -10,6 +10,9 @@ export const aiPlaybookFieldLimits = Object.freeze({
   businessName: Object.freeze({ minLength: 2, maxLength: 200 }),
   tone: Object.freeze({ minLength: 2, maxLength: 200 }),
   salesGoal: Object.freeze({ minLength: 2, maxLength: 500 }),
+  behavior: Object.freeze({ maxLength: 5000 }),
+  faqQuestion: Object.freeze({ minLength: 1, maxLength: 1000, maxItems: 100 }),
+  faqAnswer: Object.freeze({ minLength: 1, maxLength: 5000 }),
   claim: Object.freeze({ minLength: 1, maxLength: 500, maxItems: 100 }),
   discoveryQuestion: Object.freeze({ minLength: 1, maxLength: 300, maxItems: 30 }),
   ctaPolicy: Object.freeze({ minLength: 1, maxLength: 300, maxItems: 20 }),
@@ -36,6 +39,18 @@ export const aiPlaybookSchema = z.object({
   languages: z.array(z.enum(["th", "en"])).min(1).max(2),
   tone: z.string().trim().min(aiPlaybookFieldLimits.tone.minLength).max(aiPlaybookFieldLimits.tone.maxLength),
   salesGoal: z.string().trim().min(aiPlaybookFieldLimits.salesGoal.minLength).max(aiPlaybookFieldLimits.salesGoal.maxLength),
+  behaviorInstructions: z.string().max(aiPlaybookFieldLimits.behavior.maxLength).default(""),
+  behaviorBoundaries: z.string().max(aiPlaybookFieldLimits.behavior.maxLength).default(""),
+  approvedFaqs: z.array(z.object({
+    question: z.object({
+      th: z.string().trim().min(aiPlaybookFieldLimits.faqQuestion.minLength).max(aiPlaybookFieldLimits.faqQuestion.maxLength),
+      en: z.string().trim().min(aiPlaybookFieldLimits.faqQuestion.minLength).max(aiPlaybookFieldLimits.faqQuestion.maxLength),
+    }).strict(),
+    answer: z.object({
+      th: z.string().trim().min(aiPlaybookFieldLimits.faqAnswer.minLength).max(aiPlaybookFieldLimits.faqAnswer.maxLength),
+      en: z.string().trim().min(aiPlaybookFieldLimits.faqAnswer.minLength).max(aiPlaybookFieldLimits.faqAnswer.maxLength),
+    }).strict(),
+  }).strict()).max(aiPlaybookFieldLimits.faqQuestion.maxItems).default([]),
   approvedClaims: z.array(z.string().trim().min(aiPlaybookFieldLimits.claim.minLength).max(aiPlaybookFieldLimits.claim.maxLength)).max(aiPlaybookFieldLimits.claim.maxItems),
   prohibitedClaims: z.array(z.string().trim().min(aiPlaybookFieldLimits.claim.minLength).max(aiPlaybookFieldLimits.claim.maxLength)).max(aiPlaybookFieldLimits.claim.maxItems),
   discoveryQuestions: z.array(z.string().trim().min(aiPlaybookFieldLimits.discoveryQuestion.minLength).max(aiPlaybookFieldLimits.discoveryQuestion.maxLength)).min(1).max(aiPlaybookFieldLimits.discoveryQuestion.maxItems),
@@ -80,6 +95,8 @@ export const aiPlaybookSchema = z.object({
     offers: z.string().max(5000), businessHours: z.string().max(1000), contact: z.string().max(1000),
     agentBehavior: z.string().max(5000), agentBoundaries: z.string().max(5000),
     faqs: z.array(z.object({ question: z.string().max(1000), answer: z.string().max(5000) }).strict()).max(100),
+    uncertain: z.string().max(2000).optional(), unsupported: z.string().max(2000).optional(),
+    neverInvent: z.string().max(5000).optional(),
   }).strict().optional(),
 }).strict();
 
@@ -100,16 +117,19 @@ const claimedBuilderPlaybookSchema = z.object({
       hours: z.string().max(1000).default(""), contact: z.string().max(1000).default(""),
       agentObjective: z.string().trim().min(2).max(500), agentBehavior: z.string().max(5000).default(""),
       agentBoundaries: z.string().max(5000).default(""),
-      faqs: z.array(z.object({ question: z.string().max(1000), answer: z.string().max(5000) }).passthrough()).max(100).default([]),
+      faqs: z.array(z.object({ question: z.string().max(1000), answer: z.string().max(5000), translationKey: z.uuid().optional() }).passthrough()).max(100).default([]),
     }).passthrough(),
     botName: z.string().trim().min(2).max(100), language: z.enum(["English", "Thai", "English and Thai"]),
     greeting: z.string().trim().min(1).max(500), tone: z.string().trim().min(2).max(200),
-    disclosure: z.string().trim().min(1).max(500), neverInvent: z.string().max(5000).default(""),
+    disclosure: z.string().trim().min(1).max(500), uncertain: z.string().max(2000).default(""),
+    unsupported: z.string().max(2000).default(""), neverInvent: z.string().max(5000).default(""),
     voice: z.object({ disclosure: z.string().trim().min(1).max(500) }).passthrough().optional(),
     translations: z.object({ customerCopy: z.object({
       greeting: builderTranslationSchema, disclosure: builderTranslationSchema,
       voiceDisclosure: builderTranslationSchema.optional(),
-    }).passthrough() }).passthrough(),
+    }).passthrough(), faqs: z.record(z.string(), z.object({
+      question: builderTranslationSchema, answer: builderTranslationSchema,
+    }).passthrough()).default({}) }).passthrough(),
   }).passthrough() }).passthrough(),
 }).passthrough();
 
@@ -145,6 +165,16 @@ export function convertClaimedBuilderPlaybook(input: unknown, playbookVersionId:
   if (!greeting || !disclosure || (parsed.data.family === "voice" && !voiceDisclosure)) {
     return { status: "invalid", reasonCode: "builder_translation_incomplete", detail: "Required customer copy is missing or stale." };
   }
+  const approvedFaqs = [];
+  for (const faq of source.business.faqs) {
+    const records = faq.translationKey ? source.translations.faqs[faq.translationKey] : undefined;
+    const question = translatedCopy(faq.question, records?.question, thaiRequired, faq.question);
+    const answer = translatedCopy(faq.answer, records?.answer, thaiRequired, faq.answer);
+    if (!question || !answer) {
+      return { status: "invalid", reasonCode: "builder_translation_incomplete", detail: "Required FAQ copy is missing or stale." };
+    }
+    approvedFaqs.push({ question, answer });
+  }
   const role = parsed.data.templateOrRole.role;
   const roleQuestion = role === "support" ? "What issue would you like help resolving?"
     : role === "booking" ? "Which service and time would you like to request?"
@@ -158,6 +188,9 @@ export function convertClaimedBuilderPlaybook(input: unknown, playbookVersionId:
       businessName: source.business.name, agentName: source.botName,
       languages: source.language === "English" ? ["en"] : source.language === "Thai" ? ["th"] : ["th", "en"],
       tone: source.tone, salesGoal: source.business.agentObjective,
+      behaviorInstructions: source.business.agentBehavior,
+      behaviorBoundaries: source.business.agentBoundaries,
+      approvedFaqs,
       approvedClaims: [], prohibitedClaims: [source.business.agentBoundaries, source.neverInvent].map((value) => value.trim()).filter(Boolean),
       discoveryQuestions: [roleQuestion], ctaPolicy: [cta], requiredContactFields: ["name", "email", "phone"],
       greeting, offlineMessage: { en: "Our team will follow up during business hours.", th: "ทีมงานจะติดต่อกลับในเวลาทำการ" },
@@ -166,7 +199,8 @@ export function convertClaimedBuilderPlaybook(input: unknown, playbookVersionId:
         businessType: source.business.type, businessSummary: source.business.summary, offers: source.business.offers,
         businessHours: source.business.hours, contact: source.business.contact,
         agentBehavior: source.business.agentBehavior, agentBoundaries: source.business.agentBoundaries,
-        faqs: source.business.faqs.map(({ question, answer }) => ({ question, answer })) },
+        faqs: source.business.faqs.map(({ question, answer }) => ({ question, answer })),
+        uncertain: source.uncertain, unsupported: source.unsupported, neverInvent: source.neverInvent },
     });
     return { status: "converted", playbook, productFamily: parsed.data.family,
       agentName: source.botName, defaultLanguage: parsed.data.locale };
@@ -272,6 +306,8 @@ export type SalesCoreContext = Readonly<{
   agentName: string;
   tone: string;
   salesGoal: string;
+  behaviorInstructions?: string;
+  behaviorBoundaries?: string;
   approvedClaims: readonly string[];
   prohibitedClaims: readonly string[];
   discoveryQuestions: readonly string[];
@@ -318,6 +354,8 @@ export function buildSalesCorePolicy(context: SalesCoreContext): string {
     "customerResponse must never exceed 200 locale-aware words. Do not write a long answer that would need to be cut off; prioritize the answer, essential context, and one useful next step within the limit.",
     `Business: ${context.businessName}. Assistant: ${context.agentName}. Role: ${context.agentRole}. Locale: ${context.locale}. Tone: ${context.tone}.`,
     `Sales goal: ${context.salesGoal}`,
+    ...(context.behaviorInstructions?.trim() ? [`Conversation behavior: ${context.behaviorInstructions.trim()}`] : []),
+    ...(context.behaviorBoundaries?.trim() ? [`Behavior boundaries and human handover: ${context.behaviorBoundaries.trim()}`] : []),
     `Approved claims: ${JSON.stringify(context.approvedClaims)}`,
     `Prohibited claims: ${JSON.stringify(context.prohibitedClaims)}`,
     `Discovery questions: ${JSON.stringify(context.discoveryQuestions)}`,
@@ -338,6 +376,24 @@ export function selectRelevantKnowledge(
     score: [...terms].reduce((score, term) => score + (chunk.content.toLocaleLowerCase().includes(term) ? 1 : 0), 0),
   })).sort((left, right) => right.score - left.score || left.chunk.chunkId.localeCompare(right.chunk.chunkId))
     .filter((item, index) => item.score > 0 || index === 0).slice(0, limit).map((item) => item.chunk);
+}
+
+export function selectRelevantFaqs(
+  faqs: readonly { question: Readonly<{ th: string; en: string }>; answer: Readonly<{ th: string; en: string }> }[],
+  query: string,
+  locale: "th" | "en",
+  limit = 3,
+) {
+  const terms = new Set([...new Intl.Segmenter(locale, { granularity: "word" }).segment(query.toLocaleLowerCase())]
+    .filter((segment) => segment.isWordLike && segment.segment.trim().length >= 2)
+    .map((segment) => segment.segment.trim()));
+  return faqs.map((faq, index) => ({
+    faq, index,
+    score: [...terms].reduce((score, term) => score
+      + (faq.question[locale].toLocaleLowerCase().includes(term) ? 2 : 0)
+      + (faq.answer[locale].toLocaleLowerCase().includes(term) ? 1 : 0), 0),
+  })).sort((left, right) => right.score - left.score || left.index - right.index)
+    .filter((item) => item.score > 0).slice(0, limit).map((item) => item.faq);
 }
 
 export function chunkKnowledge(content: string, maxCharacters = 1200) {

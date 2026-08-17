@@ -343,6 +343,7 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
         expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60_000), now });
       const greeting = "Hello, how can I help?"; const disclosure = "I am an AI assistant.";
       const voiceDisclosure = "I am an AI voice assistant and this call may be transcribed.";
+      const faqKey = randomUUID();
       const translated = (en: string, th: string) => ({ en, th, sourceEn: en, status: "needs_review", reviewed: false });
       const state = {
         schemaVersion: 1, locale: "en", family, access: { product: family,
@@ -350,12 +351,13 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
         templateOrRole: { role: "booking" }, configuration: { textDraft: {
           business: { name: "Siamese Studio", type: "Services", summary: "Appointments", offers: "Consultation",
             hours: "Mon-Fri", contact: "team@example.test", agentObjective: "Collect appointment requests",
-            agentBehavior: "Confirm details", agentBoundaries: "Never claim confirmation", faqs: [{ question: "When?", answer: "Weekdays" }] },
+            agentBehavior: "Confirm details", agentBoundaries: "Never claim confirmation", faqs: [{ question: "When?", answer: "Weekdays", translationKey: faqKey }] },
           botName: `${family} Booking Assistant`, language: "English and Thai", greeting, tone: "Warm and concise",
           disclosure, neverInvent: "Never invent availability", voice: { disclosure: voiceDisclosure },
           translations: { customerCopy: { greeting: translated(greeting, "สวัสดี มีอะไรให้ช่วย"),
             disclosure: translated(disclosure, "ฉันเป็นผู้ช่วย AI"),
-            voiceDisclosure: translated(voiceDisclosure, "ฉันเป็นผู้ช่วยเสียง AI และสายนี้อาจถูกถอดความ") } },
+            voiceDisclosure: translated(voiceDisclosure, "ฉันเป็นผู้ช่วยเสียง AI และสายนี้อาจถูกถอดความ") },
+            faqs: { [faqKey]: { question: translated("When?", "เปิดเมื่อไร"), answer: translated("Weekdays", "วันธรรมดา") } } },
         } } };
       await expect(store.updateDraft({ sessionId, revision: draft!.revision, schemaVersion: 1, productFamily: family,
         planKey: family === "text" ? "ai_chat_basic" : "voice_basic_gen1", state,
@@ -374,20 +376,24 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
         businessGoal: "book_appointments", industry: "services" })).resolves.toMatchObject({ status: "already_completed" });
       const evidence = await adminClient!<{
         agents: number; drafts: number; versions: number; voice_deployments: number;
-        product_family: string; materialized_ai_agent_id: string | null; audits: number;
+        product_family: string; materialized_ai_agent_id: string | null; definition: unknown; audits: number;
       }[]>`SELECT
         (SELECT count(*)::int FROM tenancy.ai_agents WHERE tenant_id = ${tenantId}::uuid) AS agents,
         (SELECT count(*)::int FROM tenancy.ai_playbook_drafts WHERE tenant_id = ${tenantId}::uuid) AS drafts,
         (SELECT count(*)::int FROM tenancy.ai_playbook_versions WHERE tenant_id = ${tenantId}::uuid) AS versions,
         (SELECT count(*)::int FROM tenancy.voice_deployments WHERE tenant_id = ${tenantId}::uuid) AS voice_deployments,
-        agent.product_family, claim.materialized_ai_agent_id,
+        agent.product_family, claim.materialized_ai_agent_id, playbook.definition_json AS definition,
         (SELECT count(*)::int FROM tenancy.audit_logs WHERE tenant_id = ${tenantId}::uuid
           AND action = 'tenant.builder_ai_materialized') AS audits
         FROM tenancy.builder_draft_claims claim
         JOIN tenancy.ai_agents agent ON agent.tenant_id = claim.tenant_id AND agent.id = claim.materialized_ai_agent_id
+        JOIN tenancy.ai_playbook_drafts playbook ON playbook.tenant_id = agent.tenant_id AND playbook.agent_id = agent.id
         WHERE claim.source_session_id = ${sessionId}::uuid`;
       expect(evidence[0]).toMatchObject({ agents: 1, drafts: 1, versions: 0, voice_deployments: 0,
-        product_family: family, audits: 1 });
+        product_family: family, audits: 1, definition: {
+          behaviorInstructions: "Confirm details", behaviorBoundaries: "Never claim confirmation",
+          approvedFaqs: [{ question: { en: "When?", th: "เปิดเมื่อไร" }, answer: { en: "Weekdays", th: "วันธรรมดา" } }],
+        } });
       expect(evidence[0]?.materialized_ai_agent_id).toMatch(/^[0-9a-f-]{36}$/);
       if (family === "text") {
         const aiChat = new AiChatStore(tenantClient!);
@@ -397,7 +403,10 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
           expect.objectContaining({ id: agentId, status: "draft", draftRevision: 1, deploymentCount: 0 }),
         ]);
         const claimedDraft = await aiChat.getDraft(context, agentId);
-        expect(claimedDraft).toMatchObject({ revision: 1 });
+        expect(claimedDraft).toMatchObject({ revision: 1, definition: {
+          behaviorInstructions: "Confirm details", behaviorBoundaries: "Never claim confirmation",
+          approvedFaqs: [{ question: { en: "When?", th: "เปิดเมื่อไร" }, answer: { en: "Weekdays", th: "วันธรรมดา" } }],
+        } });
         await expect(aiChat.updateDraft(context, agentId, {
           revision: claimedDraft!.revision, definition: claimedDraft!.definition, knowledgeRevisionIds: [],
         })).resolves.toEqual({ status: "not_entitled" });

@@ -2707,16 +2707,33 @@
         "AI-01",
         "AI-03"
       ],
-      "implementation_paths": [],
+      "implementation_paths": [
+        "packages/sales-core/src/index.ts",
+        "packages/ai-chat-runtime/src/index.ts",
+        "packages/db/src/ai-chat-runtime-store.ts",
+        "apps/tenant-web/app/workspace/ai-chat/AiPlaybookEditor.tsx"
+      ],
       "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "api_contracts": [
+        "POST /tenant/ai-chat/agents/:agentId/test",
+        "POST /public/ai-chat/message"
+      ],
+      "ui_routes": [
+        "/workspace/ai-chat"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "packages/sales-core/src/index.test.ts",
+        "packages/ai-chat-runtime/src/index.test.ts",
+        "packages/db/src/ai-chat-runtime-store.integration.test.ts",
+        "packages/db/src/anonymous-builder-store.integration.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/production-master-plan-pr07-pr08-builder-ai-materialization-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {
@@ -2827,16 +2844,33 @@
         "AI-01",
         "AI-03"
       ],
-      "implementation_paths": [],
+      "implementation_paths": [
+        "packages/sales-core/src/index.ts",
+        "packages/ai-chat-runtime/src/index.ts",
+        "packages/db/src/ai-chat-store.ts",
+        "apps/tenant-web/app/workspace/ai-chat/AiPlaybookEditor.tsx"
+      ],
       "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "api_contracts": [
+        "GET|PATCH /tenant/ai-chat/agents/:agentId/draft",
+        "POST /tenant/ai-chat/agents/:agentId/publish"
+      ],
+      "ui_routes": [
+        "/workspace/ai-chat",
+        "/workspace/voice/configuration"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "packages/sales-core/src/index.test.ts",
+        "packages/ai-chat-runtime/src/index.test.ts",
+        "packages/db/src/anonymous-builder-store.integration.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/production-master-plan-pr07-pr08-builder-ai-materialization-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {
@@ -7132,8 +7166,10 @@
       ],
       "implementation_paths": [
         "packages/sales-core/src/index.ts",
+        "packages/ai-chat-runtime/src/index.ts",
         "packages/db/src/tenant-workspace-store.ts",
         "packages/db/src/ai-chat-store.ts",
+        "apps/tenant-web/app/workspace/ai-chat/AiPlaybookEditor.tsx",
         "apps/tenant-web/app/workspace/ai-chat/page.tsx"
       ],
       "migration_ids": [
@@ -7157,6 +7193,7 @@
       "meter_keys": [],
       "test_ids": [
         "packages/sales-core/src/index.test.ts",
+        "packages/ai-chat-runtime/src/index.test.ts",
         "packages/db/src/anonymous-builder-store.integration.test.ts",
         "packages/db/src/migration-invariants.test.ts"
       ],
@@ -7203,6 +7240,7 @@
         "packages/sales-core/src/index.ts",
         "packages/db/src/tenant-workspace-store.ts",
         "packages/db/src/voice-deployment-store.ts",
+        "apps/tenant-web/app/workspace/ai-chat/AiPlaybookEditor.tsx",
         "apps/tenant-web/app/workspace/voice/configuration/page.tsx"
       ],
       "migration_ids": [

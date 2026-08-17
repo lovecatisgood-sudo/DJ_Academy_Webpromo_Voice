@@ -12,6 +12,10 @@ for (const marker of [
   "isValidIanaTimeZone",
   '.refine(isValidIanaTimeZone',
   "aiPlaybookFieldLimits.weeklyWindows.maxItems",
+  "behaviorInstructions",
+  "behaviorBoundaries",
+  "approvedFaqs",
+  "selectRelevantFaqs",
 ]) {
   if (!domain.includes(marker)) failures.push(`Sales Core playbook authority is missing ${marker}`);
 }
@@ -20,9 +24,14 @@ const editor = read("apps/tenant-web/app/workspace/ai-chat/AiPlaybookEditor.tsx"
 for (const marker of [
   'legend>Assistant identity and goals',
   'legend>Approved conversation guidance',
+  'legend>Business profile from Builder',
+  'legend>Approved FAQ',
   'legend>Customer messages',
   'legend>Business hours',
   'data-ai-playbook-path="timezone"',
+  'data-ai-playbook-path="behaviorInstructions"',
+  'data-ai-playbook-path="behaviorBoundaries"',
+  'data-ai-playbook-path="approvedFaqs"',
   'aria-label="Advanced AI sales playbook JSON"',
   "Your JSON text is preserved",
 ]) {

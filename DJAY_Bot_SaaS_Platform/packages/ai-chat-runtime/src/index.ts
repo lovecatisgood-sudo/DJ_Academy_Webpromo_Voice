@@ -1,6 +1,6 @@
 import { assertProviderNeutralCustomerText, ProviderGatewayError, type TextProviderGateway } from "@djay/provider-gateway";
 import {
-  aiPlaybookSchema, buildSalesCorePolicy, countVisibleWords, salesCoreOutputBaseSchema, salesCoreOutputSchema, selectRelevantKnowledge,
+  aiPlaybookSchema, buildSalesCorePolicy, countVisibleWords, salesCoreOutputBaseSchema, salesCoreOutputSchema, selectRelevantFaqs, selectRelevantKnowledge,
   type SalesCoreOutput,
 } from "@djay/sales-core";
 import { z } from "zod";
@@ -520,10 +520,16 @@ export async function generateAiTurn(input: Readonly<{
   const history = historySchema.parse(input.context.recentMessages);
   const allChunks = chunkSchema.parse(input.context.knowledgeChunks);
   const selectedChunks = selectRelevantKnowledge(allChunks, input.message, 6);
+  const selectedFaqs = selectRelevantFaqs(playbook.approvedFaqs, input.message, input.context.language);
+  const matchedClaimCount = countRelevantClaims(playbook.approvedClaims, input.message, input.context.language);
+  const approvedEvidence = [...playbook.approvedClaims, ...selectedFaqs.map((faq) =>
+    `FAQ: ${faq.question[input.context.language]} Answer: ${faq.answer[input.context.language]}`)];
   const recentMessages = history.at(-1)?.role === "user" ? history.slice(0, -1) : history;
   const systemPolicy = buildSalesCorePolicy({
     locale: input.context.language, agentRole: playbook.agentRole, businessName: playbook.businessName, agentName: playbook.agentName,
-    tone: playbook.tone, salesGoal: playbook.salesGoal, approvedClaims: playbook.approvedClaims,
+    tone: playbook.tone, salesGoal: playbook.salesGoal,
+    behaviorInstructions: playbook.behaviorInstructions, behaviorBoundaries: playbook.behaviorBoundaries,
+    approvedClaims: approvedEvidence,
     prohibitedClaims: playbook.prohibitedClaims, discoveryQuestions: playbook.discoveryQuestions,
     ctaPolicy: playbook.ctaPolicy, knowledge: selectedChunks, recentMessages,
     customerMessage: input.message,
@@ -532,11 +538,11 @@ export async function generateAiTurn(input: Readonly<{
     correlationId: input.inputId, locale: input.context.language, systemPolicy,
     messages: recentMessages, customerMessage: input.message,
     structuredOutputSchemaVersion: "sales-core.v1",
-  }, playbook.agentRole, [playbook.approvedClaims.join("\n"), ...selectedChunks.map((chunk) => chunk.content)].join("\n"));
+  }, playbook.agentRole, [approvedEvidence.join("\n"), ...selectedChunks.map((chunk) => chunk.content)].join("\n"));
   let output = generated.output;
   assertProviderNeutralCustomerText(output.customerResponse);
   validateCitations(output, selectedChunks);
-  const confidence = responseConfidence(output, selectedChunks.length);
+  const confidence = responseConfidence(output, selectedChunks.length, matchedClaimCount + selectedFaqs.length);
   if (confidence < playbook.confidenceThreshold && !output.handover) {
     const reason = `confidence_below_threshold:${confidence.toFixed(2)}`;
     output = salesCoreOutputSchema.parse({ ...output,
@@ -562,14 +568,21 @@ export async function generateAiTurn(input: Readonly<{
   };
 }
 
-function responseConfidence(output: SalesCoreOutput, selectedChunkCount: number) {
+function responseConfidence(output: SalesCoreOutput, selectedChunkCount: number, approvedEvidenceCount: number) {
   const discoveryOnly = ["S0_GREETING", "S1_INTENT", "S2_DISCOVERY"].includes(output.stage)
     && output.facts.every((fact) => fact.source === "customer")
     && !output.proposedActions.some((action) => ["appointment.request", "merchant_email.send"].includes(action.type));
   const citationConfidence = output.knowledgeCitations.length > 0 ? 0.9
-    : discoveryOnly ? 0.8 : selectedChunkCount > 0 ? 0.45 : 0.35;
+    : discoveryOnly ? 0.8 : approvedEvidenceCount > 0 ? 0.8 : selectedChunkCount > 0 ? 0.45 : 0.35;
   const factConfidence = output.facts.length ? Math.min(...output.facts.map((fact) => fact.confidence)) : 1;
   return Math.min(citationConfidence, factConfidence);
+}
+
+function countRelevantClaims(claims: readonly string[], query: string, locale: "th" | "en") {
+  const terms = [...new Intl.Segmenter(locale, { granularity: "word" }).segment(query.toLocaleLowerCase())]
+    .filter((segment) => segment.isWordLike && segment.segment.trim().length >= 2)
+    .map((segment) => segment.segment.trim());
+  return claims.filter((claim) => terms.some((term) => claim.toLocaleLowerCase().includes(term))).length;
 }
 
 function validateActionAuthority(output: SalesCoreOutput, authorityValue: unknown) {
@@ -659,6 +672,9 @@ export async function runAiTextPreview(input: Readonly<{
   const history = historySchema.parse(input.recentMessages ?? []);
   const recentMessages = history.map(({ role, content }) => ({ role, content }));
   const selectedChunks = selectRelevantKnowledge(allChunks, input.message, 6);
+  const selectedFaqs = selectRelevantFaqs(playbook.approvedFaqs, input.message, input.language);
+  const approvedEvidence = [...playbook.approvedClaims, ...selectedFaqs.map((faq) =>
+    `FAQ: ${faq.question[input.language]} Answer: ${faq.answer[input.language]}`)];
   const systemPolicy = buildSalesCorePolicy({
     locale: input.language,
     agentRole: playbook.agentRole,
@@ -666,7 +682,9 @@ export async function runAiTextPreview(input: Readonly<{
     agentName: playbook.agentName,
     tone: playbook.tone,
     salesGoal: playbook.salesGoal,
-    approvedClaims: playbook.approvedClaims,
+    behaviorInstructions: playbook.behaviorInstructions,
+    behaviorBoundaries: playbook.behaviorBoundaries,
+    approvedClaims: approvedEvidence,
     prohibitedClaims: playbook.prohibitedClaims,
     discoveryQuestions: playbook.discoveryQuestions,
     ctaPolicy: playbook.ctaPolicy,
@@ -688,7 +706,7 @@ export async function runAiTextPreview(input: Readonly<{
       input.gateway,
       gatewayRequest,
       playbook.agentRole,
-      [playbook.approvedClaims.join("\n"), ...selectedChunks.map((chunk) => chunk.content)].join("\n"),
+      [approvedEvidence.join("\n"), ...selectedChunks.map((chunk) => chunk.content)].join("\n"),
     );
   } catch (error) {
     if (!(error instanceof AiTextRuntimeError) || error.code !== "structured_output_invalid") throw error;

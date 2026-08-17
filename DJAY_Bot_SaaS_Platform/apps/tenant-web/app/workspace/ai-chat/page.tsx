@@ -28,7 +28,8 @@ type Analytics = { periodDays: number; level: string; sessions: number; complete
 function playbookValidationMessage(path: string, issue: string): string {
   const labels: Record<string, string> = {
     agentName: "Assistant name", businessName: "Business name", languages: "Conversation languages",
-    tone: "Tone", salesGoal: "Sales goal", approvedClaims: "Approved claims",
+    tone: "Tone", salesGoal: "Agent objective", behaviorInstructions: "Conversation behavior",
+    behaviorBoundaries: "Behavior boundaries", approvedFaqs: "Approved FAQ", approvedClaims: "Approved claims",
     prohibitedClaims: "Prohibited claims", discoveryQuestions: "Discovery questions",
     ctaPolicy: "Calls to action", requiredContactFields: "Required contact details",
     greeting: "Greeting", offlineMessage: "Offline message", timezone: "Timezone",

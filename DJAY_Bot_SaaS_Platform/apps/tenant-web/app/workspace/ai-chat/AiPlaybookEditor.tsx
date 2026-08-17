@@ -46,6 +46,10 @@ export function AiPlaybookEditor(props: Props) {
   const updateAction = (index: number, next: AiPlaybook["publicActions"][number]) => {
     update("publicActions", props.definition.publicActions.map((item, itemIndex) => itemIndex === index ? next : item));
   };
+  const updateFaq = (index: number, next: AiPlaybook["approvedFaqs"][number]) => {
+    update("approvedFaqs", props.definition.approvedFaqs.map((item, itemIndex) => itemIndex === index ? next : item));
+  };
+  const updateBuilderContext = (next: NonNullable<AiPlaybook["builderContext"]>) => update("builderContext", next);
 
   return <div className="ai-playbook-editor">
     {props.advancedPending ? <div className="flow-editor-invalid" role="alert">
@@ -57,7 +61,9 @@ export function AiPlaybookEditor(props: Props) {
         <label>ชื่อผู้ช่วย<input id="ai-playbook-agentName" data-ai-playbook-path="agentName" value={props.definition.agentName} minLength={aiPlaybookFieldLimits.agentName.minLength} maxLength={aiPlaybookFieldLimits.agentName.maxLength} required aria-invalid={issueFor(props.validationPath, "agentName") || undefined} onChange={(event) => update("agentName", event.target.value)} /></label>
         <label>ชื่อธุรกิจ<input id="ai-playbook-businessName" data-ai-playbook-path="businessName" value={props.definition.businessName} minLength={aiPlaybookFieldLimits.businessName.minLength} maxLength={aiPlaybookFieldLimits.businessName.maxLength} required aria-invalid={issueFor(props.validationPath, "businessName") || undefined} onChange={(event) => update("businessName", event.target.value)} /></label>
         <label>โทนการสนทนา<input id="ai-playbook-tone" data-ai-playbook-path="tone" value={props.definition.tone} minLength={aiPlaybookFieldLimits.tone.minLength} maxLength={aiPlaybookFieldLimits.tone.maxLength} required aria-invalid={issueFor(props.validationPath, "tone") || undefined} onChange={(event) => update("tone", event.target.value)} /></label>
-        <label>เป้าหมายการขาย<textarea id="ai-playbook-salesGoal" data-ai-playbook-path="salesGoal" value={props.definition.salesGoal} rows={3} minLength={aiPlaybookFieldLimits.salesGoal.minLength} maxLength={aiPlaybookFieldLimits.salesGoal.maxLength} required aria-invalid={issueFor(props.validationPath, "salesGoal") || undefined} onChange={(event) => update("salesGoal", event.target.value)} /></label>
+        <label>เป้าหมายของผู้ช่วย<textarea id="ai-playbook-salesGoal" data-ai-playbook-path="salesGoal" value={props.definition.salesGoal} rows={3} minLength={aiPlaybookFieldLimits.salesGoal.minLength} maxLength={aiPlaybookFieldLimits.salesGoal.maxLength} required aria-invalid={issueFor(props.validationPath, "salesGoal") || undefined} onChange={(event) => update("salesGoal", event.target.value)} /></label>
+        <label>พฤติกรรมการสนทนา<textarea id="ai-playbook-behaviorInstructions" data-ai-playbook-path="behaviorInstructions" value={props.definition.behaviorInstructions} rows={4} maxLength={aiPlaybookFieldLimits.behavior.maxLength} aria-invalid={issueFor(props.validationPath, "behaviorInstructions") || undefined} onChange={(event) => update("behaviorInstructions", event.target.value)} /></label>
+        <label>ขอบเขตและกฎการส่งต่อ<textarea id="ai-playbook-behaviorBoundaries" data-ai-playbook-path="behaviorBoundaries" value={props.definition.behaviorBoundaries} rows={4} maxLength={aiPlaybookFieldLimits.behavior.maxLength} aria-invalid={issueFor(props.validationPath, "behaviorBoundaries") || undefined} onChange={(event) => update("behaviorBoundaries", event.target.value)} /></label>
       </div>
       <div className="ai-playbook-choice-grid">
         <div><span className="field-label">ภาษาที่ใช้สนทนา</span><div className="ai-playbook-checks" data-ai-playbook-path="languages" aria-invalid={issueFor(props.validationPath, "languages") || undefined}>
@@ -68,6 +74,18 @@ export function AiPlaybookEditor(props: Props) {
         </div><small>เลือกอย่างน้อยสองรายการ</small></div>
       </div>
     </fieldset>
+
+    {props.definition.builderContext ? <fieldset disabled={disabled} className="ai-playbook-fieldset">
+      <legend>Business profile from Builder · ข้อมูลธุรกิจจาก Builder</legend>
+      <p className="field-help">ข้อมูลที่สร้างและตรวจทานใน Builder ยังคงแก้ไขได้หลังผูกกับบัญชี</p>
+      <div className="ai-playbook-grid two-columns">
+        <label>ประเภทธุรกิจ<input data-ai-playbook-path="builderContext.businessType" value={props.definition.builderContext.businessType} maxLength={300} onChange={(event) => updateBuilderContext({ ...props.definition.builderContext!, businessType: event.target.value })} /></label>
+        <label>ช่องทางติดต่อหลัก<input data-ai-playbook-path="builderContext.contact" value={props.definition.builderContext.contact} maxLength={1000} onChange={(event) => updateBuilderContext({ ...props.definition.builderContext!, contact: event.target.value })} /></label>
+        <label className="wide">สรุปธุรกิจ<textarea data-ai-playbook-path="builderContext.businessSummary" value={props.definition.builderContext.businessSummary} rows={4} maxLength={5000} onChange={(event) => updateBuilderContext({ ...props.definition.builderContext!, businessSummary: event.target.value })} /></label>
+        <label className="wide">สินค้าและบริการ<textarea data-ai-playbook-path="builderContext.offers" value={props.definition.builderContext.offers} rows={4} maxLength={5000} onChange={(event) => updateBuilderContext({ ...props.definition.builderContext!, offers: event.target.value })} /></label>
+        <label className="wide">เวลาทำการจากธุรกิจ<textarea data-ai-playbook-path="builderContext.businessHours" value={props.definition.builderContext.businessHours} rows={3} maxLength={1000} onChange={(event) => updateBuilderContext({ ...props.definition.builderContext!, businessHours: event.target.value })} /></label>
+      </div>
+    </fieldset> : null}
 
     <fieldset disabled={disabled} className="ai-playbook-fieldset">
       <legend>การส่งต่อและการดำเนินการสำหรับลูกค้า</legend>
@@ -111,12 +129,36 @@ export function AiPlaybookEditor(props: Props) {
     </fieldset>
 
     <fieldset disabled={disabled} className="ai-playbook-fieldset">
+      <legend>Approved FAQ · คำถามที่พบบ่อย</legend>
+      <p className="field-help">คำถามและคำตอบสองภาษานี้เป็นหลักฐานธุรกิจที่ระบบใช้ตอบโดยตรง</p>
+      <div className="ai-playbook-windows" data-ai-playbook-path="approvedFaqs">
+        {props.definition.approvedFaqs.map((faq, index) => <div className="ai-playbook-window ai-playbook-faq" key={index}>
+          <label>English question<input value={faq.question.en} maxLength={aiPlaybookFieldLimits.faqQuestion.maxLength} required onChange={(event) => updateFaq(index, { ...faq, question: { ...faq.question, en: event.target.value } })} /></label>
+          <label>คำถามภาษาไทย<input value={faq.question.th} maxLength={aiPlaybookFieldLimits.faqQuestion.maxLength} required onChange={(event) => updateFaq(index, { ...faq, question: { ...faq.question, th: event.target.value } })} /></label>
+          <label>English answer<textarea value={faq.answer.en} rows={4} maxLength={aiPlaybookFieldLimits.faqAnswer.maxLength} required onChange={(event) => updateFaq(index, { ...faq, answer: { ...faq.answer, en: event.target.value } })} /></label>
+          <label>คำตอบภาษาไทย<textarea value={faq.answer.th} rows={4} maxLength={aiPlaybookFieldLimits.faqAnswer.maxLength} required onChange={(event) => updateFaq(index, { ...faq, answer: { ...faq.answer, th: event.target.value } })} /></label>
+          <button type="button" className="secondary-command danger-command" aria-label={`Remove FAQ ${index + 1}`} onClick={() => update("approvedFaqs", props.definition.approvedFaqs.filter((_, itemIndex) => itemIndex !== index))}>นำออก</button>
+        </div>)}
+        {!props.definition.approvedFaqs.length ? <p className="field-help">ยังไม่มี FAQ ที่อนุมัติ</p> : null}
+      </div>
+      {!props.readOnly ? <button type="button" className="secondary-command ai-playbook-add-window" disabled={props.advancedPending || props.definition.approvedFaqs.length >= aiPlaybookFieldLimits.faqQuestion.maxItems} onClick={() => update("approvedFaqs", [...props.definition.approvedFaqs, { question: { en: "New question", th: "คำถามใหม่" }, answer: { en: "Enter the approved answer", th: "กรอกคำตอบที่อนุมัติ" } }])}>เพิ่ม FAQ</button> : null}
+    </fieldset>
+
+    <fieldset disabled={disabled} className="ai-playbook-fieldset">
       <legend>Customer messages · ข้อความจากลูกค้า</legend>
       <div className="ai-playbook-grid two-columns">
         <label>คำทักทายภาษาอังกฤษ<textarea id="ai-playbook-greeting-en" data-ai-playbook-path="greeting.en" value={props.definition.greeting.en} rows={3} maxLength={aiPlaybookFieldLimits.localizedMessage.maxLength} required aria-invalid={issueFor(props.validationPath, "greeting.en") || undefined} onChange={(event) => update("greeting", { ...props.definition.greeting, en: event.target.value })} /></label>
         <label>คำทักทายภาษาไทย<textarea id="ai-playbook-greeting-th" data-ai-playbook-path="greeting.th" value={props.definition.greeting.th} rows={3} maxLength={aiPlaybookFieldLimits.localizedMessage.maxLength} required aria-invalid={issueFor(props.validationPath, "greeting.th") || undefined} onChange={(event) => update("greeting", { ...props.definition.greeting, th: event.target.value })} /></label>
         <label>ข้อความนอกเวลาภาษาอังกฤษ<textarea id="ai-playbook-offlineMessage-en" data-ai-playbook-path="offlineMessage.en" value={props.definition.offlineMessage.en} rows={3} maxLength={aiPlaybookFieldLimits.localizedMessage.maxLength} required aria-invalid={issueFor(props.validationPath, "offlineMessage.en") || undefined} onChange={(event) => update("offlineMessage", { ...props.definition.offlineMessage, en: event.target.value })} /></label>
         <label>ข้อความนอกเวลาภาษาไทย<textarea id="ai-playbook-offlineMessage-th" data-ai-playbook-path="offlineMessage.th" value={props.definition.offlineMessage.th} rows={3} maxLength={aiPlaybookFieldLimits.localizedMessage.maxLength} required aria-invalid={issueFor(props.validationPath, "offlineMessage.th") || undefined} onChange={(event) => update("offlineMessage", { ...props.definition.offlineMessage, th: event.target.value })} /></label>
+        {props.definition.builderContext ? <>
+          <label>AI disclosure in English<textarea data-ai-playbook-path="builderContext.disclosure.en" value={props.definition.builderContext.disclosure.en} rows={3} maxLength={500} onChange={(event) => updateBuilderContext({ ...props.definition.builderContext!, disclosure: { ...props.definition.builderContext!.disclosure, en: event.target.value } })} /></label>
+          <label>คำแจ้ง AI ภาษาไทย<textarea data-ai-playbook-path="builderContext.disclosure.th" value={props.definition.builderContext.disclosure.th} rows={3} maxLength={500} onChange={(event) => updateBuilderContext({ ...props.definition.builderContext!, disclosure: { ...props.definition.builderContext!.disclosure, th: event.target.value } })} /></label>
+          {props.definition.builderContext.voiceDisclosure ? <>
+            <label>Voice disclosure in English<textarea data-ai-playbook-path="builderContext.voiceDisclosure.en" value={props.definition.builderContext.voiceDisclosure.en} rows={3} maxLength={500} onChange={(event) => updateBuilderContext({ ...props.definition.builderContext!, voiceDisclosure: { ...props.definition.builderContext!.voiceDisclosure!, en: event.target.value } })} /></label>
+            <label>คำแจ้ง Voice ภาษาไทย<textarea data-ai-playbook-path="builderContext.voiceDisclosure.th" value={props.definition.builderContext.voiceDisclosure.th} rows={3} maxLength={500} onChange={(event) => updateBuilderContext({ ...props.definition.builderContext!, voiceDisclosure: { ...props.definition.builderContext!.voiceDisclosure!, th: event.target.value } })} /></label>
+          </> : null}
+        </> : null}
       </div>
     </fieldset>
 
