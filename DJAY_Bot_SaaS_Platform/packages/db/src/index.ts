@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0127_governed_knowledge_crawling";
+export const currentSchemaVersion = "0128_active_published_knowledge_retrieval";
 
 export { PostgresAuthStore } from "./auth-store";
 export { AccountingReconciliationWorkerStore, AccountingSyncWorkerStore, BillingWebhookRecoveryWorkerStore, BillingWebhookStore, FinancialEventReconciliationWorkerStore, FinancialReconciliationWorkerStore, SubscriptionLifecycleWorkerStore } from "./billing-webhook-store";

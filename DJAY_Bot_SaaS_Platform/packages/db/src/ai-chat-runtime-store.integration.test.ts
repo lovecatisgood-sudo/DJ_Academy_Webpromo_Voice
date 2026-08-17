@@ -584,6 +584,51 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       WHERE session.id = ${takeoverSession.sessionId}::uuid AND turn.input_id = ${takeoverInputId}::uuid
     `;
     expect(takeoverState[0]).toEqual({ ai_messages: 1, released_events: 1, reserved: 0, settled: 5, native_usage: 0 });
+    await adminClient!`UPDATE tenancy.knowledge_sources SET status = 'archived', updated_at = now()
+      WHERE tenant_id = ${tenantId}::uuid AND id = ${knowledge.sourceId}::uuid`;
+    const inactiveRevisionId = randomUUID();
+    await adminClient!`INSERT INTO tenancy.knowledge_source_revisions
+      (id, tenant_id, source_id, version, content_text, checksum, status, created_by_membership_id)
+      VALUES (${inactiveRevisionId}::uuid, ${tenantId}::uuid, ${knowledge.sourceId}::uuid, 2,
+        'Archived content must not become published.', public.digest('Archived content must not become published.', 'sha256'),
+        'ready', ${context.membershipId}::uuid)`;
+    await expect(adminClient!`INSERT INTO tenancy.ai_playbook_knowledge
+      (tenant_id, agent_id, playbook_version_id, source_revision_id)
+      VALUES (${tenantId}::uuid, ${agent.agentId}::uuid, ${published.playbookVersionId}::uuid, ${inactiveRevisionId}::uuid)`)
+      .rejects.toThrow("knowledge_revision_not_publishable");
+    await expect(authoring.publish(context, agent.agentId)).resolves.toEqual({
+      status: "validation_failed", issues: ["knowledge_revision_not_available"],
+    });
+    await expect(authoring.getTestContext(context, agent.agentId)).resolves.toMatchObject({ knowledgeChunks: [] });
+    const inactiveKnowledgeSession = await repository.start({
+      deploymentKey: deployment.deploymentKey, origin: "https://merchant.example", language: "en",
+    });
+    if (!inactiveKnowledgeSession) throw new Error("Expected active-source retrieval test session.");
+    const inactiveKnowledgeInputId = randomUUID();
+    const inactiveKnowledgeTurn = await repository.begin({
+      deploymentKey: deployment.deploymentKey, sessionToken: inactiveKnowledgeSession.sessionToken,
+      origin: "https://merchant.example", inputId: inactiveKnowledgeInputId, message: "Use only active knowledge.",
+    });
+    expect(inactiveKnowledgeTurn.knowledgeChunks).toEqual([]);
+    await expect(repository.commit({ deploymentKey: deployment.deploymentKey, sessionToken: inactiveKnowledgeSession.sessionToken,
+      origin: "https://merchant.example", inputId: inactiveKnowledgeInputId, output: {
+        schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "active_knowledge_check",
+        confidence: 0.8, safety: { state: "allowed", reasonCodes: [] }, facts: [], knowledgeCitations: [],
+        responseGoal: "confirm active knowledge boundary", proposedActions: [], handover: null,
+        customerResponse: "No active source supports that answer.", channelResponse: { format: "text", quickReplies: [] },
+      }, publicResponse: { status: "completed", inputId: inactiveKnowledgeInputId,
+        text: "No active source supports that answer.", quickReplies: [], nextTurnSequence: 2 },
+      nativeUsage: { inputUnits: 1, outputUnits: 1 } })).resolves.toMatchObject({ status: "completed" });
+    const retrievalFunctions = await adminClient!<{ name: string; definition: string }[]>`
+      SELECT procedure.proname AS name, pg_get_functiondef(procedure.oid) AS definition
+      FROM pg_proc procedure JOIN pg_namespace namespace ON namespace.oid = procedure.pronamespace
+      WHERE namespace.nspname = 'tenancy' AND procedure.proname IN ('begin_ai_turn', 'begin_ai_social_turn')
+      ORDER BY procedure.proname`;
+    expect(retrievalFunctions.map((item) => item.name)).toEqual(["begin_ai_social_turn", "begin_ai_turn"]);
+    for (const item of retrievalFunctions) {
+      expect(item.definition).toContain("revision.status = 'ready'");
+      expect(item.definition).toContain("source.status = 'active'");
+    }
     await expect(repository.sync({
       deploymentKey: deployment.deploymentKey, sessionToken: takeoverSession.sessionToken,
       origin: "https://evil.example", afterSequence: 0,

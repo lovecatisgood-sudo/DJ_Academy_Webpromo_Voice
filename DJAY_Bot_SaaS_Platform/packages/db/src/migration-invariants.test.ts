@@ -104,6 +104,7 @@ const staffReleaseBoundariesMigration = readFileSync(resolve(import.meta.dirname
 const structuredKnowledgeCatalogueMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0125_structured_knowledge_catalogue_lifecycle.sql"), "utf8");
 const knowledgeIngestionDigestMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0126_knowledge_ingestion_digest_authority.sql"), "utf8");
 const governedKnowledgeCrawlingMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0127_governed_knowledge_crawling.sql"), "utf8");
+const activePublishedKnowledgeMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0128_active_published_knowledge_retrieval.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -137,6 +138,12 @@ describe("Merchant experience migration invariants", () => {
     expect(governedKnowledgeCrawlingMigration).toContain("pg_advisory_xact_lock");
     expect(governedKnowledgeCrawlingMigration).toContain("minimum_interval_ms NOT BETWEEN 500 AND 5000");
     expect(governedKnowledgeCrawlingMigration).toContain("REVOKE ALL ON FUNCTION tenancy.reserve_knowledge_crawl_host");
+    expect(activePublishedKnowledgeMigration).toContain("CREATE TRIGGER tenancy_ai_playbook_knowledge_publishable");
+    expect(activePublishedKnowledgeMigration).toContain("revision.status = 'ready'");
+    expect(activePublishedKnowledgeMigration).toContain("source.status = 'active'");
+    expect(activePublishedKnowledgeMigration).toContain("version.status = 'published'");
+    expect(activePublishedKnowledgeMigration).toContain("procedure.proname IN ('begin_ai_turn', 'begin_ai_social_turn')");
+    expect(activePublishedKnowledgeMigration).toContain("active_knowledge_join_not_found");
   });
   it("keeps anonymous Builder drafts versioned, expiring, pre-tenant, and unavailable to tenant runtime", () => {
     expect(anonymousBuilderDraftMigration).toContain("CREATE TABLE builder.anonymous_sessions");

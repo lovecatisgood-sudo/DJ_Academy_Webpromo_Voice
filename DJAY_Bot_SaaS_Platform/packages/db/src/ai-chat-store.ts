@@ -149,8 +149,10 @@ export class AiChatStore {
       if (!(await aiResourceWritable(sql, agentId))) return { status: "resource_read_only" as const };
       const revisionIds = [...new Set(input.knowledgeRevisionIds)];
       const available = revisionIds.length ? await sql<{ count: number }[]>`
-        SELECT count(*)::int AS count FROM tenancy.knowledge_source_revisions
-        WHERE tenant_id = ${context.tenantId}::uuid AND status = 'ready' AND id = ANY(${revisionIds}::uuid[])
+        SELECT count(*)::int AS count FROM tenancy.knowledge_source_revisions revision
+        JOIN tenancy.knowledge_sources source ON source.tenant_id = revision.tenant_id AND source.id = revision.source_id
+        WHERE revision.tenant_id = ${context.tenantId}::uuid AND revision.status = 'ready'
+          AND source.status = 'active' AND revision.id = ANY(${revisionIds}::uuid[])
       ` : [{ count: 0 }];
       if (available[0]?.count !== revisionIds.length) return { status: "validation_failed" as const, issues: ["knowledge_revision_not_available"] } as const;
       const knowledgeLimit = authority.limits.knowledge_documents;
@@ -185,6 +187,15 @@ export class AiChatStore {
         FROM tenancy.ai_playbook_drafts WHERE tenant_id = ${context.tenantId}::uuid AND agent_id = ${agentId}::uuid FOR UPDATE
       `;
       if (!drafts[0]) return { status: "not_found" as const };
+      const publishable = drafts[0].knowledgeRevisionIds.length ? await sql<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM tenancy.knowledge_source_revisions revision
+        JOIN tenancy.knowledge_sources source ON source.tenant_id = revision.tenant_id AND source.id = revision.source_id
+        WHERE revision.tenant_id = ${context.tenantId}::uuid AND revision.status = 'ready'
+          AND source.status = 'active' AND revision.id = ANY(${drafts[0].knowledgeRevisionIds}::uuid[])
+      ` : [{ count: 0 }];
+      if (publishable[0]?.count !== drafts[0].knowledgeRevisionIds.length) {
+        return { status: "validation_failed" as const, issues: ["knowledge_revision_not_available"] };
+      }
       const versionRows = await sql<{ version: number }[]>`
         SELECT COALESCE(max(version), 0)::int + 1 AS version FROM tenancy.ai_playbook_versions
         WHERE tenant_id = ${context.tenantId}::uuid AND agent_id = ${agentId}::uuid
@@ -442,11 +453,15 @@ export class AiChatStore {
       const chunks = draft.knowledgeRevisionIds.length ? await sql<{
         sourceRevisionId: string; chunkId: string; content: string;
       }[]>`
-        SELECT source_revision_id AS "sourceRevisionId", id AS "chunkId", content_text AS content
-        FROM tenancy.knowledge_chunks
-        WHERE tenant_id = ${context.tenantId}::uuid
-          AND source_revision_id = ANY(${draft.knowledgeRevisionIds}::uuid[])
-        ORDER BY source_revision_id, sequence
+        SELECT chunk.source_revision_id AS "sourceRevisionId", chunk.id AS "chunkId", chunk.content_text AS content
+        FROM tenancy.knowledge_chunks chunk
+        JOIN tenancy.knowledge_source_revisions revision
+          ON revision.tenant_id = chunk.tenant_id AND revision.id = chunk.source_revision_id AND revision.status = 'ready'
+        JOIN tenancy.knowledge_sources source
+          ON source.tenant_id = revision.tenant_id AND source.id = revision.source_id AND source.status = 'active'
+        WHERE chunk.tenant_id = ${context.tenantId}::uuid
+          AND chunk.source_revision_id = ANY(${draft.knowledgeRevisionIds}::uuid[])
+        ORDER BY chunk.source_revision_id, chunk.sequence
       ` : [];
       return { playbook: draft.playbook, knowledgeChunks: chunks, publishedVersionId: draft.publishedVersionId };
     });

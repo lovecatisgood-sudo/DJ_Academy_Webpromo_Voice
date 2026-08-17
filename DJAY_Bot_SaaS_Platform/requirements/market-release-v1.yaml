@@ -3255,16 +3255,39 @@
         "AI-03",
         "AI-06"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "implementation_paths": [
+        "packages/db/src/ai-chat-store.ts",
+        "packages/db/src/ai-chat-runtime-store.ts",
+        "packages/ai-chat-runtime/src/index.ts"
+      ],
+      "migration_ids": [
+        "0007_shared_domain.sql",
+        "0017_ai_chat_saas.sql",
+        "0018_ai_chat_public_runtime.sql",
+        "0086_ai_chat_social_gate_parity.sql",
+        "0128_active_published_knowledge_retrieval.sql"
+      ],
+      "api_contracts": [
+        "POST /tenant/ai-chat/agents/:agentId/draft",
+        "POST /tenant/ai-chat/agents/:agentId/publish",
+        "POST /public/ai-chat/message"
+      ],
+      "ui_routes": [
+        "/workspace/ai-chat",
+        "/workspace/test-center"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "packages/db/src/ai-chat-runtime-store.integration.test.ts",
+        "packages/db/src/migration-invariants.test.ts",
+        "packages/ai-chat-runtime/src/index.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/active-published-knowledge-retrieval-2026-08-17.md"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {
