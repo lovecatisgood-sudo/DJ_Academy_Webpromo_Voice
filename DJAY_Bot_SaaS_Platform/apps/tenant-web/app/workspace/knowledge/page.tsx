@@ -6,15 +6,14 @@ import { WorkspaceSidebar } from "../WorkspaceSidebar";
 import { WorkspacePageLoadError, WorkspaceSessionLoadError, WorkspaceViewOnly } from "../WorkspaceAccess";
 import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
+import { StructuredCataloguePanel } from "./StructuredCataloguePanel";
 
 type Source = { id: string; name: string; sourceKind: string; status: string; version: number; revisionCreatedAt: string };
 type Collection = { id: string; name: string; description: string; sourceCount: number; itemCount: number };
-type CatalogItem = { id: string; itemKind: "product" | "service"; externalKey: string; name: string; description: string; priceMinor: number | null; currency: string | null; status: string };
-
 export default function KnowledgePage() {
   const session = useWorkspaceSession();
   const [sources, setSources] = useState<Source[]>([]); const [collections, setCollections] = useState<Collection[]>([]);
-  const [selectedCollectionId, setSelectedCollectionId] = useState(""); const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState("");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [message, setMessage] = useState(""); const [working, setWorking] = useState(false); const [loadError, setLoadError] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
@@ -31,19 +30,13 @@ export default function KnowledgePage() {
       setSources(nextSources); setCollections(nextCollections); setSelectedCollectionId((current) => current || nextCollections[0]?.id || ""); setLoadError(false);
     } catch { setLoadError(true); }
   }
-  async function loadCatalog(collectionId: string) {
-    if (!collectionId) { setCatalog([]); return; }
-    const response = await fetch(`/tenant/knowledge/catalog?collectionId=${encodeURIComponent(collectionId)}`, { cache: "no-store" });
-    setCatalog(response.ok ? (await response.json()).items || [] : []);
-  }
   useEffect(() => { if (session.selectedTenantId) void load(); }, [session.selectedTenantId]);
-  useEffect(() => { void loadCatalog(selectedCollectionId); }, [selectedCollectionId]);
 
   async function mutate(path: string, body: unknown, success: string, form?: HTMLFormElement) {
     setWorking(true); setMessage("");
     const response = await safeMutationFetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setWorking(false); if (!response.ok) { setMessage("The requested knowledge change could not be completed."); return null; }
-    form?.reset(); setMessage(success); await load(); await loadCatalog(selectedCollectionId); return response;
+    form?.reset(); setMessage(success); await load(); return response;
   }
   async function createCollection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
@@ -73,13 +66,6 @@ export default function KnowledgePage() {
       if (!completed.ok) throw new Error("complete_failed"); form.reset(); setMessage("File uploaded. Malware scanning and extraction are queued."); await load();
     } catch { setMessage("The file could not be uploaded."); } finally { setWorking(false); }
   }
-  async function saveCatalog(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const price = String(data.get("price") || "").trim();
-    await mutate("/tenant/knowledge/catalog", { collectionId: selectedCollectionId, itemKind: data.get("itemKind"), externalKey: data.get("externalKey"),
-      name: data.get("name"), description: data.get("description"), priceMinor: price ? Math.round(Number(price) * 100) : null,
-      currency: price ? data.get("currency") : null, attributes: {} }, "Catalogue item saved.", form);
-  }
-
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">กำลังโหลดคลังความรู้...</main>;
   if (loadError) return <WorkspacePageLoadError active="knowledge" title="คลังความรู้" resource="business content" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} onRetry={() => void load()} />;
@@ -101,7 +87,7 @@ export default function KnowledgePage() {
         <section id="knowledge-paste" className="tool-band muted-band"><div className="band-heading"><div><p>ข้อความที่อนุมัติ</p><h2>เพิ่มข้อความ</h2></div></div><form className="knowledge-form" onSubmit={createSource}><label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label><label>เนื้อหา<textarea name="content" rows={6} maxLength={500000} required /></label><button disabled={working}>เพิ่มข้อความที่อนุมัติแล้ว</button></form></section>
         <section id="knowledge-website" className="tool-band"><div className="band-heading"><div><p>นำเข้าตามกำหนดเวลา</p><h2>สแกนหน้าเว็บไซต์</h2></div></div><form className="flowbot-deploy" onSubmit={createCrawl}><label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label><label>URL หน้าเว็บแบบ HTTPS<input name="url" type="url" placeholder="https://example.com/services" required /></label><label>รีเฟรช<select name="refreshIntervalHours" defaultValue="168"><option value="168">รายสัปดาห์</option><option value="720">รายเดือน</option><option value="24">รายวัน</option></select></label><button disabled={working}>เพิ่มงานสแกนเข้าคิว</button></form></section>
         <section id="knowledge-upload" className="tool-band muted-band"><div className="band-heading"><div><p>เอกสารที่สแกนแล้ว</p><h2>อัปโหลด PDF, DOCX หรือ TXT</h2></div><span>ขนาดไม่เกิน 10 MB</span></div><form className="flowbot-deploy" onSubmit={uploadFile}><label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label><label>เอกสาร<input name="file" type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" required /></label><button disabled={working}>อัปโหลดเอกสาร</button></form></section>
-        <section id="knowledge-catalog" className="tool-band"><div className="band-heading"><div><p>คำแนะนำแบบมีโครงสร้าง</p><h2>ผลิตภัณฑ์และบริการ</h2></div><span>{catalog.length}</span></div><form className="knowledge-form" onSubmit={saveCatalog}><div><label>ประเภท<select name="itemKind"><option value="product">ผลิตภัณฑ์</option><option value="service">บริการ</option></select></label><label>ข้อมูลอ้างอิง<input name="externalKey" pattern="[a-zA-Z0-9_.-]{1,100}" required /></label><label>ชื่อ<input name="name" minLength={2} maxLength={200} required /></label></div><label>คำอธิบาย<textarea name="description" rows={4} maxLength={10000} required /></label><div><label>ราคา<input name="price" type="number" min="0" step="0.01" /></label><label>สกุลเงิน<select name="currency" defaultValue="THB"><option value="THB">บาท</option><option value="USD">USD</option></select></label></div><button disabled={working}>บันทึกรายการ</button></form><div className="data-table">{catalog.map((item) => <div className="data-row" key={item.id}><div><strong data-no-localize>{item.name}</strong><span data-no-localize>{item.externalKey} / {item.itemKind}</span></div><span>{item.priceMinor === null ? "ติดต่อเพื่อสอบถามราคา" : `${item.currency} ${(item.priceMinor / 100).toLocaleString(currentIntlLocale())}`}</span><span>{item.status}</span></div>)}</div></section>
+        <StructuredCataloguePanel collectionId={selectedCollectionId} canWrite={canWrite} />
       </> : null}
       {message ? <p className="inline-message" role="status">{message}</p> : null}
       <section className="tool-band muted-band"><div className="band-heading"><div><p>ฉบับที่พร้อมใช้</p><h2>รายการแหล่งข้อมูล</h2></div><span>{visibleSources.length} of {sources.length}</span></div><label className="source-filter">Show <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}><option value="all">All sources</option><option value="text">Pasted text</option><option value="url">Website pages</option><option value="file">Documents</option><option value="ready">Ready</option><option value="processing">Processing</option><option value="failed">Needs attention</option></select></label><div className="data-table">{visibleSources.map((source) => <div className="data-row" key={source.id}><div><strong data-no-localize>{source.name}</strong><span>{source.sourceKind} / revision {source.version}</span></div><span>{source.status === "ready" ? "Ready for bot answers" : source.status === "failed" ? "Needs attention" : source.status}</span><span>{new Date(source.revisionCreatedAt).toLocaleDateString(currentIntlLocale())}</span></div>)}{!visibleSources.length ? <div className="pending-line"><strong>{sources.length ? "No sources match this filter" : "ยังไม่มีแหล่งข้อมูลที่พร้อมใช้"}</strong><span>{sources.length ? "Choose All sources to see every item." : "งานสแกนและไฟล์อัปโหลดในคิวจะแสดงหลังประมวลผลและดึงข้อมูล"}</span></div> : null}</div></section>

@@ -119,6 +119,32 @@ describe("AI text runtime", () => {
     expect(events).toEqual(["begin", "commit:22"]);
   });
 
+  it("retrieves a published structured catalogue item as cited evidence", async () => {
+    const events: string[] = []; let policy = "";
+    const catalogueContent = JSON.stringify({ kind: "service", externalKey: "consult-30",
+      name: { th: "ปรึกษา 30 นาที", en: "30-minute consultation" },
+      description: { th: "คำแนะนำธุรกิจ", en: "Approved business advice" },
+      priceMinor: 150000, currency: "THB", availability: "available",
+      actionReference: { kind: "booking", value: "consultation" } });
+    const catalogueContext: AiTurnContext = { ...context, recentMessages: [], knowledgeChunks: [
+      { sourceRevisionId: ids.revision, chunkId: ids.chunk, content: catalogueContent },
+    ] };
+    const runtime = new AiTextRuntime({ ...repository(events), async begin() { events.push("begin"); return catalogueContext; } }, {
+      async generate(request) { policy = request.systemPolicy; return { output: {
+        schemaVersion: "sales-core.v1", stage: "S4_RECOMMENDATION", intent: "answer_catalogue",
+        facts: [], knowledgeCitations: [{ sourceRevisionId: ids.revision, chunkId: ids.chunk }],
+        responseGoal: "answer the catalogue question", proposedActions: [], handover: null,
+        customerResponse: "The 30-minute consultation is available for THB 1,500.",
+        channelResponse: { format: "text", quickReplies: [] },
+      }, nativeUsage: { inputUnits: 27, outputUnits: 9 } }; },
+    });
+    await expect(runtime.turn({ deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "Tell me about the 30-minute consultation and availability." }))
+      .resolves.toMatchObject({ status: "completed", text: "The 30-minute consultation is available for THB 1,500." });
+    expect(policy).toContain('\\"externalKey\\":\\"consult-30\\"');
+    expect(policy).toContain(`"sourceRevisionId":"${ids.revision}"`); expect(events).toEqual(["begin", "commit:27"]);
+  });
+
   it("allows a Sales Associate to propose a pending appointment after discovery without changing roles", async () => {
     const events: string[] = [];
     let committedOutput: unknown;

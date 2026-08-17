@@ -12,6 +12,27 @@ const mediaTypeSchema = z.enum([
 ]);
 export type KnowledgeMediaType = z.infer<typeof mediaTypeSchema>;
 
+export type LocalizedCatalogueText = Readonly<{ th: string; en: string }>;
+export type CatalogueActionReference = Readonly<{
+  kind: "booking" | "quotation" | "checkout" | "contact" | "link";
+  value: string;
+}>;
+export type KnowledgeCatalogueDraft = Readonly<{
+  collectionId: string;
+  itemKind: "product" | "service";
+  externalKey: string;
+  categoryKey: string | null;
+  localizedName: LocalizedCatalogueText;
+  localizedDescription: LocalizedCatalogueText;
+  priceMinor: number | null;
+  currency: string | null;
+  localizedPriceText: LocalizedCatalogueText;
+  availability: "available" | "unavailable" | "seasonal" | "contact";
+  options: readonly Record<string, unknown>[];
+  actionReference: CatalogueActionReference | null;
+  attributes: Record<string, unknown>;
+}>;
+
 async function knowledgeAuthority(sql: postgres.TransactionSql, tenantId: string) {
   const rows = await sql<{ allowed: boolean; collectionLimit: number | null }[]>`
     WITH current_authority AS (
@@ -31,8 +52,129 @@ async function knowledgeAuthority(sql: postgres.TransactionSql, tenantId: string
   return rows[0] ?? { allowed: false, collectionLimit: 0 };
 }
 
+async function structuredCatalogueAllowed(sql: postgres.TransactionSql, tenantId: string) {
+  const rows = await sql<{ allowed: boolean }[]>`SELECT EXISTS(
+    SELECT 1 FROM tenancy.product_subscriptions subscription
+    JOIN catalog.plan_versions version ON version.id = subscription.plan_version_id
+    JOIN catalog.plans plan ON plan.id = version.plan_id
+    JOIN LATERAL (SELECT candidate.access_mode FROM tenancy.entitlement_snapshots candidate
+      WHERE candidate.tenant_id = subscription.tenant_id AND candidate.subscription_id = subscription.id
+      ORDER BY candidate.created_at DESC, candidate.id DESC LIMIT 1) snapshot ON true
+    WHERE subscription.tenant_id = ${tenantId}::uuid AND subscription.product_key = 'ai_chat'
+      AND subscription.status IN ('active', 'trialing', 'scheduled_change') AND snapshot.access_mode = 'active'
+      AND plan.plan_key = 'ai_chat_premium'
+  ) AS allowed`;
+  return rows[0]?.allowed === true;
+}
+
+async function publishCatalogueSource(
+  sql: postgres.TransactionSql,
+  context: TenantContext,
+  collectionId: string,
+) {
+  const collection = await sql<{ name: string }[]>`SELECT name FROM tenancy.knowledge_collections
+    WHERE tenant_id = ${context.tenantId}::uuid AND id = ${collectionId}::uuid AND status = 'active'`;
+  if (!collection[0]) return null;
+  const sourceRows = await sql<{ sourceId: string }[]>`SELECT source_id AS "sourceId"
+    FROM tenancy.knowledge_catalog_sources
+    WHERE tenant_id = ${context.tenantId}::uuid AND collection_id = ${collectionId}::uuid`;
+  let sourceId = sourceRows[0]?.sourceId;
+  if (!sourceId) {
+    sourceId = randomUUID();
+    await sql`INSERT INTO tenancy.knowledge_sources (id, tenant_id, name, source_kind, created_by_membership_id)
+      VALUES (${sourceId}::uuid, ${context.tenantId}::uuid, ${`Catalogue - ${collection[0].name}`}, 'structured', ${context.membershipId}::uuid)`;
+    await sql`INSERT INTO tenancy.knowledge_collection_sources (tenant_id, collection_id, source_id)
+      VALUES (${context.tenantId}::uuid, ${collectionId}::uuid, ${sourceId}::uuid)`;
+    await sql`INSERT INTO tenancy.knowledge_catalog_sources (tenant_id, collection_id, source_id)
+      VALUES (${context.tenantId}::uuid, ${collectionId}::uuid, ${sourceId}::uuid)`;
+  }
+  const contentRows = await sql<{ content: string }[]>`SELECT jsonb_build_object(
+      'kind', version.item_kind, 'externalKey', item.external_key, 'categoryKey', version.category_key,
+      'name', version.localized_name, 'description', version.localized_description,
+      'priceMinor', version.price_minor, 'currency', version.currency,
+      'priceText', version.localized_price_text, 'availability', version.availability,
+      'options', version.options, 'actionReference', version.action_reference,
+      'attributes', version.attributes)::text AS content
+    FROM tenancy.knowledge_catalog_items item
+    JOIN tenancy.knowledge_catalog_item_versions version
+      ON version.tenant_id = item.tenant_id AND version.item_id = item.id AND version.id = item.published_version_id
+    WHERE item.tenant_id = ${context.tenantId}::uuid AND item.collection_id = ${collectionId}::uuid
+      AND item.status = 'active' ORDER BY item.external_key`;
+  const content = contentRows.map((row) => row.content).join("\n");
+  const versions = await sql<{ version: number }[]>`SELECT COALESCE(max(version), 0)::int + 1 AS version
+    FROM tenancy.knowledge_source_revisions WHERE tenant_id = ${context.tenantId}::uuid AND source_id = ${sourceId}::uuid`;
+  const revisionId = randomUUID();
+  await sql`INSERT INTO tenancy.knowledge_source_revisions
+    (id, tenant_id, source_id, version, content_text, checksum, provenance_json, created_by_membership_id)
+    VALUES (${revisionId}::uuid, ${context.tenantId}::uuid, ${sourceId}::uuid, ${versions[0]!.version},
+      ${content}, digest(${content}, 'sha256'),
+      ${sql.json({ kind: "structured_catalog", collectionId, publicationMode: "published_versions_only" } as never)},
+      ${context.membershipId}::uuid)`;
+  for (const [index, chunk] of contentRows.entries()) await sql`INSERT INTO tenancy.knowledge_chunks
+    (tenant_id, source_revision_id, sequence, content_text, content_hash) VALUES
+    (${context.tenantId}::uuid, ${revisionId}::uuid, ${index + 1}, ${chunk.content}, digest(${chunk.content}, 'sha256'))`;
+  const changed = await sql<{ agentId: string }[]>`UPDATE tenancy.ai_playbook_drafts draft SET
+      knowledge_revision_ids = ARRAY(
+        SELECT value FROM (
+          SELECT unnest(draft.knowledge_revision_ids) AS value
+          EXCEPT
+          SELECT old_revision.id FROM tenancy.knowledge_source_revisions old_revision
+          WHERE old_revision.tenant_id = draft.tenant_id AND old_revision.source_id = ${sourceId}::uuid
+        ) retained
+        UNION SELECT ${revisionId}::uuid WHERE ${contentRows.length > 0}
+      ), revision = draft.revision + 1, updated_at = now()
+    FROM tenancy.knowledge_catalog_agent_bindings binding
+    WHERE binding.tenant_id = ${context.tenantId}::uuid AND binding.collection_id = ${collectionId}::uuid
+      AND draft.tenant_id = binding.tenant_id AND draft.agent_id = binding.agent_id
+    RETURNING draft.agent_id AS "agentId"`;
+  return { revisionId, affectedAgentDrafts: changed.length };
+}
+
+async function saveCatalogueDraftVersion(
+  sql: postgres.TransactionSql,
+  context: TenantContext,
+  input: KnowledgeCatalogueDraft,
+) {
+  await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${context.tenantId}:${input.collectionId}:${input.externalKey}`}, 0))`;
+  const existing = await sql<{ id: string; nextVersion: number }[]>`SELECT item.id,
+    COALESCE(max(version.version), 0)::int + 1 AS "nextVersion"
+    FROM tenancy.knowledge_catalog_items item
+    LEFT JOIN tenancy.knowledge_catalog_item_versions version
+      ON version.tenant_id = item.tenant_id AND version.item_id = item.id
+    WHERE item.tenant_id = ${context.tenantId}::uuid AND item.collection_id = ${input.collectionId}::uuid
+      AND item.external_key = ${input.externalKey} GROUP BY item.id`;
+  const itemId = existing[0]?.id ?? randomUUID();
+  const versionId = randomUUID();
+  const version = existing[0]?.nextVersion ?? 1;
+  if (!existing[0]) await sql`INSERT INTO tenancy.knowledge_catalog_items
+    (id, tenant_id, collection_id, item_kind, external_key, name, description, price_minor, currency,
+     attributes, status, latest_version_id)
+    VALUES (${itemId}::uuid, ${context.tenantId}::uuid, ${input.collectionId}::uuid, ${input.itemKind},
+      ${input.externalKey}, ${input.localizedName.en}, ${input.localizedDescription.en}, ${input.priceMinor},
+      ${input.currency}, ${sql.json(input.attributes as never)}, 'active', ${versionId}::uuid)`;
+  await sql`INSERT INTO tenancy.knowledge_catalog_item_versions
+    (id, tenant_id, item_id, version, item_kind, category_key, localized_name, localized_description,
+     price_minor, currency, localized_price_text, availability, options, action_reference, attributes,
+     created_by_membership_id)
+    VALUES (${versionId}::uuid, ${context.tenantId}::uuid, ${itemId}::uuid, ${version}, ${input.itemKind},
+      ${input.categoryKey}, ${sql.json(input.localizedName as never)}, ${sql.json(input.localizedDescription as never)},
+      ${input.priceMinor}, ${input.currency}, ${sql.json(input.localizedPriceText as never)}, ${input.availability},
+      ${sql.json(input.options as never)}, ${input.actionReference ? sql.json(input.actionReference as never) : null},
+      ${sql.json(input.attributes as never)}, ${context.membershipId}::uuid)`;
+  if (existing[0]) await sql`UPDATE tenancy.knowledge_catalog_items SET item_kind = ${input.itemKind},
+    name = ${input.localizedName.en}, description = ${input.localizedDescription.en}, price_minor = ${input.priceMinor},
+    currency = ${input.currency}, attributes = ${sql.json(input.attributes as never)}, status = 'active',
+    latest_version_id = ${versionId}::uuid, archived_at = NULL, updated_at = now()
+    WHERE tenant_id = ${context.tenantId}::uuid AND id = ${itemId}::uuid`;
+  return { itemId, versionId, version };
+}
+
 export class TenantKnowledgeIngestionStore {
   constructor(private readonly client: DatabaseClient) {}
+
+  async hasStructuredCatalogue(context: TenantContext) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => structuredCatalogueAllowed(sql, context.tenantId));
+  }
 
   async listCollections(context: TenantContext) {
     return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
@@ -132,65 +274,162 @@ export class TenantKnowledgeIngestionStore {
     });
   }
 
-  async upsertCatalogItem(context: TenantContext, input: Readonly<{
-    collectionId: string; itemKind: "product" | "service"; externalKey: string; name: string;
-    description: string; priceMinor: number | null; currency: string | null; attributes: Record<string, unknown>;
-  }>) {
+  async saveCatalogDraft(context: TenantContext, input: KnowledgeCatalogueDraft) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
-      const authority = await knowledgeAuthority(sql, context.tenantId);
-      if (!authority.allowed) return { status: "not_entitled" as const };
-      const rows = await sql<{ id: string }[]>`INSERT INTO tenancy.knowledge_catalog_items
-        (tenant_id, collection_id, item_kind, external_key, name, description, price_minor, currency, attributes)
-        SELECT ${context.tenantId}::uuid, collection.id, ${input.itemKind}, ${input.externalKey}, ${input.name},
-          ${input.description}, ${input.priceMinor}, ${input.currency}, ${sql.json(input.attributes as never)}
-        FROM tenancy.knowledge_collections collection WHERE collection.tenant_id = ${context.tenantId}::uuid
-          AND collection.id = ${input.collectionId}::uuid AND collection.status = 'active'
-        ON CONFLICT (tenant_id, collection_id, external_key) DO UPDATE SET item_kind = EXCLUDED.item_kind,
-          name = EXCLUDED.name, description = EXCLUDED.description, price_minor = EXCLUDED.price_minor,
-          currency = EXCLUDED.currency, attributes = EXCLUDED.attributes, status = 'active', updated_at = now()
-        RETURNING id`;
-      if (!rows[0]) return { status: "not_found" as const };
-      const existingCatalogSources = await sql<{ sourceId: string }[]>`SELECT source_id AS "sourceId" FROM tenancy.knowledge_catalog_sources
-        WHERE tenant_id = ${context.tenantId}::uuid AND collection_id = ${input.collectionId}::uuid`;
-      let catalogSourceId = existingCatalogSources[0]?.sourceId;
-      if (!catalogSourceId) {
-        const sourceId = randomUUID();
-        await sql`INSERT INTO tenancy.knowledge_sources (id, tenant_id, name, source_kind, created_by_membership_id)
-          VALUES (${sourceId}::uuid, ${context.tenantId}::uuid, ${`Catalogue - ${input.name}`}, 'structured', ${context.membershipId}::uuid)`;
-        await sql`INSERT INTO tenancy.knowledge_collection_sources (tenant_id, collection_id, source_id)
-          VALUES (${context.tenantId}::uuid, ${input.collectionId}::uuid, ${sourceId}::uuid)`;
-        await sql`INSERT INTO tenancy.knowledge_catalog_sources (tenant_id, collection_id, source_id)
-          VALUES (${context.tenantId}::uuid, ${input.collectionId}::uuid, ${sourceId}::uuid)`;
-        catalogSourceId = sourceId;
+      if (!(await structuredCatalogueAllowed(sql, context.tenantId))) return { status: "not_entitled" as const };
+      const collection = await sql<{ exists: boolean }[]>`SELECT EXISTS(SELECT 1 FROM tenancy.knowledge_collections
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${input.collectionId}::uuid AND status = 'active') AS exists`;
+      if (!collection[0]?.exists) return { status: "not_found" as const };
+      return { status: "saved_draft" as const, ...await saveCatalogueDraftVersion(sql, context, input) };
+    });
+  }
+
+  async importCatalogDrafts(context: TenantContext, collectionId: string, items: readonly Omit<KnowledgeCatalogueDraft, "collectionId">[]) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      if (!(await structuredCatalogueAllowed(sql, context.tenantId))) return { status: "not_entitled" as const };
+      if (items.length < 1 || items.length > 200 || new Set(items.map((item) => item.externalKey)).size !== items.length) {
+        return { status: "validation_failed" as const };
       }
-      const contentRows = await sql<{ content: string }[]>`SELECT concat_ws(E'\n',
-        'Type: ' || item_kind, 'Reference: ' || external_key, 'Name: ' || name, 'Description: ' || description,
-        CASE WHEN price_minor IS NULL THEN NULL ELSE 'Price: ' || currency || ' ' || (price_minor::numeric / 100)::text END,
-        CASE WHEN attributes = '{}'::jsonb THEN NULL ELSE 'Attributes: ' || attributes::text END) AS content
-        FROM tenancy.knowledge_catalog_items WHERE tenant_id = ${context.tenantId}::uuid
-          AND collection_id = ${input.collectionId}::uuid AND status = 'active' ORDER BY external_key`;
-      const content = contentRows.map((row) => row.content).join("\n\n");
-      const versions = await sql<{ version: number }[]>`SELECT COALESCE(max(version), 0)::int + 1 AS version
-        FROM tenancy.knowledge_source_revisions WHERE tenant_id = ${context.tenantId}::uuid AND source_id = ${catalogSourceId}::uuid`;
-      const revisionId = randomUUID();
-      await sql`INSERT INTO tenancy.knowledge_source_revisions (id, tenant_id, source_id, version, content_text, checksum, provenance_json, created_by_membership_id)
-        VALUES (${revisionId}::uuid, ${context.tenantId}::uuid, ${catalogSourceId}::uuid, ${versions[0]!.version},
-          ${content}, digest(${content}, 'sha256'), ${sql.json({ kind: "structured_catalog", collectionId: input.collectionId } as never)}, ${context.membershipId}::uuid)`;
-      for (const [index, chunk] of contentRows.map((row) => row.content).entries()) await sql`INSERT INTO tenancy.knowledge_chunks
-        (tenant_id, source_revision_id, sequence, content_text, content_hash) VALUES (${context.tenantId}::uuid,
-          ${revisionId}::uuid, ${index + 1}, ${chunk}, digest(${chunk}, 'sha256'))`;
-      return { status: "saved" as const, itemId: rows[0].id, revisionId };
+      const collection = await sql<{ exists: boolean }[]>`SELECT EXISTS(SELECT 1 FROM tenancy.knowledge_collections
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${collectionId}::uuid AND status = 'active') AS exists`;
+      if (!collection[0]?.exists) return { status: "not_found" as const };
+      const saved: { itemId: string; versionId: string; version: number }[] = [];
+      for (const item of items) saved.push(await saveCatalogueDraftVersion(sql, context, { ...item, collectionId }));
+      return { status: "imported_drafts" as const, count: saved.length, items: saved };
+    });
+  }
+
+  async publishCatalogItem(context: TenantContext, itemId: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      if (!(await structuredCatalogueAllowed(sql, context.tenantId))) return { status: "not_entitled" as const };
+      const rows = await sql<{ collectionId: string; versionId: string; version: number }[]>`UPDATE tenancy.knowledge_catalog_items item
+        SET published_version_id = item.latest_version_id, status = 'active', archived_at = NULL, updated_at = now()
+        FROM tenancy.knowledge_catalog_item_versions version
+        WHERE item.tenant_id = ${context.tenantId}::uuid AND item.id = ${itemId}::uuid
+          AND (item.published_version_id IS DISTINCT FROM item.latest_version_id OR item.status <> 'active')
+          AND version.tenant_id = item.tenant_id AND version.item_id = item.id AND version.id = item.latest_version_id
+        RETURNING item.collection_id AS "collectionId", version.id AS "versionId", version.version`;
+      if (!rows[0]) {
+        const existing = await sql<{ exists: boolean }[]>`SELECT EXISTS(SELECT 1 FROM tenancy.knowledge_catalog_items
+          WHERE tenant_id = ${context.tenantId}::uuid AND id = ${itemId}::uuid) AS exists`;
+        return existing[0]?.exists ? { status: "unchanged" as const, itemId } : { status: "not_found" as const };
+      }
+      const publication = await publishCatalogueSource(sql, context, rows[0].collectionId);
+      return { status: "published" as const, itemId, versionId: rows[0].versionId, version: rows[0].version, ...publication! };
+    });
+  }
+
+  async archiveCatalogItem(context: TenantContext, itemId: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      if (!(await structuredCatalogueAllowed(sql, context.tenantId))) return { status: "not_entitled" as const };
+      const rows = await sql<{ collectionId: string }[]>`UPDATE tenancy.knowledge_catalog_items SET
+        published_version_id = NULL, status = 'archived', archived_at = now(), updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${itemId}::uuid
+          AND (status <> 'archived' OR published_version_id IS NOT NULL)
+        RETURNING collection_id AS "collectionId"`;
+      if (!rows[0]) {
+        const existing = await sql<{ exists: boolean }[]>`SELECT EXISTS(SELECT 1 FROM tenancy.knowledge_catalog_items
+          WHERE tenant_id = ${context.tenantId}::uuid AND id = ${itemId}::uuid) AS exists`;
+        return existing[0]?.exists ? { status: "unchanged" as const, itemId } : { status: "not_found" as const };
+      }
+      const publication = await publishCatalogueSource(sql, context, rows[0].collectionId);
+      return { status: "archived" as const, itemId, ...publication! };
+    });
+  }
+
+  async listCatalogAgentBindings(context: TenantContext, collectionId: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
+      agentId: string; name: string; businessName: string; bound: boolean;
+    }[]>`SELECT agent.id AS "agentId", agent.name,
+      COALESCE(draft.definition_json->>'businessName', '') AS "businessName",
+      (binding.agent_id IS NOT NULL) AS bound
+      FROM tenancy.ai_agents agent
+      JOIN tenancy.ai_playbook_drafts draft ON draft.tenant_id = agent.tenant_id AND draft.agent_id = agent.id
+      LEFT JOIN tenancy.knowledge_catalog_agent_bindings binding
+        ON binding.tenant_id = agent.tenant_id AND binding.agent_id = agent.id
+        AND binding.collection_id = ${collectionId}::uuid
+      WHERE agent.tenant_id = ${context.tenantId}::uuid AND agent.status <> 'archived'
+      ORDER BY agent.created_at, agent.id`);
+  }
+
+  async setCatalogAgentBindings(context: TenantContext, collectionId: string, agentIds: readonly string[]) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      if (!(await structuredCatalogueAllowed(sql, context.tenantId))) return { status: "not_entitled" as const };
+      const uniqueAgentIds = [...new Set(agentIds)];
+      if (uniqueAgentIds.length !== agentIds.length || uniqueAgentIds.length > 3) return { status: "invalid_agents" as const };
+      const valid = await sql<{ collectionExists: boolean; agentCount: number }[]>`SELECT
+        EXISTS(SELECT 1 FROM tenancy.knowledge_collections WHERE tenant_id = ${context.tenantId}::uuid
+          AND id = ${collectionId}::uuid AND status = 'active') AS "collectionExists",
+        (SELECT count(*)::int FROM tenancy.ai_agents WHERE tenant_id = ${context.tenantId}::uuid
+          AND id = ANY(${uniqueAgentIds}::uuid[]) AND status <> 'archived') AS "agentCount"`;
+      if (!valid[0]?.collectionExists) return { status: "not_found" as const };
+      if (valid[0].agentCount !== uniqueAgentIds.length) return { status: "invalid_agents" as const };
+      const previous = await sql<{ agentId: string }[]>`SELECT agent_id AS "agentId"
+        FROM tenancy.knowledge_catalog_agent_bindings WHERE tenant_id = ${context.tenantId}::uuid
+          AND collection_id = ${collectionId}::uuid`;
+      await sql`DELETE FROM tenancy.knowledge_catalog_agent_bindings WHERE tenant_id = ${context.tenantId}::uuid
+        AND collection_id = ${collectionId}::uuid AND NOT (agent_id = ANY(${uniqueAgentIds}::uuid[]))`;
+      for (const agentId of uniqueAgentIds) await sql`INSERT INTO tenancy.knowledge_catalog_agent_bindings
+        (tenant_id, collection_id, agent_id, created_by_membership_id)
+        VALUES (${context.tenantId}::uuid, ${collectionId}::uuid, ${agentId}::uuid, ${context.membershipId}::uuid)
+        ON CONFLICT (tenant_id, collection_id, agent_id) DO NOTHING`;
+      const sources = await sql<{ sourceId: string; revisionId: string | null }[]>`SELECT source.source_id AS "sourceId",
+        (SELECT revision.id FROM tenancy.knowledge_source_revisions revision
+          WHERE revision.tenant_id = source.tenant_id AND revision.source_id = source.source_id
+            AND revision.status = 'ready' AND revision.content_text <> ''
+          ORDER BY revision.version DESC LIMIT 1) AS "revisionId"
+        FROM tenancy.knowledge_catalog_sources source
+        WHERE source.tenant_id = ${context.tenantId}::uuid AND source.collection_id = ${collectionId}::uuid`;
+      const source = sources[0];
+      if (source) {
+        const affectedAgentIds = [...new Set([...previous.map((item) => item.agentId), ...uniqueAgentIds])];
+        for (const agentId of affectedAgentIds) {
+          const shouldBind = uniqueAgentIds.includes(agentId) && source.revisionId !== null;
+          await sql`WITH candidate AS (SELECT draft.tenant_id, draft.agent_id, ARRAY(
+                SELECT value FROM (
+                  SELECT unnest(draft.knowledge_revision_ids) AS value
+                  EXCEPT SELECT revision.id FROM tenancy.knowledge_source_revisions revision
+                    WHERE revision.tenant_id = draft.tenant_id AND revision.source_id = ${source.sourceId}::uuid
+                ) retained
+                UNION SELECT ${source.revisionId}::uuid WHERE ${shouldBind}
+              ) AS next_pins
+              FROM tenancy.ai_playbook_drafts draft
+              WHERE draft.tenant_id = ${context.tenantId}::uuid AND draft.agent_id = ${agentId}::uuid)
+            UPDATE tenancy.ai_playbook_drafts draft SET knowledge_revision_ids = candidate.next_pins,
+              revision = draft.revision + 1, updated_at = now()
+            FROM candidate WHERE draft.tenant_id = candidate.tenant_id AND draft.agent_id = candidate.agent_id
+              AND draft.knowledge_revision_ids IS DISTINCT FROM candidate.next_pins`;
+        }
+      }
+      return { status: "saved" as const, agentIds: uniqueAgentIds };
     });
   }
 
   async listCatalogItems(context: TenantContext, collectionId: string) {
     return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
-      id: string; itemKind: "product" | "service"; externalKey: string; name: string; description: string;
-      priceMinor: number | null; currency: string | null; attributes: Record<string, unknown>; status: string;
-    }[]>`SELECT id, item_kind AS "itemKind", external_key AS "externalKey", name, description,
-      price_minor::int AS "priceMinor", currency, attributes, status FROM tenancy.knowledge_catalog_items
-      WHERE tenant_id = ${context.tenantId}::uuid AND collection_id = ${collectionId}::uuid
-      ORDER BY updated_at DESC, id`);
+      id: string; itemKind: "product" | "service"; externalKey: string; categoryKey: string | null;
+      localizedName: LocalizedCatalogueText; localizedDescription: LocalizedCatalogueText;
+      priceMinor: number | null; currency: string | null; localizedPriceText: LocalizedCatalogueText;
+      availability: KnowledgeCatalogueDraft["availability"]; options: Record<string, unknown>[];
+      actionReference: CatalogueActionReference | null; attributes: Record<string, unknown>;
+      status: "draft" | "published" | "published_with_draft" | "archived"; latestVersion: number; publishedVersion: number | null;
+    }[]>`SELECT item.id, version.item_kind AS "itemKind", item.external_key AS "externalKey",
+      version.category_key AS "categoryKey", version.localized_name AS "localizedName",
+      version.localized_description AS "localizedDescription", version.price_minor::int AS "priceMinor",
+      version.currency, version.localized_price_text AS "localizedPriceText", version.availability,
+      version.options, version.action_reference AS "actionReference", version.attributes,
+      CASE WHEN item.status = 'archived' THEN 'archived'
+        WHEN item.published_version_id IS NULL THEN 'draft'
+        WHEN item.published_version_id = item.latest_version_id THEN 'published'
+        ELSE 'published_with_draft' END AS status,
+      version.version AS "latestVersion", published.version AS "publishedVersion"
+      FROM tenancy.knowledge_catalog_items item
+      JOIN tenancy.knowledge_catalog_item_versions version
+        ON version.tenant_id = item.tenant_id AND version.item_id = item.id AND version.id = item.latest_version_id
+      LEFT JOIN tenancy.knowledge_catalog_item_versions published
+        ON published.tenant_id = item.tenant_id AND published.item_id = item.id AND published.id = item.published_version_id
+      WHERE item.tenant_id = ${context.tenantId}::uuid AND item.collection_id = ${collectionId}::uuid
+      ORDER BY item.updated_at DESC, item.id`);
   }
 }
 

@@ -2728,15 +2728,22 @@
         "packages/sales-core/src/index.ts",
         "packages/ai-chat-runtime/src/index.ts",
         "packages/db/src/ai-chat-runtime-store.ts",
+        "packages/db/src/knowledge-ingestion-store.ts",
+        "apps/tenant-web/app/workspace/knowledge/StructuredCataloguePanel.tsx",
         "apps/tenant-web/app/workspace/ai-chat/AiPlaybookEditor.tsx"
       ],
-      "migration_ids": [],
+      "migration_ids": [
+        "0125_structured_knowledge_catalogue_lifecycle.sql"
+      ],
       "api_contracts": [
+        "GET|POST|PATCH /tenant/knowledge/catalog",
+        "GET|PATCH /tenant/knowledge/catalog/bindings",
         "POST /tenant/ai-chat/agents/:agentId/test",
         "POST /public/ai-chat/message"
       ],
       "ui_routes": [
-        "/workspace/ai-chat"
+        "/workspace/ai-chat",
+        "/workspace/knowledge"
       ],
       "entitlement_keys": [],
       "meter_keys": [],
@@ -2744,14 +2751,16 @@
         "packages/sales-core/src/index.test.ts",
         "packages/ai-chat-runtime/src/index.test.ts",
         "packages/db/src/ai-chat-runtime-store.integration.test.ts",
-        "packages/db/src/anonymous-builder-store.integration.test.ts"
+        "packages/db/src/anonymous-builder-store.integration.test.ts",
+        "packages/db/src/knowledge-catalogue-lifecycle.integration.test.ts"
       ],
       "runbooks": [],
       "evidence": [
         "docs/validation/production-master-plan-pr07-pr08-builder-ai-materialization-2026-08-17.md",
-        "docs/validation/ai-text-approved-business-grounding-2026-08-17.md"
+        "docs/validation/ai-text-approved-business-grounding-2026-08-17.md",
+        "docs/validation/structured-knowledge-catalogue-lifecycle-2026-08-17.md"
       ],
-      "status": "in_progress",
+      "status": "implemented",
       "accepted_by": null
     },
     {
@@ -3266,32 +3275,47 @@
         "packages/sales-core/src/index.ts",
         "packages/ai-chat-runtime/src/index.ts",
         "packages/db/src/tenant-workspace-store.ts",
+        "packages/db/src/knowledge-ingestion-store.ts",
+        "apps/api/app/tenant/knowledge/catalog/route.ts",
+        "apps/api/app/tenant/knowledge/catalog/import/route.ts",
+        "apps/api/app/tenant/knowledge/catalog/bindings/route.ts",
+        "apps/tenant-web/app/workspace/knowledge/StructuredCataloguePanel.tsx",
         "apps/tenant-web/app/workspace/ai-chat/AiPlaybookEditor.tsx"
       ],
-      "migration_ids": [],
+      "migration_ids": [
+        "0125_structured_knowledge_catalogue_lifecycle.sql"
+      ],
       "api_contracts": [
         "GET|PATCH /public/builder/draft",
+        "GET|POST|PATCH /tenant/knowledge/catalog",
+        "POST /tenant/knowledge/catalog/import",
+        "GET|PATCH /tenant/knowledge/catalog/bindings",
         "GET|PATCH /tenant/ai-chat/agents/:agentId/draft",
         "POST /tenant/ai-chat/agents/:agentId/test",
         "POST /public/ai-chat/message"
       ],
       "ui_routes": [
         "/build",
-        "/workspace/ai-chat"
+        "/workspace/ai-chat",
+        "/workspace/knowledge"
       ],
       "entitlement_keys": [],
       "meter_keys": [],
       "test_ids": [
         "packages/sales-core/src/index.test.ts",
         "packages/ai-chat-runtime/src/index.test.ts",
-        "packages/db/src/anonymous-builder-store.integration.test.ts"
+        "packages/db/src/anonymous-builder-store.integration.test.ts",
+        "packages/db/src/knowledge-catalogue-lifecycle.integration.test.ts",
+        "apps/api/lib/structured-catalogue.test.ts",
+        "apps/tenant-web/lib/structured-catalogue-csv.test.ts"
       ],
       "runbooks": [],
       "evidence": [
         "docs/validation/ai-text-approved-business-grounding-2026-08-17.md",
-        "docs/validation/production-master-plan-pr07-pr08-builder-ai-materialization-2026-08-17.md"
+        "docs/validation/production-master-plan-pr07-pr08-builder-ai-materialization-2026-08-17.md",
+        "docs/validation/structured-knowledge-catalogue-lifecycle-2026-08-17.md"
       ],
-      "status": "in_progress",
+      "status": "implemented",
       "accepted_by": null
     },
     {

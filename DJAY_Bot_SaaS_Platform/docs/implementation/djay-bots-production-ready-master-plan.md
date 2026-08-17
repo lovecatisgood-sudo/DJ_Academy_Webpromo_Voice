@@ -313,6 +313,8 @@ Package-first AI Text role checkpoint, 2026-08-17: executable source checks now 
 
 Approved business-grounding checkpoint, 2026-08-17: Builder business type, summary, products/services, hours and contact now become query-relevant typed grounding records from the exact immutable claimed playbook in both preview and deployed Text runtime. Records are encoded as untrusted JSON data, prompt-control content is excluded and the selected evidence contributes to deterministic confidence. PostgreSQL proves the profile survives Text and Voice claim materialization. Advanced structured catalogue authoring/versioning/import and browser/live-provider/human quality acceptance remain open, so `AIT-002` and `KNO-007` remain `in_progress`.
 
+Structured catalogue lifecycle checkpoint, 2026-08-17: the superseding Advanced catalogue implementation now provides stable item identity, immutable draft versions, explicit publish/archive, bilingual product/service fields, category, price display, availability, options, typed customer-action references, bounded attributes and atomic CSV draft import. Advanced entitlement and tenant boundaries are server-authoritative. Explicit collection-to-agent mapping replaces only mapped agents' draft knowledge pins when a catalogue revision is published; live playbooks and traffic remain unchanged until their separate publication path. Starter retains approved business-profile product/service grounding. `AIT-002` and `KNO-007` are implemented but unaccepted; browser, live-provider and named-merchant quality acceptance remain open.
+
 Exit gate:
 
 - Unmocked staging Builder → API → gateway → provider → Sales Core journeys pass.

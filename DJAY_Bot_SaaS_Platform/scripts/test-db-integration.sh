@@ -243,6 +243,15 @@ fi
 run_sql /workspace/packages/db/tests/seed.sql
 run_sql /workspace/packages/db/tests/rls-isolation.sql
 
+if [[ "${KNOWLEDGE_CATALOGUE_ONLY:-false}" == "true" ]]; then
+  echo "Running focused Advanced structured knowledge catalogue lifecycle integration test."
+  TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+    "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/knowledge-catalogue-lifecycle.integration.test.ts
+  echo "Focused Advanced structured knowledge catalogue lifecycle passed."
+  exit 0
+fi
+
 echo "Running durable anonymous Builder draft integration test."
 AUTH_DATABASE_URL="postgresql://djay_auth_runtime:djay_auth_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
 TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
@@ -432,6 +441,11 @@ TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST
 WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/ai-chat-runtime-store.integration.test.ts
+
+echo "Running Advanced structured knowledge catalogue lifecycle integration test."
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/knowledge-catalogue-lifecycle.integration.test.ts
 
 echo "Running deterministic FlowBot LINE social runtime integration test."
 FLOWBOT_DATABASE_URL="postgresql://djay_flowbot_runtime:djay_flowbot_test@127.0.0.1:${TEST_DB_PORT}/postgres" \

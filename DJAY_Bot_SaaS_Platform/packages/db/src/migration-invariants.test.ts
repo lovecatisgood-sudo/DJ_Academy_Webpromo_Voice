@@ -101,6 +101,7 @@ const voiceDeploymentLiveVersionMigration = readFileSync(resolve(import.meta.dir
 const builderFlowMaterializationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0122_builder_flow_materialization.sql"), "utf8");
 const predeploymentAiConfigurationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0123_predeployment_ai_configurations.sql"), "utf8");
 const staffReleaseBoundariesMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0124_staff_release_boundaries.sql"), "utf8");
+const structuredKnowledgeCatalogueMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0125_structured_knowledge_catalogue_lifecycle.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -113,6 +114,15 @@ const tenantTables = [
 ];
 
 describe("Merchant experience migration invariants", () => {
+  it("keeps structured catalogue versions immutable, tenant-isolated and explicitly published", () => {
+    expect(structuredKnowledgeCatalogueMigration).toContain("CREATE TABLE tenancy.knowledge_catalog_item_versions");
+    expect(structuredKnowledgeCatalogueMigration).toContain("knowledge catalogue item versions are immutable");
+    expect(structuredKnowledgeCatalogueMigration).toContain("published_version_id uuid");
+    expect(structuredKnowledgeCatalogueMigration).toContain("DEFERRABLE INITIALLY DEFERRED");
+    expect(structuredKnowledgeCatalogueMigration).toContain("FORCE ROW LEVEL SECURITY");
+    expect(structuredKnowledgeCatalogueMigration).toContain("tenant_id = tenancy.current_tenant_id()");
+    expect(structuredKnowledgeCatalogueMigration).not.toMatch(/GRANT (UPDATE|DELETE) ON tenancy\.knowledge_catalog_item_versions/i);
+  });
   it("keeps anonymous Builder drafts versioned, expiring, pre-tenant, and unavailable to tenant runtime", () => {
     expect(anonymousBuilderDraftMigration).toContain("CREATE TABLE builder.anonymous_sessions");
     expect(anonymousBuilderDraftMigration).toContain("CREATE TABLE builder.draft_revisions");
