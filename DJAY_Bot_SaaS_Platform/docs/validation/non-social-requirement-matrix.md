@@ -1,6 +1,6 @@
 # Non-social production-readiness requirement matrix
 
-Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; formally accepted: **0**; requirements with at least one existing mapped artifact: **76**; requirements containing stale or missing path references: **1**.
+Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; formally accepted: **0**; requirements with at least one existing mapped artifact: **77**; requirements containing stale or missing path references: **1**.
 
 > An existing file is mapping evidence, not acceptance evidence. A requirement remains unaccepted until its named tests, environment evidence, and authorized reviewer are recorded in the release registry. Social-channel implementation may exist in source but is outside the current release scope.
 
@@ -131,7 +131,7 @@ Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; f
 | ATS-002 | AI-03 | ai_chat_basic, ai_chat_premium | implemented | 5/5 | 4/4 | 1/1 | — | Provide the website chat widget and include up to 2,000 AI-generated replies per monthly allowance period. |
 | ATS-003 | AI-03 | ai_chat_basic, ai_chat_premium | implemented | 6/6 | 5/5 | 1/1 | — | Provide one business knowledge base containing website content, FAQs, PDF, DOCX, TXT, and product/service information. |
 | ATS-004 | AI-03 | ai_chat_basic, ai_chat_premium | implemented | 5/5 | 5/5 | 1/1 | — | Support Thai and English conversations, including language detection and a configured language override. |
-| ATS-005 | AI-03 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Answer FAQs, explain products/services, recommend suitable products/services, and follow configured sales instructions. |
+| ATS-005 | AI-03 | ai_chat_basic, ai_chat_premium | implemented | 5/5 | 4/4 | 1/1 | — | Answer FAQs, explain products/services, recommend suitable products/services, and follow configured sales instructions. |
 | ATS-006 | AI-03 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Provide lead-capture forms and collect name, telephone, and email with consent state. |
 | ATS-007 | AI-03 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Render booking, call, LINE, and website CTAs as typed, functional actions. |
 | ATS-008 | AI-03 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Support human-agent handover and configurable low-confidence escalation. |

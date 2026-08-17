@@ -3695,16 +3695,41 @@
         "AI-01",
         "AI-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "implementation_paths": [
+        "packages/sales-core/src/index.ts",
+        "packages/ai-chat-runtime/src/index.ts",
+        "packages/db/src/ai-chat-runtime-store.ts",
+        "packages/db/src/ai-chat-store.ts",
+        "apps/api/app/public/ai-chat/message/route.ts"
+      ],
+      "migration_ids": [
+        "0043_ai_chat_runtime",
+        "0071_ai_knowledge_ingestion",
+        "0107_anonymous_builder_drafts",
+        "0125_predeployment_builder_materialization"
+      ],
+      "api_contracts": [
+        "POST /public/ai-chat/message",
+        "GET|PATCH /tenant/ai-chat/agents/{agentId}/draft",
+        "POST /tenant/ai-chat/agents/{agentId}/publish"
+      ],
+      "ui_routes": [
+        "/workspace/ai-chat/configuration",
+        "/workspace/ai-chat"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "packages/sales-core/src/index.test.ts",
+        "packages/ai-chat-runtime/src/index.test.ts",
+        "packages/db/src/ai-chat-runtime-store.integration.test.ts",
+        "packages/ai-evals/src/index.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/ai-text-guided-sales-authority-2026-08-17.md"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {

@@ -145,6 +145,48 @@ describe("AI text runtime", () => {
     expect(policy).toContain(`"sourceRevisionId":"${ids.revision}"`); expect(events).toEqual(["begin", "commit:27"]);
   });
 
+  it("matches a recommendation to the stated need and configured sales instructions", async () => {
+    const events: string[] = []; let policy = "";
+    const recommendationContext: AiTurnContext = {
+      ...context,
+      playbook: {
+        ...(context.playbook as object),
+        salesGoal: "Recommend the smallest approved service that fits",
+        behaviorInstructions: "Explain one evidence-backed reason before the recommendation",
+        behaviorBoundaries: "Never recommend an enterprise package to a one-person business",
+      },
+      recentMessages: [],
+      knowledgeChunks: [{
+        sourceRevisionId: ids.revision, chunkId: ids.chunk,
+        content: "The starter consultation reviews website conversion for one-person businesses.",
+      }],
+    };
+    const runtime = new AiTextRuntime({
+      ...repository(events), async begin() { events.push("begin"); return recommendationContext; },
+    }, { async generate(request) {
+      policy = request.systemPolicy;
+      return { output: {
+        schemaVersion: "sales-core.v1", stage: "S4_RECOMMENDATION", intent: "recommend_consultation",
+        facts: [], knowledgeCitations: [{ sourceRevisionId: ids.revision, chunkId: ids.chunk }],
+        responseGoal: "recommend the suitable approved service", proposedActions: [], handover: null,
+        customerResponse: "Because you run a one-person business and want to review website conversion, the starter consultation matches that need.",
+        channelResponse: { format: "text", quickReplies: [] },
+      }, nativeUsage: { inputUnits: 31, outputUnits: 18 } };
+    } });
+    await expect(runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "I run a one-person business and need help with website conversion. What suits me?",
+    })).resolves.toMatchObject({
+      status: "completed",
+      text: expect.stringContaining("starter consultation matches that need"),
+    });
+    expect(policy).toContain("Recommend a product or service only after identifying a customer need or constraint");
+    expect(policy).toContain("Sales goal: Recommend the smallest approved service that fits");
+    expect(policy).toContain("Conversation behavior: Explain one evidence-backed reason before the recommendation");
+    expect(policy).toContain("Never recommend an enterprise package to a one-person business");
+    expect(events).toEqual(["begin", "commit:31"]);
+  });
+
   it("allows a Sales Associate to propose a pending appointment after discovery without changing roles", async () => {
     const events: string[] = [];
     let committedOutput: unknown;
