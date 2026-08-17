@@ -164,6 +164,9 @@ class VoiceWidget {
 
   private async loadPublicConfig() {
     try {
+      await widgetFetch(`${this.apiBaseUrl}/public/voice/install`, {
+        method: "POST", headers: { "x-djay-voice-key": this.options.deploymentKey },
+      });
       const response = await widgetFetch(`${this.apiBaseUrl}/public/voice/config`, {
         headers: { "x-djay-voice-key": this.options.deploymentKey },
       });

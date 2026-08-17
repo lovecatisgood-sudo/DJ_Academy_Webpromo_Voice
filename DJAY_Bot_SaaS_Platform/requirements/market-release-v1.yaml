@@ -1559,19 +1559,26 @@
         "apps/api/app/tenant/ai-chat/deployments/[deploymentId]/traffic/route.ts",
         "apps/tenant-web/app/workspace/ai-chat/page.tsx",
         "packages/ai-chat-widget/src/index.ts",
+        "packages/db/src/voice-deployment-store.ts",
+        "apps/api/app/tenant/voice/deployments/[deploymentId]/traffic/route.ts",
+        "apps/tenant-web/app/workspace/voice/page.tsx",
+        "packages/voice-widget/src/index.ts",
         "packages/shared/src/widget-install.ts"
       ],
       "migration_ids": [
         "0116_flow_deployment_traffic_state",
-        "0117_ai_text_deployment_traffic_state"
+        "0117_ai_text_deployment_traffic_state",
+        "0118_voice_deployment_traffic_state"
       ],
       "api_contracts": [
         "POST /tenant/flowbot/deployments/:deploymentId/traffic",
-        "POST /tenant/ai-chat/deployments/:deploymentId/traffic"
+        "POST /tenant/ai-chat/deployments/:deploymentId/traffic",
+        "POST /tenant/voice/deployments/:deploymentId/traffic"
       ],
       "ui_routes": [
         "/workspace/flowbot",
-        "/workspace/ai-chat"
+        "/workspace/ai-chat",
+        "/workspace/voice"
       ],
       "entitlement_keys": [],
       "meter_keys": [],
@@ -1579,6 +1586,8 @@
         "packages/db/src/flowbot-store.integration.test.ts",
         "packages/db/src/flowbot-runtime-store.integration.test.ts",
         "packages/db/src/ai-chat-runtime-store.integration.test.ts",
+        "packages/db/src/voice-deployment-store.integration.test.ts",
+        "packages/db/src/voice-runtime-store.integration.test.ts",
         "packages/db/src/migration-invariants.test.ts"
       ],
       "runbooks": [
@@ -1586,7 +1595,8 @@
       ],
       "evidence": [
         "docs/validation/production-master-plan-pr05-flow-traffic-state-2026-08-17.md",
-        "docs/validation/production-master-plan-pr05-ai-text-traffic-state-2026-08-17.md"
+        "docs/validation/production-master-plan-pr05-ai-text-traffic-state-2026-08-17.md",
+        "docs/validation/production-master-plan-pr05-voice-traffic-state-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null
@@ -6210,33 +6220,42 @@
         "apps/tenant-web/app/workspace/flowbot/page.tsx",
         "packages/db/src/ai-chat-store.ts",
         "apps/api/app/tenant/ai-chat/deployments/[deploymentId]/traffic/route.ts",
-        "apps/tenant-web/app/workspace/ai-chat/page.tsx"
+        "apps/tenant-web/app/workspace/ai-chat/page.tsx",
+        "packages/db/src/voice-deployment-store.ts",
+        "apps/api/app/tenant/voice/deployments/[deploymentId]/traffic/route.ts",
+        "apps/tenant-web/app/workspace/voice/page.tsx"
       ],
       "migration_ids": [
         "0116_flow_deployment_traffic_state",
-        "0117_ai_text_deployment_traffic_state"
+        "0117_ai_text_deployment_traffic_state",
+        "0118_voice_deployment_traffic_state"
       ],
       "api_contracts": [
         "POST /tenant/flowbot/deployments/:deploymentId/traffic",
-        "POST /tenant/ai-chat/deployments/:deploymentId/traffic"
+        "POST /tenant/ai-chat/deployments/:deploymentId/traffic",
+        "POST /tenant/voice/deployments/:deploymentId/traffic"
       ],
       "ui_routes": [
         "/workspace/flowbot",
-        "/workspace/ai-chat"
+        "/workspace/ai-chat",
+        "/workspace/voice"
       ],
       "entitlement_keys": [],
       "meter_keys": [],
       "test_ids": [
         "packages/db/src/flowbot-store.integration.test.ts",
         "packages/db/src/flowbot-runtime-store.integration.test.ts",
-        "packages/db/src/ai-chat-runtime-store.integration.test.ts"
+        "packages/db/src/ai-chat-runtime-store.integration.test.ts",
+        "packages/db/src/voice-deployment-store.integration.test.ts",
+        "packages/db/src/voice-runtime-store.integration.test.ts"
       ],
       "runbooks": [
         "docs/implementation/djay-bots-production-ready-master-plan.md"
       ],
       "evidence": [
         "docs/validation/production-master-plan-pr05-flow-traffic-state-2026-08-17.md",
-        "docs/validation/production-master-plan-pr05-ai-text-traffic-state-2026-08-17.md"
+        "docs/validation/production-master-plan-pr05-ai-text-traffic-state-2026-08-17.md",
+        "docs/validation/production-master-plan-pr05-voice-traffic-state-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null
@@ -7615,36 +7634,50 @@
         "apps/api/app/public/ai-chat/install/route.ts",
         "apps/tenant-web/app/workspace/ai-chat/page.tsx",
         "packages/ai-chat-widget/src/index.ts",
+        "packages/db/src/voice-deployment-store.ts",
+        "apps/api/app/tenant/voice/install-checks/route.ts",
+        "apps/api/app/tenant/voice/deployments/[deploymentId]/traffic/route.ts",
+        "apps/api/app/public/voice/install/route.ts",
+        "apps/tenant-web/app/workspace/voice/page.tsx",
+        "packages/voice-widget/src/index.ts",
         "packages/shared/src/widget-install.ts"
       ],
       "migration_ids": [
         "0116_flow_deployment_traffic_state",
-        "0117_ai_text_deployment_traffic_state"
+        "0117_ai_text_deployment_traffic_state",
+        "0118_voice_deployment_traffic_state"
       ],
       "api_contracts": [
         "POST /tenant/flowbot/install-checks",
         "POST /tenant/flowbot/deployments/:deploymentId/traffic",
         "POST /tenant/ai-chat/install-checks",
         "POST /tenant/ai-chat/deployments/:deploymentId/traffic",
-        "POST /public/ai-chat/install"
+        "POST /public/ai-chat/install",
+        "POST /tenant/voice/install-checks",
+        "POST /tenant/voice/deployments/:deploymentId/traffic",
+        "POST /public/voice/install"
       ],
       "ui_routes": [
         "/workspace/flowbot",
-        "/workspace/ai-chat"
+        "/workspace/ai-chat",
+        "/workspace/voice"
       ],
       "entitlement_keys": [],
       "meter_keys": [],
       "test_ids": [
         "packages/db/src/flowbot-store.integration.test.ts",
         "packages/db/src/flowbot-runtime-store.integration.test.ts",
-        "packages/db/src/ai-chat-runtime-store.integration.test.ts"
+        "packages/db/src/ai-chat-runtime-store.integration.test.ts",
+        "packages/db/src/voice-deployment-store.integration.test.ts",
+        "packages/db/src/voice-runtime-store.integration.test.ts"
       ],
       "runbooks": [
         "docs/implementation/djay-bots-production-ready-master-plan.md"
       ],
       "evidence": [
         "docs/validation/production-master-plan-pr05-flow-traffic-state-2026-08-17.md",
-        "docs/validation/production-master-plan-pr05-ai-text-traffic-state-2026-08-17.md"
+        "docs/validation/production-master-plan-pr05-ai-text-traffic-state-2026-08-17.md",
+        "docs/validation/production-master-plan-pr05-voice-traffic-state-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null

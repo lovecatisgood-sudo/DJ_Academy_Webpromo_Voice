@@ -21,6 +21,7 @@ type Playbook = {
 type Deployment = {
   id: string; name: string; keyPrefix: string; allowedOrigins: string[]; defaultLocale: "th" | "en";
   maxCallSeconds: number; reconnectWindowSeconds: number; status: "active" | "disabled" | "revoked";
+  trafficStatus: "inactive" | "live"; liveAt: string | null;
   agentName: string; businessName: string;
   publicLabel: "First-Generation Voice Engine" | "Second-Generation Voice Engine";
 };
@@ -62,6 +63,7 @@ type Analytics = {
 type VoiceResult = { capability: { enabled: true; publicLabel: "First-Generation Voice Engine" | "Second-Generation Voice Engine" } | null; deployments: Deployment[] };
 type Knowledge = { id: string; revisionId: string; name: string; sourceKind: string; status: string; version: number };
 type Notification = { id: string; name: string; allowedTemplateKeys: string[]; status: string };
+type InstallCheck = { id: string; deploymentId: string; targetOrigin: string; status: string; safeResultCode: string | null; createdAt: string };
 type Tab = "voice" | "playbook" | "knowledge" | "entry" | "disclosure" | "transfer" | "actions" | "test" | "quality" | "deploy";
 
 const tabs: { id: Tab; label: string; hint: string }[] = [
@@ -100,6 +102,7 @@ export default function VoicePage() {
   const [activeTab, setActiveTab] = useState<Tab>("voice"); const [knowledge, setKnowledge] = useState<Knowledge[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]); const [deploymentKey, setDeploymentKey] = useState("");
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [installChecks, setInstallChecks] = useState<InstallCheck[]>([]);
   const [message, setMessage] = useState(""); const [working, setWorking] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
   const [studioValidationMessage, setStudioValidationMessage] = useState("");
@@ -114,14 +117,15 @@ export default function VoicePage() {
     : "";
 
   async function loadStudio(id: string) {
-    if (!id) { setStudio(null); setAnalytics(null); setKnowledgeLoadError(false); setNotificationLoadError(false); setAnalyticsLoadError(false); return; }
+    if (!id) { setStudio(null); setAnalytics(null); setInstallChecks([]); setKnowledgeLoadError(false); setNotificationLoadError(false); setAnalyticsLoadError(false); return; }
     const studioResponse = await fetch(`/tenant/voice/deployments/${id}/studio`, { cache: "no-store" });
     if (!studioResponse.ok) throw new Error("voice_studio_unavailable");
     setStudio((await studioResponse.json()).studio); setDraftDirty(false);
-    const [knowledgeResponse, notificationResponse, analyticsResponse] = await Promise.all([
+    const [knowledgeResponse, notificationResponse, analyticsResponse, installResponse] = await Promise.all([
       fetch("/tenant/knowledge", { cache: "no-store" }).catch(() => null),
       fetch("/tenant/ai-chat/notifications", { cache: "no-store" }).catch(() => null),
       fetch(`/tenant/voice/analytics?deploymentId=${encodeURIComponent(id)}&days=30`, { cache: "no-store" }).catch(() => null),
+      fetch(`/tenant/voice/install-checks?deploymentId=${encodeURIComponent(id)}`, { cache: "no-store" }).catch(() => null),
     ]);
     if (knowledgeResponse?.ok) { setKnowledge((await knowledgeResponse.json()).sources || []); setKnowledgeLoadError(false); }
     else { setKnowledge([]); setKnowledgeLoadError(true); }
@@ -129,6 +133,7 @@ export default function VoicePage() {
     else { setNotifications([]); setNotificationLoadError(true); }
     if (analyticsResponse?.ok) { setAnalytics((await analyticsResponse.json()).analytics || null); setAnalyticsLoadError(false); }
     else { setAnalytics(null); setAnalyticsLoadError(true); }
+    setInstallChecks(installResponse?.ok ? (await installResponse.json()).checks || [] : []);
   }
 
   async function load(preferredId?: string) {
@@ -265,6 +270,37 @@ export default function VoicePage() {
     await load(deploymentId);
   }
 
+  async function requestInstallCheck() {
+    if (!studio?.deployment.allowedOrigins[0]) return;
+    setWorking(true); setMessage("");
+    const response = await safeMutationFetch("/tenant/voice/install-checks", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ deploymentId: studio.deployment.id, targetOrigin: studio.deployment.allowedOrigins[0] }),
+    });
+    setWorking(false);
+    setMessage(response.ok
+      ? uiCopy("เริ่มตรวจสอบแล้ว เปิดเว็บไซต์จริงที่ติดตั้งวิดเจ็ต จากนั้นกลับมาโหลดหน้านี้ใหม่", "Install check started. Open the real website containing the widget, then reload this page.")
+      : uiCopy("เริ่มตรวจสอบการติดตั้งไม่สำเร็จ", "Install check could not be started."));
+    if (response.ok) await load(studio.deployment.id);
+  }
+
+  async function changeTraffic(action: "go_live" | "stop") {
+    if (!studio) return;
+    if (!window.confirm(action === "go_live"
+      ? uiCopy("เปิดรับสายจริงหรือไม่? ระบบจะตรวจสอบสิทธิ์ เวอร์ชัน โควตา และการติดตั้งอีกครั้ง", "Go live? Access, version, quota, and installation will be revalidated.")
+      : uiCopy("หยุดรับสายใหม่หรือไม่? สายที่เริ่มแล้วจะดำเนินต่อได้", "Stop new calls? Existing calls may continue."))) return;
+    setWorking(true); setMessage("");
+    const response = await safeMutationFetch(`/tenant/voice/deployments/${studio.deployment.id}/traffic`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action }),
+    });
+    const result = await response.json(); setWorking(false);
+    const failure = result.status === "verification_required" ? uiCopy("ต้องยืนยันการติดตั้งจากเว็บไซต์ที่อนุญาตก่อน", "Verify installation from an allowed website first.")
+      : result.status === "quota_unavailable" ? uiCopy("โควตาปัจจุบันไม่พร้อมใช้งาน", "Current quota is unavailable.")
+        : uiCopy("เปลี่ยนสถานะไม่สำเร็จ", "Traffic state could not be changed.");
+    setMessage(response.ok ? action === "go_live" ? uiCopy("เปิดรับสายจริงแล้ว", "Voice deployment is live.") : uiCopy("หยุดรับสายใหม่แล้ว", "New calls are stopped.") : failure);
+    if (response.ok) await load(studio.deployment.id);
+  }
+
   async function recordLatestVoiceTest() {
     if (!studio || !canDeploy) return;
     setWorking(true); setMessage("");
@@ -365,7 +401,7 @@ export default function VoicePage() {
           {analytics?.level === "advanced" ? <div className="voice-analytics-trend"><div className="analytics-subheading"><div><p>วันตามปฏิทิน UTC</p><h3>แนวโน้มสายล่าสุด</h3></div><span>แสดง 14 วันล่าสุด · ดูทั้งรอบในไฟล์ CSV</span></div><div className="data-table"><div className="data-row voice-trend-heading"><strong>วันที่</strong><span>เซสชัน</span><span>เสร็จสิ้น / ล้มเหลว</span><span>ผู้สนใจ</span></div>{analytics.daily.slice(-14).map((item) => <div className="data-row voice-trend-row" key={item.date}><strong>{new Date(`${item.date}T00:00:00Z`).toLocaleDateString(currentIntlLocale(), { month: "short", day: "numeric", timeZone: "UTC" })}</strong><span>{item.sessions}</span><span>{item.completedCalls} / {item.failedCalls}</span><span>{item.leads}</span></div>)}</div></div> : null}
           <div className="policy-callout"><strong>ข้อมูลวิเคราะห์การทำงานไม่ทดแทนเกณฑ์คุณภาพก่อนเปิดใช้งานจริง</strong><span>การรู้จำภาษาอังกฤษและไทย เวลาแฝง การพูดแทรก ความเงียบ เสียงรบกวน การเชื่อมต่อใหม่ การติดต่อกลับ และการส่งต่อ ยังต้องผ่านการประเมินในระบบทดสอบแบบจำกัดตามเกณฑ์ที่อนุมัติ</span></div>{studio.quality.lastCallAt ? <p className="control-copy">Last session: {new Date(studio.quality.lastCallAt).toLocaleString(currentIntlLocale())}</p> : null}</section> : null}
 
-        {activeTab === "deploy" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>เวอร์ชันถาวรและการติดตั้งบนเบราว์เซอร์</p><h2>ติดตั้ง</h2></div><span>{studio.deployment.status}</span></div><div className="deploy-command-row"><button type="button" disabled={!canEdit || working || draftDirty} onClick={() => void publish()}>เผยแพร่เวอร์ชันถาวร</button>{canDeploy && studio.deployment.status !== "revoked" ? <><button type="button" className="secondary-command" disabled={working} onClick={() => void changeStatus(studio.deployment.id, studio.deployment.status === "active" ? "disable" : "enable")}>{studio.deployment.status === "active" ? "Disable deployment" : "Enable deployment"}</button><button type="button" className="secondary-command danger-command" disabled={working} onClick={() => void changeStatus(studio.deployment.id, "revoke")}>เพิกถอนถาวร</button></> : null}</div>{draftDirty ? <p className="field-help">บันทึกฉบับร่างก่อนเผยแพร่ เพื่อให้เวอร์ชันใหม่ตรงกับค่าที่ตรวจสอบแล้ว</p> : null}<div className="deployment-identity"><strong>คำนำหน้ากุญแจติดตั้งที่เปิดเผยได้</strong><code>{studio.deployment.keyPrefix}…</code><span>ระบบจะไม่เก็บหรือแสดงกุญแจฉบับเต็มอีกครั้ง</span></div>
+        {activeTab === "deploy" ? <section className="tool-band studio-panel"><div className="band-heading"><div><p>เวอร์ชันถาวร การติดตั้ง การยืนยัน และการเปิดใช้งานจริง</p><h2>ติดตั้งและเปิดรับสาย</h2></div><span>{studio.deployment.status} · {studio.deployment.trafficStatus}</span></div><div className="deploy-command-row"><button type="button" disabled={!canEdit || working || draftDirty} onClick={() => void publish()}>เผยแพร่เวอร์ชันถาวร</button>{canDeploy && studio.deployment.status !== "revoked" ? <><button type="button" className="secondary-command" disabled={working} onClick={() => void requestInstallCheck()}>{uiCopy("ตรวจสอบการติดตั้ง", "Check install")}</button><button type="button" disabled={working || (studio.deployment.trafficStatus !== "live" && installChecks[0]?.status !== "verified")} onClick={() => void changeTraffic(studio.deployment.trafficStatus === "live" ? "stop" : "go_live")}>{studio.deployment.trafficStatus === "live" ? uiCopy("หยุดรับสาย", "Stop traffic") : uiCopy("เปิดใช้งานจริง", "Go live")}</button><button type="button" className="secondary-command" disabled={working} onClick={() => void changeStatus(studio.deployment.id, studio.deployment.status === "active" ? "disable" : "enable")}>{studio.deployment.status === "active" ? "Disable resource" : "Enable resource"}</button><button type="button" className="secondary-command danger-command" disabled={working} onClick={() => void changeStatus(studio.deployment.id, "revoke")}>เพิกถอนถาวร</button></> : null}</div>{draftDirty ? <p className="field-help">บันทึกฉบับร่างก่อนเผยแพร่ เพื่อให้เวอร์ชันใหม่ตรงกับค่าที่ตรวจสอบแล้ว</p> : null}<div className="deployment-identity"><strong>{uiCopy("สถานะการติดตั้ง", "Install status")}</strong><span>{installChecks[0]?.status || uiCopy("ยังไม่ได้ตรวจสอบ", "Not checked")}</span><strong>{uiCopy("สถานะรับสาย", "Traffic status")}</strong><span>{studio.deployment.trafficStatus}</span></div><div className="deployment-identity"><strong>คำนำหน้ากุญแจติดตั้งที่เปิดเผยได้</strong><code>{studio.deployment.keyPrefix}…</code><span>ระบบจะไม่เก็บหรือแสดงกุญแจฉบับเต็มอีกครั้ง</span></div>
           {deploymentKey ? <div className="deployment-secret"><strong>กุญแจติดตั้งระบบเสียงและโค้ดติดตั้งที่แสดงครั้งเดียว</strong><code>{deploymentKey}</code><p className="field-help">ติดตั้งโค้ดนี้เฉพาะบนต้นทางเว็บไซต์ที่อนุมัติแล้ว</p><pre>{installSnippet}</pre><button type="button" className="secondary-command" onClick={() => { if (!navigator.clipboard) { setMessage("Select the snippet and copy it manually."); return; } void navigator.clipboard.writeText(installSnippet).then(() => setMessage("Install snippet copied."), () => setMessage("Copy was blocked. Select the snippet and copy it manually.")); }}>คัดลอกโค้ดติดตั้ง</button></div> : null}
           {canDeploy && result.capability ? <details className="advanced-definition create-voice-deployment"><summary>สร้างการติดตั้ง Voice Agent เพิ่ม</summary><VoiceDeploymentForm className="voice-deploy" onSubmit={create} working={working} /></details> : null}
         </section> : null}

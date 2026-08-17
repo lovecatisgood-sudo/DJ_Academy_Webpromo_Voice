@@ -20,6 +20,13 @@ export type RestrictedVoiceRoute = Readonly<{
 export class VoiceRuntimeStore {
   constructor(private readonly client: DatabaseClient) {}
 
+  async reportInstall(deploymentKey: string, origin: string) {
+    const rows = await this.client<{ verified: number }[]>`
+      SELECT tenancy.report_voice_install(${hashOpaqueToken(deploymentKey)}, ${origin}) AS verified
+    `;
+    return rows[0]?.verified ?? 0;
+  }
+
   async config(input: Readonly<{ deploymentKey: string; origin: string }>) {
     const rows = await this.client<{ brandingRemoved: boolean }[]>`
       SELECT branding_removed AS "brandingRemoved"

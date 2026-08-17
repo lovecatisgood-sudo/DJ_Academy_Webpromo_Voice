@@ -94,6 +94,7 @@ const textTrialSetupMigration = readFileSync(resolve(import.meta.dirname, "../mi
 const trialLifecycleMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0115_trial_warning_and_terminal_states.sql"), "utf8");
 const flowDeploymentTrafficMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0116_flow_deployment_traffic_state.sql"), "utf8");
 const aiTextDeploymentTrafficMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0117_ai_text_deployment_traffic_state.sql"), "utf8");
+const voiceDeploymentTrafficMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0118_voice_deployment_traffic_state.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -206,6 +207,17 @@ describe("Merchant experience migration invariants", () => {
     expect(aiTextDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.ai_runtime_resource_active");
     expect(aiTextDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.ai_runtime_config");
     expect(aiTextDeploymentTrafficMigration).toContain("session_user <> 'djay_ai_runtime'");
+  });
+
+  it("keeps Voice installation verification separate from explicit live traffic authority", () => {
+    expect(voiceDeploymentTrafficMigration).toContain("traffic_status text NOT NULL DEFAULT 'inactive'");
+    expect(voiceDeploymentTrafficMigration).toContain("CREATE TABLE tenancy.voice_install_checks");
+    expect(voiceDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.report_voice_install");
+    expect(voiceDeploymentTrafficMigration).toContain("deployment.traffic_status = 'live'");
+    expect(voiceDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.voice_runtime_resource_active");
+    expect(voiceDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.voice_runtime_config");
+    expect(voiceDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.issue_voice_session_grant");
+    expect(voiceDeploymentTrafficMigration).toContain("session_user <> 'djay_voice_runtime'");
   });
 
   it("keeps appointment recovery independently reviewed, bounded, optimistic, and replay-safe", () => {

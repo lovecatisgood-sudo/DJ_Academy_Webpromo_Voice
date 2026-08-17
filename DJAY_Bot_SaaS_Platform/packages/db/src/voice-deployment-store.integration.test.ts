@@ -54,6 +54,13 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
         })}, digest(${snapshotId}, 'sha256')
       )
     `;
+    await adminClient!`
+      INSERT INTO tenancy.quota_accounts (
+        id, tenant_id, subscription_id, product_key, customer_unit, period_start, period_end,
+        included_quantity, safety_cap_quantity
+      ) VALUES (${randomUUID()}::uuid, ${tenantId}::uuid, ${subscriptionId}::uuid, 'voice', 'voice_minute',
+        now() - interval '1 minute', now() + interval '30 days', 100, 100)
+    `;
     const owner = createTenantContext({
       tenantId, userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
       membershipId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa11", sessionId: randomUUID(),
@@ -86,6 +93,7 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
     expect(listed.deployments).toEqual(expect.arrayContaining([expect.objectContaining({
       id: created.deploymentId, keyPrefix: created.deploymentKey.slice(0, 20),
       allowedOrigins: ["https://merchant.example"], status: "active",
+      trafficStatus: "inactive", liveAt: null,
       agentName: "Mali", businessName: "Merchant Store",
     })]));
     expect(JSON.stringify(listed)).not.toContain(created.deploymentKey);
@@ -133,6 +141,22 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
     await expect(runtime.issue({
       deploymentKey: created.deploymentKey, origin: "https://merchant.example", locale: "en",
       expiresAt: new Date(Date.now() + 60_000),
+    })).rejects.toThrow(/voice_deployment_not_available/);
+    await expect(store.changeTraffic(owner, created.deploymentId, "go_live"))
+      .resolves.toEqual({ status: "verification_required" });
+    await expect(store.requestInstallCheck(other, created.deploymentId, "https://merchant.example"))
+      .resolves.toEqual({ status: "not_found" });
+    await expect(store.requestInstallCheck(owner, created.deploymentId, "https://merchant.example"))
+      .resolves.toMatchObject({ status: "requested" });
+    await expect(runtime.reportInstall(created.deploymentKey, "https://merchant.example")).resolves.toBe(1);
+    await expect(store.listInstallChecks(owner, created.deploymentId)).resolves.toEqual([
+      expect.objectContaining({ deploymentId: created.deploymentId, targetOrigin: "https://merchant.example", status: "verified" }),
+    ]);
+    await expect(store.changeTraffic(owner, created.deploymentId, "go_live"))
+      .resolves.toEqual({ status: "updated", trafficStatus: "live" });
+    await expect(runtime.issue({
+      deploymentKey: created.deploymentKey, origin: "https://merchant.example", locale: "en",
+      expiresAt: new Date(Date.now() + 60_000),
     })).resolves.toMatchObject({ capabilityProfile: "voice_gen1" });
     await expect(store.changeStatus(owner, created.deploymentId, "disable"))
       .resolves.toEqual({ status: "updated", deploymentStatus: "disabled" });
@@ -142,6 +166,14 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
     })).rejects.toThrow(/voice_deployment_not_available/);
     await expect(store.changeStatus(owner, created.deploymentId, "enable"))
       .resolves.toEqual({ status: "updated", deploymentStatus: "active" });
+    await expect(store.changeTraffic(owner, created.deploymentId, "go_live"))
+      .resolves.toEqual({ status: "updated", trafficStatus: "live" });
+    await expect(store.changeTraffic(owner, created.deploymentId, "stop"))
+      .resolves.toEqual({ status: "updated", trafficStatus: "inactive" });
+    await expect(runtime.issue({
+      deploymentKey: created.deploymentKey, origin: "https://merchant.example", locale: "en",
+      expiresAt: new Date(Date.now() + 60_000),
+    })).rejects.toThrow(/voice_deployment_not_available/);
     await expect(store.changeStatus(owner, created.deploymentId, "revoke"))
       .resolves.toEqual({ status: "updated", deploymentStatus: "revoked" });
     await expect(store.changeStatus(owner, created.deploymentId, "enable"))
@@ -152,7 +184,10 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
     `;
     expect(audit[0]?.actions).toEqual([
       "voice.deployment.created", "voice.studio.saved", "voice.playbook.published",
-      "voice.deployment.disable", "voice.deployment.enable", "voice.deployment.revoke",
+      "voice.deployment.go_live",
+      "voice.deployment.disable", "voice.deployment.enable", "voice.deployment.go_live",
+      "voice.deployment.stop_traffic",
+      "voice.deployment.revoke",
     ]);
   });
 
@@ -193,6 +228,13 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
           limits: { concurrent_calls: 2 }, resolvedAt: new Date().toISOString(),
         })}, digest(${snapshotId}, 'sha256')
       )
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.quota_accounts (
+        id, tenant_id, subscription_id, product_key, customer_unit, period_start, period_end,
+        included_quantity, safety_cap_quantity
+      ) VALUES (${randomUUID()}::uuid, ${tenantId}::uuid, ${subscriptionId}::uuid, 'voice', 'voice_minute',
+        now() - interval '1 minute', now() + interval '30 days', 500, 500)
     `;
     const owner = createTenantContext({
       tenantId, userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
@@ -335,6 +377,11 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
       role: "tenant_master_admin", requestId: "p8-cross-tenant-analytics",
     }), { deploymentId: created.deploymentId })).resolves.toBeNull();
     const runtime = new VoiceRuntimeStore(voiceClient!);
+    await expect(store.requestInstallCheck(owner, created.deploymentId, "https://advanced.example"))
+      .resolves.toMatchObject({ status: "requested" });
+    await expect(runtime.reportInstall(created.deploymentKey, "https://advanced.example")).resolves.toBe(1);
+    await expect(store.changeTraffic(owner, created.deploymentId, "go_live"))
+      .resolves.toEqual({ status: "updated", trafficStatus: "live" });
     await expect(runtime.issue({
       deploymentKey: created.deploymentKey, origin: "https://advanced.example", locale: "en",
       expiresAt: new Date(Date.now() + 60_000),

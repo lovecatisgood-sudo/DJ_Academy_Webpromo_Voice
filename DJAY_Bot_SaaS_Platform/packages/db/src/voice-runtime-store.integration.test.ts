@@ -124,13 +124,13 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
         id, tenant_id, agent_id, name, capability_profile, deployment_key_hash, key_prefix, allowed_origins,
         default_locale, greeting_th, greeting_en, automated_disclosure_th,
         automated_disclosure_en, max_call_seconds, reconnect_window_seconds,
-        created_by_membership_id
+        traffic_status, live_at, created_by_membership_id
       ) VALUES (
         ${deploymentId}::uuid, ${tenantId}::uuid, ${agentId}::uuid, 'Main browser voice', 'voice_gen1',
         ${hashOpaqueToken(deploymentKey)}, ${deploymentKey.slice(0, 20)}, ARRAY['https://merchant.example'],
         'en', 'สวัสดีครับ', 'Hello, how can I help?',
         'นี่คือผู้ช่วยเสียงอัตโนมัติของเรา', 'This is our automated voice assistant.',
-        90, 30, ${membershipId}::uuid
+        90, 30, 'live', now(), ${membershipId}::uuid
       )
     `;
     await expect(adminClient!`
@@ -522,13 +522,13 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
       INSERT INTO tenancy.voice_deployments (
         tenant_id, agent_id, name, capability_profile, deployment_key_hash, key_prefix, allowed_origins,
         greeting_th, greeting_en, automated_disclosure_th, automated_disclosure_en,
-        max_call_seconds, reconnect_window_seconds, created_by_membership_id
+        max_call_seconds, reconnect_window_seconds, traffic_status, live_at, created_by_membership_id
       ) VALUES (
         ${advancedTenantId}::uuid, ${advancedAgentId}::uuid, 'Advanced restricted runtime', 'voice_gen2',
         ${hashOpaqueToken(advancedDeploymentKey)},
         ${advancedDeploymentKey.slice(0, 20)}, ARRAY['https://advanced.example'],
         'สวัสดีครับ', 'Hello', 'นี่คือผู้ช่วยเสียงอัตโนมัติของเรา',
-        'This is our automated voice assistant.', 90, 30,
+        'This is our automated voice assistant.', 90, 30, 'live', now(),
         'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb11'::uuid
       )
     `;
