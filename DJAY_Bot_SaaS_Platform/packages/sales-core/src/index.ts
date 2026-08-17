@@ -283,6 +283,7 @@ const leadCaptureActionSchema = z.object({
   name: z.string().trim().min(1).max(200),
   email: z.email().max(320).optional(),
   phone: z.string().trim().min(5).max(80).optional(),
+  consentStatus: z.enum(["granted", "denied"]),
   need: z.string().trim().min(2).max(1000),
 }).strict().refine((value) => Boolean(value.email || value.phone), { message: "A validated contact method is required." });
 
@@ -336,6 +337,11 @@ export const salesCoreOutputSchema = salesCoreOutputBaseSchema.superRefine((valu
   const handoverAction = value.proposedActions.some((action) => action.type === "handover.request");
   if (Boolean(value.handover) !== handoverAction) context.addIssue({ code: "custom", message: "Handover state and action must agree.", path: ["handover"] });
   const hasLead = value.proposedActions.some((action) => action.type === "lead.capture");
+  const lead = value.proposedActions.find((action) => action.type === "lead.capture");
+  if (lead?.type === "lead.capture" && lead.consentStatus === "denied"
+    && value.proposedActions.some((action) => action.type !== "lead.capture")) {
+    context.addIssue({ code: "custom", path: ["proposedActions"], message: "Denied follow-up consent permits lead recording only." });
+  }
   for (const [index, action] of value.proposedActions.entries()) {
     if (["sales_fact.record", "appointment.request", "follow_up.create", "merchant_email.send"].includes(action.type) && !hasLead) {
       context.addIssue({ code: "custom", message: "Lead capture is required before this action.", path: ["proposedActions", index] });
@@ -416,6 +422,7 @@ export function buildSalesCorePolicy(context: SalesCoreContext): string {
     "Return response-level confidence from 0 to 1 and explicit safety metadata. Use safety state refused or escalated only with one or more approved reason codes; allowed must have no reason codes.",
     "Do not offer to send, email, schedule, register, book, create a follow-up, or contact someone unless the matching structured action is both proposed and allowed. In a safe test with no public action, keep the next step inside the current conversation.",
     "A sales_fact.record, appointment.request, follow_up.create, or merchant_email.send action is allowed only when the same proposedActions array also contains a valid lead.capture action.",
+    "lead.capture requires the customer's stated name, at least one validated email address or telephone number, need, and explicit granted or denied follow-up consent. Never infer consent. Denied consent permits recording the lead only and forbids appointment, follow-up, email, or other effects. Optional contact details must never block the conversation.",
     "Set handover to a reason/department/summary object if and only if proposedActions contains handover.request; otherwise set handover to null.",
     "An appointment action is a request pending merchant confirmation and requires two to five time options.",
     "For a requested phone callback, use follow_up.create with a due time. Never claim the callback has already happened.",

@@ -208,7 +208,7 @@ describe("AI text runtime", () => {
         schemaVersion: "sales-core.v1", stage: "S8_APPOINTMENT", intent: "request_consultation", facts: [],
         knowledgeCitations: [], responseGoal: "submit a consultation request",
         proposedActions: [
-          { type: "lead.capture", name: "Ada", email: "ada@example.test", need: "Conversion consultation" },
+          { type: "lead.capture", name: "Ada", email: "ada@example.test", phone: "+66812345678", consentStatus: "granted", need: "Conversion consultation" },
           { type: "appointment.request", timezone: "Asia/Bangkok", confirmationClaim: "pending_merchant_confirmation",
             options: [
               { startAt: "2026-08-20T09:00:00.000Z", endAt: "2026-08-20T09:30:00.000Z" },
@@ -421,7 +421,7 @@ describe("AI text runtime", () => {
       schemaVersion: "sales-core.v1", stage: "S8_APPOINTMENT", intent: "request_appointment", facts: [],
       knowledgeCitations: [], responseGoal: "request an appointment",
       proposedActions: [
-        { type: "lead.capture", name: "Ada", email: "ada@example.test", need: "Consultation" },
+        { type: "lead.capture", name: "Ada", email: "ada@example.test", phone: "+66812345678", consentStatus: "granted", need: "Consultation" },
         { type: "appointment.request", timezone: "Asia/Bangkok", confirmationClaim: "pending_merchant_confirmation",
           options: [
             { startAt: "2026-08-20T09:00:00.000Z", endAt: "2026-08-20T09:30:00.000Z" },

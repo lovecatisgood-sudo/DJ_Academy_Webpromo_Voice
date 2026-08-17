@@ -110,6 +110,7 @@ const knowledgeSourceCleanupMigration = readFileSync(resolve(import.meta.dirname
 const aiTextStarterAdmissionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0131_ai_text_starter_admission.sql"), "utf8");
 const knowledgeCollectionAdmissionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0132_knowledge_collection_admission.sql"), "utf8");
 const aiTextLanguageAuthorityMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0133_ai_text_language_authority.sql"), "utf8");
+const aiLeadConsentAuthorityMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0134_ai_lead_consent_authority.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -204,6 +205,17 @@ describe("Merchant experience migration invariants", () => {
     expect(aiTextLanguageAuthorityMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.fail_ai_turn_safe");
     expect(aiTextLanguageAuthorityMigration).toContain("target_safe_error_code");
     expect(aiTextLanguageAuthorityMigration).toContain("TO djay_ai_runtime");
+  });
+
+  it("requires complete AI lead identity and granted consent at the database effect boundary", () => {
+    expect(aiLeadConsentAuthorityMigration).toContain("NEW.input_json->>'type' IS DISTINCT FROM 'lead.capture'");
+    expect(aiLeadConsentAuthorityMigration).toContain("normalized_email !~");
+    expect(aiLeadConsentAuthorityMigration).toContain("normalized_phone !~");
+    expect(aiLeadConsentAuthorityMigration).toContain("NEW.input_json->>'consentStatus' IS NULL");
+    expect(aiLeadConsentAuthorityMigration).toContain("NEW.input_json->>'consentStatus' NOT IN ('granted', 'denied')");
+    expect(aiLeadConsentAuthorityMigration).toContain("SET consent_status = NEW.input_json->>'consentStatus'");
+    expect(aiLeadConsentAuthorityMigration).toContain("ai_follow_up_consent_required");
+    expect(aiLeadConsentAuthorityMigration).toContain("BEFORE INSERT ON tenancy.action_requests");
   });
 
   it("keeps anonymous Builder drafts versioned, expiring, pre-tenant, and unavailable to tenant runtime", () => {

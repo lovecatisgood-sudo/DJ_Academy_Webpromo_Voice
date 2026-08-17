@@ -241,7 +241,7 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
         confidence: 0.9, safety: { state: "allowed", reasonCodes: [] },
         facts: [], knowledgeCitations: [], responseGoal: "Capture and request consultation",
         proposedActions: [
-          { type: "lead.capture", name: "LINE Customer", email: "line@example.test", phone: "+66 81-234-5678", need: "Consultation" },
+          { type: "lead.capture", name: "LINE Customer", email: "line@example.test", phone: "+66 81-234-5678", consentStatus: "granted", need: "Consultation" },
           { type: "sales_fact.record", factType: "appointment_preference", value: "Weekday" },
           { type: "appointment.request", timezone: "Asia/Bangkok", confirmationClaim: "pending_merchant_confirmation", options: [
             { startAt: firstStart, endAt: new Date(new Date(firstStart).getTime() + 1_800_000).toISOString() },

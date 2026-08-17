@@ -76,6 +76,26 @@ describe("Sales Conversation Core contract", () => {
     })).toThrow(/Lead capture is required/);
   });
 
+  it("requires contact data and explicit consent while denying follow-up effects", () => {
+    const base = { type: "lead.capture" as const, name: "Ada", email: "ada@example.test", phone: "+66812345678", consentStatus: "granted" as const, need: "Consultation" };
+    const output = (action: unknown) => ({
+      schemaVersion: "sales-core.v1", stage: "S7_CONTACT", intent: "capture_lead",
+      facts: [], knowledgeCitations: [], responseGoal: "capture consented lead", proposedActions: [action],
+      handover: null, customerResponse: "Thanks.", channelResponse: { format: "text", quickReplies: [] },
+    });
+    expect(salesCoreOutputSchema.safeParse(output(base)).success).toBe(true);
+    for (const missing of ["consentStatus"] as const) {
+      const invalid = { ...base } as Record<string, unknown>; delete invalid[missing];
+      expect(salesCoreOutputSchema.safeParse(output(invalid)).success).toBe(false);
+    }
+    expect(salesCoreOutputSchema.safeParse(output({ ...base, email: undefined })).success).toBe(true);
+    expect(salesCoreOutputSchema.safeParse(output({ ...base, phone: undefined })).success).toBe(true);
+    expect(salesCoreOutputSchema.safeParse(output({ ...base, email: undefined, phone: undefined })).success).toBe(false);
+    expect(salesCoreOutputSchema.safeParse({ ...output({ ...base, consentStatus: "denied" }),
+      proposedActions: [{ ...base, consentStatus: "denied" }, { type: "merchant_email.send", templateKey: "ai_chat.lead_qualified" }],
+    }).success).toBe(false);
+  });
+
   it("instructs providers about cross-field action and handover invariants", () => {
     const policy = buildSalesCorePolicy({
       locale: "en", agentRole: "sales", businessName: "Studio", agentName: "Mali", tone: "Warm",
@@ -89,6 +109,7 @@ describe("Sales Conversation Core contract", () => {
       }, knowledge: [], recentMessages: [], customerMessage: "Hello",
     });
     expect(policy).toContain("only when the same proposedActions array also contains a valid lead.capture action");
+    expect(policy).toContain("explicit granted or denied follow-up consent");
     expect(policy).toContain("if and only if proposedActions contains handover.request");
     expect(policy).toContain("reason/department/summary");
     expect(policy).toContain("explicit safety metadata");

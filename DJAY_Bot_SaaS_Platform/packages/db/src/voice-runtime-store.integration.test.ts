@@ -204,7 +204,7 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
       safety: { state: "allowed" as const, reasonCodes: [] }, facts: [], knowledgeCitations: [],
       responseGoal: "Record a lead and pending appointment request",
       proposedActions: [
-        { type: "lead.capture" as const, name: "Alex", email: "alex@example.com", need: "Consultation" },
+        { type: "lead.capture" as const, name: "Alex", email: "alex@example.com", phone: "+66812345678", consentStatus: "granted" as const, need: "Consultation" },
         { type: "appointment.request" as const, timezone: "Asia/Bangkok", confirmationClaim: "pending_merchant_confirmation" as const,
           options: [
             { startAt: firstStart, endAt: new Date(new Date(firstStart).getTime() + 1_800_000).toISOString() },
@@ -260,7 +260,7 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
       safety: { state: "allowed" as const, reasonCodes: [] }, facts: [], knowledgeCitations: [],
       responseGoal: "Record the requested callback without claiming completion",
       proposedActions: [
-        { type: "lead.capture" as const, name: "Alex", email: "alex@example.com", need: "Callback" },
+        { type: "lead.capture" as const, name: "Alex", email: "alex@example.com", phone: "+66812345678", consentStatus: "granted" as const, need: "Callback" },
         { type: "follow_up.create" as const, note: "Customer requested a callback", dueAt: callbackDueAt },
       ], handover: null,
       customerResponse: "I recorded your callback request for the team.",

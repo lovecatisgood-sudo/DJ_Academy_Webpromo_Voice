@@ -2,6 +2,12 @@
 
 Last updated: 2026-08-17
 
+## AI Text ATS-001 through ATS-006 checkpoint (2026-08-17)
+
+ATS-001 through ATS-005 are implemented but not formally accepted. They cover the single Starter Bot/workspace/administrator boundary, website widget and 2,000-reply allowance, one governed business knowledge collection, Thai/English per-turn detection with fixed override, and evidence-grounded FAQ/product/service recommendations that follow merchant sales instructions. Shipped branch checkpoints through ATS-005 end at `cb8c683068ad7a5117b42c1ba0ac8225b8a8c00c`.
+
+ATS-006 is `in_progress`. Sales Core now requires explicit `granted` or `denied` follow-up consent with a customer-stated name, need and at least one validated email or telephone identity. Denied consent records the lead only and forbids follow-up effects. Migration `0134_ai_lead_consent_authority.sql` independently enforces and persists this state and rejects direct bypasses. `TEST_DB_PORT=55589 pnpm test:db` passed all 130 migrations, wired PostgreSQL suites, RLS, consent/identity evidence, recovery and guarded rollback; `pnpm verify` also passed. The accessible visible website-widget lead form and permissioned browser acceptance remain open. The registry still has 337 requirements, zero accepted and six non-sellable packages.
+
 ## Production-ready master-plan PR-00/PR-01 checkpoint (2026-08-17)
 
 The Product Owner approved a hard maximum of 200 locale-aware words for Text and Voice customer replies and 50 anonymous Builder AI test requests per signed 30-day session. Text normally targets 40–80 words, Voice normally targets 20–50 words, oversized output receives at most one preserving rewrite, direct string slicing is forbidden, and Voice validation occurs before text-to-speech.

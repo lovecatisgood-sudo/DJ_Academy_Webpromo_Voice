@@ -3744,16 +3744,38 @@
         "AI-01",
         "AI-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
-      "entitlement_keys": [],
+      "implementation_paths": [
+        "packages/sales-core/src/index.ts",
+        "packages/ai-chat-runtime/src/index.ts",
+        "packages/db/src/ai-chat-runtime-store.ts",
+        "packages/db/migrations/0134_ai_lead_consent_authority.sql"
+      ],
+      "migration_ids": [
+        "0007_shared_domain",
+        "0018_ai_chat_public_runtime",
+        "0134_ai_lead_consent_authority"
+      ],
+      "api_contracts": [
+        "POST /public/ai-chat/message"
+      ],
+      "ui_routes": [
+        "/workspace/ai-chat"
+      ],
+      "entitlement_keys": [
+        "lead_capture.enabled"
+      ],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "packages/sales-core/src/index.test.ts",
+        "packages/ai-chat-runtime/src/index.test.ts",
+        "packages/db/src/ai-chat-runtime-store.integration.test.ts",
+        "packages/db/src/migration-invariants.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/ai-text-lead-consent-authority-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {

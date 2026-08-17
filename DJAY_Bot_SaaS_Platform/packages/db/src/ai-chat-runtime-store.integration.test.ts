@@ -311,7 +311,7 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
             knowledgeCitations: [{ sourceRevisionId: citation[1], chunkId: citation[2] }],
             responseGoal: "Record a qualified lead and consultation request",
             proposedActions: [
-              { type: "lead.capture", name: "Ada Customer", email: "ada@example.test", need: "Conversion consultation" },
+              { type: "lead.capture", name: "Ada Customer", email: "ada@example.test", phone: "+66812345678", consentStatus: "granted", need: "Conversion consultation" },
               { type: "sales_fact.record", factType: "appointment_preference", value: "Weekday afternoon" },
               { type: "appointment.request", timezone: "Asia/Bangkok", confirmationClaim: "pending_merchant_confirmation", options: [
                 { startAt: firstStart, endAt: new Date(new Date(firstStart).getTime() + 1_800_000).toISOString() },
@@ -366,6 +366,7 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
     const effects = await adminClient!<{
       leads: number; appointments: number; confirmedAppointments: number; appointment_options: number; emails: number;
       successfulActions: number;
+      consentStatus: string; contactIdentityCount: number;
       settled: number; reserved: number; native_usage: number; fundingIncluded: number;
       session_playbook: string; current_playbook: string;
     }[]>`
@@ -380,6 +381,11 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
         (SELECT count(*)::int FROM tenancy.action_results result
           JOIN tenancy.action_requests request ON request.tenant_id = result.tenant_id AND request.id = result.action_request_id
           WHERE request.tenant_id = session.tenant_id AND request.conversation_id = session.conversation_id AND result.success) AS "successfulActions",
+        (SELECT contact.consent_status FROM tenancy.contacts contact
+          WHERE contact.tenant_id = session.tenant_id AND contact.id = session.contact_id) AS "consentStatus",
+        (SELECT count(*)::int FROM tenancy.contact_identities identity
+          WHERE identity.tenant_id = session.tenant_id AND identity.contact_id = session.contact_id
+            AND identity.identity_kind IN ('email', 'phone') AND identity.revoked_at IS NULL) AS "contactIdentityCount",
         account.settled_quantity::int AS settled, account.reserved_quantity::int AS reserved,
         (SELECT (reservation.funding_json->>'included')::numeric::int
           FROM tenancy.ai_turns turn
@@ -397,10 +403,21 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
     `;
     expect(effects[0]).toMatchObject({
       leads: 1, appointments: 1, confirmedAppointments: 0, appointment_options: 2, emails: 1, successfulActions: 4,
+      consentStatus: "granted", contactIdentityCount: 2,
       settled: 1, reserved: 0, native_usage: 1, fundingIncluded: 1,
       session_playbook: published.playbookVersionId,
       current_playbook: restored.status === "published" ? restored.playbookVersionId : "missing",
     });
+
+    await expect(adminClient!`
+      INSERT INTO tenancy.action_requests (
+        tenant_id, conversation_id, entitlement_snapshot_id, action_type, input_json, idempotency_key, status
+      ) VALUES (
+        ${tenantId}::uuid, ${started.conversationId}::uuid, ${snapshotId}::uuid, 'lead.create',
+        ${adminClient!.json({ type: "lead.capture", name: "No Consent", email: "missing@example.test", phone: "+66819999999", need: "Test" })},
+        ${`direct-lead-bypass:${randomUUID()}`}, 'pending'
+      )
+    `).rejects.toThrow("ai_lead_consent_required");
 
     const fallbackSession = await repository.start({
       deploymentKey: deployment.deploymentKey, origin: "https://merchant.example", language: "en",
