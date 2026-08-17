@@ -90,6 +90,7 @@ const existingAccountBuilderClaimMigration = readFileSync(resolve(import.meta.di
 const versionedMerchantOnboardingMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0111_versioned_merchant_onboarding.sql"), "utf8");
 const purchaseIntentKindMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0112_purchase_intent_kind.sql"), "utf8");
 const flowTrialActivationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0113_flow_starter_trial_activation.sql"), "utf8");
+const textTrialSetupMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0114_text_starter_trial_setup.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -163,6 +164,15 @@ describe("Merchant experience migration invariants", () => {
     expect(flowTrialActivationMigration).toContain("current_tenant_verified_owner_email_hash");
     expect(flowTrialActivationMigration).toContain("SECURITY DEFINER");
     expect(flowTrialActivationMigration).toContain("FORCE ROW LEVEL SECURITY");
+  });
+
+  it("stores Text trial card authority without raw card data or a raw fingerprint", () => {
+    expect(textTrialSetupMigration).toContain("CREATE TABLE billing.text_trial_card_setups");
+    expect(textTrialSetupMigration).toContain("external_setup_intent_ref text UNIQUE");
+    expect(textTrialSetupMigration).toContain("fingerprint_hash bytea");
+    expect(textTrialSetupMigration).toContain("octet_length(fingerprint_hash) = 32");
+    expect(textTrialSetupMigration).toContain("FORCE ROW LEVEL SECURITY");
+    expect(textTrialSetupMigration).not.toMatch(/card_number|security_code|\bcvc\b|client_secret/);
   });
 
   it("keeps appointment recovery independently reviewed, bounded, optimistic, and replay-safe", () => {

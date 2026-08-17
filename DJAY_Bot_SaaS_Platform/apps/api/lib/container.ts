@@ -86,6 +86,7 @@ const envSchema = z.object({
   BILLING_WEBHOOK_ENVELOPE_KEY: z.string().min(40).optional(),
   STRIPE_WEBHOOK_SECRET: z.string().min(16).optional(),
   STRIPE_SECRET_KEY: z.string().min(20).optional(),
+  TEXT_TRIAL_FINGERPRINT_HASH_KEY: z.string().min(40).optional(),
   BILLING_CHECKOUT_ENVELOPE_KEY: z.string().min(40).optional(),
   STRIPE_LIVE_MODE: z.enum(["true", "false"]).default("false"),
   PRIVACY_EXPORT_KEY: z.string().min(40).optional(),
@@ -146,6 +147,7 @@ async function buildServices() {
   if (env.NODE_ENV === "production" && !env.AI_INTEGRATION_ENVELOPE_KEY) throw new Error("AI_INTEGRATION_ENVELOPE_KEY is required in production.");
   if (env.NODE_ENV === "production" && !env.USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY) throw new Error("USAGE_ALERT_NOTIFICATION_ENVELOPE_KEY is required in production.");
   if (env.NODE_ENV === "production" && env.BILLING_DATABASE_URL && !env.BILLING_NOTIFICATION_ENVELOPE_KEY) throw new Error("BILLING_NOTIFICATION_ENVELOPE_KEY is required when commerce is enabled.");
+  if (env.NODE_ENV === "production" && env.STRIPE_SECRET_KEY && !env.TEXT_TRIAL_FINGERPRINT_HASH_KEY) throw new Error("TEXT_TRIAL_FINGERPRINT_HASH_KEY is required when Stripe is enabled.");
   if (env.NODE_ENV === "production" && socialReleaseEnabled && !env.AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY) throw new Error("AI_SOCIAL_CREDENTIAL_ENVELOPE_KEY is required when the social release is enabled.");
   if (env.NODE_ENV === "production" && !env.VOICE_TELEPHONY_ENVELOPE_KEY) throw new Error("VOICE_TELEPHONY_ENVELOPE_KEY is required in production.");
   if (env.NODE_ENV === "production" && !env.KNOWLEDGE_OBJECT_BUCKET) throw new Error("KNOWLEDGE_OBJECT_BUCKET is required in production.");
@@ -281,6 +283,8 @@ async function buildServices() {
       secretKey: env.STRIPE_SECRET_KEY,
       allowedReturnOrigins: [env.TENANT_APP_URL],
     }) : null,
+    textTrialFingerprintHashKey: env.TEXT_TRIAL_FINGERPRINT_HASH_KEY
+      ? parse32ByteSecret(env.TEXT_TRIAL_FINGERPRINT_HASH_KEY, "TEXT_TRIAL_FINGERPRINT_HASH_KEY") : null,
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET ?? null,
     stripeLiveMode: env.STRIPE_LIVE_MODE === "true",
     platformStore,

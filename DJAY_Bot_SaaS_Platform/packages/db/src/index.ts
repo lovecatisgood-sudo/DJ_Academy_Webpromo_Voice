@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0113_flow_starter_trial_activation";
+export const currentSchemaVersion = "0114_text_starter_trial_setup";
 
 export { PostgresAuthStore } from "./auth-store";
 export { AccountingReconciliationWorkerStore, AccountingSyncWorkerStore, BillingWebhookRecoveryWorkerStore, BillingWebhookStore, FinancialEventReconciliationWorkerStore, FinancialReconciliationWorkerStore, SubscriptionLifecycleWorkerStore } from "./billing-webhook-store";

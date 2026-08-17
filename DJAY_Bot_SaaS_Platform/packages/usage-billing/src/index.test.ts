@@ -126,6 +126,44 @@ describe("usage forecasting", () => {
 });
 
 describe("Stripe production boundary", () => {
+  it("creates and independently verifies a no-charge card SetupIntent", async () => {
+    const requests: Array<{ url: string; body: string; idempotency: string | null }> = [];
+    const tenantId = "10000000-0000-4000-8000-000000000001";
+    const purchaseIntentId = "20000000-0000-4000-8000-000000000001";
+    const provider = createStripePaymentProvider({
+      secretKey: "sk_test_restricted_abcdefghijklmnopqrstuvwxyz", allowedReturnOrigins: ["https://tenant.djaybot.com"],
+      fetchImpl: async (input, init) => {
+        const url = String(input); const headers = new Headers(init?.headers);
+        requests.push({ url, body: String(init?.body ?? ""), idempotency: headers.get("Idempotency-Key") });
+        if (url.endsWith("customers")) return Response.json({ id: "cus_trial_123" });
+        if (url.endsWith("setup_intents")) return Response.json({ id: "seti_trial_123",
+          client_secret: "seti_trial_123_secret_client_value", customer: "cus_trial_123",
+          payment_method: null, status: "requires_payment_method", usage: "off_session",
+          metadata: { tenant_id: tenantId, purchase_intent_id: purchaseIntentId } });
+        if (url.endsWith("setup_intents/seti_trial_123")) return Response.json({ id: "seti_trial_123",
+          client_secret: "seti_trial_123_secret_client_value", customer: "cus_trial_123",
+          payment_method: "pm_trial_123", status: "succeeded", usage: "off_session",
+          metadata: { tenant_id: tenantId, purchase_intent_id: purchaseIntentId } });
+        if (url.endsWith("customers/cus_trial_123/payment_methods/pm_trial_123")) {
+          return Response.json({ id: "pm_trial_123", customer: "cus_trial_123", type: "card",
+            card: { fingerprint: "provider-fingerprint-value" } });
+        }
+        return new Response(null, { status: 404 });
+      },
+    });
+    await expect(provider.createTrialCardSetup({ tenantId, purchaseIntentId, idempotencyKey: "text-trial-safe-key" }))
+      .resolves.toEqual({ externalCustomerRef: "cus_trial_123", externalSetupIntentRef: "seti_trial_123",
+        clientSecret: "seti_trial_123_secret_client_value" });
+    expect(requests[0]?.idempotency).toBe("text-trial-safe-key:customer");
+    expect(requests[1]?.idempotency).toBe("text-trial-safe-key:setup");
+    expect(requests[1]?.body).toContain("payment_method_types%5B%5D=card");
+    await expect(provider.retrieveTrialCardSetup({ externalSetupIntentRef: "seti_trial_123",
+      expectedCustomerRef: "cus_trial_123", tenantId, purchaseIntentId })).resolves.toEqual({
+      externalCustomerRef: "cus_trial_123", externalSetupIntentRef: "seti_trial_123",
+      externalPaymentMethodRef: "pm_trial_123", status: "succeeded", cardFingerprint: "provider-fingerprint-value",
+    });
+  });
+
   it("verifies Stripe's timestamped v1 signature and live-mode boundary", () => {
     const now = new Date("2026-07-18T12:00:00Z");
     const timestamp = Math.floor(now.getTime() / 1000);

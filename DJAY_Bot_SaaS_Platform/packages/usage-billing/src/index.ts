@@ -42,6 +42,23 @@ export type CheckoutSession = Readonly<{
 }>;
 
 export type PortalSession = Readonly<{ portalUrl: string; expiresAt: Date }>;
+export type TrialCardSetupRequest = Readonly<{
+  tenantId: string;
+  purchaseIntentId: string;
+  idempotencyKey: string;
+}>;
+export type TrialCardSetupSession = Readonly<{
+  externalCustomerRef: string;
+  externalSetupIntentRef: string;
+  clientSecret: string;
+}>;
+export type TrialCardSetupEvidence = Readonly<{
+  externalCustomerRef: string;
+  externalSetupIntentRef: string;
+  externalPaymentMethodRef: string;
+  status: "succeeded";
+  cardFingerprint: string;
+}>;
 export type SubscriptionCancellationResult = Readonly<{
   cancelAtPeriodEnd: boolean;
   effectiveAt: Date | null;
@@ -75,6 +92,13 @@ export interface PaymentProvider {
   retrieveInvoice(externalInvoiceRef: string): Promise<ProviderInvoiceEvidence>;
   retrieveWebhookEvent(externalEventId: string): Promise<ProviderWebhookEventEvidence>;
   retrieveFinancialEvent(kind: ProviderFinancialEventEvidence["evidenceKind"], externalRef: string): Promise<ProviderFinancialEventEvidence>;
+  createTrialCardSetup(request: TrialCardSetupRequest): Promise<TrialCardSetupSession>;
+  retrieveTrialCardSetup(request: Readonly<{
+    externalSetupIntentRef: string;
+    expectedCustomerRef: string;
+    tenantId: string;
+    purchaseIntentId: string;
+  }>): Promise<TrialCardSetupEvidence>;
 }
 
 export type AccountingDocument = Readonly<{
@@ -304,6 +328,22 @@ const stripeCheckoutSchema = z.object({
 const stripePortalSchema = z.object({
   url: z.string().url(), expires_at: z.number().int().positive(),
 }).passthrough();
+const stripeCustomerSchema = z.object({ id: z.string().regex(/^cus_[A-Za-z0-9_]+$/) }).passthrough();
+const stripeSetupIntentSchema = z.object({
+  id: z.string().regex(/^seti_[A-Za-z0-9_]+$/),
+  client_secret: z.string().min(20),
+  customer: z.string().regex(/^cus_[A-Za-z0-9_]+$/),
+  payment_method: z.string().regex(/^pm_[A-Za-z0-9_]+$/).nullable().optional(),
+  status: z.enum(["requires_payment_method", "requires_confirmation", "requires_action", "processing", "canceled", "succeeded"]),
+  usage: z.literal("off_session"),
+  metadata: z.record(z.string(), z.string()),
+}).passthrough();
+const stripeCardPaymentMethodSchema = z.object({
+  id: z.string().regex(/^pm_[A-Za-z0-9_]+$/),
+  customer: z.string().regex(/^cus_[A-Za-z0-9_]+$/),
+  type: z.literal("card"),
+  card: z.object({ fingerprint: z.string().min(8).max(200) }).passthrough(),
+}).passthrough();
 const stripeSubscriptionSchema = z.object({
   id: z.string().regex(/^sub_[A-Za-z0-9_]+$/),
   status: z.string().min(1).max(100),
@@ -385,6 +425,51 @@ export function createStripePaymentProvider(config: Readonly<{
     return response.json() as Promise<unknown>;
   };
   return {
+    async createTrialCardSetup(request) {
+      const customer = stripeCustomerSchema.parse(await call("customers", "POST", stripeForm([
+        ["metadata[tenant_id]", request.tenantId],
+        ["metadata[purchase_intent_id]", request.purchaseIntentId],
+      ]), `${request.idempotencyKey}:customer`));
+      const setupIntent = stripeSetupIntentSchema.parse(await call("setup_intents", "POST", stripeForm([
+        ["customer", customer.id],
+        ["usage", "off_session"],
+        ["payment_method_types[]", "card"],
+        ["metadata[tenant_id]", request.tenantId],
+        ["metadata[purchase_intent_id]", request.purchaseIntentId],
+      ]), `${request.idempotencyKey}:setup`));
+      if (setupIntent.customer !== customer.id) throw new Error("stripe_setup_customer_mismatch");
+      return Object.freeze({
+        externalCustomerRef: customer.id,
+        externalSetupIntentRef: setupIntent.id,
+        clientSecret: setupIntent.client_secret,
+      });
+    },
+    async retrieveTrialCardSetup(request) {
+      if (!/^seti_[A-Za-z0-9_]+$/.test(request.externalSetupIntentRef)) throw new Error("stripe_setup_intent_ref_invalid");
+      if (!/^cus_[A-Za-z0-9_]+$/.test(request.expectedCustomerRef)) throw new Error("stripe_customer_ref_invalid");
+      const setupIntent = stripeSetupIntentSchema.parse(await call(
+        `setup_intents/${request.externalSetupIntentRef}`, "GET", null,
+      ));
+      if (setupIntent.status !== "succeeded" || !setupIntent.payment_method) throw new Error("stripe_setup_not_succeeded");
+      if (setupIntent.customer !== request.expectedCustomerRef
+        || setupIntent.metadata.tenant_id !== request.tenantId
+        || setupIntent.metadata.purchase_intent_id !== request.purchaseIntentId) {
+        throw new Error("stripe_setup_authority_mismatch");
+      }
+      const paymentMethod = stripeCardPaymentMethodSchema.parse(await call(
+        `customers/${request.expectedCustomerRef}/payment_methods/${setupIntent.payment_method}`, "GET", null,
+      ));
+      if (paymentMethod.customer !== request.expectedCustomerRef || paymentMethod.id !== setupIntent.payment_method) {
+        throw new Error("stripe_payment_method_authority_mismatch");
+      }
+      return Object.freeze({
+        externalCustomerRef: request.expectedCustomerRef,
+        externalSetupIntentRef: setupIntent.id,
+        externalPaymentMethodRef: paymentMethod.id,
+        status: "succeeded" as const,
+        cardFingerprint: paymentMethod.card.fingerprint,
+      });
+    },
     async createCheckout(request) {
       if (!/^price_[A-Za-z0-9_]+$/.test(request.externalPriceRef)) throw new Error("stripe_price_not_configured");
       if (!/^[a-f0-9]{64}$/.test(request.contractSha256)) throw new Error("stripe_contract_hash_invalid");

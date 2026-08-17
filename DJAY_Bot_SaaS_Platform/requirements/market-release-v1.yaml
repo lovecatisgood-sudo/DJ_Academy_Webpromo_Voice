@@ -662,16 +662,39 @@
         "COM-03",
         "CORE-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
+      "implementation_paths": [
+        "apps/api/app/tenant/trials/text/setup/route.ts",
+        "apps/api/app/tenant/trials/text/activate/route.ts",
+        "packages/usage-billing/src/index.ts",
+        "packages/db/src/trial-store.ts"
+      ],
+      "migration_ids": [
+        "0114_text_starter_trial_setup"
+      ],
+      "api_contracts": [
+        "POST /tenant/trials/text/setup",
+        "POST /tenant/trials/text/activate"
+      ],
       "ui_routes": [],
-      "entitlement_keys": [],
-      "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "entitlement_keys": [
+        "channel.web",
+        "channel.social"
+      ],
+      "meter_keys": [
+        "ai_response"
+      ],
+      "test_ids": [
+        "packages/usage-billing/src/index.test.ts",
+        "packages/db/src/trial-store.integration.test.ts",
+        "packages/db/src/migration-invariants.test.ts"
+      ],
+      "runbooks": [
+        "docs/implementation/djay-bots-production-ready-master-plan.md"
+      ],
+      "evidence": [
+        "docs/validation/production-master-plan-pr04-text-trial-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {
@@ -736,13 +759,16 @@
       ],
       "migration_ids": [
         "0112_purchase_intent_kind",
-        "0113_flow_starter_trial_activation"
+        "0113_flow_starter_trial_activation",
+        "0114_text_starter_trial_setup"
       ],
       "api_contracts": [
         "PATCH /public/builder/draft",
         "POST /public/auth/register",
         "POST /public/builder/claim",
-        "POST /tenant/trials/flow/activate"
+        "POST /tenant/trials/flow/activate",
+        "POST /tenant/trials/text/setup",
+        "POST /tenant/trials/text/activate"
       ],
       "ui_routes": [],
       "entitlement_keys": [],
@@ -758,7 +784,8 @@
       ],
       "evidence": [
         "docs/validation/production-master-plan-pr04-trial-intent-2026-08-17.md",
-        "docs/validation/production-master-plan-pr04-flow-trial-2026-08-17.md"
+        "docs/validation/production-master-plan-pr04-flow-trial-2026-08-17.md",
+        "docs/validation/production-master-plan-pr04-text-trial-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null
@@ -780,10 +807,12 @@
         "packages/db/src/trial-store.ts"
       ],
       "migration_ids": [
-        "0113_flow_starter_trial_activation"
+        "0113_flow_starter_trial_activation",
+        "0114_text_starter_trial_setup"
       ],
       "api_contracts": [
-        "POST /tenant/trials/flow/activate"
+        "POST /tenant/trials/flow/activate",
+        "POST /tenant/trials/text/activate"
       ],
       "ui_routes": [],
       "entitlement_keys": [],
@@ -795,7 +824,8 @@
         "docs/implementation/djay-bots-production-ready-master-plan.md"
       ],
       "evidence": [
-        "docs/validation/production-master-plan-pr04-flow-trial-2026-08-17.md"
+        "docs/validation/production-master-plan-pr04-flow-trial-2026-08-17.md",
+        "docs/validation/production-master-plan-pr04-text-trial-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null
@@ -903,18 +933,24 @@
         "CORE-02"
       ],
       "implementation_paths": [
-        "packages/db/src/trial-store.ts"
+        "packages/db/src/trial-store.ts",
+        "packages/usage-billing/src/index.ts",
+        "apps/api/app/tenant/trials/text/activate/route.ts"
       ],
       "migration_ids": [
-        "0113_flow_starter_trial_activation"
+        "0113_flow_starter_trial_activation",
+        "0114_text_starter_trial_setup"
       ],
       "api_contracts": [
-        "POST /tenant/trials/flow/activate"
+        "POST /tenant/trials/flow/activate",
+        "POST /tenant/trials/text/setup",
+        "POST /tenant/trials/text/activate"
       ],
       "ui_routes": [],
       "entitlement_keys": [],
       "meter_keys": [],
       "test_ids": [
+        "packages/usage-billing/src/index.test.ts",
         "packages/db/src/trial-store.integration.test.ts",
         "packages/db/src/migration-invariants.test.ts"
       ],
@@ -922,7 +958,8 @@
         "docs/implementation/djay-bots-production-ready-master-plan.md"
       ],
       "evidence": [
-        "docs/validation/production-master-plan-pr04-flow-trial-2026-08-17.md"
+        "docs/validation/production-master-plan-pr04-flow-trial-2026-08-17.md",
+        "docs/validation/production-master-plan-pr04-text-trial-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null

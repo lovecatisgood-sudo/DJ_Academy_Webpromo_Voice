@@ -42,6 +42,7 @@ locals {
     BILLING_DATABASE_URL              = "billing-database-url", BILLING_WEBHOOK_ENVELOPE_KEY = "billing-webhook-envelope-key",
     BILLING_CHECKOUT_ENVELOPE_KEY     = "billing-checkout-envelope-key", BILLING_FINANCIAL_ENVELOPE_KEY = "billing-financial-envelope-key",
     BILLING_NOTIFICATION_ENVELOPE_KEY = "billing-notification-envelope-key", STRIPE_SECRET_KEY = "stripe-secret-key",
+    TEXT_TRIAL_FINGERPRINT_HASH_KEY    = "text-trial-fingerprint-hash-key",
     STRIPE_WEBHOOK_SECRET             = "stripe-webhook-secret",
   }
   worker_product_secrets = {

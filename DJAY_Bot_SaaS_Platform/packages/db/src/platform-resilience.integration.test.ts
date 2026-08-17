@@ -24,6 +24,9 @@ afterAll(async () => {
 describe.runIf(enabled)("P9 replay, queue recovery, and pool exhaustion", () => {
   it("recovers without duplicate effects, fails readiness quickly, and records drill evidence", async () => {
     const now = new Date();
+    // The full integration runner shares one disposable database across suites.
+    // Isolate this batch-size-one drill from outbox rows created by earlier fixtures.
+    await adminClient!`DELETE FROM operations.outbox`;
     const key = randomBytes(32);
     const retryId = randomUUID();
     const staleId = randomUUID();
@@ -59,6 +62,7 @@ describe.runIf(enabled)("P9 replay, queue recovery, and pool exhaustion", () => 
 
     const first = await runEmailBatch(store, delivery, key, { now, batchSize: 1 });
     expect(first).toEqual({ claimed: 1, sent: 0, failed: 1 });
+    expect(deliveryKeys).toEqual([retryId]);
     const retryAt = new Date(now.getTime() + 61_000);
     const recovered = await runEmailBatch(store, delivery, key, { now: retryAt, batchSize: 1 });
     expect(recovered).toEqual({ claimed: 1, sent: 1, failed: 0 });
