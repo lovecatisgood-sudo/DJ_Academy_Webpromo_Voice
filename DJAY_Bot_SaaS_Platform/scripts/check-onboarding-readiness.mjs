@@ -72,8 +72,15 @@ for (const marker of ["djay-bot-text-voice-configuration-flow.html", '"Content-T
   if (!buildRoute.includes(marker)) failures.push(`public builder route is missing ${marker}`);
 }
 const voiceRoute = read("apps/api/app/public/builder/voice-test/session/route.ts");
-for (const marker of ["createXaiBuilderVoiceSession", "public_builder_voice_test_cap", "hasTrustedOrigin"]) {
+for (const marker of ["createXaiBuilderVoiceSession", "PUBLIC_BUILDER_TEST_RATE_LIMIT_SCOPE", "hasTrustedOrigin"]) {
   if (!voiceRoute.includes(marker)) failures.push(`anonymous Grok Voice test route is missing ${marker}`);
+}
+const builderDraftRoute = read("apps/api/app/public/builder/draft/route.ts");
+for (const marker of ["anonymousBuilder.ensureDraft", "anonymousBuilder.updateDraft", "resolvePublicBuilderTestSession", "status === \"conflict\""]) {
+  if (!builderDraftRoute.includes(marker)) failures.push(`durable anonymous Builder route is missing ${marker}`);
+}
+for (const marker of ["hydrateServerDraft", "saveServerDraft", "Draft saved securely"]) {
+  if (!builder.includes(marker)) failures.push(`approved anonymous Builder is missing durable save behavior ${marker}`);
 }
 const turbo = read("turbo.json");
 if (!turbo.includes('"globalDependencies": ["docs/design/djay-bot-text-voice-configuration-flow.html"]')) {

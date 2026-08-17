@@ -25,6 +25,7 @@ export const platformSchema = pgSchema("platform");
 export const operationsSchema = pgSchema("operations");
 export const catalogSchema = pgSchema("catalog");
 export const billingSchema = pgSchema("billing");
+export const builderSchema = pgSchema("builder");
 
 export const users = identitySchema.table("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -113,6 +114,40 @@ export const signupIntents = identitySchema.table("signup_intents", {
   provisionedAt: timestamp("provisioned_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
+
+export const anonymousBuilderSessions = builderSchema.table("anonymous_sessions", {
+  id: uuid("id").primaryKey(),
+  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  status: text("status").notNull().default("active"),
+  claimedRegistrationId: uuid("claimed_registration_id").references(() => signupIntents.id, { onDelete: "restrict" }),
+  claimedTenantId: uuid("claimed_tenant_id").references(() => tenants.id, { onDelete: "restrict" }),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+export const anonymousBuilderDrafts = builderSchema.table("drafts", {
+  id: uuid("id").primaryKey(),
+  sessionId: uuid("session_id").notNull().references(() => anonymousBuilderSessions.id, { onDelete: "restrict" }),
+  revision: integer("revision").notNull().default(1),
+  schemaVersion: integer("schema_version").notNull().default(1),
+  productFamily: text("product_family"),
+  planKey: text("plan_key"),
+  state: jsonb("state_json").notNull().default({ schemaVersion: 1, locale: "th" }),
+  status: text("status").notNull().default("active"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [uniqueIndex("builder_drafts_session_uidx").on(table.sessionId)]);
+
+export const anonymousBuilderDraftRevisions = builderSchema.table("draft_revisions", {
+  draftId: uuid("draft_id").notNull().references(() => anonymousBuilderDrafts.id, { onDelete: "restrict" }),
+  revision: integer("revision").notNull(),
+  schemaVersion: integer("schema_version").notNull(),
+  state: jsonb("state_json").notNull(),
+  createdAt: createdAt(),
+}, (table) => [primaryKey({ columns: [table.draftId, table.revision] })]);
 
 export const products = catalogSchema.table("products", {
   productKey: text("product_key").primaryKey(),

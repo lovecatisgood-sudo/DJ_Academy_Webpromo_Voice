@@ -175,6 +175,8 @@ Work:
 - Preserve drafts across refresh, locale switch, import failure and recoverable provider failure.
 - Add accessible desktop/mobile/keyboard/reduced-motion coverage for all three onboarding branches.
 
+Implementation checkpoint, 2026-08-17: the first server-authoritative slice is implemented in independent migration `0107_anonymous_builder_drafts.sql` because Owner analytics reserves `0102`–`0106`. Signed session age is cryptographically bound, one server draft is recovered without a client-supplied draft ID, optimistic revisions preserve immutable snapshots, tenant runtime has no Builder-table access, and Text/Voice share one 50-request budget. Import-job authority, complete translation lifecycle, component extraction, account claim and authorized browser acceptance remain open; this checkpoint does not satisfy the PR-02 exit gate by itself.
+
 Exit gate:
 
 - A new anonymous user can configure any family, close/reopen the browser and recover the same server-owned draft.

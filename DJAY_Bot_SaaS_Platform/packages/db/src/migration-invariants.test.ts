@@ -83,6 +83,7 @@ const tenantIncidentOperationsMigration = readFileSync(resolve(import.meta.dirna
 const notificationSourceCoverageMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0099_notification_source_coverage.sql"), "utf8");
 const appointmentCalendarReconciliationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0100_appointment_calendar_reconciliation.sql"), "utf8");
 const appointmentRecoveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0101_appointment_recovery_and_repeat_reschedule.sql"), "utf8");
+const anonymousBuilderDraftMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0107_anonymous_builder_drafts.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -95,6 +96,15 @@ const tenantTables = [
 ];
 
 describe("Merchant experience migration invariants", () => {
+  it("keeps anonymous Builder drafts versioned, expiring, pre-tenant, and unavailable to tenant runtime", () => {
+    expect(anonymousBuilderDraftMigration).toContain("CREATE TABLE builder.anonymous_sessions");
+    expect(anonymousBuilderDraftMigration).toContain("CREATE TABLE builder.draft_revisions");
+    expect(anonymousBuilderDraftMigration).toContain("FORCE ROW LEVEL SECURITY");
+    expect(anonymousBuilderDraftMigration).toContain("expires_at > issued_at");
+    expect(anonymousBuilderDraftMigration).toContain("TO djay_auth_runtime");
+    expect(anonymousBuilderDraftMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+builder\.[^;]+TO djay_runtime/i);
+  });
+
   it("keeps appointment recovery independently reviewed, bounded, optimistic, and replay-safe", () => {
     expect(appointmentRecoveryMigration).toContain("request_appointment_dead_letter_replay");
     expect(appointmentRecoveryMigration).toContain("review_dead_letter_replay_v2");

@@ -5,6 +5,7 @@ import { enforceRateLimit, hasTrustedOrigin, readJson, safeJson } from "../../..
 import {
   PUBLIC_BUILDER_TEST_CAP,
   PUBLIC_BUILDER_TEST_COOKIE,
+  PUBLIC_BUILDER_TEST_RATE_LIMIT_SCOPE,
   PUBLIC_BUILDER_TEST_WINDOW_MS,
   publicBuilderTestCookie,
   resolvePublicBuilderTestSession,
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
       "Set-Cookie": publicBuilderTestCookie(builderSession.cookieValue, services.env.NODE_ENV === "production"),
     };
     const allowed = await enforceRateLimit(
-      "public_builder_voice_test_cap",
+      PUBLIC_BUILDER_TEST_RATE_LIMIT_SCOPE,
       builderSession.sessionId,
       PUBLIC_BUILDER_TEST_CAP,
       PUBLIC_BUILDER_TEST_WINDOW_MS,

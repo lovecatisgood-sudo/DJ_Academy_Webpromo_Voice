@@ -13,6 +13,7 @@ import { AiTextRuntime } from "@djay/ai-chat-runtime";
 import { createLineChannelClient, createSocialDeliveryClient } from "@djay/channel-adapters";
 import {
   AiChatRuntimeStore,
+  AnonymousBuilderStore,
   AiChatStore,
   TenantAiOperationsStore,
   AiSocialConnectionStore,
@@ -183,6 +184,7 @@ async function buildServices() {
     tenantCommerce: new TenantCommerceStore(tenantClient),
     purchaseIntents: new PurchaseIntentStore(tenantClient),
     authPurchaseIntents: new PurchaseIntentStore(client),
+    anonymousBuilder: new AnonymousBuilderStore(client),
     tenantBillingNotifications: new TenantBillingNotificationStore(tenantClient),
     billingNotificationEnvelopeKey: env.BILLING_NOTIFICATION_ENVELOPE_KEY
       ? parse32ByteSecret(env.BILLING_NOTIFICATION_ENVELOPE_KEY, "BILLING_NOTIFICATION_ENVELOPE_KEY") : null,

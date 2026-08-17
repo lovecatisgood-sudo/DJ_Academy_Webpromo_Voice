@@ -3,9 +3,13 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 export const PUBLIC_BUILDER_TEST_CAP = 50;
 export const PUBLIC_BUILDER_TEST_WINDOW_MS = 30 * 24 * 60 * 60 * 1_000;
 export const PUBLIC_BUILDER_TEST_COOKIE = "djay_builder_test_session";
+export const PUBLIC_BUILDER_TEST_RATE_LIMIT_SCOPE = "public_builder_ai_test_cap";
+const allowedClockSkewMs = 5 * 60 * 1_000;
 
-function signature(sessionId: string, key: Buffer) {
-  return createHmac("sha256", key).update(`public-builder-test:${sessionId}`).digest("base64url");
+function signature(sessionId: string, issuedAtMs: number, key: Buffer) {
+  return createHmac("sha256", key)
+    .update(`public-builder-test:${sessionId}:${issuedAtMs}`)
+    .digest("base64url");
 }
 
 function validSignature(value: string, expected: string) {
@@ -14,19 +18,40 @@ function validSignature(value: string, expected: string) {
   return supplied.length === signed.length && timingSafeEqual(supplied, signed);
 }
 
-export function resolvePublicBuilderTestSession(cookieValue: string | undefined, key: Buffer) {
-  const [sessionId, suppliedSignature, ...extra] = cookieValue?.split(".") ?? [];
+export function resolvePublicBuilderTestSession(
+  cookieValue: string | undefined,
+  key: Buffer,
+  now = new Date(),
+) {
+  const [sessionId, issuedAtText, suppliedSignature, ...extra] = cookieValue?.split(".") ?? [];
+  const issuedAtMs = Number(issuedAtText);
+  const ageMs = now.getTime() - issuedAtMs;
   if (
     extra.length === 0
     && sessionId
+    && issuedAtText
     && suppliedSignature
     && /^[0-9a-f-]{36}$/i.test(sessionId)
-    && validSignature(suppliedSignature, signature(sessionId, key))
+    && Number.isSafeInteger(issuedAtMs)
+    && ageMs >= -allowedClockSkewMs
+    && ageMs < PUBLIC_BUILDER_TEST_WINDOW_MS
+    && validSignature(suppliedSignature, signature(sessionId, issuedAtMs, key))
   ) {
-    return { sessionId, cookieValue: `${sessionId}.${suppliedSignature}` } as const;
+    return {
+      sessionId,
+      issuedAt: new Date(issuedAtMs),
+      expiresAt: new Date(issuedAtMs + PUBLIC_BUILDER_TEST_WINDOW_MS),
+      cookieValue: `${sessionId}.${issuedAtText}.${suppliedSignature}`,
+    } as const;
   }
   const nextSessionId = randomUUID();
-  return { sessionId: nextSessionId, cookieValue: `${nextSessionId}.${signature(nextSessionId, key)}` } as const;
+  const nextIssuedAtMs = now.getTime();
+  return {
+    sessionId: nextSessionId,
+    issuedAt: now,
+    expiresAt: new Date(nextIssuedAtMs + PUBLIC_BUILDER_TEST_WINDOW_MS),
+    cookieValue: `${nextSessionId}.${nextIssuedAtMs}.${signature(nextSessionId, nextIssuedAtMs, key)}`,
+  } as const;
 }
 
 export function publicBuilderTestCookie(value: string, production: boolean) {

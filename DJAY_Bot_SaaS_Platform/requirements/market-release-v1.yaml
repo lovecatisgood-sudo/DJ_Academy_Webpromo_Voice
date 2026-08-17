@@ -6440,16 +6440,36 @@
         "CORE-02",
         "CORE-03"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "implementation_paths": [
+        "packages/db/src/anonymous-builder-store.ts",
+        "apps/api/app/public/builder/draft/route.ts",
+        "apps/api/lib/public-builder-test-quota.ts",
+        "docs/design/djay-bot-text-voice-configuration-flow.html"
+      ],
+      "migration_ids": [
+        "0107_anonymous_builder_drafts"
+      ],
+      "api_contracts": [
+        "GET /public/builder/draft",
+        "PATCH /public/builder/draft"
+      ],
+      "ui_routes": [
+        "/build"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "test_ids": [
+        "packages/db/src/anonymous-builder-store.integration.test.ts",
+        "apps/api/lib/public-builder-draft.test.ts",
+        "apps/api/lib/public-builder-test-quota.test.ts"
+      ],
+      "runbooks": [
+        "docs/implementation/djay-bots-production-ready-master-plan.md"
+      ],
+      "evidence": [
+        "docs/validation/production-master-plan-pr02-server-draft-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {
@@ -6880,16 +6900,32 @@
       "supporting_work_packages": [
         "CORE-03"
       ],
-      "implementation_paths": [],
+      "implementation_paths": [
+        "apps/api/lib/public-builder-test-quota.ts",
+        "apps/api/app/public/builder/ai-test/route.ts",
+        "apps/api/app/public/builder/voice-test/session/route.ts"
+      ],
       "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "api_contracts": [
+        "POST /public/builder/ai-test",
+        "POST /public/builder/voice-test/session"
+      ],
+      "ui_routes": [
+        "/build"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "test_ids": [
+        "apps/api/lib/public-builder-test-quota.test.ts",
+        "apps/api/lib/public-builder-voice.test.ts"
+      ],
+      "runbooks": [
+        "docs/implementation/djay-bots-production-ready-master-plan.md"
+      ],
+      "evidence": [
+        "docs/validation/production-master-plan-pr02-server-draft-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {

@@ -10,7 +10,7 @@
 | Architecture authority | `docs/architecture/djay-bots-v1-market-release-architecture.md` and `docs/architecture/djay-bots-system-map.md` |
 | Registry authority | `requirements/market-release-v1.yaml` |
 | Clickable approval candidate | `docs/design/djay-bots-saas-owner-analytics-full-flow.html` |
-| Current schema baseline | `0101_appointment_recovery_and_repeat_reschedule.sql` |
+| Current schema baseline | `0107_anonymous_builder_drafts.sql`; Owner analytics retains reserved sequence `0102`–`0106` |
 | Release effect | None until the gates in this plan are satisfied; all six packages remain `sellable: false` |
 
 ## 1. Purpose
@@ -206,6 +206,8 @@ docs/validation/platform-owner-analytics-<date>.md
 ## 8. Database migration sequence
 
 Migration identifiers are reserved in this order. If another approved work package claims one before implementation begins, update this plan and the registry first; do not silently renumber files during development.
+
+The independent anonymous Builder work package uses `0107_anonymous_builder_drafts.sql`. It does not consume or alter the Owner analytics reservations below. The migration runner records each immutable migration ID independently, so the reserved `0102`–`0106` sequence remains safe to implement before `0107` on a fresh database and after it on a database where the independent Builder foundation was deployed first.
 
 ### 8.1 `0102_platform_owner_analytics_foundation.sql`
 

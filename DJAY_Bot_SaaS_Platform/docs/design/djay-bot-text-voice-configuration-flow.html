@@ -2189,6 +2189,122 @@
     let undoStack = [];
     let redoStack = [];
     let lastDraftSnapshot = JSON.stringify(draft);
+    let serverDraftRevision = null;
+    let serverDraftReady = false;
+    let serverDraftTimer = null;
+    let serverDraftSaving = false;
+    let serverDraftQueued = false;
+
+    function currentBuilderPlanKey() {
+      const selected = commerceState.plan;
+      if (state.product === 'flow' && selected.startsWith('flowbot_')) return selected;
+      if (state.product === 'text' && selected.startsWith('ai_chat_')) return selected;
+      if (state.product === 'voice' && selected.startsWith('voice_')) return selected;
+      return commerceCatalog[state.product].plans[0].key;
+    }
+
+    function serverDraftSnapshot() {
+      return {
+        schemaVersion: 1,
+        locale: document.documentElement.lang === 'th' ? 'th' : 'en',
+        family: state.product,
+        access: {product:state.product,plan:currentBuilderPlanKey(),intent:commerceState.intent},
+        templateOrRole: {role:state.role,flowTemplate:flowDraft.template},
+        businessProfile: {business:draft.business},
+        knowledge: {sources:draft.sources,importedSources:onboardingState.importedSources},
+        translations: {flowIdentity:flowDraft.identity,flowNodes:flowDraft.nodes},
+        configuration: {
+          textDraft:draft,textPublishedDraft:publishedDraft,
+          textUi:{product:state.product,role:state.role,publishedProduct:state.publishedProduct,publishedRole:state.publishedRole,section:state.section,version:state.version,configured:state.configured,dirty:state.dirty},
+          flowDraft,flowPublishedDraft,flowUi:flowState,
+          onboarding:{page:onboardingState.page,source:onboardingState.source}
+        },
+        advisoryTests: {text:draft.rows?.test || [],flowTested:flowState.tested || false}
+      };
+    }
+
+    function updateServerSaveLabel(message) {
+      if ($('#saveStatus')) $('#saveStatus').innerHTML = `<span class="dot"></span>${message}`;
+      if ($('#flowSaveState')) $('#flowSaveState').innerHTML = `<span class="dot"></span>${message}`;
+    }
+
+    function scheduleServerDraftSave() {
+      if (!serverDraftReady || serverDraftRevision === null) return;
+      clearTimeout(serverDraftTimer);
+      serverDraftTimer = setTimeout(saveServerDraft, 350);
+    }
+
+    async function saveServerDraft() {
+      if (!serverDraftReady || serverDraftRevision === null) return;
+      if (serverDraftSaving) { serverDraftQueued = true; return; }
+      serverDraftSaving = true;
+      serverDraftQueued = false;
+      updateServerSaveLabel('Saving securely…');
+      try {
+        const response = await fetch('/public/builder/draft',{
+          method:'PATCH',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({revision:serverDraftRevision,productFamily:state.product,planKey:currentBuilderPlanKey(),state:serverDraftSnapshot()}),
+          keepalive:true
+        });
+        const result = await response.json().catch(() => ({}));
+        if (response.status === 409) {
+          serverDraftRevision = result.draft?.revision ?? serverDraftRevision;
+          updateServerSaveLabel('Newer saved draft detected — reload to reconcile');
+          return;
+        }
+        if (!response.ok || result.status !== 'updated') throw new Error(result.status || 'draft_save_failed');
+        serverDraftRevision = result.draft.revision;
+        updateServerSaveLabel('Draft saved securely');
+      } catch (error) {
+        updateServerSaveLabel('Save interrupted — retrying');
+        serverDraftQueued = true;
+      } finally {
+        serverDraftSaving = false;
+        if (serverDraftQueued) {
+          serverDraftQueued = false;
+          clearTimeout(serverDraftTimer);
+          serverDraftTimer = setTimeout(saveServerDraft, 1200);
+        }
+      }
+    }
+
+    function applyServerDraft(saved) {
+      const configuration = saved?.configuration;
+      if (!configuration?.textDraft || !configuration?.flowDraft) return false;
+      draft = configuration.textDraft;
+      publishedDraft = configuration.textPublishedDraft || clone(defaultDraft);
+      Object.assign(state,configuration.textUi || {});
+      flowDraft = normalizeFlowDraftTranslations(configuration.flowDraft);
+      flowPublishedDraft = normalizeFlowDraftTranslations(configuration.flowPublishedDraft || clone(flowDraft));
+      Object.assign(flowState,configuration.flowUi || {});
+      Object.assign(commerceState,saved.access || {});
+      Object.assign(onboardingState,configuration.onboarding || {});
+      onboardingState.importedSources = saved.knowledge?.importedSources || [];
+      undoStack = []; redoStack = []; flowUndoStack = []; flowRedoStack = [];
+      lastDraftSnapshot = JSON.stringify(draft);
+      return true;
+    }
+
+    async function hydrateServerDraft() {
+      try {
+        const response = await fetch('/public/builder/draft',{cache:'no-store'});
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result.status !== 'ready' || !result.draft) throw new Error(result.status || 'draft_read_failed');
+        serverDraftRevision = result.draft.revision;
+        const recovered = applyServerDraft(result.draft.state);
+        serverDraftReady = true;
+        if (!recovered) scheduleServerDraftSave();
+        else {
+          saveFlowLocal();
+          localStorage.setItem(storageKey,JSON.stringify({draft,publishedDraft,version:state.version,product:state.product,role:state.role,publishedProduct:state.publishedProduct,publishedRole:state.publishedRole,configured:state.configured,dirty:state.dirty}));
+          updateServerSaveLabel('Draft recovered securely');
+          render();
+        }
+      } catch (error) {
+        serverDraftReady = false;
+        updateServerSaveLabel('Secure save unavailable — local recovery only');
+      }
+    }
 
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>'"]/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[character]));
@@ -2216,9 +2332,10 @@
           lastDraftSnapshot = currentSnapshot;
         }
         state.dirty = true;
-        $('#saveStatus').innerHTML = '<span class="dot"></span>Draft saved locally';
+        $('#saveStatus').innerHTML = '<span class="dot"></span>Saving draft…';
       }
       localStorage.setItem(storageKey, JSON.stringify({draft, publishedDraft, version: state.version, product: state.product, role: state.role, publishedProduct: state.publishedProduct, publishedRole: state.publishedRole, configured: state.configured, dirty: state.dirty}));
+      scheduleServerDraftSave();
       updateHistoryButtons();
     }
 
@@ -2236,6 +2353,7 @@
       lastDraftSnapshot = JSON.stringify(draft);
       state.dirty = true;
       localStorage.setItem(storageKey, JSON.stringify({draft, publishedDraft, version: state.version, product: state.product, role: state.role, publishedProduct: state.publishedProduct, publishedRole: state.publishedRole, configured: state.configured, dirty: state.dirty}));
+      scheduleServerDraftSave();
       markDraftUpdated();
       render();
       showToast(direction === 'undo' ? 'Last draft change undone.' : 'Draft change restored.');
@@ -2260,6 +2378,7 @@
         state.dirty = flowState.dirty;
       }
       localStorage.setItem(flowStorageKey,JSON.stringify({draft:flowDraft,publishedDraft:flowPublishedDraft,state:flowState}));
+      scheduleServerDraftSave();
       if ($('#flowUndo')) $('#flowUndo').disabled = flowUndoStack.length === 0;
       if ($('#flowRedo')) $('#flowRedo').disabled = flowRedoStack.length === 0;
     }
@@ -2275,7 +2394,7 @@
       flowState.installVerified = false;
       flowState.live = false;
       saveFlowLocal();
-      if ($('#flowSaveState')) $('#flowSaveState').innerHTML = '<span class="dot"></span>Draft saved locally';
+      if ($('#flowSaveState')) $('#flowSaveState').innerHTML = '<span class="dot"></span>Saving draft…';
       if (message) showToast(message);
     }
 
@@ -4765,6 +4884,7 @@
       else showCommerceScreen('pricing');
     } else { activateSurface('journeyDemo'); showCommerceScreen('landing'); }
     render();
+    void hydrateServerDraft();
   </script>
 </body>
 </html>

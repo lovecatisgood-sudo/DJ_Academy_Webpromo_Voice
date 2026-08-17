@@ -8,6 +8,7 @@ import { enforceRateLimit, hasTrustedOrigin, readJson, safeJson } from "../../..
 import {
   PUBLIC_BUILDER_TEST_CAP,
   PUBLIC_BUILDER_TEST_COOKIE,
+  PUBLIC_BUILDER_TEST_RATE_LIMIT_SCOPE,
   PUBLIC_BUILDER_TEST_WINDOW_MS,
   publicBuilderTestCookie,
   resolvePublicBuilderTestSession,
@@ -57,6 +58,16 @@ export async function POST(request: NextRequest) {
   let sessionHeaders: HeadersInit | undefined;
   try {
     const services = await getServices();
+    let input: z.infer<typeof requestSchema>;
+    try {
+      input = requestSchema.parse(await readJson(request, 10_000));
+    } catch (error) {
+      if (error instanceof ZodError || error instanceof SyntaxError) {
+        return safeJson({ status: "validation_failed" }, 400);
+      }
+      throw error;
+    }
+    if (!services.aiTextGateway) return safeJson({ status: "not_available" }, 503);
     const builderSession = resolvePublicBuilderTestSession(
       request.cookies.get(PUBLIC_BUILDER_TEST_COOKIE)?.value,
       services.rateLimitKey,
@@ -65,7 +76,7 @@ export async function POST(request: NextRequest) {
       "Set-Cookie": publicBuilderTestCookie(builderSession.cookieValue, services.env.NODE_ENV === "production"),
     };
     const allowed = await enforceRateLimit(
-      "public_builder_ai_test_cap",
+      PUBLIC_BUILDER_TEST_RATE_LIMIT_SCOPE,
       builderSession.sessionId,
       PUBLIC_BUILDER_TEST_CAP,
       PUBLIC_BUILDER_TEST_WINDOW_MS,
@@ -77,16 +88,6 @@ export async function POST(request: NextRequest) {
         sessionHeaders,
       );
     }
-    let input: z.infer<typeof requestSchema>;
-    try {
-      input = requestSchema.parse(await readJson(request, 10_000));
-    } catch (error) {
-      if (error instanceof ZodError || error instanceof SyntaxError) {
-        return safeJson({ status: "validation_failed" }, 400, sessionHeaders);
-      }
-      throw error;
-    }
-    if (!services.aiTextGateway) return safeJson({ status: "not_available" }, 503, sessionHeaders);
     const role = roleDefaults[input.role];
     const claims = [input.business.summary, input.business.offers].filter(Boolean);
     const sourceRevisionId = randomUUID();

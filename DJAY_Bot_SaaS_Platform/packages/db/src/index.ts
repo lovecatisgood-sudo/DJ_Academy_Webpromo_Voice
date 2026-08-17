@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0101_appointment_recovery_and_repeat_reschedule";
+export const currentSchemaVersion = "0107_anonymous_builder_drafts";
 
 export { PostgresAuthStore } from "./auth-store";
 export { AccountingReconciliationWorkerStore, AccountingSyncWorkerStore, BillingWebhookRecoveryWorkerStore, BillingWebhookStore, FinancialEventReconciliationWorkerStore, FinancialReconciliationWorkerStore, SubscriptionLifecycleWorkerStore } from "./billing-webhook-store";
@@ -8,6 +8,7 @@ export {
   UsageAlertWorkerStore, UsagePeriodWorkerStore,
 } from "./commerce-store";
 export { PurchaseIntentStore } from "./purchase-intent-store";
+export { AnonymousBuilderStore, type AnonymousBuilderDraft } from "./anonymous-builder-store";
 export { SharedDomainStore } from "./shared-domain-store";
 export { FlowBotStore } from "./flowbot-store";
 export { AiChatStore } from "./ai-chat-store";

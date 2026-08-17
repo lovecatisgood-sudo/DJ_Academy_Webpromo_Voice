@@ -10,6 +10,12 @@ The approved Owner analytics authority is now integrated into this maintained re
 
 Fresh local evidence passes `pnpm verify` across all 35 packages, including Voice gateway transport/load tests with temporary localhost authority. `pnpm test:db` passes all 102 migrations, RLS/cross-tenant denials, wired PostgreSQL integration suites, recovery and guarded legacy rollback. The appointment clock-race correction additionally passes 20 consecutive focused fresh-container runs, and the complete database gate passes three fresh-container runs. Browser/GUI acceptance, unmocked provider journeys and external legal/security/business approvals were not invented by this checkpoint.
 
+## Production-ready master-plan PR-02 server-draft checkpoint (2026-08-17)
+
+Migration `0107_anonymous_builder_drafts.sql` adds the independent pre-account Builder session, current-draft and immutable-revision authority without consuming the Owner analytics reservations at `0102`–`0106`. The signed cookie now binds its issue time and expires at 30 days; the Builder route never accepts a draft ID from the browser; writes use optimistic revisions; tenant runtime has no table access; and Text plus Voice consume one shared 50-request allowance rather than separate counters.
+
+The approved `/build` experience now hydrates and autosaves the current Flow/Text/Voice configuration through `GET/PATCH /public/builder/draft`, retaining browser storage only as interrupted-save recovery. Focused unit, type, static Builder and disposable PostgreSQL tests pass; the full 35-package `pnpm verify` and all 103 migrations plus wired PostgreSQL suites also pass. PR-02 remains in progress because idempotent import jobs, complete translation lifecycle, maintained component extraction and permissioned browser acceptance are still open.
+
 ## Approved SaaS Owner analytics contract (2026-08-16)
 
 The Product Owner approved a complete Platform Master analytics and merchant-intelligence scope. `docs/design/djay-bots-saas-owner-analytics-contract.md` is the single source of truth for Owner Overview, merchant and SaaS-user directories, subscription lifecycle, revenue definitions, Text replies/tokens, Voice seconds/minutes, provider/model economics, trials/conversion, reports/alerts, Merchant 360 expansion and governed exports.

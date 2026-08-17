@@ -233,7 +233,7 @@ Required table groups beyond the current schema:
 | Commerce | catalogue versions/products/prices/entitlements/promotions, checkout intents, subscription contracts, provider customer/subscription mappings, scheduled changes, add-on subscriptions, pack purchases |
 | Usage | meter definitions, immutable usage events, reservations, daily/monthly aggregates, pack lots/consumption, forecasts, thresholds, safety caps, reconciliation runs/items |
 | Finance | orders, invoice sequences, immutable invoices/lines/tax totals/artifacts, credit notes/lines, payments/refunds/disputes, provider mappings, accounting sync outbox/results |
-| Experience lifecycle | purchase intents, registration continuations, product lifecycle projections, onboarding definitions/evidence/blockers, install checks, customer notification/activity records |
+| Experience lifecycle | signed anonymous Builder sessions, current Builder drafts and immutable draft revisions, purchase intents, registration continuations, product lifecycle projections, onboarding definitions/evidence/blockers, install checks, customer notification/activity records |
 | Knowledge | knowledge bases/collections, sources, source versions, ingest jobs/steps, extracted documents/pages, chunks, embeddings/index refs, published knowledge revisions, crawl schedules |
 | Catalogue content | products, services, variants/options, categories, localized fields, price-display text, availability, CTA/action references |
 | Customer operations | contacts, identities, tags, attributes, segment rules/memberships, lead score definitions/results, handovers, assignments, notes, appointment/callback records |
@@ -589,6 +589,8 @@ public or authenticated package selection
 Use an amount-off coupon for Flow Starter so the charge is exactly THB 2,499; the other plans may use exact fixed or validated percentage terms. Promotion codes are not required from the customer. Return URLs are informational only and cannot provision access.
 
 `purchase_intents` survive registration and checkout expiry but contain no payment authority. They store intended product family/plan, catalogue/promotion versions, originating anonymous correlation, attached user/workspace after verification, selected add-ons, status and expiry. Attaching or consuming an intent requires same-user/workspace eligibility and is audited. One open compatible Checkout Session is reused; unknown create/redirect results are resolved by idempotency key before creating another (`EXP-003` through `EXP-009`).
+
+Before registration, `builder.anonymous_sessions` is keyed only by a 30-day HMAC-authenticated session identity and carries no account or tenant authority. `builder.drafts` exposes one current optimistic revision per session; `builder.draft_revisions` preserves its immutable snapshots. Browser requests never select a draft ID, and the pre-tenant auth runtime resolves the draft only from the verified session. Migration `0107` owns this independent foundation because the approved Owner analytics program reserves `0102`–`0106`. Draft claim is a later atomic registration continuation and cannot be inferred from the cookie alone.
 
 The public/tenant checkout review uses a server-calculated quotation read model with exact first-term, renewal, tax behavior, add-on cadence, allowance and exclusions. A quotation has a short expiry and checksum; Checkout creation recalculates and returns a price-changed state requiring renewed confirmation if the catalogue/promotion changed.
 
