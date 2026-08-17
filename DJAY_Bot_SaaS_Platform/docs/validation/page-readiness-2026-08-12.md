@@ -74,7 +74,7 @@ Local review bases:
 - 40 of 41 pages are locally implemented and production-buildable.
 - 1 of 41 pages is intentionally deferred and fail-closed with the social
   release train.
-- 0 of 297 market-release requirements are formally accepted.
+- 0 of 322 market-release requirements are formally accepted.
 - All 6 sellable packages remain `sellable: false`.
 - The current non-social release is a strong local engineering checkpoint, not
   a production-ready or sellable SaaS release.

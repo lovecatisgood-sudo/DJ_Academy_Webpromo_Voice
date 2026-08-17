@@ -156,6 +156,7 @@ export function createOpenAIRealtimeVoiceGateway(config: Readonly<{
           } else if (event.type === "response.output_audio_transcript.delta" && typeof event.delta === "string") {
             dispatch({ type: "transcript.delta", speaker: "agent", text: event.delta });
           } else if ((event.type === "conversation.item.input_audio_transcription.delta"
+            || event.type === "conversation.item.input_audio_transcription.updated"
             || event.type === "conversation.item.input_audio_transcription.completed")
             && typeof (event.delta ?? event.transcript) === "string") {
             dispatch({ type: "transcript.delta", speaker: "customer", text: String(event.delta ?? event.transcript) });

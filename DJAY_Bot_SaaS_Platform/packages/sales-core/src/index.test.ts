@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aiPlaybookFieldLimits, aiPlaybookSchema, buildSalesCorePolicy, chunkKnowledge, countVisibleCharacters, salesCoreOutputSchema, selectRelevantKnowledge } from "./index";
+import { aiPlaybookFieldLimits, aiPlaybookSchema, buildSalesCorePolicy, chunkKnowledge, countVisibleCharacters, countVisibleWords, salesCoreOutputSchema, selectRelevantKnowledge } from "./index";
 
 const ids = {
   revision: "11111111-1111-4111-8111-111111111111",
@@ -56,22 +56,38 @@ describe("Sales Conversation Core contract", () => {
 
   it("instructs providers about cross-field action and handover invariants", () => {
     const policy = buildSalesCorePolicy({
-      locale: "en", businessName: "Studio", agentName: "Mali", tone: "Warm",
+      locale: "en", agentRole: "sales", businessName: "Studio", agentName: "Mali", tone: "Warm",
       salesGoal: "Qualify interest", approvedClaims: [], prohibitedClaims: [],
       discoveryQuestions: [], ctaPolicy: [], knowledge: [], recentMessages: [], customerMessage: "Hello",
     });
     expect(policy).toContain("only when the same proposedActions array also contains a valid lead.capture action");
     expect(policy).toContain("if and only if proposedActions contains handover.request");
-    expect(policy).toContain("no more than 200 visible grapheme characters");
+    expect(policy).toContain("normally use about 40 to 80 words");
+    expect(policy).toContain("never exceed 200 locale-aware words");
+    expect(policy).toContain("regardless of how many concerns came before it");
+    expect(policy).toContain("Do not infer a conversation-level rejection from an objection count");
+    expect(policy).toContain("Only that explicit conversation-level exit permits S9_ACTION_CLOSE");
+    expect(policy).toContain("For every active objection use stage S5_OBJECTION");
+    expect(policy).toContain("direct conservative paraphrase of approved claims or approved knowledge");
+    expect(policy).toContain("avoid repeating the same feature list");
+    expect(policy).toContain("Do not offer to send, email, schedule, register, book");
+    expect(policy).not.toContain("After two clear refusals");
   });
 
-  it("counts graphemes and rejects customer replies over 200 visible characters", () => {
+  it("counts English and unspaced Thai words and rejects only replies over 200 words", () => {
     expect(countVisibleCharacters("กำ")).toBe(1);
-    expect(() => salesCoreOutputSchema.parse({
-      schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover",
+    expect(countVisibleWords("A concise helpful reply.", "en")).toBe(4);
+    expect(countVisibleWords("ฉันชอบแมวและสุนัข", "th")).toBeGreaterThan(1);
+    const makeOutput = (customerResponse: string) => ({
+      schemaVersion: "sales-core.v1" as const, stage: "S2_DISCOVERY" as const, intent: "discover",
       facts: [], knowledgeCitations: [], responseGoal: "ask a question", proposedActions: [], handover: null,
-      customerResponse: "🙂".repeat(201), channelResponse: { format: "text", quickReplies: [] },
-    })).toThrow(/exceeds 200 visible characters/);
+      customerResponse, channelResponse: { format: "text" as const, quickReplies: [] },
+    });
+    expect(salesCoreOutputSchema.parse(makeOutput(Array.from({ length: 199 }, () => "word").join(" "))).customerResponse).toBeTruthy();
+    expect(salesCoreOutputSchema.parse(makeOutput(Array.from({ length: 200 }, () => "word").join(" "))).customerResponse).toBeTruthy();
+    expect(() => salesCoreOutputSchema.parse({
+      ...makeOutput(Array.from({ length: 201 }, () => "word").join(" ")),
+    })).toThrow(/exceeds 200 words/);
   });
 
   it("chunks and retrieves approved content deterministically", () => {

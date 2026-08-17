@@ -45,10 +45,14 @@ const functionNames = [
   "flowTextMatchesQuery",
   "flowResolveTypedReply",
   "flowSetDestination",
+  "flowIncomingEdges",
+  "flowChangeNodeType",
+  "flowCloneNodeDisconnected",
   "flowRemoveNodeFromDraft",
   "flowDraftErrors",
 ];
 const body = `
+const clone = value => structuredClone(value);
 const flowNode = (id,type,title,en,th,x,y,extra={}) => ({id,type,title,en,th,x,y,keywords:[],next:null,...extra});
 const flowChoice = (en,th,target) => ({en,th,target});
 ${functionNames.map(extractFunction).join("\n")}
@@ -151,6 +155,30 @@ assert.equal(engine.flowSetDestination(disconnectedDraft, "menu", "option", 0, "
 assert.equal(engine.flowResolveChoice(disconnectedDraft, "menu", 0, "en").status, "ready");
 assert.equal(engine.flowSetDestination(disconnectedDraft, "menu", "option", 0, "menu"), false);
 
+assert.deepEqual(engine.flowIncomingEdges(draft, "done"), [
+  { sourceId: "sales", kind: "next", optionIndex: 0, targetId: "done" },
+  { sourceId: "support", kind: "next", optionIndex: 0, targetId: "done" },
+  { sourceId: "hours", kind: "next", optionIndex: 0, targetId: "done" },
+]);
+const inactiveIncomingDraft = structuredClone(draft);
+inactiveIncomingDraft.nodes[0].options = [{ en: "Stored", th: "เก็บไว้", target: "done" }];
+assert.equal(engine.flowIncomingEdges(inactiveIncomingDraft, "done").length, 3, "inactive stored options must not appear as incoming connectors");
+
+const typeChangeDraft = structuredClone(draft);
+typeChangeDraft.nodes.find((item) => item.id === "sales").options = [{ en: "Hidden", th: "ซ่อน", target: "support" }];
+assert.deepEqual(engine.flowChangeNodeType(typeChangeDraft, "sales", "options"), { changed: true, disconnected: 2 });
+assert.equal(typeChangeDraft.nodes.find((item) => item.id === "sales").next, null);
+assert.equal(typeChangeDraft.nodes.find((item) => item.id === "sales").options[0].target, "");
+assert.deepEqual(engine.flowChangeNodeType(typeChangeDraft, "sales", "message"), { changed: true, disconnected: 0 });
+assert.equal(typeChangeDraft.nodes.find((item) => item.id === "sales").needsConnection, true);
+
+const optionClone = engine.flowCloneNodeDisconnected(draft.nodes.find((item) => item.id === "menu"), "menu_copy", 100, 200);
+assert.equal(optionClone.next, null);
+assert.ok(optionClone.options.every((option) => option.target === ""), "duplicated reply routes must start disconnected");
+const messageClone = engine.flowCloneNodeDisconnected(draft.nodes.find((item) => item.id === "sales"), "sales_copy", 100, 200);
+assert.equal(messageClone.next, null);
+assert.equal(messageClone.needsConnection, true);
+
 const deletionDraft = structuredClone(draft);
 const deletion = engine.flowRemoveNodeFromDraft(deletionDraft, "done");
 assert.deepEqual(deletion, { removed: true, disconnected: 3 });
@@ -236,6 +264,25 @@ assert.match(source, /\.flow-right-panel \{[^}]*min-height: 0/s, "the test/edito
 assert.match(source, /\.flow-color-value/, "brand color controls must show the selected hex value");
 assert.match(source, /applyFlowBrandPreview\(\$\('#flowStudioDemo'\),flowDraft\.identity\.brandColor\)/, "the Flow Studio tester must use the merchant brand color");
 assert.match(source, /Math\.max\(96,68 \+ Math\.max\(0,\(node\.options \|\| \[\]\)\.length - 1\) \* 23\)/, "option nodes must grow to contain every connector");
+assert.match(source, /class="flow-wire-hit"[^>]*data-flow-edge/, "existing connector lines must be selectable");
+assert.match(source, /id="flowDisconnectSelectedConnection"/, "a selected connector must expose an explicit disconnect action");
+assert.match(source, /if \(flowSelectedEdge\) \{ disconnectFlowEdge\(flowSelectedEdge\); return; \}/, "Remove selected must disconnect a selected line instead of deleting its source message");
+assert.match(source, /event\.key === 'Delete' \|\| event\.key === 'Backspace'/, "selected connectors must support keyboard deletion");
+assert.match(source, /const element = document\.elementFromPoint\([^)]*\);\s*const target = element\?\.closest\('\[data-flow-input-port\],\[data-flow-edge-endpoint\]'\)/s, "a drag must connect only through a deliberate destination input or connected endpoint");
+assert.match(source, /flowConnection = \{mode:'source',sourceId:/, "right-side connection mode must be explicit");
+assert.match(source, /flowConnection = \{mode:'target',targetId:/, "left-side connection mode must be explicit");
+assert.match(source, /source = document\.elementFromPoint\([^)]*\)\?\.closest\('\[data-flow-output-port\]'\)/, "a reverse drag must connect only through a deliberate source output port");
+assert.match(source, /port\.addEventListener\('pointerdown',event => \{\s*if \(flowConnection && flowConnection\.mode !== 'target'\) return;\s*startFlowTargetConnection\(port,event\);/s, "left-side input ports must initiate click and drag connections");
+assert.match(source, /data-flow-edge-endpoint/, "every connected route must expose a direct left-side endpoint");
+assert.match(source, /if \(insideCanvas && !overNode\) \{\s*disconnectFlowEdge\(edge\);/s, "dragging a connected endpoint into empty canvas must disconnect only that route");
+assert.match(source, /pending\?\.dragging && pendingDetails\?\.targetId && insideCanvas && !overNode && edge\) disconnectFlowEdge\(edge\)/, "dragging a connected right endpoint into empty canvas must disconnect only that route");
+assert.match(source, /pendingDetails\?\.targetId \? 'Connection unchanged[^']*' : 'Drop the route onto a message to connect it\.'/s, "invalid and unconnected right-side drops must clear stale mode without changing a route");
+assert.match(source, /updateFlowEdgeDestination\(edge,targetNode\.dataset\.flowNode\)/, "dragging a connected endpoint onto another message must reconnect the same route");
+assert.match(source, /Drag to reconnect or disconnect next step/, "the connected right endpoint must describe both reconnect and disconnect actions");
+assert.match(source, /stage\.style\.transform = `translate\(\$\{flowViewport\.x\}px,\$\{flowViewport\.y\}px\) scale\(\$\{flowViewport\.zoom\}\)`/, "the Flow map must use a pannable, zoomable world viewport");
+assert.match(source, /node\.x = start\.nodeX \+ dx \/ flowViewport\.zoom/, "node movement must use world coordinates at every zoom level");
+assert.doesNotMatch(source, /Math\.max\(10,Math\.min\(870/, "nodes must not be clamped to the former right edge");
+assert.doesNotMatch(source, /Math\.min\(870,node\.x/, "duplicated nodes must not be clamped to the former right edge");
 
 for (const match of source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
   new Function(match[1]);

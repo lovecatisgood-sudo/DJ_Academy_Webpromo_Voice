@@ -24,8 +24,11 @@ Build the multi-tenant DJAY Bot SaaS Platform phase by phase. Preserve the exist
 - Cross-tenant resource substitution returns a non-revealing not-found result and changes no data.
 - No product becomes sellable until P1 and P2 isolation and entitlement gates pass.
 - For target product experience, follow `docs/design/djay-bots-approved-experience-contract.md`; use `docs/design/djay-bot-text-voice-configuration-flow.html` as its visual reference and never let older HTML demos, dated onboarding plans, or current implementation override it.
+- For SaaS Owner analytics and merchant intelligence, follow `docs/design/djay-bots-saas-owner-analytics-contract.md` as the single source of truth. Do not merge merchants with SaaS users, attribute merchant subscriptions to each team member, expose merchant end-customer content in ordinary owner analytics, change approved metric definitions, or invent fields, filters, exports or owner workflows without explicit Product Owner approval and full document/registry reconciliation.
+- Execute SaaS Owner analytics only through `docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md`. Every change must name its `OA-*` phase and `PLT-011` through `PLT-025` requirements; preserve the fixed route/API ownership, migration order, role-specific server DTOs, decision gates, tests and acceptance rules. The plan controls sequencing but cannot override the contract or PRD.
 - Preserve the approved sequence: Landing and Packages show all three families; family/package precedes role; Flow uses template-led deterministic onboarding; Text and Voice use separate Support/Sales/Booking onboarding; review/testing are advisory; Configuration is full-page and dashboard-accessible; publish, install, verify and Go live are separate.
 - Do not invent product behavior. A product-flow change remains `Proposed` until the product owner explicitly approves the exact change and the PRD, experience contract, architecture, UX, implementation plan and executable registry are reconciled together.
+- Existing Platform Master screens are implementation evidence, not authority to reduce the approved Owner analytics contract. Owner analytics development requires the approved page-by-page clickable demo before production UI work.
 
 ## Development rules
 

@@ -403,7 +403,7 @@ Text experience controls include:
 - customer/source-link visibility;
 - customer-facing reply limit.
 
-Every AI Text customer reply is limited to 200 visible characters, not 200 words. The runtime validates/truncates safely before delivery. This limit also applies to configured greetings and disclosures where shown as customer-facing messages.
+Every AI Text customer reply is instructed to be concise, normally about 40–80 words, with a hard maximum of 200 locale-aware words. The runtime counts English and Thai with locale-aware word segmentation before delivery. It never cuts a reply off: one controlled rewrite must preserve facts, citations and proposed actions, followed by the approved concise fallback if validation still fails. Configured greetings and disclosures retain their separate field limits.
 
 ### 9.7 AI Voice modality controls
 
@@ -421,7 +421,7 @@ Voice experience controls include:
 - transfer-unavailable fallback;
 - recording choice with required consent.
 
-The Voice runtime first generates/validates written content within 200 visible characters, then produces speech. Voice testing uses a voice-call simulation or approved microphone test rather than a text-only chat pretending to be voice. The visual demo never requests microphone permission.
+The Voice runtime first generates concise written content, normally about 20–50 words and never more than 200 locale-aware words, then validates or performs the single controlled rewrite before producing speech. Voice testing uses a voice-call simulation or approved microphone test rather than a text-only chat pretending to be voice. The visual reference never requests microphone permission.
 
 ### 9.8 Role changes after onboarding
 
@@ -434,6 +434,8 @@ Changing the draft role opens an impact dialog. Shared identity, language, knowl
 The right panel may switch between draft and published configuration where supported. It shows the simulated/real response, configuration evidence, role behavior, length evidence, and a clear statement that no external action occurred.
 
 Text uses a message composer. Voice uses a voice control and transcript/evidence. Mobile uses a full-width/focused test panel with a stable return path.
+
+The anonymous builder has no small rolling conversation throttle. AI Text preview is capped at 50 test requests per signed 30-day builder session. This internal-cost cap is separate from, and does not reduce, the 500 successfully generated replies included in a deployed Text Starter trial. When the builder cap is exhausted, the tester explains the maximum clearly without deleting the draft or pretending the provider is unavailable.
 
 ### 10.2 Optional quality work
 
@@ -450,7 +452,7 @@ The UI must say what remains untested or needs attention without using disabled 
 The publish dialog states:
 
 - current warnings and suggested tests;
-- the 200-visible-character runtime rule for Text/Voice;
+- the concise-by-default, 200-locale-aware-word runtime rule for Text/Voice, including one preserving rewrite and no direct truncation;
 - that publishing creates an immutable version;
 - that publishing does not install the bot, send customer messages, or enable traffic;
 - that the merchant may continue editing or publish with warnings.
@@ -574,11 +576,11 @@ The customer opens the website widget, reads the merchant-approved greeting, cho
 
 ### 12.2 AI Text customer
 
-The customer asks a natural-language question. The bot answers from approved business knowledge within 200 visible characters, follows the selected role, handles low confidence through clarification/fallback/handover, and asks for customer details only when useful and consented. When a Text trial is exhausted or expires, it stops generating new AI replies and uses the approved subscribe/business-contact fallback without exposing internal quota/provider details.
+The customer asks a natural-language question. The bot answers concisely from approved business knowledge within the 200-word hard maximum, follows the selected role, handles low confidence through clarification/fallback/handover, and asks for customer details only when useful and consented. When a Text trial is exhausted or expires, it stops generating new AI replies and uses the approved subscribe/business-contact fallback without exposing internal quota/provider details.
 
 ### 12.3 AI Voice customer
 
-The customer explicitly starts the voice experience before microphone permission is requested. The interface exposes connecting, listening, speaking, interruption, mute, end, recovery, transfer, usage/time warning, and ended states. Spoken replies follow the same role, knowledge, action-integrity, and 200-visible-character written-response rule.
+The customer explicitly starts the voice experience before microphone permission is requested. The interface exposes connecting, listening, speaking, interruption, mute, end, recovery, transfer, usage/time warning, and ended states. Spoken replies follow the same role, knowledge, action-integrity, and concise-by-default written-response rule: no more than 200 locale-aware words before speech, one structure-preserving rewrite for an oversized candidate, and no direct truncation.
 
 ## 13. Errors, dialogs, and recovery states
 

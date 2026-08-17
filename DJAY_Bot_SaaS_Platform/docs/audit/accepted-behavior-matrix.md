@@ -31,7 +31,7 @@ Status: P0 acceptance baseline, reconciled with the approved experience contract
 | Tenant provider/model controls | admin settings/channels | Rejected | Tenant DTO/schema/UI contains no restricted routing fields; platform realm only |
 | Global daily session cap | `/api/session` reservation query | Rejected | Tenant/product entitlement and usage reservation settle exactly once |
 | Voice Basic/Advanced generations | target plan | Accepted | Basic resolves `voice_gen1`; Advanced resolves `voice_gen2`; no silent gen2 downgrade |
-| Customer-facing reply length | approved experience contract | Accepted | Written Voice response is at most 200 visible characters before speech; the limit is not 200 words |
+| Customer-facing reply length | owner direction dated 2026-08-16 | Accepted | Voice is prompted for short spoken replies and enforces a 300 locale-aware word maximum before speech; one preserving rewrite is allowed and direct truncation is forbidden |
 | Role-led configuration | approved experience contract | Accepted | Product/package precedes Support/Sales/Booking role; role changes behavior sections while Voice modality remains separate |
 
 ## AI Chatbot
@@ -44,7 +44,7 @@ Status: P0 acceptance baseline, reconciled with the approved experience contract
 | Direct provider invocation in route | current chat route | Rejected as public contract | Route uses internal provider gateway; public output is allow-listed and provider-neutral |
 | AI Basic channel scope | target catalog | Accepted | Web binding allowed; LINE/WhatsApp/Messenger binding denied server-side |
 | AI Premium channel scope | target catalog | Accepted | Web plus approved LINE/WhatsApp/Messenger adapters; normalized event/render tests pass |
-| Customer-facing reply length | approved experience contract | Accepted | Every committed AI Text response is at most 200 visible characters; the limit is not 200 words |
+| Customer-facing reply length | owner direction dated 2026-08-16 | Accepted | AI Text is prompted for concise replies and enforces a 300 locale-aware word maximum; one preserving rewrite is allowed and direct truncation is forbidden |
 | Role-led configuration | approved experience contract | Accepted | Product/package precedes Support/Sales/Booking role; Sales retains booking as a supporting action |
 
 ## Shared admin workspace

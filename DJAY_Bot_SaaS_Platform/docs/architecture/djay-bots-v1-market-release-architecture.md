@@ -407,7 +407,7 @@ canonical inbound message
  -> async summary, analytics, quality and notification work
 ```
 
-Before commit/delivery, the application validates the customer-facing response to no more than 200 visible characters. Grapheme-aware validation occurs outside the model and produces a safe concise retry/truncation/fallback without splitting a user-visible character or exposing the limit as a provider failure.
+Before commit/delivery, the application validates the customer-facing response to no more than 200 locale-aware words using `Intl.Segmenter` semantics for English and Thai. Prompt policy targets roughly 40–80 words for Text. Oversized output receives one bounded rewrite that must preserve grounded facts, citations, action proposals and handover state; a failed or non-preserving rewrite produces the approved concise fallback. The application never slices customer text or exposes the limit as a provider failure.
 
 ### 12.2 Structured output contract
 
@@ -442,7 +442,7 @@ browser widget
  -> transcript/summary/outcome jobs + usage reconciliation
 ```
 
-The Voice configuration service combines the same role/business/knowledge contracts used by AI Text with a distinct provider-neutral modality record for voice, speed, interruption, silence, readback, maximum duration, disclosure, low-confidence recovery, misunderstanding recovery, transfer fallback and recording consent. The validated written response is capped at 200 visible characters before speech synthesis/realtime output.
+The Voice configuration service combines the same role/business/knowledge contracts used by AI Text with a distinct provider-neutral modality record for voice, speed, interruption, silence, readback, maximum duration, disclosure, low-confidence recovery, misunderstanding recovery, transfer fallback and recording consent. Written responses target roughly 20–50 words and pass the shared 200-word validation and controlled-rewrite policy before speech synthesis/realtime output.
 
 Cloud Run supports WebSockets but requests remain subject to service timeout and instance termination. The widget must reconnect with a short-lived resume token; session coordination and concurrency live outside instance memory in PostgreSQL plus a low-latency shared lease mechanism if load tests require it. Session affinity is an optimization only.
 
@@ -804,6 +804,88 @@ Required queues/read models:
 Each queue item has stable kind/id, severity, tenant/product/channel scope, safe summary, detected/updated time, owner, state, evidence references, permitted commands and required review/recent-auth policy. Commands dispatch domain operations with idempotency and audit; no screen exposes arbitrary SQL or generic state editing (`PLT-001` through `PLT-010`).
 
 Tenant 360 list/detail projections mask contact/transcript/document/payment data. An authorized sensitive-content read requires purpose and applicable support grant/break-glass authority, creates a separate audit event, and is not cached into broad list/search indexes.
+
+### 21.3A SaaS Owner analytics and merchant-intelligence architecture
+
+`docs/design/djay-bots-saas-owner-analytics-contract.md` is normative for the Platform Master owner-analytics scope (`PLT-011` through `PLT-025`). The architecture realizes that contract through explicitly authorized cross-tenant read models; it does not reuse a tenant repository with RLS disabled and does not turn an analytics table into mutation authority.
+
+The Platform Master route families are:
+
+```text
+/operations/overview
+/merchants                     /merchants/:tenantId
+/users                         /users/:userId
+/subscriptions                 /subscriptions/:subscriptionId
+/revenue
+/usage                         /usage/text  /usage/voice
+/models
+/trials
+/reports                       /alerts
+/exports                       /exports/:exportId
+```
+
+Operational release, recovery, finance reconciliation, provider control, support and governance routes remain separate. Navigation may group them, but an operational queue cannot silently substitute for an approved analytics route.
+
+#### Source authority and analytical projections
+
+| Subject | Write authority | Owner-analytics projection |
+| --- | --- | --- |
+| Merchant and memberships | Identity/tenancy domain | Merchant directory, user directory and Tenant 360 identity projection |
+| Subscription and entitlement | Commerce domain plus reconciled billing-provider events | Subscription lifecycle fact and current-state projection |
+| Invoice/payment/refund | Immutable finance evidence plus billing-provider reconciliation | Revenue movement and collection facts |
+| Text entitlement usage | Committed DJBOT reply ledger | Customer meter facts |
+| Text native usage/cost | AI gateway result plus provider reconciliation | Token/request/model/cost facts |
+| Voice entitlement usage | Finalized voice-session settlement | Exact-second and billable-minute facts |
+| Voice native usage/cost | Voice gateway/carrier results plus reconciliation | Audio/text/model/carrier/cost facts |
+| Deployment and activity | Product deployment/runtime domains | Activation, funnel and health facts |
+| Support/incidents | Support and incident domains | Masked risk and attention projections |
+
+Analytics facts use immutable event IDs, tenant scope, occurred time in UTC, source kind/reference, ingestion time and reconciliation status. Correction appends a reversal/adjustment or superseding fact; it does not destructively rewrite financial or usage history.
+
+Each cost-bearing provider fact also pins capability, provider, model, route-policy version, native unit dimensions, currency, unit-price snapshot and estimated/reconciled status. A later model or price change affects only later facts. Native token categories that the provider does not report remain null/`not_reported` rather than being estimated as observed facts.
+
+#### Commercial and internal meters
+
+Customer entitlements and provider economics are deliberately different ledgers:
+
+```text
+Text:  committed AI replies  != provider input/output/cached/reasoning tokens
+Voice: customer billable minutes != exact connected seconds/audio units/provider cost
+```
+
+Quota enforcement and customer billing read the immutable commercial meter version. Cost and margin analytics read native provider/carrier facts. Reconciliation relates the two by tenant, deployment, conversation/session, reservation and settlement identifiers without changing either definition.
+
+#### Revenue movement model
+
+Recurring analytics use an immutable daily subscription-contract snapshot plus explicit MRR movements: `new`, `expansion`, `contraction`, `reactivation` and `churn`. Trials, one-time setup fees, tax and uninvoiced variable usage do not enter MRR. ARR is derived from MRR and is not presented as statutory recognized revenue.
+
+Invoice, collection, refund, credit and chargeback facts remain separate. Money is stored in integer minor units with ISO currency. Cross-currency totals require an approved exchange-rate source, rate timestamp and visible conversion basis; otherwise results remain grouped by currency.
+
+Owner Overview derives its `Net revenue` chart from the `net_collected` metric key. The read model supplies immutable daily buckets by reporting date and monthly buckets by reporting month, currency, definition version and reporting timezone. Daily and monthly responses carry comparison basis, source watermark and reconciliation state. The API never accepts a browser-computed aggregate and never combines currencies without an approved conversion fact.
+
+#### Query, filter and pagination contract
+
+Merchant, user, subscription and export queries use one validated server-side filter language with an allowlisted field/operator map, stable cursor pagination and deterministic tie-breaking. User Detail membership pagination accepts an allowlisted page size including 100 and returns merchant name, company role, membership state, membership first-join date, merchant subscription start and expiry/access-end dates, subscribed products and effective access from identity/tenancy plus subscription projections. The DTO keeps membership facts separate from merchant-owned subscription facts. A separate Owner-only User Detail contact projection reads the complete lawfully stored full name, primary email and verification state, telephone and personal contact or mailing address directly from identity authority. It requires recent assurance, purpose and immutable audit and is never materialized into general analytics facts. Search indexes contain only approved directory fields and masked/pseudonymous operational dimensions. Filters are serialized into canonical URL state and the exact canonical filter snapshot is stored with saved views, reports and exports.
+
+The browser never receives an unbounded cross-tenant collection. Aggregates use incremental/rebuildable read models or bounded warehouse-style tables inside the approved data boundary. Source-to-projection lag, last successful refresh and reconciliation state accompany every response.
+
+#### Export execution
+
+Cross-tenant exports are jobs, not direct browser dumps. The API validates role, recent assurance, purpose, filters, column allowlist, expected scope and idempotency key; the worker reads through a dedicated least-privilege export service, neutralizes spreadsheet formulas, writes encrypted UTF-8 CSV or JSON, and issues a single-purpose short-lived download grant. Export request, generation, download, expiry, revocation and deletion are audited.
+
+Passwords, password hashes, sessions, one-time tokens, MFA seeds, payment credentials, API/provider secrets and encryption material are structurally absent from export DTOs. End-customer contacts/content are absent from ordinary owner analytics exports. Privacy-rights exports remain a separate identity-verified workflow.
+
+#### Authorization and privacy
+
+Platform Owner, Finance, AI Operations and Support receive different projections rather than one response hidden by client-side controls. Finance receives commercial identity and finance/aggregated usage data; AI Operations receives provider/model quality and economics with pseudonymous tenant identity by default; Support receives the merchant directory and masked Tenant 360. Sensitive tenant access requires the approved support/break-glass grant, purpose, recent assurance and an audit event.
+
+Provider/model identities remain forbidden in tenant/public DTOs, merchant exports, invoices, notifications and customer errors. SaaS users and merchant end customers remain different data subjects and indexes (`PLT-019`, `PLT-022`).
+
+#### Data quality, retention and failure behavior
+
+Every metric response includes period, reporting timezone, currency basis, denominator where applicable, source freshness and reconciliation status. `zero`, `empty`, `delayed`, `unavailable` and `reconciliation_required` are different states. A projection failure does not fall back to stale unlabelled data or a fabricated zero.
+
+Read models are rebuildable and retain personal detail no longer than source policy permits. Legal hold and source erasure propagate through rebuild/tombstone rules. Scheduled reconciliation detects orphan facts, duplicate source IDs, local/provider mismatch, missing price snapshots, negative impossible totals and late-arriving events before a metric is marked complete.
 
 ### 21.4 Customer notification and activity architecture
 

@@ -15,6 +15,7 @@ function json(route, value, status = 200) {
 
 async function inspect(name, viewport, overall, serviceStatus) {
   const context = await browser.newContext({ viewport });
+  await context.addCookies([{ name: "djay-locale", value: "en", url: publicUrl }]);
   await context.addInitScript(() => localStorage.setItem("djay-ui-locale", "en"));
   const page = await context.newPage();
   page.on("pageerror", (error) => failures.push(`${name}: page error ${error.message}`));

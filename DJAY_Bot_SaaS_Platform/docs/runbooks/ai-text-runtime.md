@@ -11,6 +11,11 @@
   `GROK_API_KEY`) + `XAI_TEXT_MODEL`, and `GEMINI_API_KEY` +
   `GEMINI_TEXT_MODEL`.
   Merchants cannot select or inspect provider or model identity.
+- `AI_TEXT_MAX_OUTPUT_TOKENS` defaults to 1,600 and is bounded to 512–4,000;
+  `AI_TEXT_PROVIDER_TIMEOUT_MS` defaults to 20 seconds and is bounded to 2–60
+  seconds. These owner-only safety budgets support the 200-word structured
+  response ceiling without encouraging long answers. Tune them only with
+  Thai/English latency, repair-rate, quality, and usage evidence.
 - Workers use `WORKER_DATABASE_URL`, `AI_WORKER_ENABLED=true`,
   `AI_NOTIFICATION_ENVELOPE_KEY`, and the approved email delivery configuration.
 - The runtime database role is restricted to fixed functions. Do not substitute

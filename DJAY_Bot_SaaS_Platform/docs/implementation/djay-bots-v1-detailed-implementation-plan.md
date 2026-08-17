@@ -8,7 +8,7 @@
 | Experience authority | `docs/design/djay-bots-approved-experience-contract.md` |
 | Detailed UX | `docs/design/djay-bots-v1-ui-ux-and-user-flows.md` |
 | Architecture authority | `docs/architecture/djay-bots-v1-market-release-architecture.md` |
-| Current PRD baseline | 322 normative requirements in 36 requirement families |
+| Current PRD baseline | 337 normative requirements in 36 requirement families |
 | Delivery approach | Dependency-ordered vertical slices with package-by-package sellability gates |
 
 ## 1. Purpose
@@ -34,7 +34,7 @@ The commercial offer remains authoritative. Existing P1-P9 documents describe de
 7. Every new tenant-owned table receives tenant constraints, forced-RLS policies, least-privilege grants, isolation tests, retention classification, and backup/erasure treatment.
 8. Every durable external or asynchronous effect receives idempotency, outbox/inbox handling, retry classification, dead-letter recovery, reconciliation, and observability.
 9. Published bots, catalogue contracts, usage events, finalized finance records, and audit facts are immutable.
-10. Preview/test environments cannot perform production side effects or consume customer allowance; internal provider cost is still measured.
+10. Preview/test environments cannot perform production side effects or consume customer allowance; internal provider cost is still measured. Anonymous AI Text preview uses a signed-session maximum of 500 requests across 30 days and no small rolling conversation throttle.
 11. Feature flags control rollout, not authorization. Entitlements remain enforced even when the UI is hidden.
 12. Migrations use expand/backfill/switch/contract. Application releases stay compatible with the previous and next schema during rolling deployment.
 13. No task is closed without negative tests for role, tenant substitution, entitlement denial, duplicate/reordered delivery, and dependency failure where applicable.
@@ -53,13 +53,13 @@ The commercial offer remains authoritative. Existing P1-P9 documents describe de
 | `IDN`, `TEN`, `SEC` | 17 | Identity, tenancy, roles, isolation, security and compliance |
 | `BOT`, `LEAD`, `NOT`, `SUP`, `PRO` | 20 | Shared bot lifecycle, customers, notifications, support and professional services |
 | `FLS`, `FLA` | 32 | Flow Starter and Advanced |
-| `AIT`, `KNO`, `ATS`, `ATA` | 42 | AI behavior, 200-character output, knowledge, Text Starter and Advanced |
-| `VOI`, `VOS`, `VOA`, `TEL` | 36 | Voice runtime, 200-character written output, Starter, Advanced and telephone behavior |
+| `AIT`, `KNO`, `ATS`, `ATA` | 42 | AI behavior, concise 200-word-maximum output, knowledge, Text Starter and Advanced |
+| `VOI`, `VOS`, `VOA`, `TEL` | 36 | Voice runtime, concise 200-word-maximum written output, Starter, Advanced and telephone behavior |
 | `CHN`, `INT`, `SOC`, `WEB` | 34 | Website, social channels, integrations and actions |
 | `BIL`, `FIN` | 17 | Stripe lifecycle, invoices, credits and accounting |
 | `ANA`, `REL`, `UX` | 31 | Analytics, reliability, performance, approved experience order and accessibility |
-| `EXP`, `ONB`, `OPS`, `PLT` | 47 | Public purchase, product-specific onboarding, dashboard/takeover operations and Platform Master |
-| **Total** | **322** | Complete reconciled market-release baseline |
+| `EXP`, `ONB`, `OPS`, `PLT` | 62 | Public purchase, product-specific onboarding, dashboard/takeover operations and Platform Master |
+| **Total** | **337** | Complete reconciled market-release baseline |
 
 ### 3.2 Executable requirement registry
 
@@ -242,6 +242,7 @@ All product/commerce/operations slices
 | `PLAT-02` | Commerce, usage and finance exception queues | COM/BILL/FIN | XL | PLT, BIL, FIN, OVR |
 | `PLAT-03` | Provider, Voice, channel, job recovery and release operations | Product runtimes, CLOUD-03 | XL | PLT, REL, SEC |
 | `PLAT-04` | Catalogue/promotion governance, support access and audit | COM-01, OPS-04 | L | PLT, COM, SUP |
+| `PLAT-05` | SaaS Owner analytics, merchant/user intelligence, subscriptions, revenue, usage/model economics and governed exports | PLAT-01/02/03/04, OPS-05, COM/BILL/FIN, product meters | XL | PLT, ANA, MET, FIN, SEC |
 | `CLOUD-01` | GCP account/project, IAM, network, DNS and certificates | CTRL-02 | XL | SEC, REL |
 | `CLOUD-02` | Cloud SQL, storage/CDN, queues/schedules, KMS/secrets | CLOUD-01 | XL | SEC, REL, KNO, WEB |
 | `CLOUD-03` | Cloud Run services, images and CI/CD | CLOUD-01/02 | XL | REL, SEC |
@@ -260,7 +261,7 @@ Relative size is planning complexity, not a time commitment: M, L and XL indicat
 
 **Deliver:**
 
-- Reconcile and maintain the 322-record YAML registry and JSON Schema.
+- Reconcile and maintain the 337-record YAML registry and JSON Schema.
 - Add parser/check script and `pnpm` lint command.
 - Map existing tests/evidence without claiming missing features complete.
 - Add package-to-requirement rules for all six plans and shared requirements.
@@ -516,7 +517,7 @@ Implement tags/attributes, qualification, quotation/appointment/booking/order te
 
 Upgrade provider adapter from JSON mode to strict Responses Structured Outputs generated from the Sales Core schema. Handle refusal/incomplete/invalid output explicitly.
 
-Build retrieval filters/ranking, language/model policy, safety identifier, prompt trust separation, grounded evidence, confidence/escalation, typed CTA/action, verified tool result, safe fallback, usage reservation/finalization and provider cost telemetry. Add grapheme-aware validation to at most 200 visible characters before every committed customer reply.
+Build retrieval filters/ranking, language/model policy, safety identifier, prompt trust separation, grounded evidence, confidence/escalation, typed CTA/action, verified tool result, safe fallback, usage reservation/finalization and provider cost telemetry. Instruct Text replies to target 40–80 words, count English and Thai with locale-aware segmentation, and enforce the 200-word maximum through one fact/citation/action-preserving rewrite followed by a safe fallback—never string slicing.
 
 ### AI-03: Text Studio/onboarding/widget
 
@@ -550,7 +551,7 @@ Conversation/customer summary revisions/correction, question/intent/unanswered/k
 
 ### VOICE-02: Voice Studio/onboarding/widget
 
-Reuse the approved role/source/progress/editable-review structure without merging the Voice flow into Text. Implement the same role-specific business sections plus provider-neutral voice choice, speed, interruption, silence, readback, duration, disclosure/retention, low-confidence/misunderstanding/transfer fallback, recording consent, callback/appointment request, and grapheme-aware 200-character written-output validation before speech.
+Reuse the approved role/source/progress/editable-review structure without merging the Voice flow into Text. Implement the same role-specific business sections plus provider-neutral voice choice, speed, interruption, silence, readback, duration, disclosure/retention, low-confidence/misunderstanding/transfer fallback, recording consent, callback/appointment request, and the shared concise 200-word-maximum validation and controlled rewrite before speech.
 
 Implement an expandable Voice tester distinct from Text, optional suggested tests, website deployment/install/explicit activation, Dashboard return and stable permission/connection/listening/speaking/mute/end/reconnect/action/transfer/warning states.
 
@@ -611,6 +612,41 @@ AI/Voice route governance, carrier/channel/integration health, queues/dead lette
 ### PLAT-04: Governance/support/audit
 
 Catalogue/promotion draft/diff/approval/activation; support/professional access; cases; immutable audit search/export; role/recent-auth/independent-review policy.
+
+### PLAT-05: SaaS Owner analytics and merchant intelligence
+
+Implement `docs/design/djay-bots-saas-owner-analytics-contract.md` through the fixed phases, routes, migrations, permissions, tests and acceptance gates in `docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md`, without altering approved merchant acquisition, onboarding, configuration or dashboard flows.
+
+**Deliver:**
+
+- Stable Platform Master routes for Owner Overview, Merchants, Users, Subscriptions, Revenue, Text/Voice Usage, Models, Trials & Conversion, Reports & Alerts, Exports and expanded Merchant 360.
+- Separate merchant and SaaS-user projections; membership-aware user detail that references merchant subscriptions without duplicating subscription ownership or revenue.
+- Server-side searchable, sortable, cursor-paginated merchant/user/subscription directories with a shared allowlisted filter language, canonical URL state, saved views and export-scope snapshots.
+- Immutable subscription lifecycle facts for creation, provisioning, trial, original start, billing period, contract duration, renewal, scheduled/actual cancellation, service end, price version, invoice/payment and entitlement reconciliation.
+- Explicit revenue movement facts and approved MRR/ARR/new/expansion/contraction/reactivation/churn calculations; separate invoiced, collected, refunded, credited, charged-back and statutory-accounting views.
+- Text commercial-reply facts plus native token/request/latency/reliability/quality/provider/model/cost facts; Voice exact-second, billable-minute, native audio/text, session/outcome/provider/model/carrier/cost facts.
+- Immutable provider/model route and unit-price snapshots on every cost-bearing event, provider reconciliation and incomplete-evidence handling.
+- Rebuildable analytics read models with source freshness, UTC authority, selected reporting timezone, currency separation, reconciliation status and explicit zero/empty/delayed/unavailable states.
+- Role-specific Platform projections for Owner, Finance, AI Operations and Support; provider confidentiality, masked end-customer content and audited purpose/grant/recent-assurance checks.
+- Governed CSV/JSON export jobs with scope preview, column allowlist, formula neutralization, encryption, short-lived download grants, lifecycle audit and separate privacy-rights export handling.
+- Cohort/funnel/retention/churn reports, deduplicated threshold/anomaly alerts, saved views and scheduled reports through approved notification channels.
+- Page-by-page clickable Platform Master demo and explicit Product Owner UI approval before production UI implementation.
+
+**Non-goals:**
+
+- Do not make tokens the merchant Text billing unit or native provider time the merchant Voice rounding rule without a separately approved commercial change.
+- Do not expose provider/model identity to merchants or public/customer surfaces.
+- Do not include merchant end-customer contacts, messages, transcripts or recordings in ordinary owner directories or exports.
+- Do not permit arbitrary cross-tenant row editing, direct SQL, unreviewed entitlement mutation or historical cost recalculation from current provider prices.
+
+**Acceptance:**
+
+- `PLT-011` through `PLT-025` have mapped schema/API/UI/test/evidence entries in the executable registry.
+- Two-tenant negative tests prove directory, detail, aggregation, saved-view and export scope cannot substitute tenant, user, subscription, usage, model or artifact identifiers across authority boundaries.
+- Revenue and usage golden fixtures prove metric definitions, lifecycle dates, model/price snapshots, late/reversed events, currency grouping and reconciliation states.
+- Role matrix tests prove Owner, Finance, AI Operations and Support receive different server responses; hidden client controls are not the authorization mechanism.
+- Export tests prove filter/column immutability, reauthentication, secret/credential structural exclusion, spreadsheet safety, audit, expiry and deletion.
+- Authorized desktop/mobile/keyboard/accessibility acceptance covers every approved Platform route after the clickable demo is approved.
 
 ## 14. GCP, CI/CD and operational work packages
 
@@ -750,7 +786,7 @@ scripts/use-node24.sh pnpm run qa:p9-restore
 scripts/use-node24.sh pnpm run qa:release-artifacts
 ```
 
-Add new gates for the 322-requirement registry, paid/trial commerce lifecycle, approved page order and three onboarding branches, optional-warning publication, Configuration/Dashboard routing, five-minute takeover, knowledge ingestion, complete Flow rich/social, 200-character Text/Voice output, AI structured output/actions, telephony, finance/FlowAccount, widgets/multi-product, Platform queues, GCP deployed smoke and package acceptance.
+Add new gates for the 337-requirement registry, paid/trial commerce lifecycle, approved page order and three onboarding branches, optional-warning publication, Configuration/Dashboard routing, five-minute takeover, knowledge ingestion, complete Flow rich/social, concise 200-word-maximum Text/Voice output, AI structured output/actions, telephony, finance/FlowAccount, widgets/multi-product, Platform queues, GCP deployed smoke and package acceptance.
 
 ### 17.2 Test matrix for every package
 
@@ -991,7 +1027,7 @@ Before paid GA:
 
 | Risk | Impact | Mitigation/decision gate |
 | --- | --- | --- |
-| Scope hidden behind earlier “delivered” phase labels | Missing advertised features | 322-ID registry and sellability gate |
+| Scope hidden behind earlier “delivered” phase labels | Missing advertised features | 337-ID registry and sellability gate |
 | Telephony/provider approval delay | Voice Advanced blocked | Select/contract early; adapter contract/test harness; do not fake acceptance |
 | Thai tax/FlowAccount ambiguity | Cannot invoice compliantly | Accountant/legal and official sandbox before FIN finalization |
 | Provider or social policy/quotas | Channel cannot launch reliably | Account review, live test, health/recovery and explicit non-sellable state |
@@ -1025,7 +1061,7 @@ With fewer people, preserve dependency order and gates; do not compress scope by
 
 Start in this exact order:
 
-1. `CTRL-01`: reconcile/create the 322-requirement registry, schema, checker and CI/report.
+1. `CTRL-01`: reconcile/create the 337-requirement registry, schema, checker and CI/report.
 2. `CTRL-02`: record and assign every open commercial/vendor/legal decision; begin telephony, FlowAccount and CRM validation immediately.
 3. `COM-01`: implement immutable exact catalogue, promotion and contract snapshots; seed all package/add-on/pack/service values with `sellable=false`.
 4. `CORE-01`: add billing permissions/MFA policy and finish new-data isolation scaffolding.
@@ -1039,7 +1075,7 @@ Start in this exact order:
 
 The V1 Market Release implementation program is complete only when:
 
-- All 322 PRD requirements are `accepted` with current evidence.
+- All 337 PRD requirements are `accepted` with current evidence.
 - Every six-package sellability checklist passes independently.
 - Public purchase, merchant onboarding/operation, website/social/telephone customer experience and Platform exception workflows pass end to end.
 - Stripe, OpenAI, LINE/Meta, carrier, CRM/Sheets, email and FlowAccount production integrations are validated and reconciled.

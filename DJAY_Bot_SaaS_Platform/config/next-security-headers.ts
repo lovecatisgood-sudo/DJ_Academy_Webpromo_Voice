@@ -1,6 +1,6 @@
 type BrowserRealm = "api" | "public" | "tenant" | "platform";
 
-const contentSecurityPolicy = [
+export const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -16,6 +16,14 @@ const contentSecurityPolicy = [
   "worker-src 'self' blob:",
   "manifest-src 'self'",
 ].join("; ");
+
+export const publicBuilderContentSecurityPolicy = contentSecurityPolicy.replace(
+  "connect-src 'self'",
+  "connect-src 'self' wss://api.x.ai",
+);
+
+export const publicBuilderPermissionsPolicy =
+  "camera=(), geolocation=(), microphone=(self), payment=(), usb=()";
 
 export function nextSecurityHeaders(realm: BrowserRealm) {
   const microphone = realm === "tenant" ? "(self)" : "()";
@@ -38,7 +46,14 @@ export function nextSecurityHeaders(realm: BrowserRealm) {
     public: ["/verify-email", "/invitations/accept"],
     tenant: ["/recovery/complete", "/ownership/accept", "/invitations/accept"],
   };
-  return [general, ...(oneTimeAccountRoutes[realm] || []).map((source) => ({
+  const publicBuilder = realm === "public" ? [{
+    source: "/build",
+    headers: [
+      { key: "Content-Security-Policy", value: publicBuilderContentSecurityPolicy },
+      { key: "Permissions-Policy", value: publicBuilderPermissionsPolicy },
+    ],
+  }] : [];
+  return [general, ...publicBuilder, ...(oneTimeAccountRoutes[realm] || []).map((source) => ({
     source,
     headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
   }))];

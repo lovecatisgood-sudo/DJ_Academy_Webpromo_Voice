@@ -20,6 +20,7 @@ Source documents:
 
 - [Market-release architecture](./djay-bots-v1-market-release-architecture.md)
 - [Approved experience contract](../design/djay-bots-approved-experience-contract.md)
+- [Approved SaaS Owner analytics contract](../design/djay-bots-saas-owner-analytics-contract.md)
 - [Approved clickable visual reference](../design/djay-bot-text-voice-configuration-flow.html)
 - [UI/UX and user-flow plan](../design/djay-bots-v1-ui-ux-and-user-flows.md)
 - [Market-release product requirements](../product/djay-bots-v1-market-release-prd.md)
@@ -60,6 +61,8 @@ flowchart TB
     PLATFORM --> A3["Usage, overage, finance, accounting"]
     PLATFORM --> A4["Provider, voice, channel, release operations"]
     PLATFORM --> A5["Jobs, dead letters, support access, audit"]
+    PLATFORM --> A6["Merchants, SaaS users, subscriptions, revenue"]
+    PLATFORM --> A7["Text/Voice/model economics, trials, reports, exports"]
 
     RUNTIME --> R1["Flow widget / social Flow"]
     RUNTIME --> R2["AI Text widget / social AI"]
@@ -310,7 +313,7 @@ flowchart TD
     SOURCE --> INGEST["Truthful task progress\nvalidate -> read public pages -> extract -> organize -> draft"]
     INGEST --> REVIEW["Edit business profile, three behavior fields, and FAQs"]
     REVIEW --> STUDIO["Role-specific full-page Text Configuration Studio"]
-    STUDIO --> TEXTTEST["Optional expandable Thai/English draft tester\n200 visible characters, no external effect"]
+    STUDIO --> TEXTTEST["Optional expandable Thai/English draft tester\nconcise by default, 200-word maximum, no external effect"]
     TEXTTEST --> TEXTPUBLISH["Publish immutable version with advisory warnings allowed"]
     TEXTPUBLISH --> TEXTDEPLOY["Copy snippet -> HTTPS origin -> verify -> explicit Go live"]
     TEXTDEPLOY --> TEXTLIVE["Enter Dashboard; Configuration remains full-page"]
@@ -332,7 +335,7 @@ flowchart TD
     REVIEW --> VOICESTUDIO["Role-specific full-page Voice Configuration Studio"]
     VOICESTUDIO --> VOICEBEHAVIOR["Provider-neutral voice, speed, interruption, silence, readback, duration"]
     VOICEBEHAVIOR --> VOICEDISCLOSURE["AI/transcription/recording disclosure + recovery"]
-    VOICEDISCLOSURE --> VOICETEST["Optional Thai + English voice test\n200-character written response before speech"]
+    VOICEDISCLOSURE --> VOICETEST["Optional Thai + English voice test\nconcise written response, 200-word maximum before speech"]
     VOICETEST --> VOICEACTIVATE["Publish immutable version"]
     VOICEACTIVATE --> WEBSITEVOICE["Copy snippet -> origin/install/microphone check -> explicit Go live"]
     VOICEACTIVATE --> VOICELIVE["Website Voice live"]
@@ -545,7 +548,7 @@ sequenceDiagram
 
 Low-confidence answers can route to a human. The customer sees an honest pending/failure/fallback state; retries do not create duplicate replies or usage events.
 
-The committed customer-facing reply is no more than 200 visible characters. At 100 remaining replies in a Text trial, the owner receives the approved in-platform and email warning. At exhaustion/expiry the runtime stops new AI replies and uses the merchant-approved fallback without exposing providers or internal quota identifiers.
+The committed customer-facing reply is concise by instruction, normally about 40–80 words, and no more than 200 locale-aware words after controlled validation. At 100 remaining replies in a Text trial, the owner receives the approved in-platform and email warning. At exhaustion/expiry the runtime stops new AI replies and uses the merchant-approved fallback without exposing providers or internal quota identifiers.
 
 ### 5.4 Voice customer path
 
@@ -578,7 +581,7 @@ sequenceDiagram
 
 Voice cannot speak before the required automated-agent disclosure. Reconnect, capacity, time limits, transfer failure, and provider unavailability are explicit states.
 
-The written response is validated to no more than 200 visible characters before speech output.
+The written response normally uses about 20–50 words and is validated to no more than 200 locale-aware words before speech output.
 
 ### 5.6 Merchant live takeover path
 
@@ -655,6 +658,14 @@ flowchart LR
     MASTER --> JOBS["Jobs / webhooks / dead letters"]
     MASTER --> SUPPORTOPS["Support cases / support access / audit"]
     MASTER --> RELEASEOPS["Release readiness / security / configuration"]
+    MASTER --> OWNEROV["Owner Overview"]
+    MASTER --> MERCHANTS["Merchant directory / Merchant 360"]
+    MASTER --> USERS["SaaS user directory / User Detail memberships"]
+    MASTER --> SUBREV["Subscriptions / revenue / trials"]
+    MASTER --> AIMODELS["Text + Voice usage / model economics"]
+    MASTER --> REPORTS["Reports / alerts / governed exports"]
+    USERS --> USERMEMBERSHIPS["100-row server page / merchant / role / state / first join / merchant subscription dates / products / access"]
+    USERS --> USERCONTACT["Owner-only identity contact projection / recent assurance / purpose / audit"]
 ```
 
 ### 6.3 Merchant-management flow
@@ -698,6 +709,8 @@ flowchart TD
     T360 --> BILLING["Stripe, invoices, credits, refunds, accounting sync"]
     T360 --> SERVICES["Add-ons, setup services, support cases"]
     T360 --> AUDIT3["Access grants and immutable audit"]
+    T360 --> MEMBERS["Owner and team memberships\nidentity/security/activity"]
+    T360 --> ECONOMICS["Recurring revenue and Text/Voice economics\nprovider/model owner-only"]
 ```
 
 Cross-tenant PII and transcripts are not casually exposed. Viewing sensitive content requires the permitted role, purpose/consent or approved grant, recent authentication where required, and audit evidence.
@@ -742,6 +755,44 @@ flowchart TD
     INCIDENTQ --> RESOLVE["Authorized resolution + evidence"]
     RESOLVE --> MONITOR
 ```
+
+### 6.7 SaaS Owner analytics flow
+
+The owner-analytics experience follows `docs/design/djay-bots-saas-owner-analytics-contract.md`. Merchant businesses, SaaS users and merchant end customers remain separate populations.
+
+```mermaid
+flowchart TD
+    SOURCES["Immutable domain evidence"] --> TENANTFACT["Merchant + membership facts"]
+    SOURCES --> SUBFACT["Subscription + entitlement facts"]
+    SOURCES --> FINFACT["Invoice + collection + refund/credit facts"]
+    SOURCES --> TEXTFACT["Text replies + native token/model/cost facts"]
+    SOURCES --> VOICEFACT["Voice seconds/minutes + model/carrier/cost facts"]
+
+    TENANTFACT --> READMODELS["Rebuildable owner read models\nfreshness + reconciliation"]
+    SUBFACT --> READMODELS
+    FINFACT --> READMODELS
+    TEXTFACT --> READMODELS
+    VOICEFACT --> READMODELS
+
+    READMODELS --> OVERVIEW["Owner Overview"]
+    OVERVIEW --> FINANCETREND["Daily / Monthly Net revenue chart from net-collected facts / currency-separated / table alternative"]
+    READMODELS --> MERCHANTDIR["Merchants / Merchant 360"]
+    READMODELS --> USERDIR["SaaS Users / memberships"]
+    READMODELS --> SUBSCRIPTIONS["Subscriptions / Revenue / Trials"]
+    READMODELS --> USAGE["Text / Voice / Models"]
+    READMODELS --> ALERTS["Reports / Alerts"]
+
+    MERCHANTDIR --> FILTER["Canonical server-side filter"]
+    USERDIR --> FILTER
+    SUBSCRIPTIONS --> FILTER
+    USAGE --> FILTER
+    FILTER --> EXPORT["Governed async export\nreauth + encrypted short-lived artifact + audit"]
+
+    CUSTOMERPII["Merchant end-customer contacts/content"] -. "excluded by default" .-> READMODELS
+    SECRETS["Passwords, sessions, payment/provider secrets"] -. "structurally excluded" .-> EXPORT
+```
+
+Text commercial replies and Voice billable minutes remain separate from native provider token/audio/time cost facts. Each cost-bearing event pins provider, model, route and unit-price versions so historical margin does not move when a provider price changes.
 
 ## 7. Current page-to-service linkage
 
@@ -837,6 +888,7 @@ The local source is a substantial multi-tenant foundation, but the documents int
 - Full merchant-visible social channel onboarding and launch acceptance for every advertised channel.
 - Full telephone Voice provider/number/transfer/scheduling production acceptance.
 - Platform Master split into dedicated route-based queues and Tenant 360 pages rather than one long anchor dashboard.
+- The complete approved Owner Overview, merchant and SaaS-user directories, subscription/revenue/trial analytics, Text/Voice/model economics, saved reports/alerts and governed export lifecycle.
 - Named-merchant, legal, provider, operational, and paid-GA acceptance evidence.
 - Production implementation of the approved 2026-08-13 end-to-end experience contract, including exact trial state, separate product onboarding, non-blocking advisory review, dedicated Configuration Studios, explicit publish/install/go-live, complete dashboard pages, and server-authoritative five-minute takeover.
 

@@ -1,6 +1,26 @@
 # DJAY Bot SaaS Platform State
 
-Last updated: 2026-08-13
+Last updated: 2026-08-17
+
+## Production-ready master-plan PR-00/PR-01 checkpoint (2026-08-17)
+
+The Product Owner approved a hard maximum of 200 locale-aware words for Text and Voice customer replies and 50 anonymous Builder AI test requests per signed 30-day session. Text normally targets 40–80 words, Voice normally targets 20–50 words, oversized output receives at most one preserving rewrite, direct string slicing is forbidden, and Voice validation occurs before text-to-speech.
+
+The approved Owner analytics authority is now integrated into this maintained repository. The executable registry validates at 337 requirements: 9 implemented, 11 in progress, 316 planned, 1 blocked and 0 formally accepted. All six packages remain `sellable: false`. The static Owner analytics contract gate passes for 16 routes, 4 roles and 8 evidence states; production UI still requires explicit page-by-page Product Owner approval of the clickable experience.
+
+Fresh local evidence passes `pnpm verify` across all 35 packages, including Voice gateway transport/load tests with temporary localhost authority. `pnpm test:db` passes all 102 migrations, RLS/cross-tenant denials, wired PostgreSQL integration suites, recovery and guarded legacy rollback. The appointment clock-race correction additionally passes 20 consecutive focused fresh-container runs, and the complete database gate passes three fresh-container runs. Browser/GUI acceptance, unmocked provider journeys and external legal/security/business approvals were not invented by this checkpoint.
+
+## Approved SaaS Owner analytics contract (2026-08-16)
+
+The Product Owner approved a complete Platform Master analytics and merchant-intelligence scope. `docs/design/djay-bots-saas-owner-analytics-contract.md` is the single source of truth for Owner Overview, merchant and SaaS-user directories, subscription lifecycle, revenue definitions, Text replies/tokens, Voice seconds/minutes, provider/model economics, trials/conversion, reports/alerts, Merchant 360 expansion and governed exports.
+
+The PRD, architecture, system map, UX plan, implementation plan, executable registry, README authority order and repository instructions are reconciled to `PLT-011` through `PLT-025`. The PRD baseline is now 337 requirements in 36 families. These new requirements are approved product direction but remain `planned` in the executable registry until implemented, verified and formally accepted. Existing Platform Master screens cannot override or reduce them.
+
+Execution is locked to `docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md`. It fixes the non-deviation rules, page/API map, Platform role projections, migrations `0102` through `0106`, source reuse boundaries, golden fixture, database/API/UI/security tests, decision-gated configuration, rollout and requirement-by-requirement evidence. Production UI cannot begin before the complete clickable owner experience is explicitly approved page by page.
+
+Merchant businesses, SaaS users and merchant end customers remain separate concepts. Merchant subscriptions belong to the tenant and are referenced through user memberships rather than duplicated per user. Ordinary owner analytics and exports exclude merchant end-customer messages, transcripts, recordings and raw contacts. Provider/model analytics remain Owner/authorized AI Operations only. Customer commercial meters remain Text replies and Voice billable minutes, while provider-native token/audio/time and snapshotted cost evidence remain separate internal economics.
+
+No Owner analytics production UI implementation should begin until the complete clickable Platform Master experience is reviewed page by page and explicitly approved. A future change to a metric, field, filter, route, export or access boundary must be labelled `Proposed` and reconciled across the same authorities before development.
 
 ## Approved experience reconciliation (2026-08-13)
 
@@ -8,9 +28,9 @@ The page-by-page public, onboarding, configuration, launch and merchant-dashboar
 
 This is a specification checkpoint, not a claim that production already implements the redesigned flow. The authoritative sequence is Landing -> Packages -> bot family -> package -> subscribe or eligible trial -> account -> separate product onboarding -> full-page Configuration Studio -> optional test/review -> immutable publish -> snippet/origin verification -> explicit Go live -> Dashboard. Flow uses six editable deterministic starting journeys. Text and Voice separately use Support, Sales or Booking role selection, website/manual business learning, truthful processing, editable generated business/behavior/FAQ review, and role-specific configuration. Dashboard remains available while unconfigured, and live website takeover is server-authorized only when the latest bot response is less than five minutes old.
 
-The approved trial baseline is Flow: 30 days, 5,000 website conversations, no card; Text: 30 days, 500 website AI replies, card required, account-owner platform/email warning at 100 remaining; Voice: no trial. Text and Voice customer-facing written responses are capped at 200 visible characters. Testing, section review and `Needs attention` findings are advisory; only technical/security/legal/entitlement/external-action invariants block the applicable operation.
+The approved trial baseline is Flow: 30 days, 5,000 website conversations, no card; Text: 30 days, 500 website AI replies, card required, account-owner platform/email warning at 100 remaining; Voice: no trial. Text and Voice customer-facing written responses are capped at 200 locale-aware words, with one preserving rewrite and no direct string slicing; Voice enforcement occurs before text-to-speech. Testing, section review and `Needs attention` findings are advisory; only technical/security/legal/entitlement/external-action invariants block the applicable operation.
 
-The PRD now contains 322 normative requirements in 36 families. The executable registry must be synchronized before validation; all six packages remain `sellable: false`. Earlier HTML maps and dated onboarding plans are historical/current-state references and cannot override the approved experience contract.
+The PRD now contains 337 normative requirements in 36 families. The executable registry must be synchronized before validation; all six packages remain `sellable: false`. Earlier HTML maps and dated onboarding plans are historical/current-state references and cannot override the approved experience contract or the approved SaaS Owner analytics contract within its scope.
 
 ## Active implementation program (SKU1)
 

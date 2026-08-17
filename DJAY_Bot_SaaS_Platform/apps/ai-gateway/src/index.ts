@@ -10,11 +10,15 @@ const env = z.object({
   AI_TEXT_PROVIDER: z.enum(["openai", "xai", "gemini"]).default("openai"),
   AI_TEXT_API_KEY: z.string().min(20).optional(),
   AI_TEXT_MODEL: z.string().trim().min(2).max(160).optional(),
+  AI_TEXT_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(512).max(4_000).default(1_600),
+  AI_TEXT_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(2_000).max(60_000).default(20_000),
   OPENAI_API_KEY: z.string().min(20).optional(),
   OPENAI_RESPONSES_MODEL: z.string().trim().min(2).max(160).optional(),
   XAI_API_KEY: z.string().min(20).optional(),
   GROK_API_KEY: z.string().min(20).optional(),
   XAI_TEXT_MODEL: z.string().trim().min(2).max(160).optional(),
+  XAI_VOICE_MODEL: z.string().trim().min(2).max(160).default("grok-voice-latest"),
+  XAI_VOICE_NAME: z.string().trim().min(2).max(80).default("eve"),
   GEMINI_API_KEY: z.string().min(20).optional(),
   GEMINI_TEXT_MODEL: z.string().trim().min(2).max(160).optional(),
 }).superRefine((value, context) => {
@@ -42,6 +46,15 @@ const handler = createAiGatewayHandler({
     : env.AI_TEXT_PROVIDER === "xai"
       ? env.XAI_TEXT_MODEL!
       : env.GEMINI_TEXT_MODEL!),
+  maxOutputTokens: env.AI_TEXT_MAX_OUTPUT_TOKENS,
+  timeoutMs: env.AI_TEXT_PROVIDER_TIMEOUT_MS,
+  ...((env.XAI_API_KEY ?? env.GROK_API_KEY ?? (env.AI_TEXT_PROVIDER === "xai" ? env.AI_TEXT_API_KEY : undefined))
+    ? { voice: {
+      apiKey: (env.XAI_API_KEY ?? env.GROK_API_KEY ?? env.AI_TEXT_API_KEY)!,
+      model: env.XAI_VOICE_MODEL,
+      voice: env.XAI_VOICE_NAME,
+    } }
+    : {}),
 });
 
 const server = createServer(async (request, response) => {

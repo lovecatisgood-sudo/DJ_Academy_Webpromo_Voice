@@ -6,6 +6,7 @@ import { extractPrdRequirements, marketReleasePlanKeys } from "./market-release-
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const prdPath = resolve(root, "docs/product/djay-bots-v1-market-release-prd.md");
 const outputPath = resolve(root, "requirements/market-release-v1.yaml");
+const ownerAnalyticsPlan = "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md";
 
 const planAssignments = Object.freeze({
   ADD: ["COM-02", ["COM-01", "BILL-02"]],
@@ -59,15 +60,30 @@ function packagesFor(id) {
   return ["shared"];
 }
 
+function assignmentFor(id) {
+  if (/^PLT-0(?:1[1-9]|2[0-5])$/.test(id)) {
+    return ["PLAT-05", ["PLAT-01", "PLAT-02", "PLAT-03", "PLAT-04"]];
+  }
+  return planAssignments[id.split("-")[0]];
+}
+
 const prdRequirements = extractPrdRequirements(readFileSync(prdPath, "utf8"));
 const existingRegistry = existsSync(outputPath) ? JSON.parse(readFileSync(outputPath, "utf8")) : null;
 const existingById = new Map((existingRegistry?.requirements ?? []).map((requirement) => [requirement.id, requirement]));
 const requirements = prdRequirements.map(({ id, title }) => {
-  const prefix = id.split("-")[0];
-  const assignment = planAssignments[prefix];
+  const assignment = assignmentFor(id);
   if (!assignment) throw new Error(`missing work-package assignment for ${id}`);
   const existing = existingById.get(id);
-  if (existing) return { ...existing, id, title };
+  if (existing) {
+    return {
+      ...existing,
+      id,
+      title,
+      runbooks: /^PLT-0(?:1[1-9]|2[0-5])$/.test(id)
+        ? [...new Set([...(existing.runbooks ?? []), ownerAnalyticsPlan])]
+        : existing.runbooks,
+    };
+  }
   return {
     id,
     title,
@@ -81,7 +97,7 @@ const requirements = prdRequirements.map(({ id, title }) => {
     entitlement_keys: [],
     meter_keys: [],
     test_ids: [],
-    runbooks: [],
+    runbooks: /^PLT-0(?:1[1-9]|2[0-5])$/.test(id) ? [ownerAnalyticsPlan] : [],
     evidence: [],
     status: "planned",
     accepted_by: null,

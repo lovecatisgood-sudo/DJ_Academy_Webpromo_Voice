@@ -207,7 +207,7 @@ export function createGen1VoiceMediaFactory(config: VoiceMediaCommonConfig & Rea
 
 export function createConfiguredVoiceMediaFactory(config: VoiceMediaCommonConfig & Readonly<{
   gen1?: Readonly<{
-    providerKey?: "google_live" | "openai_realtime";
+    providerKey?: "google_live" | "openai_realtime" | "xai_realtime";
     apiKey: string; model: string; voiceName: string;
     transcriptionModel?: string;
   }>;
@@ -220,9 +220,10 @@ export function createConfiguredVoiceMediaFactory(config: VoiceMediaCommonConfig
     url, Object.keys(headers).length ? { headers } : undefined,
   ) as unknown as RestrictedLiveSocket;
   const gen1Gateway = config.gen1
-    ? config.gen1.providerKey === "openai_realtime"
+    ? config.gen1.providerKey === "openai_realtime" || config.gen1.providerKey === "xai_realtime"
       ? createOpenAIRealtimeVoiceGateway({
         apiKey: config.gen1.apiKey, model: config.gen1.model, voiceName: config.gen1.voiceName,
+        ...(config.gen1.providerKey === "xai_realtime" ? { endpoint: "wss://api.x.ai/v1/realtime" } : {}),
         ...(config.gen1.transcriptionModel ? { transcriptionModel: config.gen1.transcriptionModel } : {}),
         socketFactory,
       })

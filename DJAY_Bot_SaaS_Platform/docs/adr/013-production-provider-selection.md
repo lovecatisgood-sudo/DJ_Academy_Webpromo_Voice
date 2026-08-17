@@ -41,7 +41,7 @@ subscription-mode Checkout. No production charge is authorized by this ADR.
 | Monitoring | Cloud Monitoring, Logging and uptime checks | Selected; real observations, budget alerts and on-call alerts required |
 | Transactional email | Resend | Recommended; its Bearer HTTP and idempotency-key contract fits the existing adapter |
 | AI text | Owner-selected OpenAI Responses, xAI Grok, or Google Gemini through the restricted internal gateway | Multi-provider adapters implemented; the owner selects one provider and pinned model in server configuration; exact route requires Thai/English evaluation |
-| Primary production Voice candidate | OpenAI Realtime API | Recommended; a new restricted adapter and full live acceptance are required |
+| Primary production Voice candidate | OpenAI Realtime API | Restricted adapter implemented; provider configuration and full live acceptance are required |
 | Existing Voice candidate | Google Gemini Live | Implemented adapter; restricted pilot/equivalent-route evaluation pending |
 | Thai accounting/tax documents | FlowAccount Open API | Recommended; Thai accountant and legal approval remain authoritative |
 | LINE | LINE Messaging API directly | Implemented locally; merchant/channel acceptance pending |
@@ -56,9 +56,10 @@ isolated `djay-master-deck` gcloud configuration and account guard.
 
 ## Implementation state and gaps
 
-- The current Voice provider adapter implements the Gemini Live WebSocket
-  contract. An OpenAI Realtime adapter is not yet implemented in this SaaS
-  workspace.
+- Restricted Voice provider adapters implement both the Gemini Live and OpenAI
+  Realtime WebSocket contracts. Neither route is production-qualified until its
+  owner-controlled configuration, provider credentials, Thai/English live
+  evaluation, privacy evidence, call-quality evidence and failure drills pass.
 - AI Chat calls a provider-neutral internal HTTP gateway. OpenAI Responses,
   xAI Grok Chat Completions, and Gemini OpenAI-compatible Chat Completions
   adapters are implemented. `AI_TEXT_PROVIDER` and the corresponding model and

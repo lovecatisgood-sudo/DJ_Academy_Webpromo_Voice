@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Clickable approval reference for the DJBOT SaaS Owner analytics and merchant-intelligence experience.">
+  <title>DJBOT SaaS Owner Analytics - Approval Reference</title>
+  <style>
+    :root {
+      --green: #126149; --forest: #173f35; --yellow: #f2c14e; --ink: #171a1f;
+      --muted: #5f6965; --canvas: #f4f6f5; --panel: #fff; --line: #d8dfdc;
+      --soft-green: #e8f2ee; --soft-yellow: #fff5d8; --soft-red: #fff0ef;
+      --red: #9a342f; --blue: #315f9d; --radius: 8px; --rail: #202624;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink); background: var(--canvas);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; min-width: 320px; background: var(--canvas); }
+    button, input, select { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 3px solid rgba(18,97,73,.3); outline-offset: 2px;
+    }
+    .skip { position: fixed; top: -60px; left: 12px; z-index: 100; padding: 10px 14px; background: #fff; color: var(--green); }
+    .skip:focus { top: 12px; }
+    .notice { padding: 10px 18px; border-bottom: 1px solid #e2c767; background: var(--soft-yellow); color: #5e480d; font-size: 12px; line-height: 1.45; }
+    .topbar { min-height: 66px; display: flex; align-items: center; gap: 16px; padding: 10px 22px; border-bottom: 1px solid var(--line); background: #fff; }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 250px; }
+    .brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: var(--radius); background: var(--yellow); color: var(--forest); font-weight: 950; }
+    .brand strong, .brand small { display: block; }
+    .brand strong { font-size: 13px; }
+    .brand small { margin-top: 2px; color: var(--muted); font-size: 10px; }
+    .top-context { display: flex; flex: 1; justify-content: flex-end; align-items: center; gap: 10px; }
+    .top-context label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+    select, input { min-height: 38px; border: 1px solid #b7c0bc; border-radius: 6px; padding: 7px 10px; background: #fff; color: var(--ink); }
+    .menu { display: none; min-height: 38px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); font-weight: 800; }
+    .shell { display: grid; grid-template-columns: 246px minmax(0, 1fr); min-height: calc(100dvh - 111px); }
+    aside { position: sticky; top: 0; height: 100dvh; overflow: auto; padding: 20px 15px; background: var(--rail); color: #fff; }
+    .rail-title { margin: 0 7px 8px; color: #aeb8b4; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+    nav { display: grid; gap: 3px; }
+    nav button { width: 100%; min-height: 37px; padding: 7px 9px; border: 0; border-radius: 5px; background: transparent; color: #cbd2cf; text-align: left; font-size: 12px; cursor: pointer; }
+    nav button:hover { background: #303936; color: #fff; }
+    nav button.active { background: #3b4541; color: #fff; font-weight: 850; }
+    .rail-note { margin: 20px 7px 0; padding-top: 14px; border-top: 1px solid #424b48; color: #aeb8b4; font-size: 10px; line-height: 1.5; }
+    main { min-width: 0; }
+    .page-head { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; padding: 26px clamp(20px,4vw,48px) 20px; border-bottom: 1px solid var(--line); background: #fff; }
+    .breadcrumb { margin: 0 0 7px; color: var(--red); font-size: 10px; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; }
+    h1 { margin: 0; font-size: clamp(24px,3vw,34px); letter-spacing: -.025em; }
+    .page-head p { max-width: 650px; margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .request-id { flex: 0 0 auto; color: var(--muted); font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 9px; align-items: end; padding: 16px clamp(20px,4vw,48px); border-bottom: 1px solid var(--line); background: #fff; }
+    .toolbar label { display: grid; gap: 5px; color: var(--muted); font-size: 10px; font-weight: 750; }
+    .toolbar input { min-width: min(280px, 80vw); }
+    .button { min-height: 38px; padding: 7px 12px; border: 0; border-radius: 6px; background: #202624; color: #fff; font-size: 11px; font-weight: 850; cursor: pointer; white-space: nowrap; }
+    .button.secondary { border: 1px solid #aeb8b4; background: #fff; color: #303835; }
+    .button.danger { background: var(--red); }
+    .active-filters { display: flex; flex-wrap: wrap; gap: 7px; padding: 10px clamp(20px,4vw,48px); border-bottom: 1px solid var(--line); background: #f9fbfa; }
+    .filter-chip { padding: 5px 8px; border: 1px solid #bdd1c7; border-radius: 5px; background: var(--soft-green); color: var(--green); font-size: 10px; }
+    .content { padding: 26px clamp(20px,4vw,48px) 50px; }
+    .state-banner { display: none; margin-bottom: 18px; padding: 13px 15px; border-left: 4px solid #6d7873; background: #edf1ef; color: #44504b; font-size: 12px; line-height: 1.5; }
+    .state-banner.show { display: block; }
+    .state-banner.attention { border-left-color: var(--red); background: var(--soft-red); color: #6d2925; }
+    .state-banner.warning { border-left-color: #b58116; background: var(--soft-yellow); color: #624b14; }
+    .metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1px; border: 1px solid var(--line); background: var(--line); }
+    .metric { min-width: 0; min-height: 132px; padding: 16px; background: #fff; }
+    .metric span { display: block; color: var(--muted); font-size: 10px; line-height: 1.4; }
+    .metric strong { display: block; margin: 11px 0 7px; font-size: clamp(22px,3vw,31px); overflow-wrap: anywhere; }
+    .metric small { color: var(--muted); font-size: 9px; line-height: 1.45; }
+    .metric .metric-state { margin-top: 10px; color: var(--red); font-size: 10px; font-weight: 800; }
+    .finance-chart { margin-top: 18px; border: 1px solid var(--line); background: #fff; }
+    .chart-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; padding: 17px 18px 12px; }
+    .chart-head h2 { font-size: 15px; }
+    .chart-head p { margin: 5px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .chart-total { display: block; margin-top: 8px; font-size: 25px; }
+    .chart-change { color: var(--green); font-size: 10px; font-weight: 800; }
+    .chart-switch { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 6px; background: #eef2f0; }
+    .chart-switch button { min-height: 32px; padding: 5px 11px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 10px; font-weight: 850; cursor: pointer; }
+    .chart-switch button[aria-pressed="true"] { background: #fff; color: var(--green); box-shadow: 0 1px 3px rgba(18,49,40,.12); }
+    .chart-scroll { overflow-x: auto; padding: 0 10px; }
+    .chart-scroll svg { display: block; width: 100%; min-width: 720px; height: 300px; color: #65706b; }
+    .chart-readout { min-height: 34px; display: flex; flex-wrap: wrap; gap: 7px 16px; align-items: center; padding: 8px 18px; border-top: 1px solid var(--line); background: #f7faf8; color: var(--muted); font-size: 10px; }
+    .chart-readout strong { color: var(--ink); }
+    .chart-table { border-top: 1px solid var(--line); }
+    .chart-table summary { padding: 11px 18px; color: var(--green); font-size: 10px; font-weight: 850; cursor: pointer; }
+    .chart-table .table-wrap { border: 0; border-top: 1px solid var(--line); }
+    .section { margin-top: 25px; }
+    .section-heading { display: flex; justify-content: space-between; gap: 16px; align-items: end; margin-bottom: 12px; }
+    h2 { margin: 0; font-size: 17px; }
+    .section-heading p { max-width: 600px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); background: #fff; }
+    table { width: 100%; min-width: 880px; border-collapse: collapse; font-size: 10px; }
+    th, td { padding: 11px 12px; border-bottom: 1px solid #e4e8e6; text-align: left; vertical-align: top; line-height: 1.45; }
+    th { background: #edf2ef; color: #46514d; font-size: 9px; text-transform: uppercase; letter-spacing: .035em; }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover { background: #f7faf8; }
+    tbody tr:last-child td { border-bottom: 0; }
+    .status { display: inline-flex; padding: 4px 7px; border-radius: 5px; background: var(--soft-green); color: var(--green); font-size: 9px; font-weight: 850; }
+    .status.warning { background: var(--soft-yellow); color: #725511; }
+    .status.danger { background: var(--soft-red); color: var(--red); }
+    .detail-grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: 14px; }
+    .panel { min-width: 0; padding: 16px; border: 1px solid var(--line); background: #fff; }
+    .panel h3 { margin: 0 0 10px; font-size: 13px; }
+    .panel p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+    .definition-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+    .definition { padding: 12px; border-left: 3px solid var(--green); background: #f7faf8; }
+    .definition strong, .definition span { display: block; }
+    .definition strong { font-size: 10px; }
+    .definition span { margin-top: 5px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+    .empty { padding: 42px 20px; border: 1px dashed #aeb8b4; background: #fff; text-align: center; }
+    .empty strong, .empty span { display: block; }
+    .empty span { max-width: 520px; margin: 8px auto 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .approval { margin-top: 25px; padding: 14px 16px; border-left: 4px solid var(--yellow); background: var(--soft-yellow); color: #5c4711; font-size: 11px; line-height: 1.5; }
+    dialog { width: min(720px,calc(100% - 28px)); max-height: calc(100dvh - 30px); padding: 0; border: 0; border-radius: var(--radius); box-shadow: 0 28px 80px rgba(18,35,29,.28); }
+    dialog::backdrop { background: rgba(15,28,24,.65); }
+    .dialog-head { display: flex; justify-content: space-between; gap: 16px; align-items: start; padding: 18px 20px; border-bottom: 1px solid var(--line); }
+    .dialog-head h2 { margin-top: 3px; }
+    .dialog-head button { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 5px; background: #fff; cursor: pointer; }
+    .dialog-body { padding: 20px; }
+    .dialog-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
+    @media (max-width: 1100px) { .metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } .detail-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 820px) {
+      .topbar { align-items: flex-start; flex-wrap: wrap; padding: 10px 12px; }
+      .menu { display: inline-flex; align-items: center; }
+      .brand { min-width: 0; }
+      .top-context { flex-basis: 100%; justify-content: flex-start; overflow-x: auto; }
+      .shell { grid-template-columns: 1fr; }
+      aside { position: fixed; inset: 0 auto 0 0; z-index: 50; width: min(290px,88vw); transform: translateX(-105%); transition: transform .18s ease; box-shadow: 18px 0 44px rgba(0,0,0,.22); }
+      aside.open { transform: translateX(0); }
+      .page-head { display: grid; }
+      .request-id { justify-self: start; }
+      .section-heading { display: grid; align-items: start; }
+    }
+    @media (max-width: 560px) { .metrics, .definition-list { grid-template-columns: 1fr; } .toolbar > * { flex: 1 1 140px; } .toolbar .button { flex: 0 0 auto; } }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#content">Skip to content</a>
+  <div class="notice"><strong>Approval reference.</strong> Illustrative data only. This file defines presentation and interaction for page-by-page review; it is not production, accounting evidence, provider policy, or acceptance evidence.</div>
+  <header class="topbar">
+    <button class="menu" id="menuButton" type="button" aria-controls="sidebar" aria-expanded="false">Pages</button>
+    <div class="brand"><span class="brand-mark">D</span><span><strong>DJBOT Platform Master</strong><small>SaaS Owner analytics approval reference</small></span></div>
+    <div class="top-context">
+      <label>Role <select id="roleSelect"><option value="owner">Platform Owner</option><option value="finance">Platform Finance</option><option value="ai">AI Operations</option><option value="support">Platform Support</option></select></label>
+      <label>Data state <select id="stateSelect"><option value="default">Default</option><option value="zero">True zero</option><option value="empty">Empty</option><option value="delayed">Delayed</option><option value="incomplete">Incomplete</option><option value="reconciliation">Reconciliation required</option><option value="unavailable">Unavailable</option><option value="error">Read error</option></select></label>
+    </div>
+  </header>
+  <div class="shell">
+    <aside id="sidebar">
+      <p class="rail-title">Owner intelligence</p>
+      <nav id="nav" aria-label="Owner analytics pages"></nav>
+      <p class="rail-note">Navigation changes with the server capability projection. Hiding a link is not authorization. Provider identity is available only to Owner and AI Operations.</p>
+    </aside>
+    <main id="content" tabindex="-1">
+      <header class="page-head">
+        <div><p class="breadcrumb" id="breadcrumb"></p><h1 id="pageTitle"></h1><p id="pagePurpose"></p></div>
+        <span class="request-id" id="requestId"></span>
+      </header>
+      <div class="toolbar">
+        <label>Period<select id="period"><option>Last 30 days</option><option>Last 7 days</option><option>Month to date</option><option>Quarter to date</option><option>Year to date</option><option>Custom period</option></select></label>
+        <label>Compare<select><option>Previous period</option><option>Previous year</option><option>No comparison</option></select></label>
+        <label>Timezone<select><option>Asia/Bangkok</option><option>UTC</option></select></label>
+        <label>Currency<select><option>Group by currency</option><option>THB only</option><option>USD only</option></select></label>
+        <label>Search<input id="search" type="search" placeholder="Search current page"></label>
+        <label id="pageSizeControl" hidden>Results per page<select id="pageSize"><option>25</option><option>50</option><option selected>100</option></select></label>
+        <button class="button secondary" id="saveView" type="button">Save view</button>
+        <button class="button secondary" id="clearFilters" type="button">Clear filters</button>
+        <button class="button" id="exportButton" type="button">Preview export</button>
+      </div>
+      <div class="active-filters" id="activeFilters" aria-label="Active filters"></div>
+      <div class="content">
+        <div class="state-banner" id="stateBanner" role="status"></div>
+        <div id="pageContent"></div>
+        <div class="approval" id="approvalNote"></div>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="detailDialog" aria-labelledby="dialogTitle"><div class="dialog-head"><div><span class="status" id="dialogKind">Illustrative detail</span><h2 id="dialogTitle"></h2></div><button type="button" data-close aria-label="Close dialog">Close</button></div><div class="dialog-body" id="dialogBody"></div></dialog>
+  <dialog id="exportDialog" aria-labelledby="exportTitle"><div class="dialog-head"><div><span class="status warning">Recent assurance required</span><h2 id="exportTitle">Export preview</h2></div><button type="button" data-close aria-label="Close export preview">Close</button></div><div class="dialog-body" id="exportBody"></div></dialog>
+
+  <script>
+    const pages = [
+      {id:"overview",route:"/operations/overview",label:"Owner Overview",req:"PLT-012, PLT-025",purpose:"SaaS health, growth, revenue, cost, conversion and immediate attention, qualified by freshness and reconciliation.",metrics:[["Total merchants","1,284","+37 versus previous period"],["MRR by currency","THB 8.42m","USD 41,870 shown separately"],["Variable gross margin","68.4%","Allocation method v1.2"],["Attention items","23","Ordered by customer impact"]],cols:["Attention","Merchant or service","Evidence","Owner","State"],rows:[["Usage limit","Siam Orchard Co.","94% of Text replies used","Customer Success","Open"],["Provider incident","Voice route SEA-2","17 affected sessions","AI Operations","Investigating"],["Not deployed","Rattan Home Studio","Registered 18 days ago","Growth","Open"]]},
+      {id:"merchants",route:"/merchants",label:"Merchants",req:"PLT-013, PLT-022",purpose:"Server-side business-account directory across identity, lifecycle, subscription, deployment, usage, revenue, support and risk.",metrics:[["Merchants","1,284","All lifecycle states"],["Active paid","842","Across Flow, Text and Voice"],["Trials","126","Flow and Text only"],["Registered, not deployed","74","Current filter population"]],cols:["Business","Owner","Products","Lifecycle","Recurring value","Usage","Activity"],rows:[["Siam Orchard Co.","Narin K. / verified","Text Advanced, Flow Starter","Active","THB 18,900","94% Text","16 Aug 2026"],["Rattan Home Studio","Pimchanok S. / verified","Flow trial","Trial","Not applicable","12% Flow","15 Aug 2026"],["Northstar Services","A. Morgan / unverified","Voice Starter","Past due","USD 690","61% Voice","12 Aug 2026"]]},
+      {id:"merchant-detail",route:"/merchants/[tenantId]",label:"Merchant 360",req:"PLT-024, PLT-022",purpose:"One merchant's identity, team, products, subscriptions, usage, economics, deployments, support, incidents and audit evidence.",metrics:[["Products","2 active","Text Advanced and Flow Starter"],["Current recurring value","THB 18,900","Commercial version pinned"],["Open risks","2","One usage, one support"],["Last product activity","12 minutes ago","Separate from successful login"]],cols:["Projection","Current state","Freshness","Reconciliation","Action"],rows:[["Identity and team","1 owner, 4 members","16 Aug 14:21","Reconciled","View memberships"],["Subscriptions","2 active","16 Aug 14:20","Reconciled","Open lifecycle"],["Text usage","9,402 of 10,000 replies","16 Aug 14:18","Reconciled","Open Text usage"],["Support","1 open priority ticket","16 Aug 13:46","Current","Request scoped access"]]},
+      {id:"users",route:"/users",label:"SaaS Users",req:"PLT-014, PLT-022",ownerOnly:true,purpose:"Identity, assurance, legal acceptance and memberships without duplicating merchant subscriptions per team member.",metrics:[["SaaS users","2,937","Merchant end customers excluded"],["Verified","2,781","Email verification evidence"],["MFA enabled","618","No MFA secrets exposed"],["Multiple memberships","184","Subscription stays merchant-owned"]],cols:["User","Verification","Security","Memberships","Legal acceptance","Last successful login"],rows:[["Suda Wattanakul","Verified","MFA enabled","2 merchants","Terms 2026-04, Privacy 2026-04","16 Aug 2026"],["Nattapong Chai","Verified","MFA not enabled","1 merchant","Terms 2026-04, Privacy 2026-04","15 Aug 2026"],["Maliwan K.","Invited","Not available","1 pending","Not yet accepted","Not reported"]]},
+      {id:"user-detail",route:"/users/[userId]",label:"User Detail",req:"PLT-014",ownerOnly:true,purpose:"Owner-assured personal contact profile with a 100-row membership page and access through merchant-owned subscriptions.",metrics:[["Memberships","3","Each listed separately"],["Accessible products","4","Through merchant entitlements"],["Last successful login","16 Aug 10:42","Identity evidence"],["Last product activity","16 Aug 11:03","Product evidence"]],cols:["Merchant name","Company role","Membership state","First join date","Merchant subscription start","Expiry or access end","Subscribed products","Access"],rows:[["Siam Orchard Co.","Tenant Master Admin","Active","12 Feb 2025","1 Apr 2026","31 Mar 2027","Text Advanced, Flow Starter","Owner access through merchant"],["Lantern Foods","Tenant Analyst","Active","9 Sep 2025","12 Jan 2026","11 Jan 2027","Voice Starter","Read-only analytics"],["Mae Ping Travel","Tenant Billing Manager","Invited","15 Aug 2026","3 Aug 2026","2 Sep 2026 trial end","Text Starter trial","Pending invitation acceptance"]]},
+      {id:"subscriptions",route:"/subscriptions",label:"Subscriptions",req:"PLT-015",purpose:"Separate Flow, Text and Voice lifecycle records with immutable commercial versions and reconciled provider and entitlement truth.",metrics:[["Active subscriptions","1,106","Flow, Text and Voice separate"],["Past due","31","Provider and entitlement states retained"],["Scheduled cancellation","18","Service end shown separately"],["Reconciliation mismatch","7","Never flattened to active"]],cols:["Merchant","Family and package","Access mode","Provider state","Entitlement state","Period end","Recurring value"],rows:[["Siam Orchard Co.","Text Advanced","Paid","Active","Active","31 Aug 2026","THB 12,900"],["Rattan Home Studio","Flow Starter","Trial","Trialing","Active","28 Aug 2026","Not applicable"],["Northstar Services","Voice Starter","Paid","Past due","Grace","22 Aug 2026","USD 690"]]},
+      {id:"subscription-detail",route:"/subscriptions/[subscriptionId]",label:"Subscription Detail",req:"PLT-015",purpose:"Complete lifecycle, billing, allowance and change history for one immutable merchant subscription.",metrics:[["Current price","THB 12,900","Commercial version cv_2026_04"],["Included usage","10,000 replies","Reset 1 Sep 2026"],["Latest invoice","Paid","Settlement reconciled"],["Scheduled cancellation","Not scheduled","Separate from actual end"]],cols:["Lifecycle event","Effective time","Evidence","Provider state","Entitlement state"],rows:[["Provisioned","1 Apr 2026 09:12","provision_84cc","Active","Active"],["Upgraded","1 Jul 2026 00:00","invoice_2741","Active","Active"],["Payment settled","1 Aug 2026 09:08","payment_8321","Active","Active"]]},
+      {id:"revenue",route:"/revenue",label:"Revenue",req:"PLT-016, PLT-020",finance:true,purpose:"Recurring revenue, invoicing, collection, reversals and variable margin kept definitionally separate and grouped by currency.",metrics:[["MRR","THB 8.42m","Trials, tax and one-time fees excluded"],["Cash collected","THB 9.08m","Settled payments net of reversals"],["Net collected","THB 8.73m","After refunds and chargebacks"],["Variable gross margin","68.4%","Cost allocation v1.2"]],cols:["Movement","THB","USD","Subscriptions","Definition version","Reconciliation"],rows:[["New MRR","284,700","3,120","41","rev-metric-v1","Reconciled"],["Expansion MRR","118,300","870","23","rev-metric-v1","Reconciled"],["Contraction MRR","-72,900","-410","17","rev-metric-v1","Reconciled"],["Churned MRR","-96,500","-680","14","rev-metric-v1","Late evidence pending"]]},
+      {id:"text",route:"/usage/text",label:"Text Usage",req:"PLT-017, PLT-020",usage:true,purpose:"Customer-facing committed replies separated from internal provider-native tokens, reliability, quality and snapshotted cost.",metrics:[["Committed replies","4.83m","Commercial meter"],["Provider tokens","1.92bn","Internal native usage"],["Cost per reply","THB 0.184","Reconciled provider cost"],["P95 latency","1.84 s","Successful requests only"]],cols:["Merchant or pseudonym","Replies","Input tokens","Cached input","Output tokens","Reasoning","Cost","State"],rows:[["Siam Orchard Co.","9,402","2,881,404","814,220","921,718","Not reported","THB 1,731","Reconciled"],["Rattan Home Studio","612","174,880","Not reported","60,112","Not reported","THB 108","Incomplete"],["Merchant psn_73a1","4,892","1,210,118","303,004","441,881","88,510","THB 822","Reconciled"]]},
+      {id:"voice",route:"/usage/voice",label:"Voice Usage",req:"PLT-018, PLT-020",usage:true,purpose:"Exact connected seconds, rounded customer minutes, session outcomes, native provider usage and price-at-event economics.",metrics:[["Connected seconds","8,418,237","Internal time authority"],["Billable minutes","143,902","Immutable commercial rounding"],["Completed sessions","31,884","Outcome evidence"],["Cost per connected minute","THB 2.41","Provider and carrier cost"]],cols:["Merchant or pseudonym","Sessions","Connected seconds","Billable minutes","Reconnects","Outcomes","Cost","Price version"],rows:[["Siam Orchard Co.","418","109,318","1,921","7","312 completed","THB 4,812","pv_voice_2026_07"],["Northstar Services","96","18,441","332","2","64 completed","USD 112","pv_voice_2026_06"],["Merchant psn_419c","207","47,930","841","11","141 completed","THB 2,046","pv_voice_2026_08"]]},
+      {id:"models",route:"/models",label:"Models",req:"PLT-019, PLT-020",provider:true,purpose:"Confidential Text and Voice provider/model utilization, reach, quality, reliability, incidents and immutable price versions.",metrics:[["Production routes","7","Active and fallback"],["Reconciled provider cost","THB 2.81m","Grouped by currency"],["Fallback rate","2.7%","Route-policy qualified"],["Open incidents","2","Linked authoritative evidence"]],cols:["Provider and model","Capability","Routing state","Reach","P95 latency","Error rate","Price version","Evaluation"],rows:[["Provider A / text-large-4","Text","Active","318 merchants","1.62 s","0.8%","pv_txt_041","Approved 12 Aug"],["Provider B / voice-live-2","Voice","Canary","42 merchants","412 ms","1.4%","pv_vce_018","Approved 10 Aug"],["Provider C / text-fast-3","Text","Fallback","109 merchants","1.21 s","2.1%","pv_txt_033","Review due"]]},
+      {id:"trials",route:"/trials",label:"Trials and Conversion",req:"PLT-023",purpose:"Flow and Text trial eligibility, provisioning, allowance, milestones, stop state and paid conversion. Voice has no trial.",metrics:[["Trials started","126","Successful provisioning starts clock"],["First live use","71","Current cohort"],["Converted to paid","22","17.5% of started trials"],["Voice trials","0","Not an approved offer"]],cols:["Merchant","Product","Trial start","Expiry","Allowance","Milestone","Conversion"],rows:[["Rattan Home Studio","Flow Starter","29 Jul","28 Aug","2,104 / 5,000 conversations","Live","Not converted"],["Mae Ping Travel","Text Starter","3 Aug","2 Sep","411 / 500 replies","Exhaustion warning","Not converted"],["Harbor Clinic","Text Starter","9 Jul","8 Aug","500 / 500 replies","Stopped at exhaustion","Converted 7 Aug"]]},
+      {id:"reports",route:"/reports",label:"Reports",req:"PLT-023",reports:true,purpose:"Saved permission-scoped views, cohorts and daily, weekly or monthly report runs through approved delivery channels only.",metrics:[["Saved views","18","Canonical filters"],["Scheduled reports","9","Role-scoped definitions"],["Runs due","2","Current worker window"],["External delivery","Unconfigured","No channel inferred"]],cols:["Report","Scope","Schedule","Timezone","Last run","Delivery","State"],rows:[["Weekly revenue movement","Finance","Weekly Monday","Asia/Bangkok","Complete 12 Aug","In-platform","Active"],["Text cost and quality","AI Operations","Daily","UTC","Complete 16 Aug","In-platform","Active"],["Trial conversion cohort","Owner","Monthly","Asia/Bangkok","Queued","Unconfigured","Paused"]]},
+      {id:"alerts",route:"/alerts",label:"Alerts",req:"PLT-023",reports:true,purpose:"Deduplicated, severity-labelled, assigned and deep-linked business-risk alerts resolved only from authoritative state.",metrics:[["Open alerts","23","Deduplicated"],["Critical","2","Customer impact first"],["Assigned","19","Four need ownership"],["Threshold policies","3 unconfigured","No invented defaults"]],cols:["Severity","Alert","Target","Assignee","Evidence","State"],rows:[["Critical","Provider route failure","Voice SEA-2","AI Operations","Incident inc_28a","Investigating"],["High","Quota exhausted","Mae Ping Travel","Customer Success","Text meter qa_12c","Open"],["Medium","Registered, not deployed","Rattan Home Studio","Growth","Deployment state dep_8e1","Open"]]},
+      {id:"exports",route:"/exports",label:"Exports",req:"PLT-021, PLT-022",exports:true,purpose:"Governed export creation, recent assurance, asynchronous generation, artifact lifecycle and immutable audit history.",metrics:[["Queued","2","Worker bounded"],["Running","1","Scoped snapshot"],["Complete","4","Short-lived encrypted artifacts"],["Retention","Unconfigured","Production generation fails closed"]],cols:["Export","Scope","Format","Requester","Assurance","Rows","State","Expiry"],rows:[["Merchant lifecycle","Owner scope","CSV","Platform Owner","Current","1,284","Complete","17 Aug 10:15"],["Revenue movement","Finance scope","JSON","Platform Finance","Current","8,412","Running","Not applicable"],["Model economics","Pseudonymous AI scope","CSV","AI Operations","Expired","0","Failed","Not applicable"]]},
+      {id:"export-detail",route:"/exports/[exportId]",label:"Export Detail",req:"PLT-021",exports:true,purpose:"One export's immutable scope, status, assurance, artifact integrity, download grants, expiry, revocation and deletion evidence.",metrics:[["State","Complete","Artifact integrity checked"],["Rows","1,284","Final server count"],["Artifact expiry","17 Aug 10:15","Retention setting required"],["Downloads","1","Immutable evidence"]],cols:["Lifecycle event","Actor","Time","Evidence","Result"],rows:[["Requested","Platform Owner","16 Aug 10:12","Purpose and filter snapshot","Accepted"],["Generated","Analytics worker","16 Aug 10:14","Checksum and encrypted object ref","Complete"],["Download grant issued","Platform Owner","16 Aug 10:15","Single-purpose grant hash","Expired"],["Downloaded","Platform Owner","16 Aug 10:15","Request and artifact checksum","Recorded"]]}
+    ];
+    const roleNames={owner:"Platform Owner",finance:"Platform Finance",ai:"AI Operations",support:"Platform Support"};
+    const stateCopy={
+      zero:["True zero","Authoritative evidence is current and reconciled. The selected scope has a numeric value of zero.",""],
+      empty:["No matching records","The read succeeded, but no records match the current permission-scoped filters.",""],
+      delayed:["Data delayed","The latest source watermark is behind. Previous qualified values remain labelled with their freshness time.","warning"],
+      incomplete:["Incomplete evidence","One or more required source dimensions are not reported. Missing values are not converted to zero.","warning"],
+      reconciliation:["Reconciliation required","Derived totals differ from authoritative source evidence. Financial and usage conclusions remain qualified.","attention"],
+      unavailable:["Analytics unavailable","The authoritative read is unavailable. No data changed. Retry is safe.","attention"],
+      error:["Page read failed","The request did not return a trustworthy result. No empty state or zero metric is shown.","attention"]
+    };
+    let current="overview";
+    const $=id=>document.getElementById(id);
+    const esc=value=>String(value??"").replace(/[&<>\"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+    function allowed(page,role){ if(page.ownerOnly)return role==="owner"; if(page.provider)return role==="owner"||role==="ai"; if(page.finance)return role==="owner"||role==="finance"; if(page.reports)return true; if(page.exports)return role!=="support"; return true; }
+    function roleValue(value,role,page){
+      if(role==="ai" && (page.id==="merchants"||page.id==="merchant-detail"||page.usage)) return value.replace(/Siam Orchard Co\.|Rattan Home Studio|Northstar Services/g,"Merchant psn_73a1");
+      if(role==="support" && /THB|USD|MRR|cost|margin/i.test(value)) return "Structurally absent";
+      if(role==="finance" && /provider|model|route|quality/i.test(value)) return "Structurally absent";
+      return value;
+    }
+    function renderNav(){
+      const role=$("roleSelect").value;
+      $("nav").innerHTML=pages.filter(p=>allowed(p,role)).map(p=>`<button type="button" data-page="${p.id}" class="${p.id===current?"active":""}">${esc(p.label)}</button>`).join("");
+      document.querySelectorAll("[data-page]").forEach(b=>b.addEventListener("click",()=>showPage(b.dataset.page)));
+      if(!allowed(pages.find(p=>p.id===current),role)) current="overview";
+    }
+    function metricHtml(metric,role,page,state){
+      let value=roleValue(metric[1],role,page), note=roleValue(metric[2],role,page), extra="";
+      if(state==="zero") value="0";
+      if(["delayed","incomplete","reconciliation","unavailable","error"].includes(state)){ value="Not qualified"; extra=`<span class="metric-state">${esc(stateCopy[state][0])}</span>`; }
+      return `<div class="metric"><span>${esc(metric[0])}</span><strong>${esc(value)}</strong><small>${esc(note)}<br>30 days, Asia/Bangkok, refreshed 16 Aug 14:21</small>${extra}</div>`;
+    }
+    function renderPage(){
+      const page=pages.find(p=>p.id===current), role=$("roleSelect").value, state=$("stateSelect").value;
+      $("breadcrumb").textContent=`${page.route} | ${page.req}`; $("pageTitle").textContent=page.label; $("pagePurpose").textContent=page.purpose; $("pageSizeControl").hidden=page.id!=="user-detail";
+      $("requestId").textContent=`request oa-demo-${page.id}-0842`;
+      $("activeFilters").innerHTML=`<span class="filter-chip">Period: Last 30 days</span><span class="filter-chip">Timezone: Asia/Bangkok</span><span class="filter-chip">Currency: grouped</span><span class="filter-chip">Projection: ${esc(roleNames[role])}</span>`;
+      const banner=$("stateBanner"); banner.className="state-banner"; banner.textContent="";
+      if(state!=="default"){ const copy=stateCopy[state]; banner.className=`state-banner show ${copy[2]}`; banner.innerHTML=`<strong>${esc(copy[0])}.</strong> ${esc(copy[1])}`; }
+      if(state==="empty") {
+        $("pageContent").innerHTML=`<div class="empty"><strong>No matching ${esc(page.label.toLowerCase())}</strong><span>The server-authoritative read succeeded for this role and filter scope. Clear filters or select another period.</span></div>`;
+      } else if(state==="unavailable"||state==="error") {
+        $("pageContent").innerHTML=`<div class="empty"><strong>${state==="error"?"Read failed":"Authoritative data unavailable"}</strong><span>No results were substituted. Retry the read or use the request identifier when contacting support.</span><div class="dialog-actions"><button class="button" type="button" id="retry">Retry read</button></div></div>`;
+      } else {
+        const rows=page.rows.map((row,i)=>`<tr tabindex="0" data-row="${i}">${row.map(v=>`<td>${esc(roleValue(v,role,page))}</td>`).join("")}</tr>`).join("");
+        const pagination=page.id==="user-detail"?`<div class="active-filters" style="padding:10px 12px"><span class="filter-chip">Showing 1-${page.rows.length} of ${page.rows.length} memberships</span><span class="filter-chip">100 results per page</span><span class="filter-chip">Stable cursor pagination</span></div>`:"";
+        $("pageContent").innerHTML=`<div class="metrics">${page.metrics.map(m=>metricHtml(m,role,page,state)).join("")}</div>${page.id==="overview"?financeChart(state):""}<section class="section"><div class="section-heading"><h2>${esc(page.label)} detail</h2><p>Server-scoped results use stable cursor pagination. Select a row for the approved detail and audit treatment.</p></div><div class="table-wrap"><table><thead><tr>${page.cols.map(c=>`<th scope="col">${esc(c)}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>${pagination}</div></section>${supplement(page,role)}`;
+        document.querySelectorAll("[data-row]").forEach(row=>{ row.addEventListener("click",()=>openDetail(page,row.dataset.row,role)); row.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openDetail(page,row.dataset.row,role);}}); });
+        if(page.id==="overview") bindFinanceChart();
+      }
+      $("approvalNote").innerHTML=`<strong>Page approval checkpoint:</strong> Review ${esc(page.route)} for ${esc(roleNames[role])}, including default and exceptional states. Approval of this page does not approve another route or production implementation.`;
+      renderNav(); history.replaceState(null,"",`#${page.route.replaceAll("[","").replaceAll("]","")}`); $("content").focus({preventScroll:true});
+    }
+    function supplement(page,role){
+      const common=`<section class="section"><div class="section-heading"><h2>Definitions and boundaries</h2><p>Every value carries period, unit, currency where applicable, reporting timezone, freshness, reconciliation and definition version.</p></div><div class="definition-list"><div class="definition"><strong>Authority</strong><span>Derived and rebuildable. Source ledgers remain mutation authority.</span></div><div class="definition"><strong>Projection</strong><span>${esc(roleNames[role])} receives a distinct server DTO.</span></div><div class="definition"><strong>Missing data</strong><span>Not reported, delayed and unavailable never become numeric zero.</span></div><div class="definition"><strong>Audit</strong><span>Cross-tenant detail records actor, purpose, request, target and result.</span></div></div></section>`;
+      if(page.id==="user-detail") return `<section class="section"><div class="section-heading"><h2>Personal contact details</h2><p>Identity-owned values for Platform Owner. Recent assurance and recorded purpose are required and audited.</p></div><div class="detail-grid"><div class="panel"><h3>Contact profile</h3><p><strong>Full name:</strong> Suda Wattanakul<br><strong>Primary email:</strong> suda.wattanakul@example.test<br><strong>Email state:</strong> Verified<br><strong>Telephone:</strong> +66 81 234 7788<br><strong>Personal contact address:</strong> 88 Sample Road, Chiang Mai 50000, Thailand</p></div><div class="panel"><h3>Access evidence</h3><p><strong>Projection:</strong> Platform Owner only<br><strong>Recent assurance:</strong> Current<br><strong>Purpose:</strong> User account review<br><strong>Audit request:</strong> oa-demo-user-detail-0842<br><strong>Excluded:</strong> Passwords, sessions, tokens, MFA secrets, payment and provider credentials</p></div></div></section>`+common;
+      if(page.id==="revenue") return common+`<section class="section"><div class="panel"><h3>Currency treatment</h3><p>THB and USD remain separate. Converted totals are unavailable until an approved foreign-exchange source and timestamp policy exists.</p></div></section>`;
+      if(page.id==="text") return common+`<section class="section"><div class="detail-grid"><div class="panel"><h3>Commercial meter</h3><p>Committed AI replies only. Tokens do not become a merchant billing unit.</p></div><div class="panel"><h3>Native usage</h3><p>Input, cached input, output and reasoning tokens stay internal. Unreported categories remain not reported.</p></div></div></section>`;
+      if(page.id==="voice") return common+`<section class="section"><div class="detail-grid"><div class="panel"><h3>Internal time authority</h3><p>Exact connected seconds preserve session evidence.</p></div><div class="panel"><h3>Commercial meter</h3><p>Customer-facing minutes follow the immutable rounding rule pinned to the subscription version.</p></div></div></section>`;
+      if(page.id==="models") return common+`<section class="section"><div class="panel"><h3>Provider confidentiality</h3><p>This page is absent for Finance and Support. Provider and model identity never enters merchant or public DTOs, widgets, invoices, notifications, exports or customer-visible errors.</p></div></section>`;
+      if(page.id==="exports"||page.id==="export-detail") return common+`<section class="section"><div class="panel"><h3>Lifecycle demonstration</h3><p>Queued, running, complete, failed, expired, revoked and deleted remain distinct. Artifact generation stays unavailable when retention, storage, assurance or deletion configuration is incomplete.</p><div class="dialog-actions"><button class="button secondary" type="button" data-export-state="queued">Queued</button><button class="button secondary" type="button" data-export-state="running">Running</button><button class="button secondary" type="button" data-export-state="complete">Complete</button><button class="button secondary" type="button" data-export-state="failed">Failed</button><button class="button secondary" type="button" data-export-state="expired">Expired</button><button class="button secondary" type="button" data-export-state="revoked">Revoked</button><button class="button secondary" type="button" data-export-state="deleted">Deleted</button></div></div></section>`;
+      return common;
+    }
+    const financeSeries={
+      daily:[184200,211800,198400,232900,246100,221700,268400,279800,254600,291300,307100,288900,319600,334200,311500,348700,362900,341600,379200,388400,367100,402600,418900,391700,429300,446100,421800,459600,472300,451900],
+      monthly:[6210000,6480000,6740000,7010000,7380000,7690000,7970000,8240000,8520000,8790000,9140000,9470000]
+    };
+    let financeMode="daily", financeActive=29;
+    function financeLabels(mode){return mode==="daily"?Array.from({length:30},(_,i)=>`${String(i+1).padStart(2,"0")} Aug`):["Sep 25","Oct 25","Nov 25","Dec 25","Jan 26","Feb 26","Mar 26","Apr 26","May 26","Jun 26","Jul 26","Aug 26"];}
+    function financeChart(state){
+      if(["unavailable","error"].includes(state)) return `<section class="finance-chart"><div class="chart-head"><div><h2>Net revenue</h2><p>Daily and Monthly trend. Operational net collected, not statutory recognized revenue.</p><strong class="chart-total">Unavailable</strong></div></div><div class="empty"><strong>Finance trend unavailable</strong><span>No chart or zero values are substituted while the authoritative read is unavailable.</span></div></section>`;
+      return `<section class="finance-chart" aria-labelledby="financeChartTitle"><div class="chart-head"><div><h2 id="financeChartTitle">Net revenue</h2><p>Operational net collected in THB. Settled cash minus refunds and chargebacks.</p><strong class="chart-total" id="financeTotal"></strong><span class="chart-change" id="financeChange"></span></div><div class="chart-switch" aria-label="Finance chart interval"><button type="button" data-finance-mode="daily" aria-pressed="true">Daily</button><button type="button" data-finance-mode="monthly" aria-pressed="false">Monthly</button></div></div><div class="chart-scroll" id="financeChart"></div><div class="chart-readout" id="financeReadout" aria-live="polite"></div><details class="chart-table"><summary>View exact values as a table</summary><div class="table-wrap" id="financeTable"></div></details></section>`;
+    }
+    function money(value){return new Intl.NumberFormat("en-GB",{style:"currency",currency:"THB",maximumFractionDigits:0}).format(value);}
+    function renderFinanceChart(){
+      const values=financeSeries[financeMode], labels=financeLabels(financeMode), max=Math.max(...values), min=Math.min(...values)*.86, width=900,height=290,left=58,right=868,top=30,bottom=234;
+      const x=i=>left+i*((right-left)/Math.max(values.length-1,1)), y=v=>bottom-((v-min)/(max-min))*(bottom-top);
+      const points=values.map((v,i)=>`${x(i)},${y(v)}`).join(" "), labelEvery=financeMode==="daily"?4:1, activeX=x(financeActive),activeY=y(values[financeActive]);
+      const grid=[0,.25,.5,.75,1].map(r=>`<line x1="${left}" x2="${right}" y1="${top+(bottom-top)*r}" y2="${top+(bottom-top)*r}" stroke="currentColor" stroke-opacity=".16"/>`).join("");
+      const labelsSvg=labels.map((label,i)=>(i%labelEvery===0||i===labels.length-1)?`<text x="${x(i)}" y="266" text-anchor="middle" fill="currentColor" font-size="10">${esc(label)}</text>`:"").join("");
+      const dots=values.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="${i===financeActive?6:3.5}" fill="#126149" data-chart-index="${i}"/>`).join("");
+      $("financeChart").innerHTML=`<svg viewBox="0 0 ${width} ${height}" role="img" tabindex="0" aria-label="Net revenue ${financeMode} trend in THB. Use left and right arrow keys to inspect each point.">${grid}<line x1="${activeX}" x2="${activeX}" y1="${activeY}" y2="${bottom}" stroke="#126149" stroke-width="2" stroke-dasharray="4 4"/><polyline fill="none" points="${points}" stroke="#126149" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>${dots}${labelsSvg}<text x="${left}" y="18" fill="currentColor" font-size="10">THB</text><text x="${right}" y="18" text-anchor="end" fill="currentColor" font-size="10">${esc(money(max))}</text></svg>`;
+      const total=values.reduce((a,b)=>a+b,0), previous=financeMode==="daily"?8174200:88510000, change=(total-previous)/previous*100;
+      $("financeTotal").textContent=money(total); $("financeChange").textContent=`${change>=0?"+":""}${change.toFixed(1)}% versus previous ${financeMode==="daily"?"30 days":"12 months"}`;
+      const selectedState=$("stateSelect").value, qualification=selectedState==="delayed"?"Delayed":selectedState==="incomplete"?"Incomplete":selectedState==="reconciliation"?"Reconciliation required":"Reconciled";
+      $("financeReadout").innerHTML=`<strong>${esc(labels[financeActive])}: ${esc(money(values[financeActive]))}</strong><span>Asia/Bangkok</span><span>Refreshed 16 Aug 2026 14:21</span><span>${esc(qualification)}</span><span>Definition net_collected v1</span>`;
+      $("financeTable").innerHTML=`<table><thead><tr><th scope="col">${financeMode==="daily"?"Reporting day":"Reporting month"}</th><th scope="col">Net revenue</th><th scope="col">Currency</th><th scope="col">Freshness</th><th scope="col">Reconciliation</th></tr></thead><tbody>${values.map((v,i)=>`<tr><td>${esc(labels[i])}</td><td>${esc(money(v))}</td><td>THB</td><td>16 Aug 14:21</td><td>Reconciled</td></tr>`).join("")}</tbody></table>`;
+      const svg=$("financeChart").querySelector("svg");
+      svg.addEventListener("pointermove",e=>{const box=svg.getBoundingClientRect(),viewX=(e.clientX-box.left)/box.width*width,step=(right-left)/Math.max(values.length-1,1);financeActive=Math.max(0,Math.min(values.length-1,Math.round((viewX-left)/step)));renderFinanceChart();});
+      svg.addEventListener("keydown",e=>{if(!["ArrowLeft","ArrowRight"].includes(e.key))return;e.preventDefault();financeActive=Math.max(0,Math.min(values.length-1,financeActive+(e.key==="ArrowRight"?1:-1)));renderFinanceChart();$("financeChart").querySelector("svg").focus();});
+    }
+    function bindFinanceChart(){
+      document.querySelectorAll("[data-finance-mode]").forEach(item=>item.setAttribute("aria-pressed",String(item.dataset.financeMode===financeMode)));
+      document.querySelectorAll("[data-finance-mode]").forEach(button=>button.addEventListener("click",()=>{financeMode=button.dataset.financeMode;financeActive=financeSeries[financeMode].length-1;document.querySelectorAll("[data-finance-mode]").forEach(item=>item.setAttribute("aria-pressed",String(item===button)));renderFinanceChart();}));
+      renderFinanceChart();
+    }
+    function showPage(id){ current=id; renderPage(); $("sidebar").classList.remove("open"); $("menuButton").setAttribute("aria-expanded","false"); }
+    function openDetail(page,index,role){
+      const row=page.rows[Number(index)]; $("dialogTitle").textContent=roleValue(row[0],role,page); $("dialogKind").textContent=page.label;
+      $("dialogBody").innerHTML=`<div class="detail-grid"><div class="panel"><h3>Approved projection</h3><p>${row.map((v,i)=>`<strong>${esc(page.cols[i]||"Field")}:</strong> ${esc(roleValue(v,role,page))}`).join("<br>")}</p></div><div class="panel"><h3>Access evidence</h3><p>Role: ${esc(roleNames[role])}<br>Purpose: owner analytics review<br>Recent assurance: current<br>Request: oa-demo-${esc(page.id)}-0842</p></div></div><div class="dialog-actions"><button class="button secondary" type="button">Open authoritative detail</button>${page.id==="alerts"?'<button class="button" type="button">Assign alert</button><button class="button secondary" type="button">Resolve with evidence</button>':""}${page.id==="merchant-detail"&&role==="support"?'<button class="button" type="button">Request scoped support grant</button>':""}</div>`;
+      $("detailDialog").showModal();
+    }
+    function openExport(state="preview"){
+      const page=pages.find(p=>p.id===current), role=$("roleSelect").value;
+      $("exportTitle").textContent=state==="preview"?`${page.label} export preview`:`Export state: ${state}`;
+      $("exportBody").innerHTML=`<div class="detail-grid"><div class="panel"><h3>Server-authoritative scope</h3><p>Role projection: ${esc(roleNames[role])}<br>Filter snapshot: current canonical URL filters<br>Format: CSV, UTF-8 and formula-neutralized<br>Estimated rows: server estimate pending</p></div><div class="panel"><h3>Structural exclusions</h3><p>Secrets, payment instruments, end-customer messages, transcripts, recordings and raw contacts are absent from the column registry.</p></div></div><div class="panel" style="margin-top:14px"><h3>Lifecycle and assurance</h3><p>Current state: ${esc(state)}. Personal, financial, provider-confidential or cross-tenant detail requires recent MFA or reauthentication and a recorded purpose. Artifact retention is unconfigured, so production generation remains disabled.</p></div><div class="dialog-actions"><button class="button" type="button">Reauthenticate</button><button class="button secondary" type="button">Cancel</button></div>`;
+      $("exportDialog").showModal();
+    }
+    $("menuButton").addEventListener("click",e=>{const open=$("sidebar").classList.toggle("open");e.currentTarget.setAttribute("aria-expanded",String(open));});
+    $("roleSelect").addEventListener("change",()=>{renderNav();renderPage();}); $("stateSelect").addEventListener("change",renderPage); $("period").addEventListener("change",renderPage);
+    $("search").addEventListener("input",e=>{const q=e.target.value.trim().toLowerCase();document.querySelectorAll("tbody tr").forEach(row=>row.hidden=q&&!row.textContent.toLowerCase().includes(q));});
+    $("clearFilters").addEventListener("click",()=>{$("search").value="";$("stateSelect").value="default";renderPage();});
+    $("saveView").addEventListener("click",e=>{e.currentTarget.textContent="View saved";setTimeout(()=>e.currentTarget.textContent="Save view",1400);});
+    $("exportButton").addEventListener("click",()=>openExport());
+    document.addEventListener("click",e=>{if(e.target.matches("[data-close]"))e.target.closest("dialog").close();if(e.target.matches("[data-export-state]"))openExport(e.target.dataset.exportState);});
+    document.querySelectorAll("dialog").forEach(d=>d.addEventListener("click",e=>{if(e.target===d)d.close();}));
+    renderNav(); renderPage();
+  </script>
+</body>
+</html>

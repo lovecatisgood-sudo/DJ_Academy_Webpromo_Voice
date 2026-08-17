@@ -101,7 +101,7 @@ export class AiChatStore {
       }
       const agentId = randomUUID(); const draftVersionId = randomUUID();
       const definition: AiPlaybook = {
-        schemaVersion: 1, playbookVersionId: draftVersionId, businessName: input.businessName,
+        schemaVersion: 1, playbookVersionId: draftVersionId, agentRole: "sales", businessName: input.businessName,
         agentName: input.name, languages: [input.defaultLanguage], tone: "Warm, concise, and professional",
         salesGoal: "Understand the customer's need and offer an appropriate next step",
         approvedClaims: [], prohibitedClaims: ["Unsupported guarantees", "Unconfirmed availability"],

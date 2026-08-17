@@ -427,7 +427,7 @@ If multiple products are purchased, shared steps are completed once and referenc
 3. **Watch truthful preparation progress.** Show public-page validation, reading, fact extraction, role organization and draft preparation; never reveal/fabricate chain-of-thought. Partial crawl offers retry, accessible pages, or manual entry.
 4. **Edit the generated draft.** Business name/type/summary/offers/hours/contact, three agent-behavior fields, source/exclusion context, and every FAQ are editable/addable/removable.
 5. **Configure in the role-specific full-page Studio.** Use the shared business/knowledge foundation plus Support, Sales or Booking sections and Text experience controls.
-6. **Test optionally.** Suggested/custom Thai/English tests and the persistent right tester show response/evidence with no production action. Every customer response is at most 200 visible characters.
+6. **Test optionally.** Suggested/custom Thai/English tests and the persistent right tester show response/evidence with no production action. The model is instructed to answer concisely and every customer response is validated to at most 200 locale-aware words; an oversized candidate receives one preserving rewrite attempt and is never cut at the boundary.
 7. **Publish, install and launch separately.** Publish with advisory warnings if desired, then snippet, HTTPS origin verification, explicit Go live, and Enter Dashboard.
 
 ### 10.2 AI Text Advanced additions
@@ -470,7 +470,7 @@ Every Studio keeps the right tester expandable while the merchant edits. `Not re
 2. Enter the role-specific full-page Studio using Support, Sales or Booking configuration.
 3. Configure the distinct Voice layer: approved provider-neutral voice label, speaking speed, interruption, silence, readback, maximum duration, disclosure, low-confidence/misunderstanding recovery, transfer fallback and recording consent.
 4. Run optional Thai/English voice quality tests for interruption, silence, contact capture, end call and transcript/summary. The visual design demo simulates voice without requesting a microphone; production requests it only after explicit start.
-5. Validate written response content to no more than 200 visible characters before speech.
+5. Prompt for short spoken delivery and validate written response content to no more than 200 locale-aware words before speech. Rewrite one oversized candidate while preserving its structured decision; never truncate it at the boundary.
 6. Publish, install, verify and explicitly activate the website deployment as separate actions, then enter Dashboard.
 
 ### 11.2 Voice Advanced additions
@@ -844,6 +844,55 @@ AI routing, Voice admission, carrier/channel health and release gates remain res
 
 Support case contains tenant, reporter, severity, product/channel, customer impact, evidence, communications and status. A support-access request states scope, reason, duration and requested resources. Tenant approval or break-glass review creates a visible workspace banner. Expiry/revocation removes access automatically.
 
+### 18.8 Owner analytics authority and navigation
+
+The complete owner-analytics experience follows `docs/design/djay-bots-saas-owner-analytics-contract.md`. That contract controls page ownership, metric definitions, fields, filters, exports and privacy boundaries for this scope. Existing Platform Master panels are not a reduced alternative.
+
+The persistent Platform Owner navigation separates Owner Overview, Merchants, Users, Subscriptions, Revenue, AI & Voice Usage, Models, Trials & Conversion, Reports & Alerts, Exports and Merchant 360. Operational release, recovery, finance reconciliation, provider controls, support and governance remain available as separate work areas.
+
+Each analytics page has:
+
+- global period, comparison, reporting-timezone and currency context where applicable;
+- server-side filters represented in the URL;
+- save-view and export actions where the role permits them;
+- visible last refresh and reconciliation state;
+- an accessible table alternative for charted data;
+- explicit empty, delayed, unavailable, incomplete and zero states.
+
+### 18.9 Owner Overview
+
+Overview begins with merchant/subscription state, recurring revenue movement, collected/refunded value, Text/Voice variable cost and margin. The second band covers activation, trial conversion, deployment and usage. One prioritized attention queue covers expiry, renewal, cancellation, payment, quota, provider/model, deployment, support and incident risk.
+
+Cards deep-link to a filtered source page. The UI never presents MRR, invoiced amount and cash collected as interchangeable. Metric tooltips use the exact approved definitions instead of marketing summaries.
+
+The primary finance visualization follows the proven POS sales-trend interaction: a line chart headed `Net revenue`, a two-option `Daily` / `Monthly` segmented control, the current total and comparison, a point readout on pointer interaction, left/right keyboard traversal and a table disclosure containing the exact same values. `Net revenue` is the presentation label for approved `net_collected`, not statutory recognized revenue. The chart states selected currency, timezone, freshness and reconciliation; THB, USD and any other currency remain separate unless a future approved conversion policy applies. On mobile the chart scrolls horizontally without losing its axis or table alternative.
+
+### 18.10 Merchant and user directories
+
+Merchants and SaaS users are separate routes. Merchant rows represent businesses and subscriptions; user rows represent human identities and memberships. A user with access to several businesses expands into distinct membership rows/details without duplicating subscription revenue.
+
+Both directories use a compact table with column selection, server search, combined filters, stable sorting and cursor pagination. Mobile uses a routed detail view rather than horizontally hiding identity, lifecycle or subscription facts. Filter chips show the complete active scope and can be cleared independently or together.
+
+Merchant detail opens Merchant 360. User detail shows identity/security/legal state and a server-paginated membership table, then links to each permitted Merchant 360. For Platform Owner with recent assurance and a recorded purpose, the profile also shows the complete lawfully stored identity contact record: full name, primary email and verification state, telephone and personal contact or mailing address when supplied. Missing contact fields say `Not supplied`; they are not inferred. The page-size control includes 100 results per page. Columns show merchant name, company role, membership state, membership first-join date, merchant subscription start, merchant subscription expiry or access end, subscribed products and effective access. Membership dates and merchant-owned subscription dates remain visibly distinct. On mobile, contact details and each membership become complete stacked records without hiding any approved field. End-customer leads and conversation participants never appear in the SaaS user directory.
+
+### 18.11 Subscriptions, revenue and trials
+
+The Subscriptions page offers lifecycle table, timeline and cohort views. Date labels are unambiguous: created, provisioned/service start, trial start/end, original subscription start, current period start/end, renewal, scheduled cancellation, actual cancellation and service end are never collapsed into one `Date` column.
+
+Revenue uses movement and reconciliation views. It separates invoiced, collected, refunded, credited, charged back and recurring measures and shows currency, denominator and completeness. Trials & Conversion follows the approved Flow/Text rules and never invents a Voice trial.
+
+### 18.12 Text, Voice and model analytics
+
+AI & Voice Usage defaults to commercial units first, then internal cost detail for authorized roles. Text shows committed replies separately from input/cached/output/reasoning tokens. Voice shows exact connected seconds separately from customer-facing billable minutes.
+
+The Models page is absent for unauthorized roles. Owner/AI Operations views show provider/model route version, usage, latency, errors, fallback, quality status, incidents and snapshotted cost. Merchant-facing names and exports continue to hide provider/model identity.
+
+### 18.13 Reports, alerts and exports
+
+Saved reports preserve filters, columns, period, timezone, currency and schedule. Alert rows expose severity, affected merchant/product, authoritative trigger, owner, status and next action. Duplicate alerts group under one incident/state rather than producing notification noise.
+
+Export begins with a scope review: data class, filters, columns, expected rows, personal/financial/provider-confidential indicators, exclusions, purpose and expiry. Large exports become jobs with progress and history. Download requires the approved assurance level; expiry is visible before creation. No UI offers password, credential, secret, raw payment-instrument, unrestricted end-customer content, transcript or recording columns.
+
 ## 19. Roles and task visibility
 
 | Task | Owner | Admin | Operator | Analyst | Billing manager |
@@ -952,7 +1001,7 @@ Use a balanced neutral foundation with DJAI green and yellow as product/action a
 ## 23. Business-operating rules expressed in UX
 
 1. Do not allocate expensive AI/Voice/channel resources to an unsubscribed workspace.
-2. Do not count preview/test interactions toward customer allowance; track internal test cost separately.
+2. Do not count preview/test interactions toward customer allowance; track internal test cost separately. The anonymous AI Text builder uses a 50-request maximum per signed 30-day builder session, with no small rolling conversation throttle.
 3. Do not let a user exceed seats, bots, channels, topics or concurrency and discover it only at publish/runtime.
 4. Do not require support for the standard happy path; self-service must be complete.
 5. Offer professional setup at high-friction points without making it appear included.
@@ -1003,6 +1052,21 @@ Per product:
 - Support cases by journey and product lifecycle state.
 - Accessibility defects and task completion in Thai/English.
 
+### 24.4 SaaS Owner analytics instrumentation
+
+Owner analytics also records immutable, privacy-bounded events needed to calculate:
+
+- merchant and paid-subscription growth;
+- new, expansion, contraction, reactivation and churned MRR;
+- invoice, collection, refund, credit, chargeback and reconciliation movement;
+- Flow/Text/Voice activation, trial, deployment, first-use and first-outcome funnels;
+- Text replies and native token categories by snapshotted route/model;
+- Voice exact seconds, billable minutes, native provider usage and outcomes;
+- variable provider cost and margin by merchant, product, package and model;
+- report/alert action and governed export lifecycle.
+
+Commercial meters, provider-native cost meters and UI interaction events remain separate event families. Analytics calculations cite their source family and version.
+
 Instrumentation uses stable event names, lifecycle/product/channel dimensions and pseudonymous identifiers. It excludes message/document content, raw contact data, payment details and secrets.
 
 ## 25. Screen and route delivery inventory
@@ -1049,6 +1113,13 @@ Instrumentation uses stable event names, lifecycle/product/channel dimensions an
 | P0 | Support access/audit/release | Controlled operations |
 | P1 | Catalogue/promotions | Versioned commercial administration |
 | P1 | Quality/language reviews | Sellability and model/voice quality |
+| P0 | Owner Overview | Merchant/subscription growth, revenue, provider cost, margin, conversion and attention |
+| P0 | Merchant directory/User directory | Separate business and human identity search, filters, details and governed export |
+| P0 | Subscriptions/Revenue | Complete lifecycle dates, recurring movement, invoice/collection/refund/credit truth |
+| P0 | Text/Voice Usage | Commercial meters, native usage, allowance, reliability and economics |
+| P0 | Models | Owner-only provider/model route, quality, reliability, incident and cost analytics |
+| P0 | Trials & Conversion | Approved Flow/Text trial lifecycle and funnel/cohort analysis |
+| P0 | Reports & Alerts/Exports | Saved and scheduled analysis, authoritative alerts and audited data delivery |
 
 ## 26. End-to-end acceptance journeys
 

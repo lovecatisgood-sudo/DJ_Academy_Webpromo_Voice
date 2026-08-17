@@ -1,5 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import {
+  publicBuilderContentSecurityPolicy,
+  publicBuilderPermissionsPolicy,
+} from "../../../../config/next-security-headers";
 
 export const dynamic = "force-static";
 
@@ -10,7 +14,9 @@ export async function GET() {
   return new Response(html, {
     headers: {
       "Cache-Control": "no-store",
+      "Content-Security-Policy": publicBuilderContentSecurityPolicy,
       "Content-Type": "text/html; charset=utf-8",
+      "Permissions-Policy": publicBuilderPermissionsPolicy,
       "X-Content-Type-Options": "nosniff",
     },
   });

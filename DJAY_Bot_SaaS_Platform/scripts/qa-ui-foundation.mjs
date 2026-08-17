@@ -78,6 +78,7 @@ function auditSecurityHeaders(response, name, url) {
 
 async function visit({ name, url, viewport = desktop, mock, ready = "h1", expectedStatus = 200, check }) {
   const context = await browser.newContext({ viewport });
+  await context.addCookies([{ name: "djay-locale", value: "en", url: publicUrl }]);
   await context.addInitScript(() => localStorage.setItem("djay-ui-locale", "en"));
   const page = await context.newPage();
   page.on("pageerror", (error) => failures.push(`${name}: page error: ${error.message}`));

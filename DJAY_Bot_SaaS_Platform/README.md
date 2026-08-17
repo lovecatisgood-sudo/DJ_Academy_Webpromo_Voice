@@ -237,11 +237,14 @@ support-access, and restore procedures.
 
 1. `docs/product/djay-bots-v1-market-release-prd.md` for commercial scope and normative requirements.
 2. `docs/design/djay-bots-approved-experience-contract.md` for approved page order, trials, onboarding, Configuration Studio, publishing/install, dashboard and takeover behavior.
-3. `docs/design/djay-bot-text-voice-configuration-flow.html` as the approved visual/clickable reference; sample data and simulations are not production policy.
-4. `docs/architecture/djay-bots-v1-market-release-architecture.md` and `docs/architecture/djay-bots-system-map.md` for technical realization and system/page linkage.
-5. `docs/design/djay-bots-v1-ui-ux-and-user-flows.md` for detailed responsive, accessibility and interaction behavior.
-6. `docs/implementation/djay-bots-v1-detailed-implementation-plan.md` and the 322-record `requirements/market-release-v1.yaml` for delivery ownership and release gating.
-7. Accepted ADRs in `docs/adr/` within their stated technical scope.
-8. Dated plans, audits, validation reports, older HTML demos and existing implementation only as historical/current-state evidence.
+3. `docs/design/djay-bots-saas-owner-analytics-contract.md` for the approved SaaS Owner analytics, merchant/user intelligence, subscriptions, revenue, Text/Voice/model economics, reports, alerts and export behavior. It is the single source of truth for that scope.
+4. `docs/design/djay-bots-saas-owner-analytics-full-flow.html` as the page-by-page Owner analytics approval candidate. It remains non-authoritative and unapproved until each page is explicitly accepted.
+5. `docs/design/djay-bot-text-voice-configuration-flow.html` as the approved visual/clickable reference for merchant product flows; sample data and simulations are not production policy.
+6. `docs/architecture/djay-bots-v1-market-release-architecture.md` and `docs/architecture/djay-bots-system-map.md` for technical realization and system/page linkage.
+7. `docs/design/djay-bots-v1-ui-ux-and-user-flows.md` for detailed responsive, accessibility and interaction behavior.
+8. `docs/implementation/djay-bots-v1-detailed-implementation-plan.md` and the 337-record `requirements/market-release-v1.yaml` for delivery ownership and release gating.
+9. `docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md` for the fixed `PLAT-05` execution sequence, route/API ownership, migration order, role projections, tests, rollout and acceptance evidence. It cannot change the contract or PRD.
+10. Accepted ADRs in `docs/adr/` within their stated technical scope.
+11. Dated plans, audits, validation reports, older HTML demos and existing implementation only as historical/current-state evidence.
 
 When authorities conflict, stop the dependent implementation and record the conflict. Existing single-tenant behavior, older prototypes and historical plans do not silently override the approved experience or a SaaS security invariant. New product behavior remains `Proposed` until the product owner explicitly approves the exact change.

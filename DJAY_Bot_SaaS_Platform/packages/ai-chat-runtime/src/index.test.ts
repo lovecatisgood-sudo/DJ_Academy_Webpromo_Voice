@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AiTextRuntime, AiTextRuntimeError, type AiTurnContext, type AiTurnRepository } from "./index";
+import { AiTextRuntime, AiTextRuntimeError, runAiTextPreview, type AiTurnContext, type AiTurnRepository } from "./index";
 import { ProviderGatewayError } from "@djay/provider-gateway";
 
 const ids = {
@@ -37,7 +37,7 @@ describe("AI text runtime", () => {
     const events: string[] = [];
     const runtime = new AiTextRuntime(repository(events), { async generate() { return {
       output: {
-        schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover_pain",
+        schemaVersion: "sales-core.v1", stage: "S5_OBJECTION", intent: "handle_objection",
         facts: [], knowledgeCitations: [{ sourceRevisionId: ids.revision, chunkId: ids.chunk }],
         responseGoal: "clarify lost conversion", proposedActions: [], handover: null,
         customerResponse: "That may mean visitors click but do not convert. Where do they usually drop off?",
@@ -47,6 +47,180 @@ describe("AI text runtime", () => {
     await expect(runtime.turn({ deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test", inputId: ids.input, message: "Ads cost too much" }))
       .resolves.toMatchObject({ status: "completed", inputId: ids.input });
     expect(events).toEqual(["begin", "commit:100"]);
+  });
+
+  it("rewrites one oversized reply without cutting it and preserves structured evidence", async () => {
+    const events: string[] = [];
+    let calls = 0;
+    const base = {
+      schemaVersion: "sales-core.v1" as const, stage: "S5_OBJECTION" as const, intent: "handle_objection",
+      facts: [], knowledgeCitations: [{ sourceRevisionId: ids.revision, chunkId: ids.chunk }],
+      responseGoal: "clarify lost conversion", proposedActions: [], handover: null,
+      channelResponse: { format: "text" as const, quickReplies: ["Tell me more"] },
+    };
+    const runtime = new AiTextRuntime(repository(events), { async generate() {
+      calls += 1;
+      return {
+        output: { ...base, customerResponse: calls === 1
+          ? Array.from({ length: 201 }, () => "word").join(" ")
+          : "That may mean visitors click but do not convert. Where do they usually drop off?" },
+        nativeUsage: { inputUnits: calls === 1 ? 100 : 10, outputUnits: calls === 1 ? 310 : 30 },
+      };
+    } });
+    await expect(runtime.turn({ deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test", inputId: ids.input, message: "Tell me about consultations." }))
+      .resolves.toMatchObject({ text: "That may mean visitors click but do not convert. Where do they usually drop off?" });
+    expect(calls).toBe(2);
+    expect(events).toEqual(["begin", "commit:110"]);
+  });
+
+  it("repairs invalid structured output before returning a builder or deployed response", async () => {
+    const events: string[] = [];
+    let calls = 0;
+    const runtime = new AiTextRuntime(repository(events), { async generate() {
+      calls += 1;
+      return {
+        output: {
+          schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover_need", facts: [],
+          knowledgeCitations: [{ sourceRevisionId: ids.revision, chunkId: ids.chunk }],
+          responseGoal: "understand the need",
+          proposedActions: calls === 1
+            ? [{ type: "follow_up.create", note: "Follow up", dueAt: "2026-08-20T09:00:00.000Z" }]
+            : [],
+          handover: null,
+          customerResponse: "Which result matters most to you?",
+          channelResponse: { format: "text", quickReplies: [] },
+        },
+        nativeUsage: { inputUnits: calls === 1 ? 40 : 15, outputUnits: 10 },
+      };
+    } });
+    await expect(runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "What can you help with?",
+    })).resolves.toMatchObject({ text: "Which result matters most to you?" });
+    expect(calls).toBe(2);
+    expect(events).toEqual(["begin", "commit:55"]);
+  });
+
+  it("repairs an unsupported ease claim instead of presenting plausible sales language as fact", async () => {
+    const events: string[] = [];
+    let calls = 0;
+    const runtime = new AiTextRuntime(repository(events), { async generate() {
+      calls += 1;
+      return {
+        output: {
+          schemaVersion: "sales-core.v1", stage: "S4_RECOMMENDATION", intent: "recommend_service", facts: [],
+          knowledgeCitations: [{ sourceRevisionId: ids.revision, chunkId: ids.chunk }],
+          responseGoal: "answer setup concern", proposedActions: [], handover: null,
+          customerResponse: calls === 1
+            ? "It is easy and requires no coding, so your team can manage it with minimal effort."
+            : "The approved information does not confirm the technical effort. Which setup requirement matters most to your team?",
+          channelResponse: { format: "text", quickReplies: [] },
+        },
+        nativeUsage: { inputUnits: calls === 1 ? 50 : 20, outputUnits: 15 },
+      };
+    } });
+    await expect(runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "Can a non-technical team manage it?",
+    })).resolves.toMatchObject({ text: "The approved information does not confirm the technical effort. Which setup requirement matters most to your team?" });
+    expect(calls).toBe(2);
+    expect(events).toEqual(["begin", "commit:70"]);
+  });
+
+  it("replaces a first-objection farewell with the deterministic persistent sales response", async () => {
+    const events: string[] = [];
+    let calls = 0;
+    const runtime = new AiTextRuntime(repository(events), { async generate() {
+      calls += 1;
+      return {
+        output: {
+          schemaVersion: "sales-core.v1", stage: calls === 1 ? "S9_ACTION_CLOSE" : "S5_OBJECTION",
+          intent: calls === 1 ? "close" : "handle_objection", facts: [],
+          knowledgeCitations: [{ sourceRevisionId: ids.revision, chunkId: ids.chunk }],
+          responseGoal: calls === 1 ? "end conversation" : "clarify the concern",
+          proposedActions: [], handover: null,
+          customerResponse: calls === 1
+            ? "No problem. If you need anything about AI or automation later, just let me know."
+            : "I understand. Is your main concern the budget, or whether this would reduce enough manual work to be worthwhile?",
+          channelResponse: { format: "text", quickReplies: [] },
+        },
+        nativeUsage: { inputUnits: calls === 1 ? 100 : 20, outputUnits: calls === 1 ? 20 : 25 },
+      };
+    } });
+    await expect(runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "No, it seems too expensive.",
+    })).resolves.toMatchObject({
+      text: "I understand. Is the main concern the available budget, or whether the expected value justifies the cost? I can compare the approved scope with the outcome you need.",
+    });
+    expect(calls).toBe(1);
+    expect(events).toEqual(["begin", "commit:100"]);
+  });
+
+  it("uses the persistent response after multiple earlier objections instead of treating their count as an opt-out", async () => {
+    const events: string[] = [];
+    let calls = 0;
+    const repeatedObjectionContext: AiTurnContext = {
+      ...context,
+      recentMessages: [
+        { sequence: 1, role: "assistant", content: "Would the standard package fit?" },
+        { sequence: 2, role: "user", content: "No" },
+        { sequence: 3, role: "assistant", content: "Would a smaller package help?" },
+        { sequence: 4, role: "user", content: "No" },
+      ],
+    };
+    const runtime = new AiTextRuntime({
+      ...repository(events),
+      async begin() { events.push("begin"); return repeatedObjectionContext; },
+    }, { async generate() {
+      calls += 1;
+      return {
+        output: {
+          schemaVersion: "sales-core.v1", stage: calls === 1 ? "S9_ACTION_CLOSE" : "S5_OBJECTION",
+          intent: calls === 1 ? "close" : "handle_objection", facts: [],
+          knowledgeCitations: [{ sourceRevisionId: ids.revision, chunkId: ids.chunk }],
+          responseGoal: calls === 1 ? "end conversation" : "understand the current concern",
+          proposedActions: [], handover: null,
+          customerResponse: calls === 1
+            ? "No problem. If you need anything later, just let me know."
+            : "Understood. What is the main reason: budget, timing, fit, or trust? I can address only that point without repeating the same pitch.",
+          channelResponse: { format: "text", quickReplies: [] },
+        },
+        nativeUsage: { inputUnits: calls === 1 ? 80 : 20, outputUnits: calls === 1 ? 15 : 25 },
+      };
+    } });
+    await expect(runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "No",
+    })).resolves.toMatchObject({
+      text: "Understood. What is the main reason: budget, timing, fit, or trust? I can address only that point without repeating the same pitch.",
+    });
+    expect(calls).toBe(1);
+    expect(events).toEqual(["begin", "commit:80"]);
+  });
+
+  it("honors an unmistakable conversation-level exit without trying another sales move", async () => {
+    const events: string[] = [];
+    let calls = 0;
+    const runtime = new AiTextRuntime(repository(events), { async generate() {
+      calls += 1;
+      return {
+        output: {
+          schemaVersion: "sales-core.v1", stage: "S9_ACTION_CLOSE", intent: "close", facts: [],
+          knowledgeCitations: [{ sourceRevisionId: ids.revision, chunkId: ids.chunk }],
+          responseGoal: "honor explicit exit", proposedActions: [], handover: null,
+          customerResponse: "Understood. I will end the conversation now.",
+          channelResponse: { format: "text", quickReplies: [] },
+        },
+        nativeUsage: { inputUnits: 30, outputUnits: 10 },
+      };
+    } });
+    await expect(runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "Stop selling and end this conversation.",
+    })).resolves.toMatchObject({ text: "Understood. I will end the conversation now." });
+    expect(calls).toBe(1);
+    expect(events).toEqual(["begin", "commit:30"]);
   });
 
   it("releases the turn when structured output invents a citation", async () => {
@@ -62,6 +236,44 @@ describe("AI text runtime", () => {
     await expect(runtime.turn({ deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test", inputId: ids.input, message: "hello" }))
       .rejects.toEqual(new AiTextRuntimeError("grounding_invalid"));
     expect(events).toEqual(["begin", "fail:grounding_invalid"]);
+  });
+
+  it("removes an invented citation from a safe builder preview instead of failing the draft test", async () => {
+    const preview = runAiTextPreview({
+      gateway: { async generate() { return {
+        output: {
+          schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover_need", facts: [],
+          knowledgeCitations: [{ sourceRevisionId: ids.revision, chunkId: "88888888-8888-4888-8888-888888888888" }],
+          responseGoal: "understand the need", proposedActions: [], handover: null,
+          customerResponse: "Which result matters most to you?",
+          channelResponse: { format: "text", quickReplies: [] },
+        },
+        nativeUsage: { inputUnits: 10, outputUnits: 10 },
+      }; } },
+      inputId: ids.input,
+      playbook: context.playbook,
+      language: "en",
+      knowledgeChunks: context.knowledgeChunks,
+      message: "What can you help with?",
+    });
+    await expect(preview).resolves.toMatchObject({ status: "completed", citationCount: 0 });
+  });
+
+  it("keeps the builder test available with a marked safe fallback when two provider outputs are malformed", async () => {
+    let calls = 0;
+    const preview = runAiTextPreview({
+      gateway: { async generate() {
+        calls += 1;
+        return { output: { malformed: true }, nativeUsage: { inputUnits: 10, outputUnits: 2 } };
+      } },
+      inputId: ids.input,
+      playbook: context.playbook,
+      language: "en",
+      knowledgeChunks: context.knowledgeChunks,
+      message: "What can you help with?",
+    });
+    await expect(preview).resolves.toMatchObject({ status: "completed", fallbackApplied: true, citationCount: 0 });
+    expect(calls).toBe(2);
   });
 
   it("returns a committed replay without calling the gateway", async () => {

@@ -20,9 +20,11 @@ export class AppointmentSyncWorkerStore {
   async claim() {
     return this.client.begin(async (sql) => {
       await sql`SELECT set_config('app.service', 'appointment_sync_worker', true)`;
-      const now = new Date();
       const rows = await sql<AppointmentSyncClaim[]>`
-        SELECT * FROM tenancy.claim_appointment_sync_job(${now}, ${new Date(now.getTime() - 5 * 60_000)})
+        SELECT * FROM tenancy.claim_appointment_sync_job(
+          transaction_timestamp(),
+          transaction_timestamp() - interval '5 minutes'
+        )
       `;
       return rows[0] ?? null;
     });

@@ -49,8 +49,10 @@ describe("restricted AI gateway", () => {
       provider,
       apiKey: "restricted-provider-key-abcdefghijklmnopqrstuvwxyz",
       model: "owner-selected-route",
-      fetchImpl: async (input) => {
+      maxOutputTokens: 1_600,
+      fetchImpl: async (input, init) => {
         expect(String(input)).toBe(endpoint);
+        expect(JSON.parse(String(init?.body)).max_tokens).toBe(1_600);
         return new Response(JSON.stringify({
           choices: [{ message: { content: "{\"response\":\"Hello\"}" } }],
           usage: { prompt_tokens: 3, completion_tokens: 2 },
@@ -64,6 +66,32 @@ describe("restricted AI gateway", () => {
     }));
     expect(accepted.status).toBe(200);
     expect(JSON.stringify(await accepted.json())).not.toMatch(/xai|grok|gemini|model/i);
+  });
+
+  it("retries one transient provider-unavailable response before returning an outage", async () => {
+    let calls = 0;
+    const handler = createAiGatewayHandler({
+      serviceToken: "service-token-abcdefghijklmnopqrstuvwxyz",
+      provider: "xai",
+      apiKey: "restricted-provider-key-abcdefghijklmnopqrstuvwxyz",
+      model: "owner-selected-route",
+      fetchImpl: async () => {
+        calls += 1;
+        if (calls === 1) return new Response("temporary", { status: 503 });
+        return new Response(JSON.stringify({
+          choices: [{ message: { content: "{\"response\":\"Recovered\"}" } }],
+          usage: { prompt_tokens: 3, completion_tokens: 2 },
+        }), { status: 200 });
+      },
+    });
+    const response = await handler(new Request("https://internal.example/v1/generate", {
+      method: "POST",
+      headers: { authorization: "Bearer service-token-abcdefghijklmnopqrstuvwxyz", "content-type": "application/json" },
+      body: JSON.stringify(requestBody),
+    }));
+    expect(response.status).toBe(200);
+    expect(calls).toBe(2);
+    expect(await response.json()).toMatchObject({ output: { response: "Recovered" } });
   });
 
   it("accepts translation.v1 with its caller-supplied strict output schema", async () => {
@@ -89,5 +117,30 @@ describe("restricted AI gateway", () => {
     }));
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ output: { translations: ["บริการ"] } });
+  });
+
+  it("issues a short-lived xAI Voice credential only to the internal API", async () => {
+    const handler = createAiGatewayHandler({
+      serviceToken: "service-token-abcdefghijklmnopqrstuvwxyz",
+      provider: "xai", apiKey: "restricted-provider-key-abcdefghijklmnopqrstuvwxyz", model: "owner-text-route",
+      voice: { apiKey: "restricted-voice-key-abcdefghijklmnopqrstuvwxyz", model: "grok-voice-latest", voice: "eve" },
+      fetchImpl: async (input, init) => {
+        expect(String(input)).toBe("https://api.x.ai/v1/realtime/client_secrets");
+        expect(new Headers(init?.headers).get("authorization")).toBe("Bearer restricted-voice-key-abcdefghijklmnopqrstuvwxyz");
+        return Response.json({ value: "xai-realtime-client-secret-abcdefghijklmnopqrstuvwxyz", expires_at: 1_900_000_000 });
+      },
+    });
+    const denied = await handler(new Request("https://internal.example/v1/voice/client-secret", { method: "POST" }));
+    expect(denied.status).toBe(404);
+    const accepted = await handler(new Request("https://internal.example/v1/voice/client-secret", {
+      method: "POST", headers: { authorization: "Bearer service-token-abcdefghijklmnopqrstuvwxyz" },
+    }));
+    expect(accepted.status).toBe(200);
+    expect(await accepted.json()).toEqual({
+      token: "xai-realtime-client-secret-abcdefghijklmnopqrstuvwxyz",
+      expiresAt: new Date(1_900_000_000 * 1_000).toISOString(),
+      websocketUrl: "wss://api.x.ai/v1/realtime?model=grok-voice-latest",
+      model: "grok-voice-latest", voice: "eve",
+    });
   });
 });

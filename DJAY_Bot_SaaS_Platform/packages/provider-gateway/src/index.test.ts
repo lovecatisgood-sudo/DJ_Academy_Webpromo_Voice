@@ -336,4 +336,31 @@ describe("restricted OpenAI Realtime gateway", () => {
       { type: "response.create" },
     ]);
   });
+
+  it("supports the xAI-compatible realtime endpoint and cumulative customer transcripts", async () => {
+    const socket = new FakeLiveSocket();
+    const events: LiveVoiceEvent[] = [];
+    const gateway = createOpenAIRealtimeVoiceGateway({
+      apiKey: "xai-restricted-abcdefghijklmnopqrstuvwxyz", model: "grok-voice-latest",
+      voiceName: "eve", endpoint: "wss://api.x.ai/v1/realtime",
+      socketFactory: (url, headers) => {
+        expect(url).toBe("wss://api.x.ai/v1/realtime?model=grok-voice-latest");
+        expect(headers.Authorization).toBe("Bearer xai-restricted-abcdefghijklmnopqrstuvwxyz");
+        return socket;
+      },
+    });
+    const connecting = gateway.connect({
+      correlationId: "voice-xai-1", locale: "en", systemPolicy: "Restricted policy",
+    }, (event) => { events.push(event); });
+    socket.open();
+    socket.message({ type: "session.updated", session: { id: "sess_xai" } });
+    await connecting;
+    socket.message({
+      type: "conversation.item.input_audio_transcription.updated",
+      transcript: "I need help with automation",
+    });
+    expect(events).toEqual([
+      { type: "transcript.delta", speaker: "customer", text: "I need help with automation" },
+    ]);
+  });
 });

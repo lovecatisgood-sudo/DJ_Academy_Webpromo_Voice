@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["docs/design/djay-bot-text-voice-configuration-flow.html"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

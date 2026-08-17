@@ -36,8 +36,13 @@ for (const marker of [
   "live Grok testing",
   "fetch('/public/builder/ai-test'",
   "fetch('/public/builder/website-profile'",
+  "fetch('/public/builder/voice-test/session'",
+  "navigator.mediaDevices.getUserMedia",
+  "xai-client-secret.${result.session.token}",
+  "type:'response.cancel'",
   "applyImportedWebsiteProfile",
-  "No sample data was substituted",
+  "websiteImportErrorCopy",
+  "Website import is temporarily unavailable.",
 ]) {
   if (!builder.includes(marker)) failures.push(`approved anonymous builder is missing ${marker}`);
 }
@@ -47,13 +52,32 @@ for (const forbidden of [
   "Start 30-day Flow Bot trial</button>",
   "Harbor Studio",
   "harbor-example",
+  "Continue with public pages found",
+  "id=\"usePartial\"",
+  "state.product = 'text'; state.role = 'sales'; state.publishedProduct = 'text'; state.publishedRole = 'sales';",
 ]) {
   if (builder.includes(forbidden)) failures.push(`approved anonymous builder still contains ${forbidden}`);
 }
+for (const marker of [
+  "const resetProduct = state.product;",
+  "const resetRole = state.role;",
+  "product:resetProduct,role:resetRole,publishedProduct:resetProduct,publishedRole:resetRole",
+  "testMessages:[],accountCreated:false,deployReturn:null",
+]) {
+  if (!builder.includes(marker)) failures.push(`product-preserving configuration reset is missing ${marker}`);
+}
 
 const buildRoute = read("apps/public-site/app/build/route.ts");
-for (const marker of ["djay-bot-text-voice-configuration-flow.html", '"Content-Type": "text/html; charset=utf-8"']) {
+for (const marker of ["djay-bot-text-voice-configuration-flow.html", '"Content-Type": "text/html; charset=utf-8"', "publicBuilderContentSecurityPolicy", "publicBuilderPermissionsPolicy"]) {
   if (!buildRoute.includes(marker)) failures.push(`public builder route is missing ${marker}`);
+}
+const voiceRoute = read("apps/api/app/public/builder/voice-test/session/route.ts");
+for (const marker of ["createXaiBuilderVoiceSession", "public_builder_voice_test_cap", "hasTrustedOrigin"]) {
+  if (!voiceRoute.includes(marker)) failures.push(`anonymous Grok Voice test route is missing ${marker}`);
+}
+const turbo = read("turbo.json");
+if (!turbo.includes('"globalDependencies": ["docs/design/djay-bot-text-voice-configuration-flow.html"]')) {
+  failures.push("Turbo cache does not invalidate builds when the approved builder HTML changes");
 }
 
 for (const [path, marker] of [

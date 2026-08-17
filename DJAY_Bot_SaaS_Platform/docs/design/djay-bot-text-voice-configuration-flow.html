@@ -262,7 +262,7 @@
     .studio-dashboard-route { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
     .studio-dashboard-route button { color: var(--forest); background: var(--soft); font-weight: 850; }
     .studio-dashboard-route button:hover { background: #dfece7; }
-    .nav-group { margin: 14px 10px 5px; color: #7b8581; font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .nav-group { margin: 14px 10px 5px; color: #52605b; font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
     .section-nav button {
       display: flex;
       width: 100%;
@@ -330,6 +330,7 @@
     }
     .choice-card:hover { border-color: #9eb7ad; }
     .choice-card.active { border: 2px solid var(--primary); background: var(--soft); }
+    .choice-card.active span { color: #3f554d; }
     .choice-card strong { display: block; margin: 6px 0 4px; }
     .choice-card span { display: block; color: var(--muted); font-size: 12px; }
     .icon-box { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 7px; color: var(--forest); background: var(--yellow); }
@@ -409,10 +410,13 @@
     .chat {
       display: flex;
       flex: 1;
+      min-height: 0;
       flex-direction: column;
       gap: 11px;
       padding: 16px 13px;
       overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
     }
     .bubble { max-width: 88%; padding: 10px 11px; border-radius: 12px; background: #fff; border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(0,0,0,.03); }
     .bubble.customer { align-self: flex-end; color: #fff; background: var(--primary); border-color: var(--primary); border-bottom-right-radius: 4px; }
@@ -431,6 +435,10 @@
     .composer-help { margin-top: 6px; color: var(--muted); font-size: 10px; }
     .voice-control { display: grid; place-items: center; padding: 8px 0 2px; }
     .voice-orb { display: grid; width: 54px; height: 54px; place-items: center; border: 6px solid #cde0d9; border-radius: 50%; color: #fff; background: var(--primary); font-size: 20px; }
+    .voice-orb.listening { animation: voicePulse 1.4s ease-in-out infinite; }
+    .voice-orb.speaking { background: var(--yellow); color: var(--ink); animation: voicePulse .9s ease-in-out infinite; }
+    .voice-orb.ending { opacity: .65; }
+    @keyframes voicePulse { 50% { transform: scale(1.07); box-shadow: 0 0 0 9px rgba(18,97,73,.13); } }
     .collapsed-label { display: none; writing-mode: vertical-rl; transform: rotate(180deg); color: #fff; font-weight: 800; letter-spacing: .04em; }
     body.tester-collapsed .tester { background: var(--dark-green); }
     body.tester-collapsed .tester-head { height: 100%; flex-direction: column; padding: 14px 10px; }
@@ -454,6 +462,7 @@
       overflow-y: auto;
       background: var(--canvas);
     }
+    .configuration-studio { min-height: 100dvh; }
     .onboarding-topbar {
       position: sticky;
       z-index: 4;
@@ -759,11 +768,16 @@
     .flow-studio-panel > p { margin: 0 0 15px; color: var(--muted); }
     .flow-map-toolbar { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-bottom: 10px; }
     .flow-map-toolbar .spacer { flex: 1; }
-    .flow-canvas-shell-demo { position: relative; overflow: auto; min-height: 650px; border: 1px solid #cfdad6; border-radius: 12px; background-color: #f8faf9; background-image: radial-gradient(#cbd8d3 1px,transparent 1px); background-size: 22px 22px; }
-    .flow-canvas-stage-demo { position: relative; width: 1080px; min-height: 650px; }
-    .flow-canvas-wires { position: absolute; z-index: 0; inset: 0; width: 1080px; height: 650px; pointer-events: none; }
-    .flow-canvas-wires path { fill: none; stroke: #8ba89d; stroke-width: 2; }
-    .flow-canvas-wires path.option { stroke: #537f70; }
+    .flow-canvas-shell-demo { position: relative; overflow: hidden; min-height: 650px; cursor: grab; touch-action: none; border: 1px solid #cfdad6; border-radius: 12px; background-color: #f8faf9; background-image: radial-gradient(#cbd8d3 1px,transparent 1px); background-size: 22px 22px; }
+    .flow-canvas-shell-demo.panning { cursor: grabbing; }
+    .flow-canvas-stage-demo { position: absolute; z-index: 1; top: 0; left: 0; width: 1px; height: 1px; overflow: visible; transform-origin: 0 0; }
+    .flow-canvas-wires { position: absolute; z-index: 0; overflow: visible; pointer-events: none; }
+    .flow-canvas-wires path { fill: none; }
+    .flow-wire-visible { pointer-events: none; stroke: #8ba89d; stroke-width: 2; }
+    .flow-wire-visible.option { stroke: #537f70; }
+    .flow-wire-hit { pointer-events: stroke; cursor: pointer; stroke: transparent; stroke-width: 16; }
+    .flow-wire-group.selected .flow-wire-visible { stroke: #b77708; stroke-width: 4; }
+    .flow-wire-group:focus-within .flow-wire-visible { stroke: #126149; stroke-width: 4; }
     .flow-canvas-wires path.connecting { stroke: var(--yellow); stroke-width: 3; stroke-dasharray: 7 5; }
     .flow-node-demo { position: absolute; z-index: 1; width: 190px; min-height: 96px; padding: 12px; cursor: grab; user-select: none; text-align: left; border: 1px solid #a9bdb5; border-radius: 11px; background: #fff; box-shadow: 0 8px 20px rgba(15,57,44,.08); }
     .flow-node-demo:active { cursor: grabbing; }
@@ -774,17 +788,29 @@
     .flow-node-demo header b { display: grid; width: 20px; height: 20px; place-items: center; color: var(--forest); border-radius: 6px; background: var(--yellow); font-size: 10px; }
     .flow-node-demo strong { display: block; margin: 11px 0 5px; color: var(--forest); font-size: 14px; }
     .flow-node-demo small { display: block; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-    .flow-input-port, .flow-output-port { position: absolute; z-index: 3; display: grid; width: 18px; height: 18px; place-items: center; padding: 0; border: 2px solid #fff; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 1px #71998a, 0 3px 8px rgba(15,57,44,.2); }
-    .flow-input-port { left: -10px; top: 39px; }
+    .flow-input-port, .flow-output-port, .flow-edge-endpoint-port { position: absolute; z-index: 3; display: grid; width: 18px; height: 18px; place-items: center; padding: 0; border: 2px solid #fff; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 1px #71998a, 0 3px 8px rgba(15,57,44,.2); }
+    .flow-input-port { left: -10px; top: 9px; cursor: crosshair; touch-action: none; }
+    .flow-edge-endpoint-port { left: -10px; cursor: crosshair; touch-action: none; background: #fff; box-shadow: 0 0 0 2px var(--primary), 0 3px 8px rgba(15,57,44,.2); }
+    .flow-edge-endpoint-port:hover, .flow-edge-endpoint-port:focus-visible, .flow-edge-endpoint-port.selected { background: var(--yellow); box-shadow: 0 0 0 3px rgba(242,193,78,.35); }
     .flow-output-ports { position: absolute; z-index: 3; top: 37px; right: -10px; display: grid; gap: 5px; }
-    .flow-output-port { position: relative; inset: auto; cursor: crosshair; }
+    .flow-output-port { position: relative; inset: auto; cursor: crosshair; touch-action: none; }
+    .flow-input-port::before, .flow-output-port::before, .flow-edge-endpoint-port::before { content: ''; position: absolute; inset: -13px; }
     .flow-output-port::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #fff; }
     .flow-output-port.unconnected { background: #fff; box-shadow: 0 0 0 2px var(--danger), 0 3px 8px rgba(15,57,44,.16); }
     .flow-output-port.unconnected::after { background: var(--danger); }
     .flow-output-port.connecting { background: var(--yellow); box-shadow: 0 0 0 3px rgba(242,193,78,.35); }
     .flow-input-port.connection-target { transform: scale(1.25); background: var(--yellow); box-shadow: 0 0 0 4px rgba(242,193,78,.28); }
+    .flow-input-port.connecting { transform: scale(1.25); background: var(--yellow); box-shadow: 0 0 0 4px rgba(242,193,78,.35); }
+    .flow-output-port.connection-target { transform: scale(1.25); background: var(--yellow); box-shadow: 0 0 0 4px rgba(242,193,78,.28); }
     .flow-connection-help { margin: 0 0 10px; padding: 10px 12px; color: #3f554d; border: 1px solid #bed3ca; border-radius: 9px; background: #f0f7f4; font-size: 11px; }
     .flow-connection-help strong { color: var(--forest); }
+    .flow-connection-bar { display: flex; gap: 12px; align-items: center; margin: 0 0 10px; padding: 12px; color: #32423c; border: 1px solid #b8cec5; border-radius: 10px; background: #fff; box-shadow: 0 5px 16px rgba(15,57,44,.07); }
+    .flow-connection-bar.pending { border-color: #d8aa45; background: #fffbef; }
+    .flow-connection-bar > div:first-child { min-width: 0; flex: 1; }
+    .flow-connection-bar strong, .flow-connection-bar span { display: block; }
+    .flow-connection-bar span { margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .flow-connection-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+    .flow-disconnect-button { color: var(--danger); border-color: #ddb7b2; background: #fff8f7; }
     .flow-right-panel { display: grid; grid-template-rows: auto minmax(0,1fr); min-width: 0; min-height: 0; border-left: 1px solid var(--line); background: #fff; }
     .flow-right-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 10px; border-bottom: 1px solid var(--line); background: #f7f9f8; }
     .flow-right-tabs button { min-height: 38px; border-radius: 8px; font-weight: 800; }
@@ -803,6 +829,9 @@
     .flow-option-editor-row label { display: grid; gap: 4px; margin: 0; color: #52635d; font-size: 10px; }
     .flow-option-editor input, .flow-option-editor select { min-width: 0; margin: 0; }
     .flow-option-status { display: block; margin-top: 3px; color: var(--danger); font-size: 10px; font-weight: 720; }
+    .flow-option-status.connected { color: var(--primary); }
+    .flow-destination-control { display: grid; gap: 7px; }
+    .flow-destination-control > .btn { justify-self: start; }
     .flow-behavior-help { margin: -4px 0 0; padding: 9px 10px; border-left: 3px solid var(--primary); color: #3f554d; background: #f0f7f4; font-size: 11px; }
     .flow-translation-summary { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:16px; }
     .flow-translation-grid { display:grid; gap:12px; }
@@ -878,6 +907,8 @@
       .flow-panel-close { display: block; }
       .flow-studio-content { overflow: visible; }
       .flow-release-grid { grid-template-columns: 1fr; }
+      .flow-connection-bar { align-items: stretch; flex-direction: column; }
+      .flow-connection-actions .btn { flex: 1; }
     }
     @media (max-width: 620px) {
       .flow-onboarding-main { width: min(100% - 24px,1120px); padding-top: 26px; }
@@ -922,7 +953,10 @@
       .nav-state { display: none; }
       .nav-group, .nav-progress { display: none; }
       .workspace { padding-bottom: 90px; }
-      .tester { position: fixed; z-index: 40; inset: 0; width: 100%; height: 100%; transform: translateY(100%); transition: transform .2s ease; }
+      .tester { position: fixed; z-index: 40; inset: 0; display: grid; width: 100%; height: 100dvh; min-height: 0; grid-template-rows: auto auto auto minmax(120px,1fr) auto auto; transform: translateY(100%); transition: transform .2s ease; }
+      .tester .chat { min-height: 0; overscroll-behavior: contain; }
+      .tester .evidence { max-height: min(28dvh,220px); overflow-y: auto; }
+      .tester .composer { padding-bottom: max(13px,env(safe-area-inset-bottom)); }
       body.tester-mobile-open .tester { transform: translateY(0); }
       body.tester-collapsed .tester { transform: translateY(100%); }
       .mobile-test { display: flex !important; position: fixed; z-index: 25; right: 16px; bottom: 16px; box-shadow: var(--shadow); }
@@ -1130,7 +1164,7 @@
               <div class="inline-error" id="crawlError" role="alert">
                 <strong id="crawlErrorTitle">We could not read this website completely.</strong>
                 <p id="crawlErrorMessage">The site may be unavailable, block automated access, require login, or contain too many pages. Nothing has been generated yet.</p>
-                <div class="row"><button class="btn" id="retryCrawl">Retry</button><button class="btn" id="usePartial">Continue with public pages found</button><button class="text-button" id="switchToManual">Enter details manually</button></div>
+                <div class="row"><button class="btn" id="retryCrawl">Retry</button><button class="text-button" id="switchToManual">Enter details manually</button></div>
               </div>
             </div>
             <div class="source-mode" data-source-mode="manual">
@@ -1346,6 +1380,7 @@
     <footer><button class="btn" id="flowCancelPublish">Continue editing</button><button class="btn btn-green" id="flowConfirmPublish">Publish version 1</button></footer>
   </dialog>
 
+  <section class="configuration-studio hidden" id="configurationStudio" aria-label="Bot Configuration Studio">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">D</div>
@@ -1394,7 +1429,7 @@
       <details class="evidence" open>
         <summary>Response evidence</summary>
         <dl>
-          <dt>Visible length</dt><dd id="charEvidence">0 / 200 characters</dd>
+          <dt>Reply length</dt><dd id="charEvidence">0 words · 300 maximum</dd>
           <dt>Knowledge used</dt><dd id="sourceEvidence">Product catalogue</dd>
           <dt>Style used</dt><dd id="toneEvidence">Warm and concise</dd>
           <dt>Behavior used</dt><dd id="behaviorEvidence">Sales objective and boundaries</dd>
@@ -1407,13 +1442,14 @@
         <div class="composer-help">Text tests use the configured DJBOT AI gateway and the current draft. No customer action is executed.</div>
       </div>
       <div class="composer hidden" id="voiceComposer">
-        <div class="voice-control"><button class="voice-orb" id="voiceTest" aria-label="Start simulated voice test">◉</button></div>
-        <div class="composer-help" id="voiceStatus">Press to simulate a voice call. This demo will not request microphone access.</div>
+        <div class="voice-control"><button class="voice-orb" id="voiceTest" aria-label="Start live voice test">◉</button></div>
+        <div class="composer-help" id="voiceStatus">Press Start to allow microphone access and begin a live Grok Voice test. Recording is off.</div>
       </div>
     </aside>
   </main>
 
   <button class="btn btn-green mobile-test" id="mobileTest">Test bot</button>
+  </section>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <section class="dashboard-demo hidden" id="merchantDashboard" aria-label="Approved DJBOT merchant dashboard preview">
@@ -1478,7 +1514,7 @@
       <ul class="checklist">
         <li><span class="checkmark" id="reviewRequiredIcon">✓</span><span id="reviewRequiredText">Core configuration looks complete</span></li>
         <li><span class="checkmark pending" id="reviewTestsIcon">!</span><span id="reviewTestsText">Suggested role-specific tests have not all passed</span></li>
-        <li><span class="checkmark" id="reviewLengthIcon">✓</span><span id="reviewLengthText">Configured customer messages are within 200 visible characters</span></li>
+        <li><span class="checkmark" id="reviewLengthIcon">✓</span><span id="reviewLengthText">Configured replies are concise and within the 200-word maximum</span></li>
         <li><span class="checkmark pending">!</span>Website installation is a separate step after publishing</li>
       </ul>
       <div class="notice hidden" id="publishWarningSummary" style="margin-top:14px"><strong>!</strong><div><strong id="publishWarningTitle">This draft has recommendations</strong><p id="publishWarningText">Review the warnings or publish if the bot already performs well enough for your business.</p></div></div>
@@ -1520,7 +1556,7 @@
       },
       sales: {
         objective: 'Understand the customer need, recommend the best suitable offer, handle concerns honestly, and offer a consultation when it is a useful next step.',
-        behavior: 'Be helpful rather than pushy. Ask relevant discovery questions, explain one best-fit option and an alternative, acknowledge objections, and confirm consent before lead capture.',
+        behavior: 'Be helpful rather than pushy. Treat every price, timing, fit, trust, complexity, readiness, bare no, or rejection of one offer as an objection to understand regardless of how many came before it. Acknowledge the current concern, ask one focused question when its reason is unclear, answer from approved facts, and make one low-pressure useful move. Change strategy instead of repeating the same pitch by clarifying value, narrowing scope, addressing one risk, comparing a relevant alternative, or offering a smaller next step. Never end because of an objection count. End only when the customer unmistakably asks to end the conversation, stop selling or contacting them, unsubscribe, or be left alone.',
         boundaries: 'Never invent discounts, urgency, availability, guarantees, results, or competitor claims. Hand pricing exceptions, negotiations, and sensitive requests to a person.'
       },
       booking: {
@@ -1530,7 +1566,8 @@
       }
     };
 
-    const state = { product: 'text', role: 'sales', publishedProduct: 'text', publishedRole: 'sales', section: 'business', testMode: 'draft', pendingRole: null, version: 0, configured: false, dirty: false, chatInitialized: false, accountCreated: false, deployReturn: null };
+    const state = { product: 'text', role: 'sales', publishedProduct: 'text', publishedRole: 'sales', section: 'business', testMode: 'draft', pendingRole: null, version: 0, configured: false, dirty: false, chatInitialized: false, testMessages: [], accountCreated: false, deployReturn: null };
+    const builderVoice = {active:false,starting:false,terminal:false,responseCapped:false,stream:null,socket:null,audioContext:null,inputSource:null,inputProcessor:null,inputSilence:null,playbackCursor:0,playbackSources:new Set(),timer:null,customerText:'',agentText:''};
     const onboardingState = { page: 'role', source: 'website', processTimer: null, importController: null, importedSources: [] };
     const commerceState = { product: 'text', plan: 'ai_chat_basic', intent: 'subscribe' };
     const commerceCatalog = {
@@ -1719,6 +1756,50 @@
       }
       return true;
     }
+    function flowIncomingEdges(draft,targetId) {
+      return draft.nodes.flatMap(source => {
+        const edges = [];
+        if (!['options','end','handover'].includes(source.type) && source.next === targetId) edges.push({sourceId:source.id,kind:'next',optionIndex:0,targetId});
+        if (source.type === 'options') (source.options || []).forEach((option,optionIndex) => {
+          if (option.target === targetId) edges.push({sourceId:source.id,kind:'option',optionIndex,targetId});
+        });
+        return edges;
+      });
+    }
+    function flowChangeNodeType(draft,nodeId,nextType,defaultFields=[]) {
+      const node = draft.nodes.find(item => item.id === nodeId);
+      if (!node || node.type === nextType) return {changed:false,disconnected:0};
+      let disconnected = 0;
+      const clearNext = () => { if (node.next) disconnected += 1; node.next = null; };
+      const clearOptions = () => (node.options || []).forEach(option => { if (option.target) disconnected += 1; option.target = ''; });
+      const previousType = node.type;
+      node.type = nextType;
+      if (nextType === 'options') {
+        clearNext();
+        if (previousType !== 'options') clearOptions();
+        if (!node.options?.length) node.options = [flowChoice('Continue','ดำเนินการต่อ','')];
+        node.needsConnection = false;
+      } else if (['end','handover'].includes(nextType)) {
+        clearNext(); clearOptions(); node.needsConnection = false;
+      } else {
+        if (previousType === 'options') clearNext();
+        clearOptions();
+        if (nextType === 'form' && !node.fields) node.fields = clone(defaultFields);
+        node.needsConnection = !node.next;
+      }
+      return {changed:true,disconnected};
+    }
+    function flowCloneNodeDisconnected(node,id,x,y) {
+      const copyNode = clone(node);
+      copyNode.id = id;
+      copyNode.title = `${copyNode.title} copy`;
+      copyNode.x = x;
+      copyNode.y = y;
+      copyNode.next = null;
+      copyNode.options = (copyNode.options || []).map(option => ({...option,target:''}));
+      copyNode.needsConnection = !['options','end','handover'].includes(copyNode.type);
+      return copyNode;
+    }
     function flowRemoveNodeFromDraft(draft,nodeId) {
       if (!draft.nodes.some(node => node.id === nodeId)) return {removed:false,disconnected:0};
       let disconnected = 0;
@@ -1831,6 +1912,9 @@
     let flowUndoStack = [];
     let flowRedoStack = [];
     let flowConnection = null;
+    let flowSelectedEdge = null;
+    const flowViewport = {x:80,y:60,zoom:1};
+    let flowCanvasMoved = false;
     try {
       const savedFlow = JSON.parse(localStorage.getItem(flowStorageKey) || 'null');
       if (savedFlow?.draft) {
@@ -1946,6 +2030,53 @@
     ];
     const $ = (selector) => document.querySelector(selector);
     const $$ = (selector) => [...document.querySelectorAll(selector)];
+    const topLevelSurfaceIds = ['journeyDemo','onboardingDemo','flowOnboardingDemo','flowStudioDemo','configurationStudio','merchantDashboard'];
+    function activateSurface(activeId,focusSelector='') {
+      topLevelSurfaceIds.forEach(id => {
+        const surface = $('#' + id);
+        if (!surface) return;
+        const active = id === activeId;
+        surface.classList.toggle('hidden',!active);
+        surface.inert = !active;
+        if (active) surface.removeAttribute('aria-hidden');
+        else surface.setAttribute('aria-hidden','true');
+      });
+      if (activeId !== 'configurationStudio') document.body.classList.remove('tester-mobile-open','tester-expanded','tester-collapsed');
+      if (focusSelector) requestAnimationFrame(() => {
+        const target = $(focusSelector);
+        if (!target) return;
+        if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex','-1');
+        target.focus({preventScroll:true});
+      });
+    }
+    function focusStepHeading(selector) {
+      requestAnimationFrame(() => {
+        const heading = $(selector);
+        if (!heading) return;
+        heading.setAttribute('tabindex','-1');
+        heading.focus({preventScroll:true});
+      });
+    }
+    function trapSurfaceFocus(event,surface) {
+      if (event.key !== 'Tab' || !surface || surface.classList.contains('hidden')) return;
+      const focusable = [...surface.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+        .filter(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden');
+      if (!focusable.length) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (!surface.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault(); last.focus();
+      }
+    }
+    document.addEventListener('keydown',event => {
+      const activeOnboarding = !$('#onboardingDemo')?.classList.contains('hidden') ? $('#onboardingDemo')
+        : !$('#flowOnboardingDemo')?.classList.contains('hidden') ? $('#flowOnboardingDemo') : null;
+      if (activeOnboarding) trapSurfaceFocus(event,activeOnboarding);
+    });
     const storageKey = 'djbot-configuration-builder-v2';
     const defaultDraft = {
       business: {
@@ -1980,7 +2111,7 @@
         {id: 3, name: 'Merchant FAQ', use: 'Approved answers', status: 'Not reviewed'}
       ],
       rows: {
-        objections: [{a:'Too expensive',b:'Clarify needs, compare included value, and offer the appropriate package'},{a:'Need time',b:'Offer a concise summary and optional follow-up'},{a:'Not sure it fits',b:'Ask one fit question and explain limitations'}],
+        objections: [{a:'Too expensive',b:'I understand. Is the concern the available budget, or whether the expected value justifies the cost? I can compare the included value and the smallest suitable option.'},{a:'Need time',b:'Of course. What part would help you decide—fit, implementation effort, or cost? I can give you a short factual summary without pushing for a decision.'},{a:'Not sure it fits',b:'That makes sense. Which requirement are you least certain it can handle? I will explain the fit and any limitation honestly.'}],
         qualification: [{a:'Name',b:'When requesting follow-up'},{a:'Email or phone',b:'Only with explicit contact consent'},{a:'Need and timeframe',b:'Before marking a lead qualified'}],
         appointments: [{a:'Offer appointment',b:'After the need is understood'},{a:'Create appointment',b:'Only after explicit confirmation'},{a:'Send to CRM',b:'Only after lead consent'}],
         services: [{a:'Consultation',b:'30 minutes'},{a:'Product demonstration',b:'45 minutes'},{a:'Support assessment',b:'20 minutes'}],
@@ -2012,6 +2143,21 @@
     } catch (error) {
       localStorage.removeItem(storageKey);
     }
+    const legacySalesBehavior = 'Be helpful rather than pushy. Ask relevant discovery questions, explain one best-fit option and an alternative, acknowledge objections, and confirm consent before lead capture.';
+    const supersededTwoRefusalSalesBehavior = 'Be helpful rather than pushy. Ask relevant discovery questions, explain one best-fit option and an alternative, and treat the first price, timing, fit, trust, or complexity concern as an objection to understand—not a reason to end the conversation. Acknowledge it, ask one focused question, answer from approved facts, and offer one low-pressure next step. Honor an explicit opt-out immediately and stop after two clear refusals.';
+    const legacyObjectionResponses = new Map([
+      ['Clarify needs, compare included value, and offer the appropriate package', defaultDraft.rows.objections[0].b],
+      ['Offer a concise summary and optional follow-up', defaultDraft.rows.objections[1].b],
+      ['Ask one fit question and explain limitations', defaultDraft.rows.objections[2].b]
+    ]);
+    function migrateObjectionDefaults(target) {
+      if ([legacySalesBehavior,supersededTwoRefusalSalesBehavior].includes(target?.business?.agentBehavior)) target.business.agentBehavior = defaultDraft.business.agentBehavior;
+      (target?.rows?.objections || []).forEach(row => {
+        if (legacyObjectionResponses.has(row.b)) row.b = legacyObjectionResponses.get(row.b);
+      });
+    }
+    migrateObjectionDefaults(draft);
+    migrateObjectionDefaults(publishedDraft);
     draft.business ||= clone(defaultDraft.business);
     Object.entries(defaultDraft.business).forEach(([key,value]) => { if (draft.business[key] === undefined) draft.business[key] = clone(value); });
     draft.text ||= clone(defaultDraft.text);
@@ -2139,6 +2285,7 @@
       if (!from.length) return;
       to.push(JSON.stringify(flowDraft));
       flowDraft = JSON.parse(from.pop());
+      clearFlowConnectorInteraction();
       flowState.selectedNodeId = flowDraft.nodes.some(node => node.id === flowState.selectedNodeId) ? flowState.selectedNodeId : flowDraft.entryId;
       flowState.dirty = true;
       saveFlowLocal();
@@ -2159,6 +2306,7 @@
         $('#flowReadyBotName').textContent = flowDraft.identity.botName;
         $('#flowReadyNodeCount').textContent = `${flowDraft.nodes.length} editable ${flowDraft.nodes.length === 1 ? 'step' : 'steps'}`;
       }
+      focusStepHeading(`[data-flow-onboarding-page="${page}"] h1`);
       saveFlowLocal();
     }
 
@@ -2226,13 +2374,10 @@
     }
 
     function openFlowStudio(section = flowState.section || 'map') {
+      clearFlowConnectorInteraction();
       state.product = 'flow';
       flowState.section = section;
-      $('#journeyDemo').classList.add('hidden');
-      $('#onboardingDemo').classList.add('hidden');
-      $('#flowOnboardingDemo').classList.add('hidden');
-      $('#merchantDashboard').classList.add('hidden');
-      $('#flowStudioDemo').classList.remove('hidden');
+      activateSurface('flowStudioDemo');
       $('#flowStudioDemo').classList.remove('flow-panel-open');
       renderFlowStudio();
       $('#flowStudioContent').scrollTop = 0;
@@ -2295,8 +2440,8 @@
         html += `<button data-flow-section="${section.key}" class="${flowState.section === section.key ? 'active' : ''}"><span>${escapeHtml(section.label)}</span><small class="${status.className}">${escapeHtml(status.label)}</small></button>`;
       });
       $('#flowStudioNav').innerHTML = html;
-      $('[data-flow-dashboard]').addEventListener('click',() => showDashboard('overview'));
-      $$('[data-flow-section]').forEach(button => button.addEventListener('click',() => { flowState.section = button.dataset.flowSection; renderFlowStudio(); $('#flowStudioContent').scrollTop = 0; }));
+      $('[data-flow-dashboard]').addEventListener('click',() => { clearFlowConnectorInteraction(); showDashboard('overview'); });
+      $$('[data-flow-section]').forEach(button => button.addEventListener('click',() => { clearFlowConnectorInteraction(); flowState.section = button.dataset.flowSection; renderFlowStudio(); $('#flowStudioContent').scrollTop = 0; }));
     }
 
     function flowPageHead(title,description,badge='Flow Bot draft') {
@@ -2308,9 +2453,156 @@
         `<section class="flow-studio-panel"><h2>Customer-facing identity</h2><p>Changes save to the Flow draft and update the preview.</p><div class="field-grid"><label>Bot name<input data-flow-bind="identity.botName" value="${escapeHtml(flowDraft.identity.botName)}"></label><div><strong>Conversation language</strong><p class="help">The customer chooses English or ไทย before the first message. The choice stays with that conversation.</p></div><label class="wide">English greeting<textarea data-flow-bind="identity.greetingEn">${escapeHtml(flowDraft.identity.greetingEn)}</textarea></label><label class="wide">คำทักทายภาษาไทย<textarea data-flow-bind="identity.greetingTh">${escapeHtml(flowDraft.identity.greetingTh)}</textarea></label><label>Brand color<div class="flow-color-control"><input type="color" data-flow-bind="identity.brandColor" value="${escapeHtml(normalizeFlowBrandColor(flowDraft.identity.brandColor))}" aria-label="Brand color"><output class="flow-color-value">${escapeHtml(normalizeFlowBrandColor(flowDraft.identity.brandColor).toUpperCase())}</output></div></label><label>Widget position<select data-flow-bind="identity.position">${optionList(['Bottom right','Bottom left'],flowDraft.identity.position)}</select></label><label>Business hours<input data-flow-bind="identity.businessHours" value="${escapeHtml(flowDraft.identity.businessHours)}"></label><label>Handover contact<input data-flow-bind="identity.handoverContact" value="${escapeHtml(flowDraft.identity.handoverContact)}"></label><label class="wide">Privacy policy URL<input data-flow-bind="identity.privacyUrl" value="${escapeHtml(flowDraft.identity.privacyUrl)}"></label></div></section>` + flowWidgetPreview(false);
     }
 
+    function flowEdgeDetails(edge,draft=flowDraft) {
+      if (!edge) return null;
+      const source = draft.nodes.find(node => node.id === edge.sourceId);
+      if (!source) return null;
+      const option = edge.kind === 'option' ? source.options?.[Number(edge.optionIndex)] : null;
+      if (edge.kind === 'option' && (!option || source.type !== 'options')) return null;
+      if (edge.kind === 'next' && ['options','end','handover'].includes(source.type)) return null;
+      const targetId = edge.kind === 'option' ? option.target : source.next || '';
+      const target = draft.nodes.find(node => node.id === targetId) || null;
+      const routeLabel = edge.kind === 'option' ? option.en || `Reply ${Number(edge.optionIndex) + 1}` : 'Next message';
+      return {source,option,target,targetId,routeLabel,sourceId:source.id,kind:edge.kind,optionIndex:Number(edge.optionIndex || 0)};
+    }
+
+    function clearFlowConnectorInteraction() {
+      flowConnection = null;
+      flowSelectedEdge = null;
+    }
+
+    function flowConnectionBar() {
+      if (flowConnection?.mode === 'target') {
+        const target = flowDraft.nodes.find(node => node.id === flowConnection.targetId);
+        if (!target) return '';
+        return `<div class="flow-connection-bar pending" role="status"><div><strong>Connect a route into ${escapeHtml(target.title)}</strong><span>Choose or drag the exact right-side route. Existing connected endpoints remain directly draggable on the canvas.</span></div><div class="flow-connection-actions"><button class="btn" id="flowCancelConnection">Cancel</button></div></div>`;
+      }
+      const pending = flowEdgeDetails(flowConnection);
+      if (pending) {
+        const current = pending.target ? ` Current destination: ${pending.target.title}.` : '';
+        return `<div class="flow-connection-bar pending" role="status"><div><strong>Choose a destination for ${escapeHtml(pending.routeLabel)}</strong><span>From ${escapeHtml(pending.source.title)}.${escapeHtml(current)} Select the input port on another message, or cancel.</span></div><div class="flow-connection-actions"><button class="btn" id="flowCancelConnection">Cancel</button>${pending.target ? '<button class="btn flow-disconnect-button" id="flowDisconnectPendingConnection">Disconnect current</button>' : ''}</div></div>`;
+      }
+      const selected = flowEdgeDetails(flowSelectedEdge);
+      if (selected?.target) {
+        return `<div class="flow-connection-bar" role="status"><div><strong>Connection selected</strong><span>${escapeHtml(selected.source.title)}: ${escapeHtml(selected.routeLabel)} to ${escapeHtml(selected.target.title)}</span></div><div class="flow-connection-actions"><button class="btn" id="flowChangeSelectedConnection">Change</button><button class="btn flow-disconnect-button" id="flowDisconnectSelectedConnection">Disconnect</button></div></div>`;
+      }
+      return '';
+    }
+
+    function disconnectFlowEdge(edge) {
+      const details = flowEdgeDetails(edge);
+      if (!details?.targetId) { clearFlowConnectorInteraction(); renderFlowStudio(); return false; }
+      rememberFlowDraft();
+      const disconnected = flowSetDestination(flowDraft,details.sourceId,details.kind,details.optionIndex,'');
+      clearFlowConnectorInteraction();
+      if (!disconnected) { renderFlowStudio(); showToast('This connection could not be disconnected.'); return false; }
+      markFlowChanged();
+      renderFlowStudio();
+      showToast(`${details.routeLabel} disconnected from ${details.target?.title || 'its destination'}.`);
+      return true;
+    }
+
+    function updateFlowEdgeDestination(edge,targetId) {
+      const details = flowEdgeDetails(edge);
+      if (!details) return false;
+      if (!targetId) return disconnectFlowEdge(edge);
+      if (details.targetId === targetId) return true;
+      rememberFlowDraft();
+      const updated = flowSetDestination(flowDraft,details.sourceId,details.kind,details.optionIndex,targetId);
+      flowConnection = null;
+      flowSelectedEdge = updated ? {sourceId:details.sourceId,kind:details.kind,optionIndex:details.optionIndex} : null;
+      if (!updated) { renderFlowStudio(); showToast('That destination is not valid for this route.'); return false; }
+      markFlowChanged();
+      renderFlowStudio();
+      showToast(`${details.routeLabel} connected to ${flowDraft.nodes.find(node => node.id === targetId)?.title || 'the selected message'}.`);
+      return true;
+    }
+
+    function applyFlowViewport() {
+      const stage = $('#flowCanvasStage');
+      const shell = $('#flowCanvasShell');
+      if (!stage || !shell) return;
+      stage.style.transform = `translate(${flowViewport.x}px,${flowViewport.y}px) scale(${flowViewport.zoom})`;
+      shell.style.backgroundPosition = `${flowViewport.x}px ${flowViewport.y}px`;
+      shell.style.backgroundSize = `${22 * flowViewport.zoom}px ${22 * flowViewport.zoom}px`;
+      if ($('#flowZoomLabel')) $('#flowZoomLabel').textContent = `${Math.round(flowViewport.zoom * 100)}%`;
+    }
+
+    function setFlowZoom(nextZoom,clientX,clientY) {
+      const shell = $('#flowCanvasShell');
+      if (!shell) return;
+      const rect = shell.getBoundingClientRect();
+      const anchorX = (clientX ?? rect.left + rect.width / 2) - rect.left;
+      const anchorY = (clientY ?? rect.top + rect.height / 2) - rect.top;
+      const worldX = (anchorX - flowViewport.x) / flowViewport.zoom;
+      const worldY = (anchorY - flowViewport.y) / flowViewport.zoom;
+      const zoom = Math.max(.35,Math.min(2,Number(nextZoom)));
+      flowViewport.x = anchorX - worldX * zoom;
+      flowViewport.y = anchorY - worldY * zoom;
+      flowViewport.zoom = zoom;
+      applyFlowViewport();
+    }
+
+    function fitFlowCanvas() {
+      const shell = $('#flowCanvasShell');
+      if (!shell || !flowDraft.nodes.length) return;
+      const padding = 70;
+      const minX = Math.min(...flowDraft.nodes.map(node => Number(node.x)));
+      const minY = Math.min(...flowDraft.nodes.map(node => Number(node.y)));
+      const maxX = Math.max(...flowDraft.nodes.map(node => Number(node.x) + 190));
+      const maxY = Math.max(...flowDraft.nodes.map(node => Number(node.y) + (node.type === 'options' ? Math.max(96,68 + Math.max(0,(node.options || []).length - 1) * 23) : 96)));
+      const width = Math.max(1,maxX - minX);
+      const height = Math.max(1,maxY - minY);
+      const zoom = Math.max(.35,Math.min(1.15,Math.min((shell.clientWidth - padding * 2) / width,(shell.clientHeight - padding * 2) / height)));
+      flowViewport.zoom = zoom;
+      flowViewport.x = (shell.clientWidth - width * zoom) / 2 - minX * zoom;
+      flowViewport.y = (shell.clientHeight - height * zoom) / 2 - minY * zoom;
+      applyFlowViewport();
+    }
+
+    function bindFlowCanvasNavigation() {
+      const shell = $('#flowCanvasShell');
+      if (!shell) return;
+      shell.addEventListener('pointerdown',event => {
+        const overInteractive = event.target.closest('[data-flow-node],[data-flow-edge],[data-flow-edge-endpoint],[data-flow-input-port],[data-flow-output-port]');
+        if (![0,1].includes(event.button) || (event.button === 0 && overInteractive)) return;
+        event.preventDefault();
+        const start = {x:event.clientX,y:event.clientY,viewportX:flowViewport.x,viewportY:flowViewport.y};
+        let moved = false;
+        shell.setPointerCapture?.(event.pointerId);
+        const move = moveEvent => {
+          const dx = moveEvent.clientX - start.x, dy = moveEvent.clientY - start.y;
+          if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+          moved = true;
+          shell.classList.add('panning');
+          flowViewport.x = start.viewportX + dx;
+          flowViewport.y = start.viewportY + dy;
+          applyFlowViewport();
+        };
+        const finish = () => {
+          shell.removeEventListener('pointermove',move);
+          shell.removeEventListener('pointerup',finish);
+          shell.removeEventListener('pointercancel',finish);
+          if (shell.hasPointerCapture?.(event.pointerId)) shell.releasePointerCapture(event.pointerId);
+          shell.classList.remove('panning');
+          if (moved) { flowCanvasMoved = true; setTimeout(() => { flowCanvasMoved = false; },0); }
+        };
+        shell.addEventListener('pointermove',move);
+        shell.addEventListener('pointerup',finish,{once:true});
+        shell.addEventListener('pointercancel',finish,{once:true});
+      });
+      shell.addEventListener('wheel',event => {
+        event.preventDefault();
+        const factor = Math.exp(-event.deltaY * .0015);
+        setFlowZoom(flowViewport.zoom * factor,event.clientX,event.clientY);
+      },{passive:false});
+      shell.addEventListener('auxclick',event => { if (event.button === 1) event.preventDefault(); });
+    }
+
     function flowMapSection() {
+      const edgeSelected = Boolean(flowEdgeDetails(flowSelectedEdge)?.targetId);
       return flowPageHead('Build the customer journey','Select, drag, connect through the step editor, and test the real draft. Warnings are advisory; broken references are not publishable.',`${flowDraft.nodes.length} steps`) +
-        `<section class="flow-studio-panel"><div class="flow-map-toolbar"><button class="btn btn-green" id="flowAddNode">Add message</button><button class="btn" id="flowDuplicateNode">Duplicate selected</button><button class="btn" id="flowDeleteNode">Remove selected</button><div class="spacer"></div><button class="btn" id="flowFitMap">Fit map</button><button class="btn" id="flowOpenTest">Test selected message</button><button class="btn btn-green" id="flowOpenFullTest">Test full journey</button></div><p class="flow-connection-help"><strong>Connect messages:</strong> choose a destination in the editor, or drag a dot from the right side of one message to the left side of another. Reply buttons each have their own connector.</p><div class="flow-canvas-shell-demo" id="flowCanvasShell"><div class="flow-canvas-stage-demo" id="flowCanvasStage"></div></div></section>` +
+        `<section class="flow-studio-panel"><div class="flow-map-toolbar"><button class="btn btn-green" id="flowAddNode">Add message</button><button class="btn" id="flowDuplicateNode" ${edgeSelected ? 'disabled' : ''}>Duplicate selected message</button><button class="btn ${edgeSelected ? 'flow-disconnect-button' : ''}" id="flowDeleteNode">${edgeSelected ? 'Disconnect selected' : 'Remove selected message'}</button><div class="spacer"></div><button class="btn" id="flowZoomOut" aria-label="Zoom out">−</button><button class="btn" id="flowZoomLabel" aria-label="Reset zoom">${Math.round(flowViewport.zoom * 100)}%</button><button class="btn" id="flowZoomIn" aria-label="Zoom in">+</button><button class="btn" id="flowFitMap">Fit map</button><button class="btn" id="flowOpenTest" ${edgeSelected ? 'disabled' : ''}>Test selected message</button><button class="btn btn-green" id="flowOpenFullTest">Test full journey</button></div><p class="flow-connection-help"><strong>Direct canvas controls:</strong> drag empty canvas to pan and use the wheel or zoom controls to scale. Drag a right-side route onto a message to connect. To disconnect like DJAI Design, drag either connected endpoint into empty canvas. Drag either endpoint onto another message to reconnect. You can also select a line and press Delete or Backspace.</p>${flowConnectionBar()}<div class="flow-canvas-shell-demo" id="flowCanvasShell" aria-label="Infinite Flow canvas"><div class="flow-canvas-stage-demo" id="flowCanvasStage"></div></div></section>` +
         `<section class="flow-studio-panel"><div class="row between"><div><h2>Draft checks</h2><p>Technical errors must be repaired. Suggestions never force you to review or test.</p></div><span class="badge">${flowStructuralErrors().length} errors · ${flowWarnings().length} suggestions</span></div><ul class="flow-check-list">${flowStructuralErrors().map(item => `<li><b class="warn">!</b><span>${escapeHtml(item)}</span></li>`).join('') || '<li><b>✓</b><span>All step references are structurally valid.</span></li>'}${flowWarnings().map(item => `<li><b class="warn">!</b><span>${escapeHtml(item)}</span></li>`).join('')}</ul></section>`;
     }
 
@@ -2367,50 +2659,88 @@
     function renderFlowMap() {
       const stage = $('#flowCanvasStage');
       if (!stage) return;
+      if (flowSelectedEdge && !flowEdgeDetails(flowSelectedEdge)?.targetId) flowSelectedEdge = null;
+      if (flowConnection?.mode === 'target' && !flowDraft.nodes.some(node => node.id === flowConnection.targetId)) flowConnection = null;
+      if (flowConnection && flowConnection.mode !== 'target' && !flowEdgeDetails(flowConnection)) flowConnection = null;
       const lines = [];
       const byId = Object.fromEntries(flowDraft.nodes.map(node => [node.id,node]));
       const nodeHeight = node => node.type === 'options' ? Math.max(96,68 + Math.max(0,(node.options || []).length - 1) * 23) : 96;
-      const canvasHeight = Math.max(650,...flowDraft.nodes.map(node => Number(node.y) + nodeHeight(node) + 36));
-      stage.style.minHeight = `${canvasHeight}px`;
+      const minCanvasX = Math.min(-800,...flowDraft.nodes.map(node => Number(node.x) - 800));
+      const minCanvasY = Math.min(-800,...flowDraft.nodes.map(node => Number(node.y) - 800));
+      const maxCanvasX = Math.max(1600,...flowDraft.nodes.map(node => Number(node.x) + 990));
+      const maxCanvasY = Math.max(1400,...flowDraft.nodes.map(node => Number(node.y) + nodeHeight(node) + 800));
       flowDraft.nodes.forEach(node => {
         const targets = [...(node.next ? [{target:node.next,kind:'next',index:0}] : []),...flowActiveOptions(node).map((option,index) => ({target:option.target,kind:'option',index}))];
         targets.forEach(edge => {
           const target = byId[edge.target];
           if (!target) return;
-          const x1 = node.x + 190, y1 = node.y + (edge.kind === 'option' ? 46 + edge.index * 23 : 48), x2 = target.x, y2 = target.y + 48;
+          const incoming = flowIncomingEdges(flowDraft,target.id);
+          const incomingIndex = Math.max(0,incoming.findIndex(item => item.sourceId === node.id && item.kind === edge.kind && Number(item.optionIndex) === edge.index));
+          const incomingGap = incoming.length > 1 ? Math.min(16,70 / (incoming.length - 1)) : 0;
+          const incomingOffset = (incomingIndex - (incoming.length - 1) / 2) * incomingGap;
+          const x1 = node.x + 190, y1 = node.y + (edge.kind === 'option' ? 46 + edge.index * 23 : 48), x2 = target.x, y2 = target.y + 48 + incomingOffset;
           const control = Math.max(40,Math.abs(x2 - x1) * .42);
-          lines.push(`<path class="${edge.kind}" d="M${x1} ${y1} C ${x1 + control} ${y1}, ${x2 - control} ${y2}, ${x2} ${y2}"/>`);
+          const path = `M${x1} ${y1} C ${x1 + control} ${y1}, ${x2 - control} ${y2}, ${x2} ${y2}`;
+          const selected = flowSelectedEdge?.sourceId === node.id && flowSelectedEdge?.kind === edge.kind && Number(flowSelectedEdge?.optionIndex || 0) === edge.index;
+          const routeLabel = edge.kind === 'option' ? node.options?.[edge.index]?.en || `Reply ${edge.index + 1}` : 'Next message';
+          lines.push(`<g class="flow-wire-group ${selected ? 'selected' : ''}"><path class="flow-wire-visible ${edge.kind}" d="${path}"/><path class="flow-wire-hit" d="${path}" data-flow-edge data-flow-edge-source="${escapeHtml(node.id)}" data-flow-edge-kind="${edge.kind}" data-flow-edge-index="${edge.index}" tabindex="0" role="button" aria-label="Connection from ${escapeHtml(node.title)}, ${escapeHtml(routeLabel)}, to ${escapeHtml(target.title)}"></path></g>`);
         });
       });
       const nodeHtml = flowDraft.nodes.map(node => {
+        const incoming = flowIncomingEdges(flowDraft,node.id);
+        const incomingGap = incoming.length > 1 ? Math.min(16,70 / (incoming.length - 1)) : 0;
+        const incomingPorts = incoming.map((edge,index) => {
+          const details = flowEdgeDetails(edge);
+          const offset = (index - (incoming.length - 1) / 2) * incomingGap;
+          const selected = flowSelectedEdge?.sourceId === edge.sourceId && flowSelectedEdge?.kind === edge.kind && Number(flowSelectedEdge?.optionIndex || 0) === Number(edge.optionIndex || 0);
+          return `<button class="flow-edge-endpoint-port ${selected ? 'selected' : ''}" style="top:${39 + offset}px" data-flow-edge-endpoint data-flow-edge-source="${escapeHtml(edge.sourceId)}" data-flow-edge-kind="${edge.kind}" data-flow-edge-index="${Number(edge.optionIndex || 0)}" title="Drag into empty canvas to disconnect" aria-label="Reconnect or disconnect ${escapeHtml(details?.routeLabel || 'connection')} from ${escapeHtml(node.title)}"></button>`;
+        }).join('');
         const outputPorts = node.type === 'options'
-          ? (node.options || []).map((option,index) => `<button class="flow-output-port ${option.target ? '' : 'unconnected'} ${flowConnection?.sourceId === node.id && flowConnection?.kind === 'option' && flowConnection?.optionIndex === index ? 'connecting' : ''}" data-flow-output-port data-flow-output-kind="option" data-flow-output-index="${index}" title="${option.target ? 'Drag to reconnect' : 'Drag to connect'}: ${escapeHtml(option.en)}" aria-label="${option.target ? 'Reconnect' : 'Connect'} ${escapeHtml(option.en)}"></button>`).join('')
+          ? (node.options || []).map((option,index) => `<button class="flow-output-port ${option.target ? '' : 'unconnected'} ${flowConnection?.mode !== 'target' && flowConnection?.sourceId === node.id && flowConnection?.kind === 'option' && flowConnection?.optionIndex === index ? 'connecting' : ''} ${flowConnection?.mode === 'target' && flowConnection.targetId !== node.id ? 'connection-target' : ''}" data-flow-output-port data-flow-output-kind="option" data-flow-output-index="${index}" title="${flowConnection?.mode === 'target' ? `Connect ${escapeHtml(option.en)} into the selected message` : `${option.target ? 'Drag to reconnect or disconnect' : 'Drag to connect'}: ${escapeHtml(option.en)}`}" aria-label="${flowConnection?.mode === 'target' ? 'Connect' : option.target ? 'Reconnect or disconnect' : 'Connect'} ${escapeHtml(option.en)}"></button>`).join('')
           : ['end','handover'].includes(node.type) ? ''
-            : `<button class="flow-output-port ${node.next ? '' : 'unconnected'} ${flowConnection?.sourceId === node.id && flowConnection?.kind === 'next' ? 'connecting' : ''}" data-flow-output-port data-flow-output-kind="next" data-flow-output-index="0" title="${node.next ? 'Drag to reconnect next step' : 'Drag to connect next step'}" aria-label="${node.next ? 'Reconnect' : 'Connect'} next step"></button>`;
-        return `<article class="flow-node-demo ${flowState.selectedNodeId === node.id ? 'selected' : ''} ${flowState.testNodeId === node.id ? 'test-active' : ''}" data-flow-node="${escapeHtml(node.id)}" style="left:${Number(node.x)}px;top:${Number(node.y)}px;min-height:${nodeHeight(node)}px" tabindex="0"><button class="flow-input-port ${flowConnection && flowConnection.sourceId !== node.id ? 'connection-target' : ''}" data-flow-input-port title="Connect into ${escapeHtml(node.title)}" aria-label="Connect into ${escapeHtml(node.title)}"></button><header><span>${escapeHtml(node.type.replaceAll('_',' '))}${node.id === flowDraft.entryId ? ' · entry' : ''}</span><b>${node.type === 'options' ? '▦' : node.type === 'form' ? '□' : node.type === 'handover' ? 'H' : node.type === 'end' ? '✓' : 'T'}</b></header><strong>${escapeHtml(node.title)}</strong><small>${escapeHtml((node.en || '').slice(0,70))}</small>${outputPorts ? `<span class="flow-output-ports">${outputPorts}</span>` : ''}</article>`;
+            : `<button class="flow-output-port ${node.next ? '' : 'unconnected'} ${flowConnection?.mode !== 'target' && flowConnection?.sourceId === node.id && flowConnection?.kind === 'next' ? 'connecting' : ''} ${flowConnection?.mode === 'target' && flowConnection.targetId !== node.id ? 'connection-target' : ''}" data-flow-output-port data-flow-output-kind="next" data-flow-output-index="0" title="${flowConnection?.mode === 'target' ? 'Connect this route into the selected message' : node.next ? 'Drag to reconnect or disconnect next step' : 'Drag to connect next step'}" aria-label="${flowConnection?.mode === 'target' ? 'Connect' : node.next ? 'Reconnect or disconnect' : 'Connect'} next step"></button>`;
+        const inputState = flowConnection?.mode === 'target' && flowConnection.targetId === node.id ? 'connecting' : flowConnection && flowConnection.mode !== 'target' && flowConnection.sourceId !== node.id ? 'connection-target' : '';
+        return `<article class="flow-node-demo ${flowState.selectedNodeId === node.id ? 'selected' : ''} ${flowState.testNodeId === node.id ? 'test-active' : ''}" data-flow-node="${escapeHtml(node.id)}" style="left:${Number(node.x)}px;top:${Number(node.y)}px;min-height:${nodeHeight(node)}px" tabindex="0"><button class="flow-input-port ${inputState}" data-flow-input-port title="Connect another route into ${escapeHtml(node.title)}" aria-label="Connect another route into ${escapeHtml(node.title)}"></button>${incomingPorts}<header><span>${escapeHtml(node.type.replaceAll('_',' '))}${node.id === flowDraft.entryId ? ' · entry' : ''}</span><b>${node.type === 'options' ? '▦' : node.type === 'form' ? '□' : node.type === 'handover' ? 'H' : node.type === 'end' ? '✓' : 'T'}</b></header><strong>${escapeHtml(node.title)}</strong><small>${escapeHtml((node.en || '').slice(0,70))}</small>${outputPorts ? `<span class="flow-output-ports">${outputPorts}</span>` : ''}</article>`;
       }).join('');
-      stage.innerHTML = `<svg class="flow-canvas-wires" style="height:${canvasHeight}px" aria-hidden="true">${lines.join('')}<path id="flowConnectingWire" class="connecting" hidden></path></svg>${nodeHtml}`;
+      stage.innerHTML = `<svg class="flow-canvas-wires" style="left:${minCanvasX}px;top:${minCanvasY}px;width:${maxCanvasX - minCanvasX}px;height:${maxCanvasY - minCanvasY}px" viewBox="${minCanvasX} ${minCanvasY} ${maxCanvasX - minCanvasX} ${maxCanvasY - minCanvasY}" aria-label="Message connections">${lines.join('')}<path id="flowConnectingWire" class="connecting" hidden></path></svg>${nodeHtml}`;
+      applyFlowViewport();
       bindFlowNodeDragging();
+      bindFlowCanvasNavigation();
     }
 
     function completeFlowConnection(targetId) {
-      if (!flowConnection || targetId === flowConnection.sourceId) return;
+      if (!flowConnection || flowConnection.mode === 'target' || targetId === flowConnection.sourceId) return;
+      const pending = flowEdgeDetails(flowConnection);
+      if (!pending) { clearFlowConnectorInteraction(); renderFlowStudio(); return; }
+      const edge = {sourceId:pending.sourceId,kind:pending.kind,optionIndex:pending.optionIndex};
+      if (pending.targetId === targetId) {
+        flowConnection = null;
+        flowSelectedEdge = edge;
+        renderFlowStudio();
+        showToast('This route is already connected to that message.');
+        return;
+      }
       rememberFlowDraft();
-      const updated = flowSetDestination(flowDraft,flowConnection.sourceId,flowConnection.kind,flowConnection.optionIndex,targetId);
+      const updated = flowSetDestination(flowDraft,pending.sourceId,pending.kind,pending.optionIndex,targetId);
       flowConnection = null;
-      if (!updated) { renderFlowStudio(); showToast('That connection is not valid for this message.'); return; }
+      if (!updated) { flowSelectedEdge = null; renderFlowStudio(); showToast('That connection is not valid for this message.'); return; }
+      flowSelectedEdge = edge;
       markFlowChanged();
       renderFlowStudio();
-      showToast('Connection updated in the Flow draft.');
+      showToast(pending.targetId ? `Connection changed to ${flowDraft.nodes.find(node => node.id === targetId)?.title || 'the selected message'}.` : 'Messages connected in the Flow draft.');
     }
 
     function startFlowConnection(button,event) {
       const sourceNode = button.closest('[data-flow-node]');
       if (!sourceNode) return;
       event.preventDefault(); event.stopPropagation();
-      flowConnection = {sourceId:sourceNode.dataset.flowNode,kind:button.dataset.flowOutputKind,optionIndex:Number(button.dataset.flowOutputIndex),dragging:false};
+      flowSelectedEdge = null;
+      flowConnection = {mode:'source',sourceId:sourceNode.dataset.flowNode,kind:button.dataset.flowOutputKind,optionIndex:Number(button.dataset.flowOutputIndex),dragging:false};
       button.classList.add('connecting');
+      const pointerStart = {x:event.clientX,y:event.clientY};
       const move = moveEvent => {
+        if (!flowConnection) return;
+        if (Math.abs(moveEvent.clientX - pointerStart.x) + Math.abs(moveEvent.clientY - pointerStart.y) < 5) return;
         flowConnection.dragging = true;
         const source = flowDraft.nodes.find(node => node.id === flowConnection.sourceId);
         const stage = $('#flowCanvasStage'); const wire = $('#flowConnectingWire');
@@ -2418,29 +2748,168 @@
         const rect = stage.getBoundingClientRect();
         const x1 = source.x + 190;
         const y1 = source.y + (flowConnection.kind === 'option' ? 46 + flowConnection.optionIndex * 23 : 48);
-        const x2 = moveEvent.clientX - rect.left, y2 = moveEvent.clientY - rect.top;
+        const x2 = (moveEvent.clientX - rect.left) / flowViewport.zoom, y2 = (moveEvent.clientY - rect.top) / flowViewport.zoom;
         const control = Math.max(40,Math.abs(x2 - x1) * .42);
         wire.hidden = false;
         wire.setAttribute('d',`M${x1} ${y1} C ${x1 + control} ${y1}, ${x2 - control} ${y2}, ${x2} ${y2}`);
       };
       const up = upEvent => {
-        window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up);
-        const target = document.elementFromPoint(upEvent.clientX,upEvent.clientY)?.closest('[data-flow-input-port],[data-flow-node]');
+        window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',cancel);
+        const pending = flowConnection;
+        const pendingDetails = flowEdgeDetails(pending);
+        const edge = pendingDetails ? {sourceId:pendingDetails.sourceId,kind:pendingDetails.kind,optionIndex:pendingDetails.optionIndex} : null;
+        const element = document.elementFromPoint(upEvent.clientX,upEvent.clientY);
+        const target = element?.closest('[data-flow-input-port],[data-flow-edge-endpoint]');
         const targetNode = target?.closest('[data-flow-node]');
-        if (targetNode && targetNode.dataset.flowNode !== flowConnection?.sourceId) completeFlowConnection(targetNode.dataset.flowNode);
-        else { renderFlowMap(); showToast('Choose a destination port to finish the connection.'); }
+        const insideCanvas = Boolean(element?.closest('#flowCanvasShell'));
+        const overNode = Boolean(element?.closest('[data-flow-node]'));
+        if (targetNode && targetNode.dataset.flowNode !== pending?.sourceId) completeFlowConnection(targetNode.dataset.flowNode);
+        else if (pending?.dragging && pendingDetails?.targetId && insideCanvas && !overNode && edge) disconnectFlowEdge(edge);
+        else if (pending?.dragging) {
+          flowConnection = null;
+          renderFlowStudio();
+          showToast(pendingDetails?.targetId ? 'Connection unchanged. Drop the endpoint into empty canvas to disconnect it.' : 'Drop the route onto a message to connect it.');
+        }
+        else renderFlowStudio();
       };
-      window.addEventListener('pointermove',move); window.addEventListener('pointerup',up,{once:true});
+      const cancel = () => { window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',cancel); flowConnection = null; renderFlowStudio(); };
+      window.addEventListener('pointermove',move); window.addEventListener('pointerup',up,{once:true}); window.addEventListener('pointercancel',cancel,{once:true});
+    }
+
+    function completeFlowReverseConnection(button) {
+      if (flowConnection?.mode !== 'target') return;
+      const targetId = flowConnection.targetId;
+      const sourceNode = button.closest('[data-flow-node]');
+      if (!sourceNode || sourceNode.dataset.flowNode === targetId) {
+        flowConnection = null;
+        renderFlowStudio();
+        showToast('A message cannot connect to itself.');
+        return;
+      }
+      const edge = {sourceId:sourceNode.dataset.flowNode,kind:button.dataset.flowOutputKind,optionIndex:Number(button.dataset.flowOutputIndex)};
+      const details = flowEdgeDetails(edge);
+      if (!details) {
+        flowConnection = null;
+        renderFlowStudio();
+        showToast('That route is not available.');
+        return;
+      }
+      if (details.targetId === targetId) {
+        flowConnection = null;
+        flowSelectedEdge = edge;
+        renderFlowStudio();
+        showToast('This route is already connected to that message.');
+        return;
+      }
+      updateFlowEdgeDestination(edge,targetId);
+    }
+
+    function startFlowTargetConnection(button,event) {
+      const targetNode = button.closest('[data-flow-node]');
+      if (!targetNode) return;
+      event.preventDefault(); event.stopPropagation();
+      flowSelectedEdge = null;
+      flowConnection = {mode:'target',targetId:targetNode.dataset.flowNode,dragging:false};
+      button.classList.add('connecting');
+      const pointerStart = {x:event.clientX,y:event.clientY};
+      const move = moveEvent => {
+        if (flowConnection?.mode !== 'target') return;
+        if (Math.abs(moveEvent.clientX - pointerStart.x) + Math.abs(moveEvent.clientY - pointerStart.y) < 5) return;
+        flowConnection.dragging = true;
+        const target = flowDraft.nodes.find(node => node.id === flowConnection.targetId);
+        const stage = $('#flowCanvasStage'); const wire = $('#flowConnectingWire');
+        if (!target || !stage || !wire) return;
+        const rect = stage.getBoundingClientRect();
+        const x1 = target.x, y1 = target.y + 48;
+        const x2 = (moveEvent.clientX - rect.left) / flowViewport.zoom, y2 = (moveEvent.clientY - rect.top) / flowViewport.zoom;
+        const control = Math.max(40,Math.abs(x2 - x1) * .42);
+        wire.hidden = false;
+        wire.setAttribute('d',`M${x1} ${y1} C ${x1 - control} ${y1}, ${x2 + control} ${y2}, ${x2} ${y2}`);
+      };
+      const up = upEvent => {
+        window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',cancel);
+        const pending = flowConnection;
+        const source = document.elementFromPoint(upEvent.clientX,upEvent.clientY)?.closest('[data-flow-output-port]');
+        if (source && source.closest('[data-flow-node]')?.dataset.flowNode !== pending?.targetId) completeFlowReverseConnection(source);
+        else if (pending?.dragging) { flowConnection = null; renderFlowStudio(); showToast('Connection unchanged.'); }
+        else renderFlowStudio();
+      };
+      const cancel = () => { window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); window.removeEventListener('pointercancel',cancel); flowConnection = null; renderFlowStudio(); };
+      window.addEventListener('pointermove',move); window.addEventListener('pointerup',up,{once:true}); window.addEventListener('pointercancel',cancel,{once:true});
+    }
+
+    function startFlowEndpointDrag(button,event) {
+      if (event.button !== 0) return;
+      event.preventDefault(); event.stopPropagation();
+      const edge = {sourceId:button.dataset.flowEdgeSource,kind:button.dataset.flowEdgeKind,optionIndex:Number(button.dataset.flowEdgeIndex)};
+      const details = flowEdgeDetails(edge);
+      if (!details?.targetId) return;
+      flowConnection = null;
+      flowSelectedEdge = edge;
+      button.classList.add('selected');
+      const pointerStart = {x:event.clientX,y:event.clientY};
+      let moved = false;
+      const move = moveEvent => {
+        if (!moved && Math.abs(moveEvent.clientX - pointerStart.x) + Math.abs(moveEvent.clientY - pointerStart.y) < 5) return;
+        moved = true;
+        const source = flowDraft.nodes.find(node => node.id === details.sourceId);
+        const stage = $('#flowCanvasStage'); const wire = $('#flowConnectingWire');
+        if (!source || !stage || !wire) return;
+        const rect = stage.getBoundingClientRect();
+        const x1 = source.x + 190;
+        const y1 = source.y + (details.kind === 'option' ? 46 + details.optionIndex * 23 : 48);
+        const x2 = (moveEvent.clientX - rect.left) / flowViewport.zoom;
+        const y2 = (moveEvent.clientY - rect.top) / flowViewport.zoom;
+        const control = Math.max(40,Math.abs(x2 - x1) * .42);
+        wire.hidden = false;
+        wire.setAttribute('d',`M${x1} ${y1} C ${x1 + control} ${y1}, ${x2 - control} ${y2}, ${x2} ${y2}`);
+      };
+      const finish = upEvent => {
+        window.removeEventListener('pointermove',move);
+        window.removeEventListener('pointerup',finish);
+        window.removeEventListener('pointercancel',cancel);
+        const element = document.elementFromPoint(upEvent.clientX,upEvent.clientY);
+        const targetPort = element?.closest('[data-flow-input-port],[data-flow-edge-endpoint]');
+        const targetNode = targetPort?.closest('[data-flow-node]');
+        const insideCanvas = Boolean(element?.closest('#flowCanvasShell'));
+        const overNode = Boolean(element?.closest('[data-flow-node]'));
+        if (!moved) {
+          flowState.selectedNodeId = details.sourceId;
+          $('#flowStudioDemo').classList.remove('flow-panel-open');
+          renderFlowStudio();
+          return;
+        }
+        if (targetNode && targetNode.dataset.flowNode !== details.sourceId) {
+          updateFlowEdgeDestination(edge,targetNode.dataset.flowNode);
+          return;
+        }
+        if (insideCanvas && !overNode) {
+          disconnectFlowEdge(edge);
+          return;
+        }
+        renderFlowStudio();
+        showToast('Connection unchanged. Drop the endpoint into empty canvas to disconnect it.');
+      };
+      const cancel = () => {
+        window.removeEventListener('pointermove',move);
+        window.removeEventListener('pointerup',finish);
+        window.removeEventListener('pointercancel',cancel);
+        renderFlowStudio();
+      };
+      window.addEventListener('pointermove',move);
+      window.addEventListener('pointerup',finish,{once:true});
+      window.addEventListener('pointercancel',cancel,{once:true});
     }
 
     function bindFlowNodeDragging() {
       $$('[data-flow-node]').forEach(button => {
-        button.addEventListener('click',event => { if (event.target.closest('[data-flow-input-port],[data-flow-output-port]')) return; flowState.selectedNodeId = button.dataset.flowNode; flowState.panel = 'edit'; $('#flowStudioDemo').classList.add('flow-panel-open'); renderFlowStudio(); });
-        button.addEventListener('keydown',event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); flowState.selectedNodeId = button.dataset.flowNode; flowState.panel = 'edit'; $('#flowStudioDemo').classList.add('flow-panel-open'); renderFlowStudio(); } });
+        button.addEventListener('click',event => { if (event.target.closest('[data-flow-input-port],[data-flow-output-port],[data-flow-edge-endpoint]')) return; clearFlowConnectorInteraction(); flowState.selectedNodeId = button.dataset.flowNode; flowState.panel = 'edit'; $('#flowStudioDemo').classList.add('flow-panel-open'); renderFlowStudio(); });
+        button.addEventListener('keydown',event => { if (event.target.closest('[data-flow-input-port],[data-flow-output-port],[data-flow-edge-endpoint]')) return; if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); clearFlowConnectorInteraction(); flowState.selectedNodeId = button.dataset.flowNode; flowState.panel = 'edit'; $('#flowStudioDemo').classList.add('flow-panel-open'); renderFlowStudio(); } });
         button.addEventListener('pointerdown',event => {
-          if (event.button !== 0 || event.target.closest('[data-flow-input-port],[data-flow-output-port]')) return;
+          if (event.button !== 0 || event.target.closest('[data-flow-input-port],[data-flow-output-port],[data-flow-edge-endpoint]')) return;
           const node = flowDraft.nodes.find(item => item.id === button.dataset.flowNode);
           if (!node) return;
+          clearFlowConnectorInteraction();
           flowState.selectedNodeId = node.id;
           const start = {x:event.clientX,y:event.clientY,nodeX:node.x,nodeY:node.y};
           let moved = false;
@@ -2449,8 +2918,8 @@
             const dx = moveEvent.clientX - start.x, dy = moveEvent.clientY - start.y;
             if (Math.abs(dx) + Math.abs(dy) < 5) return;
             if (!moved) { rememberFlowDraft(); moved = true; }
-            node.x = Math.max(10,Math.min(870,start.nodeX + dx));
-            node.y = Math.max(10,Math.min(535,start.nodeY + dy));
+            node.x = start.nodeX + dx / flowViewport.zoom;
+            node.y = start.nodeY + dy / flowViewport.zoom;
             button.style.left = `${node.x}px`; button.style.top = `${node.y}px`;
           };
           const up = () => { button.removeEventListener('pointermove',move); button.removeEventListener('pointerup',up); if (moved) { markFlowChanged(); renderFlowStudio(); } };
@@ -2458,14 +2927,76 @@
         });
       });
       $$('[data-flow-output-port]').forEach(port => {
-        port.addEventListener('pointerdown',event => startFlowConnection(port,event));
-        port.addEventListener('click',event => { event.preventDefault(); event.stopPropagation(); });
+        port.addEventListener('pointerdown',event => {
+          if (flowConnection?.mode === 'target') {
+            event.preventDefault(); event.stopPropagation();
+            completeFlowReverseConnection(port);
+            return;
+          }
+          startFlowConnection(port,event);
+        });
+        port.addEventListener('click',event => {
+          event.preventDefault(); event.stopPropagation();
+          if (flowConnection?.mode === 'target') { completeFlowReverseConnection(port); return; }
+          if (flowConnection) return;
+          const sourceNode = port.closest('[data-flow-node]');
+          if (!sourceNode) return;
+          flowSelectedEdge = null;
+          flowConnection = {mode:'source',sourceId:sourceNode.dataset.flowNode,kind:port.dataset.flowOutputKind,optionIndex:Number(port.dataset.flowOutputIndex),dragging:false};
+          renderFlowStudio();
+        });
       });
-      $$('[data-flow-input-port]').forEach(port => port.addEventListener('click',event => {
-        event.preventDefault(); event.stopPropagation();
-        const targetNode = port.closest('[data-flow-node]');
-        if (flowConnection && targetNode) completeFlowConnection(targetNode.dataset.flowNode);
-      }));
+      $$('[data-flow-input-port]').forEach(port => {
+        port.addEventListener('pointerdown',event => {
+          if (flowConnection && flowConnection.mode !== 'target') return;
+          startFlowTargetConnection(port,event);
+        });
+        port.addEventListener('click',event => {
+          event.preventDefault(); event.stopPropagation();
+          const targetNode = port.closest('[data-flow-node]');
+          if (flowConnection && flowConnection.mode !== 'target' && targetNode) completeFlowConnection(targetNode.dataset.flowNode);
+          else if (!flowConnection && targetNode) { flowSelectedEdge = null; flowConnection = {mode:'target',targetId:targetNode.dataset.flowNode,dragging:false}; renderFlowStudio(); }
+        });
+      });
+      $$('[data-flow-edge-endpoint]').forEach(port => {
+        port.addEventListener('pointerdown',event => {
+          if (flowConnection && flowConnection.mode !== 'target') return;
+          startFlowEndpointDrag(port,event);
+        });
+        port.addEventListener('click',event => {
+          event.preventDefault(); event.stopPropagation();
+          const targetNode = port.closest('[data-flow-node]');
+          if (flowConnection && flowConnection.mode !== 'target' && targetNode) completeFlowConnection(targetNode.dataset.flowNode);
+        });
+        port.addEventListener('keydown',event => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          flowConnection = null;
+          flowSelectedEdge = {sourceId:port.dataset.flowEdgeSource,kind:port.dataset.flowEdgeKind,optionIndex:Number(port.dataset.flowEdgeIndex)};
+          flowState.selectedNodeId = port.dataset.flowEdgeSource;
+          $('#flowStudioDemo').classList.remove('flow-panel-open');
+          renderFlowStudio();
+        });
+      });
+      $$('[data-flow-edge]').forEach(path => {
+        const selectEdge = event => {
+          event.preventDefault(); event.stopPropagation();
+          flowConnection = null;
+          flowSelectedEdge = {sourceId:path.dataset.flowEdgeSource,kind:path.dataset.flowEdgeKind,optionIndex:Number(path.dataset.flowEdgeIndex)};
+          flowState.selectedNodeId = path.dataset.flowEdgeSource;
+          flowState.panel = 'edit';
+          $('#flowStudioDemo').classList.remove('flow-panel-open');
+          renderFlowStudio();
+        };
+        path.addEventListener('click',selectEdge);
+        path.addEventListener('keydown',event => { if (event.key === 'Enter' || event.key === ' ') selectEdge(event); });
+      });
+      $('#flowCanvasStage')?.addEventListener('click',event => {
+        if (flowCanvasMoved || event.target.closest('[data-flow-node],[data-flow-edge],[data-flow-edge-endpoint]')) return;
+        if (!flowConnection && !flowSelectedEdge) return;
+        clearFlowConnectorInteraction();
+        renderFlowStudio();
+      });
     }
 
     function selectedFlowNode() { return flowDraft.nodes.find(node => node.id === flowState.selectedNodeId) || null; }
@@ -2474,9 +3005,14 @@
       const node = selectedFlowNode();
       if (!node) return '<div class="flow-inspector-empty"><strong>Select a step on the map</strong><p>Edit its message, buttons, destinations, keywords, or form fields here.</p></div>';
       const destinationOptions = flowDraft.nodes.filter(item => item.id !== node.id).map(item => `<option value="${escapeHtml(item.id)}" ${node.next === item.id ? 'selected' : ''}>${escapeHtml(item.title)}</option>`).join('');
-      const options = (node.options || []).map((option,index) => `<div class="flow-option-editor-row"><label>English reply<input data-flow-option-en="${index}" value="${escapeHtml(option.en)}" aria-label="English reply ${index + 1}"></label><label>คำตอบภาษาไทย<input data-flow-option-th="${index}" value="${escapeHtml(option.th)}" aria-label="Thai reply ${index + 1}"></label><label>Next message<select data-flow-option-target="${index}" aria-label="Destination for reply ${index + 1}"><option value="" ${!option.target ? 'selected' : ''}>Choose destination</option>${flowDraft.nodes.filter(item => item.id !== node.id).map(item => `<option value="${escapeHtml(item.id)}" ${option.target === item.id ? 'selected' : ''}>${escapeHtml(item.title)}</option>`).join('')}</select>${option.target ? '' : '<span class="flow-option-status">Not connected</span>'}</label><button class="btn" data-flow-remove-option="${index}" aria-label="Remove this customer reply">Remove</button></div>`).join('');
+      const options = (node.options || []).map((option,index) => {
+        const target = flowDraft.nodes.find(item => item.id === option.target);
+        return `<div class="flow-option-editor-row"><label>English reply<input data-flow-option-en="${index}" value="${escapeHtml(option.en)}" aria-label="English reply ${index + 1}"></label><label>คำตอบภาษาไทย<input data-flow-option-th="${index}" value="${escapeHtml(option.th)}" aria-label="Thai reply ${index + 1}"></label><div class="flow-destination-control"><label>Next message<select data-flow-option-target="${index}" aria-label="Destination for reply ${index + 1}"><option value="" ${!option.target ? 'selected' : ''}>No destination</option>${flowDraft.nodes.filter(item => item.id !== node.id).map(item => `<option value="${escapeHtml(item.id)}" ${option.target === item.id ? 'selected' : ''}>${escapeHtml(item.title)}</option>`).join('')}</select></label><span class="flow-option-status ${option.target ? 'connected' : ''}">${option.target ? `Connected to ${escapeHtml(target?.title || 'missing message')}` : 'Not connected'}</span>${option.target ? `<button class="btn flow-disconnect-button" data-flow-option-disconnect="${index}">Disconnect</button>` : ''}</div><button class="btn" data-flow-remove-option="${index}" aria-label="Remove this customer reply">Remove reply</button></div>`;
+      }).join('');
       const formFields = (node.fields || []).map((field,index) => `<div class="flow-settings-row"><label>Label<input data-flow-node-field-label="${index}" value="${escapeHtml(field.label)}"></label><label>Type<select data-flow-node-field-type="${index}">${optionList(['text','email','tel','textarea'],field.type)}</select></label><button class="btn" data-flow-node-remove-field="${index}">Remove</button></div>`).join('');
-      return `<div class="flow-inspector-head"><span class="eyebrow">Selected message</span><h2>${escapeHtml(node.title)}</h2><p class="help">Changes save to this draft and are used immediately by customer testing.</p></div><div class="flow-inspector-fields"><label>What can the customer do next?<select data-flow-node-type>${flowBehaviorOptions(node.type)}</select></label><p class="flow-behavior-help">${escapeHtml(flowBehaviorDescription(node.type))}</p><label>Internal message name<input data-flow-node-title value="${escapeHtml(node.title)}"></label><label>English customer message<textarea data-flow-node-en>${escapeHtml(node.en || '')}</textarea></label><label>ข้อความภาษาไทย<textarea data-flow-node-th>${escapeHtml(node.th || '')}</textarea></label>${node.type === 'options' ? `<label>Customer reply buttons and destinations</label><div class="flow-option-editor">${options || '<span class="help">No replies yet. Add at least one reply for the customer.</span>'}<button class="btn" id="flowNodeAddOption">Add customer reply</button></div>` : ''}${node.type === 'form' ? `<label>Form fields</label><div class="flow-settings-list">${formFields}<button class="btn" id="flowNodeAddField">Add form field</button></div>` : ''}${!['options','end','handover'].includes(node.type) ? `<label>Next message<select data-flow-node-next><option value="">Not connected</option>${destinationOptions}</select></label>` : ''}<label>Typed-message keywords<input data-flow-node-keywords value="${escapeHtml((node.keywords || []).join(', '))}" placeholder="price, pricing, ราคา"></label><label class="consent-row"><input type="checkbox" data-flow-entry ${flowDraft.entryId === node.id ? 'checked' : ''}><span>Use as the customer journey starting message</span></label><button class="btn btn-green" id="flowTestFromNode">Test from this message</button></div>`;
+      const nextTarget = flowDraft.nodes.find(item => item.id === node.next);
+      const nextControl = !['options','end','handover'].includes(node.type) ? `<div class="flow-destination-control"><label>Next message<select data-flow-node-next><option value="">No destination</option>${destinationOptions}</select></label><span class="flow-option-status ${node.next ? 'connected' : ''}">${node.next ? `Connected to ${escapeHtml(nextTarget?.title || 'missing message')}` : 'Not connected'}</span>${node.next ? '<button class="btn flow-disconnect-button" id="flowDisconnectNodeNext">Disconnect</button>' : ''}</div>` : '';
+      return `<div class="flow-inspector-head"><span class="eyebrow">Selected message</span><h2>${escapeHtml(node.title)}</h2><p class="help">Changes save to this draft and are used immediately by customer testing.</p></div><div class="flow-inspector-fields"><label>What can the customer do next?<select data-flow-node-type>${flowBehaviorOptions(node.type)}</select></label><p class="flow-behavior-help">${escapeHtml(flowBehaviorDescription(node.type))}</p><label>Internal message name<input data-flow-node-title value="${escapeHtml(node.title)}"></label><label>English customer message<textarea data-flow-node-en>${escapeHtml(node.en || '')}</textarea></label><label>ข้อความภาษาไทย<textarea data-flow-node-th>${escapeHtml(node.th || '')}</textarea></label>${node.type === 'options' ? `<label>Customer reply buttons and destinations</label><div class="flow-option-editor">${options || '<span class="help">No replies yet. Add at least one reply for the customer.</span>'}<button class="btn" id="flowNodeAddOption">Add customer reply</button></div>` : ''}${node.type === 'form' ? `<label>Form fields</label><div class="flow-settings-list">${formFields}<button class="btn" id="flowNodeAddField">Add form field</button></div>` : ''}${nextControl}<label>Typed-message keywords<input data-flow-node-keywords value="${escapeHtml((node.keywords || []).join(', '))}" placeholder="price, pricing, ราคา"></label><label class="consent-row"><input type="checkbox" data-flow-entry ${flowDraft.entryId === node.id ? 'checked' : ''}><span>Use as the customer journey starting message</span></label><button class="btn btn-green" id="flowTestFromNode">Test from this message</button></div>`;
     }
 
     function flowTestStart(nodeId = flowDraft.entryId,testStartMode = 'entry') {
@@ -2546,9 +3082,8 @@
         if (flowState.panel === 'test' && flowState.testReturnSurface) {
           const returnSurface = flowState.testReturnSurface;
           flowState.testReturnSurface = null;
-          $('#flowStudioDemo').classList.add('hidden');
           $('#flowStudioDemo').classList.remove('flow-panel-open');
-          $('#flowOnboardingDemo').classList.remove('hidden');
+          activateSurface('flowOnboardingDemo');
           showFlowOnboardingPage(returnSurface);
           return;
         }
@@ -2558,28 +3093,27 @@
       if (flowState.panel === 'edit' && node) {
         const updateNode = update => { rememberFlowDraft(); update(); markFlowChanged(); renderFlowStudio(); };
         if ($('[data-flow-node-type]')) $('[data-flow-node-type]').addEventListener('change',event => updateNode(() => {
-          node.type = event.target.value;
-          if (node.type === 'options' && !node.options?.length) node.options = [flowChoice('Continue','ดำเนินการต่อ','')];
-          if (node.type === 'form' && !node.fields) node.fields = clone(flowDraft.lead.fields);
-          if (['end','handover','options'].includes(node.type)) { node.next = null; node.needsConnection = false; }
-          else node.needsConnection = !node.next;
+          clearFlowConnectorInteraction();
+          flowChangeNodeType(flowDraft,node.id,event.target.value,flowDraft.lead.fields);
         }));
         if ($('[data-flow-node-title]')) $('[data-flow-node-title]').addEventListener('change',event => updateNode(() => node.title = event.target.value.trim() || 'Untitled step'));
         if ($('[data-flow-node-en]')) $('[data-flow-node-en]').addEventListener('change',event => { rememberFlowDraft(); node.en = event.target.value.trim(); translateFlowNodeField(node,'message'); });
         if ($('[data-flow-node-th]')) $('[data-flow-node-th]').addEventListener('change',event => updateNode(() => node.th = event.target.value));
-        if ($('[data-flow-node-next]')) $('[data-flow-node-next]').addEventListener('change',event => updateNode(() => flowSetDestination(flowDraft,node.id,'next',0,event.target.value)));
+        if ($('[data-flow-node-next]')) $('[data-flow-node-next]').addEventListener('change',event => updateFlowEdgeDestination({sourceId:node.id,kind:'next',optionIndex:0},event.target.value));
+        if ($('#flowDisconnectNodeNext')) $('#flowDisconnectNodeNext').addEventListener('click',() => disconnectFlowEdge({sourceId:node.id,kind:'next',optionIndex:0}));
         if ($('[data-flow-node-keywords]')) $('[data-flow-node-keywords]').addEventListener('change',event => updateNode(() => node.keywords = event.target.value.split(',').map(item => item.trim()).filter(Boolean)));
         if ($('[data-flow-entry]')) $('[data-flow-entry]').addEventListener('change',event => updateNode(() => { if (event.target.checked) flowDraft.entryId = node.id; }));
         $$('[data-flow-option-en]').forEach(input => input.addEventListener('change',event => { const index = Number(event.target.dataset.flowOptionEn); rememberFlowDraft(); node.options[index].en = event.target.value.trim() || 'Option'; translateFlowNodeField(node,'option',index); }));
         $$('[data-flow-option-th]').forEach(input => input.addEventListener('change',event => updateNode(() => node.options[Number(event.target.dataset.flowOptionTh)].th = event.target.value.trim())));
-        $$('[data-flow-option-target]').forEach(select => select.addEventListener('change',event => updateNode(() => flowSetDestination(flowDraft,node.id,'option',Number(event.target.dataset.flowOptionTarget),event.target.value))));
-        $$('[data-flow-remove-option]').forEach(button => button.addEventListener('click',() => updateNode(() => node.options.splice(Number(button.dataset.flowRemoveOption),1))));
+        $$('[data-flow-option-target]').forEach(select => select.addEventListener('change',event => updateFlowEdgeDestination({sourceId:node.id,kind:'option',optionIndex:Number(event.target.dataset.flowOptionTarget)},event.target.value)));
+        $$('[data-flow-option-disconnect]').forEach(button => button.addEventListener('click',() => disconnectFlowEdge({sourceId:node.id,kind:'option',optionIndex:Number(button.dataset.flowOptionDisconnect)})));
+        $$('[data-flow-remove-option]').forEach(button => button.addEventListener('click',() => updateNode(() => { clearFlowConnectorInteraction(); node.options.splice(Number(button.dataset.flowRemoveOption),1); })));
         if ($('#flowNodeAddOption')) $('#flowNodeAddOption').addEventListener('click',() => updateNode(() => node.options.push(flowChoice('New reply','คำตอบใหม่',''))));
         $$('[data-flow-node-field-label]').forEach(input => input.addEventListener('change',event => updateNode(() => node.fields[Number(event.target.dataset.flowNodeFieldLabel)].label = event.target.value.trim() || 'Field')));
         $$('[data-flow-node-field-type]').forEach(select => select.addEventListener('change',event => updateNode(() => node.fields[Number(event.target.dataset.flowNodeFieldType)].type = event.target.value)));
         $$('[data-flow-node-remove-field]').forEach(button => button.addEventListener('click',() => updateNode(() => node.fields.splice(Number(button.dataset.flowNodeRemoveField),1))));
         if ($('#flowNodeAddField')) $('#flowNodeAddField').addEventListener('click',() => updateNode(() => node.fields.push({label:'New field',type:'text',required:false})));
-        if ($('#flowTestFromNode')) $('#flowTestFromNode').addEventListener('click',() => { flowState.panel = 'test'; $('#flowStudioDemo').classList.add('flow-panel-open'); flowTestStart(node.id,'selected'); });
+        if ($('#flowTestFromNode')) $('#flowTestFromNode').addEventListener('click',() => { clearFlowConnectorInteraction(); flowState.panel = 'test'; $('#flowStudioDemo').classList.add('flow-panel-open'); flowTestStart(node.id,'selected'); });
       }
       if (flowState.panel === 'test') {
         if ($('#flowTestLanguage')) $('#flowTestLanguage').addEventListener('change',event => { flowState.testLanguage = event.target.value; flowTestStart(flowState.testStartNodeId || flowDraft.entryId,flowState.testStartMode); });
@@ -2608,6 +3142,16 @@
     }
 
     function bindFlowSectionContent() {
+      if ($('#flowCancelConnection')) $('#flowCancelConnection').addEventListener('click',() => { flowConnection = null; renderFlowStudio(); });
+      if ($('#flowChangeSelectedConnection')) $('#flowChangeSelectedConnection').addEventListener('click',() => {
+        const selected = flowEdgeDetails(flowSelectedEdge);
+        if (!selected) return;
+        flowConnection = {mode:'source',sourceId:selected.sourceId,kind:selected.kind,optionIndex:selected.optionIndex,dragging:false};
+        flowSelectedEdge = null;
+        renderFlowStudio();
+      });
+      if ($('#flowDisconnectSelectedConnection')) $('#flowDisconnectSelectedConnection').addEventListener('click',() => disconnectFlowEdge(flowSelectedEdge));
+      if ($('#flowDisconnectPendingConnection')) $('#flowDisconnectPendingConnection').addEventListener('click',() => disconnectFlowEdge(flowConnection));
       $$('[data-flow-widget-language]').forEach(button => button.addEventListener('click',() => { flowState.widgetPreviewLanguage = button.dataset.flowWidgetLanguage || null; saveFlowLocal(); renderFlowStudio(); }));
       $$('[data-flow-translation-node-en]').forEach(control => control.addEventListener('change',() => { const node = flowDraft.nodes[Number(control.dataset.flowTranslationNodeEn)]; rememberFlowDraft(); node.en = control.value.trim(); translateFlowNodeField(node,'message'); }));
       $$('[data-flow-translation-node-th]').forEach(control => control.addEventListener('change',() => { rememberFlowDraft(); flowDraft.nodes[Number(control.dataset.flowTranslationNodeTh)].th = control.value.trim(); markFlowChanged(); renderFlowStudio(); }));
@@ -2640,12 +3184,13 @@
       }));
       if ($('[data-flow-widget-open]')) $('[data-flow-widget-open]').addEventListener('change',event => { rememberFlowDraft(); flowDraft.widget.openOnLoad = event.target.checked; markFlowChanged(); renderFlowStudio(); });
       if ($('#flowAddNode')) $('#flowAddNode').addEventListener('click',() => {
-        rememberFlowDraft(); const id = `step_${Date.now()}`; const index = flowDraft.nodes.length; const x = 60 + index % 4 * 235; const y = 70 + Math.floor(index / 4) % 3 * 175; flowDraft.nodes.push(flowNode(id,'message','New message','New customer message','ข้อความใหม่',x,y,{needsConnection:true})); flowState.selectedNodeId = id; flowState.panel = 'edit'; $('#flowStudioDemo').classList.add('flow-panel-open'); markFlowChanged(); renderFlowStudio();
+        clearFlowConnectorInteraction(); rememberFlowDraft(); const id = `step_${Date.now()}`; const shell = $('#flowCanvasShell'); const offset = flowDraft.nodes.length % 5 * 18; const x = shell ? (shell.clientWidth / 2 - flowViewport.x) / flowViewport.zoom - 95 + offset : 60; const y = shell ? (shell.clientHeight / 2 - flowViewport.y) / flowViewport.zoom - 48 + offset : 70; flowDraft.nodes.push(flowNode(id,'message','New message','New customer message','ข้อความใหม่',x,y,{needsConnection:true})); flowState.selectedNodeId = id; flowState.panel = 'edit'; $('#flowStudioDemo').classList.add('flow-panel-open'); markFlowChanged(); renderFlowStudio();
       });
       if ($('#flowDuplicateNode')) $('#flowDuplicateNode').addEventListener('click',() => {
-        const node = selectedFlowNode(); if (!node) return; rememberFlowDraft(); const copyNode = clone(node); copyNode.id = `step_${Date.now()}`; copyNode.title += ' copy'; copyNode.x = Math.min(870,node.x + 35); copyNode.y = Math.min(535,node.y + 110); copyNode.next = null; copyNode.options = (copyNode.options || []).map(option => ({...option})); copyNode.needsConnection = !['options','end','handover'].includes(copyNode.type); flowDraft.nodes.push(copyNode); flowState.selectedNodeId = copyNode.id; markFlowChanged(); renderFlowStudio();
+        const node = selectedFlowNode(); if (!node) return; clearFlowConnectorInteraction(); rememberFlowDraft(); const copyNode = flowCloneNodeDisconnected(node,`step_${Date.now()}`,node.x + 35,node.y + 110); flowDraft.nodes.push(copyNode); flowState.selectedNodeId = copyNode.id; markFlowChanged(); renderFlowStudio();
       });
       if ($('#flowDeleteNode')) $('#flowDeleteNode').addEventListener('click',() => {
+        if (flowSelectedEdge) { disconnectFlowEdge(flowSelectedEdge); return; }
         const node = selectedFlowNode(); if (!node) return;
         rememberFlowDraft();
         const {disconnected} = flowRemoveNodeFromDraft(flowDraft,node.id);
@@ -2655,9 +3200,12 @@
         markFlowChanged(); renderFlowStudio();
         showToast(disconnected ? `Message removed. ${disconnected} incoming connection${disconnected === 1 ? '' : 's'} left unconnected.` : 'Message removed from the Flow draft.');
       });
-      if ($('#flowFitMap')) $('#flowFitMap').addEventListener('click',() => { const shell = $('#flowCanvasShell'); shell.scrollTo({left:0,top:0,behavior:'smooth'}); });
-      if ($('#flowOpenTest')) $('#flowOpenTest').addEventListener('click',() => { flowState.panel = 'test'; $('#flowStudioDemo').classList.add('flow-panel-open'); flowTestStart(flowState.selectedNodeId || flowDraft.entryId,'selected'); });
-      if ($('#flowOpenFullTest')) $('#flowOpenFullTest').addEventListener('click',() => openFlowDraftTest(flowState.testLanguage,flowDraft.entryId,'entry'));
+      if ($('#flowZoomOut')) $('#flowZoomOut').addEventListener('click',() => setFlowZoom(flowViewport.zoom / 1.2));
+      if ($('#flowZoomLabel')) $('#flowZoomLabel').addEventListener('click',() => setFlowZoom(1));
+      if ($('#flowZoomIn')) $('#flowZoomIn').addEventListener('click',() => setFlowZoom(flowViewport.zoom * 1.2));
+      if ($('#flowFitMap')) $('#flowFitMap').addEventListener('click',fitFlowCanvas);
+      if ($('#flowOpenTest')) $('#flowOpenTest').addEventListener('click',() => { clearFlowConnectorInteraction(); flowState.panel = 'test'; $('#flowStudioDemo').classList.add('flow-panel-open'); flowTestStart(flowState.selectedNodeId || flowDraft.entryId,'selected'); });
+      if ($('#flowOpenFullTest')) $('#flowOpenFullTest').addEventListener('click',() => { clearFlowConnectorInteraction(); openFlowDraftTest(flowState.testLanguage,flowDraft.entryId,'entry'); });
       $$('[data-flow-lead-field]').forEach(control => control.addEventListener('change',() => { rememberFlowDraft(); flowDraft.lead.fields[Number(control.dataset.flowLeadIndex)][control.dataset.flowLeadField] = control.value; flowDraft.nodes.filter(node => node.type === 'form').forEach(node => node.fields = clone(flowDraft.lead.fields)); markFlowChanged(); renderFlowStudio(); }));
       $$('[data-flow-lead-required]').forEach(control => control.addEventListener('change',() => { rememberFlowDraft(); flowDraft.lead.fields[Number(control.dataset.flowLeadRequired)].required = control.checked; flowDraft.nodes.filter(node => node.type === 'form').forEach(node => node.fields = clone(flowDraft.lead.fields)); markFlowChanged(); renderFlowStudio(); }));
       $$('[data-flow-delete-lead]').forEach(button => button.addEventListener('click',() => { rememberFlowDraft(); flowDraft.lead.fields.splice(Number(button.dataset.flowDeleteLead),1); flowDraft.nodes.filter(node => node.type === 'form').forEach(node => node.fields = clone(flowDraft.lead.fields)); markFlowChanged(); renderFlowStudio(); }));
@@ -2711,6 +3259,10 @@
       if (window.Intl && Intl.Segmenter) return [...new Intl.Segmenter(undefined, {granularity:'grapheme'}).segment(value)].length;
       return Array.from(value).length;
     }
+    function visibleWordCount(value,language='en') {
+      if (window.Intl && Intl.Segmenter) return [...new Intl.Segmenter(language,{granularity:'word'}).segment(value)].filter(segment => segment.isWordLike).length;
+      return String(value || '').trim().split(/\s+/).filter(Boolean).length;
+    }
 
     function productLabel() { return state.product === 'flow' ? 'Flow Bot' : state.product === 'text' ? 'AI Text Bot' : 'AI Voice Bot'; }
 
@@ -2757,8 +3309,7 @@
       state.deployReturn = null;
       if (commerceState.product === 'flow') {
         $('#flowOnboardingPlan').textContent = intent === 'trial' ? 'Flow Bot · 30-day Starter trial' : selectedCommercePlan().name;
-        $('#journeyDemo').classList.add('hidden');
-        $('#flowOnboardingDemo').classList.remove('hidden');
+        activateSurface('flowOnboardingDemo');
         showFlowOnboardingPage('template');
         renderFlowTemplatePreview();
         saveFlowLocal();
@@ -2767,8 +3318,7 @@
       $('#onboardingPackageBadge').textContent = intent === 'trial' ? `${commerceCatalog[commerceState.product].name} · 30-day Starter trial` : `${commerceCatalog[commerceState.product].name} · ${selectedCommercePlan().tier}`;
       $('#onboardingProductEyebrow').textContent = `Configure your ${commerceCatalog[commerceState.product].name}`;
       $('#onboardingDemo').setAttribute('aria-label', `${productLabel()} onboarding`);
-      $('#journeyDemo').classList.add('hidden');
-      $('#onboardingDemo').classList.remove('hidden');
+      activateSurface('onboardingDemo');
       showOnboardingPage('role');
       selectOnboardingRole(state.role);
       $('#onboardingDemo').scrollTo({top:0,behavior:'smooth'});
@@ -2779,20 +3329,15 @@
       renderAccountStep();
       $('#accountHeading').textContent = `Create your account to deploy ${commerceCatalog[commerceState.product].name}.`;
       $('#continueToBotOnboarding').textContent = 'Create account and continue deployment';
-      $('#merchantDashboard').classList.add('hidden');
-      $('#flowStudioDemo').classList.add('hidden');
-      $('#onboardingDemo').classList.add('hidden');
-      $('#flowOnboardingDemo').classList.add('hidden');
-      $('#journeyDemo').classList.remove('hidden');
+      activateSurface('journeyDemo');
       showCommerceScreen('account');
     }
 
     function returnFromDeploymentAccount() {
       const target = state.deployReturn;
       state.deployReturn = null;
-      $('#journeyDemo').classList.add('hidden');
       if (target === 'flow') openFlowStudio('release');
-      else { state.section = 'release'; render(); window.scrollTo({top:0,behavior:'smooth'}); }
+      else { activateSurface('configurationStudio'); state.section = 'release'; render(); window.scrollTo({top:0,behavior:'smooth'}); }
     }
 
     function renderAccountStep() {
@@ -2824,6 +3369,7 @@
       $('#onboardingProgress').style.width = `${current * 25}%`;
       $('#onboardingDemo').scrollTop = 0;
       if (page === 'review') hydrateBusinessReview();
+      focusStepHeading(`[data-onboarding-page="${page}"] h1`);
     }
 
     function hydrateBusinessReview() {
@@ -2879,8 +3425,39 @@
       $('#crawlError').classList.add('active');
     }
 
+    function websiteImportErrorCopy(status, reason) {
+      if (status === 429 || reason === 'rate_limited') {
+        return {
+          title:'Website import limit reached.',
+          message:'Please wait one minute before trying again. You can enter the business information manually now.'
+        };
+      }
+      if (!status || status === 500 || status === 502 || status === 503 || reason === 'api_route_unavailable' || reason === 'not_found') {
+        return {
+          title:'Website import is temporarily unavailable.',
+          message:'Your website may be working normally. Retry shortly or enter the business information manually; your current draft has not been replaced.'
+        };
+      }
+      if (reason === 'website_url_rejected' || reason === 'website_address_rejected' || reason === 'website_redirect_rejected') {
+        return {
+          title:'This website address cannot be imported.',
+          message:'Use a public HTTPS business website without login details, custom ports, or private network addresses.'
+        };
+      }
+      if (reason === 'website_timeout') {
+        return {
+          title:'This website took too long to respond.',
+          message:'Retry once the public HTTPS website responds, or enter the business information manually. Your current draft has not been replaced.'
+        };
+      }
+      return {
+        title:'We could not read this website.',
+        message:'The public HTTPS website may be unavailable, blocking automated access, or returning unsupported content. Retry or enter the information manually; your current draft has not been replaced.'
+      };
+    }
+
     function generatedSections() {
-      const shared = ['Identity, languages, and 200-character reply rule','Agent objective, conversation behavior, and boundaries','Approved FAQs, business knowledge, and source links','Privacy, customer information, and human handover'];
+      const shared = ['Identity, customer languages, and concise 200-word maximum','Agent objective, conversation behavior, and boundaries','Approved FAQs, business knowledge, and source links','Privacy, customer information, and human handover'];
       const roleSpecific = {
         support: ['Issue categories and resolution boundaries','Escalation triggers and support test cases'],
         sales: ['Discovery, recommendation, and qualification rules','Objection handling, lead capture, and appointment actions'],
@@ -2935,7 +3512,12 @@
           signal:onboardingState.importController.signal
         });
         const result = await response.json().catch(() => ({}));
-        if (!response.ok || result.status !== 'completed' || !result.profile) throw new Error(result.reason || result.status || 'website_import_failed');
+        if (!response.ok || result.status !== 'completed' || !result.profile) {
+          const failure = new Error(result.reason || result.status || 'website_import_failed');
+          failure.status = response.status;
+          failure.reason = result.reason || result.status || 'website_import_failed';
+          throw failure;
+        }
         resetProcessingProgress('Organizing the public business information found.',`${result.profile.pageCount} public page${result.profile.pageCount === 1 ? '' : 's'} read`,78);
         applyImportedWebsiteProfile(result.profile);
         $('#processingTitle').textContent = `Learning about ${result.profile.name}`;
@@ -2946,7 +3528,8 @@
       } catch (error) {
         if (error.name === 'AbortError') return;
         showOnboardingPage('source');
-        showCrawlError('We could not import this website.', 'No sample data was substituted. Check that the public HTTPS website is available, then retry or enter the information manually.');
+        const copy = websiteImportErrorCopy(Number(error.status || 0),error.reason || error.message);
+        showCrawlError(copy.title,copy.message);
       } finally {
         onboardingState.importController = null;
       }
@@ -3105,7 +3688,7 @@
     function businessSection() {
       return sectionHeader('Business profile and bot identity', 'Review what the bot knows about your business and how it introduces itself. Edit any field and continue in any order.') +
         `<div class="panel"><h2>Business profile</h2><p>Generated during onboarding and always editable.</p><div class="field-grid"><label>Business name<input data-bind="business.name" value="${escapeHtml(draft.business.name)}"></label><label>Business type<input data-bind="business.type" value="${escapeHtml(draft.business.type)}"></label><label class="wide">Business summary<textarea data-bind="business.summary">${escapeHtml(draft.business.summary)}</textarea></label><label class="wide">Products and services<textarea data-bind="business.offers">${escapeHtml(draft.business.offers)}</textarea></label><label>Business hours<input data-bind="business.hours" value="${escapeHtml(draft.business.hours)}"></label><label>Primary contact<input data-bind="business.contact" value="${escapeHtml(draft.business.contact)}"></label></div></div>` +
-        `<div class="panel"><h2>Customer-facing identity</h2><p>Changes affect the next message sent in the draft tester.</p><div class="field-grid"><label>Bot name<input id="botNameInput" data-bind="botName" value="${escapeHtml(draft.botName)}"></label><label>Primary language<select data-bind="language">${optionList(['English','Thai','English and Thai'], draft.language)}</select></label><label class="wide">Welcome message<textarea id="greetingInput" data-bind="greeting" maxlength="200">${escapeHtml(draft.greeting)}</textarea><span class="help"><span class="counter" id="greetingCount"></span>Shown at the start of a conversation.</span><span class="validation-error hidden" id="greetingError">Use 200 visible characters or fewer.</span></label><label>Tone<select data-bind="tone">${optionList(['Warm and concise','Professional','Friendly','Direct and helpful'], draft.tone)}</select></label><label>Reply limit<input value="200 visible characters" disabled></label><label class="wide">AI disclosure<textarea data-bind="disclosure" maxlength="200">${escapeHtml(draft.disclosure)}</textarea></label></div></div>`;
+        `<div class="panel"><h2>Customer-facing identity</h2><p>Changes affect the next message sent in the draft tester.</p><div class="field-grid"><label>Bot name<input id="botNameInput" data-bind="botName" value="${escapeHtml(draft.botName)}"></label><label>Supported customer languages<select data-bind="language">${optionList(['English','Thai','English and Thai'], draft.language)}</select><span class="help">When both are enabled, each customer chooses English or ไทย for their conversation.</span></label><label class="wide">Welcome message<textarea id="greetingInput" data-bind="greeting" maxlength="200">${escapeHtml(draft.greeting)}</textarea><span class="help"><span class="counter" id="greetingCount"></span>Shown at the start of a conversation.</span><span class="validation-error hidden" id="greetingError">Use 200 visible characters or fewer.</span></label><label>Tone<select data-bind="tone">${optionList(['Warm and concise','Professional','Friendly','Direct and helpful'], draft.tone)}</select></label><label>Reply policy<input value="Concise by default · 200 words maximum" disabled></label><label class="wide">AI disclosure<textarea data-bind="disclosure" maxlength="200">${escapeHtml(draft.disclosure)}</textarea></label></div></div>`;
     }
 
     function rowEditor(sectionKey, title, description, firstLabel, secondLabel, options = {}) {
@@ -3147,7 +3730,7 @@
     }
 
     function voice() {
-      return sectionHeader('Voice experience', 'Configure the spoken experience separately from role behavior. The written response must pass the 200-character rule before speech is generated.') +
+      return sectionHeader('Voice experience', 'Configure the spoken experience separately from role behavior. Spoken replies aim for 20–50 words and must pass the 200-word maximum before speech is generated.') +
         `<div class="panel"><h2>Voice and pacing</h2><p>Change a setting, then run the voice simulation in the tester.</p><div class="field-grid"><label>Voice<select data-bind="voice.name">${optionList(['Warm, neutral voice','Calm, professional voice','Bright, friendly voice'], draft.voice.name)}</select></label><label>Speaking speed<select data-bind="voice.speed">${optionList(['Natural','Slightly slower','Slightly faster'], draft.voice.speed)}</select></label><label>Customer interruption<select data-bind="voice.interruption">${optionList(['Stop speaking and listen','Finish the current sentence','Do not allow interruption'], draft.voice.interruption)}</select></label><label>Silence handling<select data-bind="voice.silence">${optionList(['Prompt once after 5 seconds','Prompt twice, then offer callback','End after 10 seconds'], draft.voice.silence)}</select></label><label>Names and numbers<select data-bind="voice.readback">${optionList(['Read back for confirmation','Confirm only phone numbers','Do not read back'], draft.voice.readback)}</select></label><label>Maximum call duration<select data-bind="voice.duration">${optionList(['5 minutes, then offer callback','10 minutes, then offer callback','15 minutes, then offer callback'], draft.voice.duration)}</select></label></div></div>` +
         `<div class="panel"><h2>Voice disclosure and recovery</h2><div class="field-grid"><label class="wide">Opening disclosure<textarea data-bind="voice.disclosure" maxlength="200">${escapeHtml(draft.voice.disclosure)}</textarea></label><label>Low transcription confidence<select data-bind="voice.lowConfidence">${optionList(['Ask the customer to repeat','Confirm what the bot heard','Offer callback'], draft.voice.lowConfidence)}</select></label><label>Repeated misunderstanding<select data-bind="voice.misunderstanding">${optionList(['Offer transfer or callback','Transfer immediately','End politely'], draft.voice.misunderstanding)}</select></label><label>Transfer unavailable<select data-bind="voice.unavailable">${optionList(['Collect callback consent and details','Provide business contact details','Ask the customer to call later'], draft.voice.unavailable)}</select></label><label>Call recording<select data-bind="voice.recording">${optionList(['Off','On with consent disclosure'], draft.voice.recording)}</select></label></div></div>`;
     }
@@ -3158,7 +3741,7 @@
 
     function textExperience() {
       return sectionHeader('Text experience', 'Configure the controls and formatting customers see in website chat. These settings apply only to AI Text Bot.') +
-        `<div class="panel"><h2>Conversation controls</h2><p>Keep customer choices helpful without forcing every conversation into buttons.</p><div class="field-grid"><label>Suggested replies<select data-bind="text.suggestions">${optionList(['Show up to 3 suggested replies','Show only at the welcome message','Do not show suggested replies'], draft.text.suggestions)}</select></label><label>Business links<select data-bind="text.links">${optionList(['Open business links in a new tab','Open links in the same tab','Do not send clickable links'], draft.text.links)}</select></label><label>Customer information forms<select data-bind="text.forms">${optionList(['Ask in conversation, one field at a time','Show a compact form after consent','Send to a secure merchant form'], draft.text.forms)}</select></label><label>Response formatting<select data-bind="text.formatting">${optionList(['Short paragraphs and simple lists','Plain text only','One short paragraph'], draft.text.formatting)}</select></label><label>Knowledge citations<select data-bind="text.citations">${optionList(['Show approved source links when useful','Show source name without link','Keep sources in merchant tester only'], draft.text.citations)}</select></label><label>Maximum reply length<input value="200 visible characters" disabled><span class="help">Validated before delivery to the customer.</span></label></div></div>` +
+        `<div class="panel"><h2>Conversation controls</h2><p>Keep customer choices helpful without forcing every conversation into buttons.</p><div class="field-grid"><label>Suggested replies<select data-bind="text.suggestions">${optionList(['Show up to 3 suggested replies','Show only at the welcome message','Do not show suggested replies'], draft.text.suggestions)}</select></label><label>Business links<select data-bind="text.links">${optionList(['Open business links in a new tab','Open links in the same tab','Do not send clickable links'], draft.text.links)}</select></label><label>Customer information forms<select data-bind="text.forms">${optionList(['Ask in conversation, one field at a time','Show a compact form after consent','Send to a secure merchant form'], draft.text.forms)}</select></label><label>Response formatting<select data-bind="text.formatting">${optionList(['Short paragraphs and simple lists','Plain text only','One short paragraph'], draft.text.formatting)}</select></label><label>Knowledge citations<select data-bind="text.citations">${optionList(['Show approved source links when useful','Show source name without link','Keep sources in merchant tester only'], draft.text.citations)}</select></label><label>Reply policy<input value="Aim for 40–80 words · 300 maximum" disabled><span class="help">The agent is instructed to be concise before generation; oversized output is rejected for controlled rewriting, never cut off.</span></label></div></div>` +
         `<div class="panel"><h2>Preview customer controls</h2><p>Try the configured response behavior in the tester. Buttons and actions remain simulated.</p><div class="token-list"><span class="token">Compare packages</span><span class="token">Book consultation</span><span class="token">Speak to a person</span></div></div>`;
     }
 
@@ -3189,7 +3772,7 @@
       if (!state.dirty && state.configured) return installSection();
       const warnings = releaseWarnings();
       if (!warnings.length) return sectionHeader('Publish when you are satisfied', 'No configuration warnings were found. Publishing creates a new immutable version.') +
-        `<div class="panel"><h2>Your decision</h2><p>Publishing does not install the bot or enable customer traffic. Those actions remain separate.</p><ul class="checklist"><li><span class="checkmark">✓</span>Current configuration has no detected warnings</li><li><span class="checkmark">✓</span>Customer-facing responses are limited to 200 visible characters</li><li><span class="checkmark">✓</span>You can return, edit, and publish another version later</li></ul><button class="btn btn-green" data-publish-from-page style="margin-top:16px">Publish version ${state.version + 1}</button></div>`;
+        `<div class="panel"><h2>Your decision</h2><p>Publishing does not install the bot or enable customer traffic. Those actions remain separate.</p><ul class="checklist"><li><span class="checkmark">✓</span>Current configuration has no detected warnings</li><li><span class="checkmark">✓</span>Replies are concise by instruction and cannot exceed 200 locale-aware words</li><li><span class="checkmark">✓</span>You can return, edit, and publish another version later</li></ul><button class="btn btn-green" data-publish-from-page style="margin-top:16px">Publish version ${state.version + 1}</button></div>`;
       return sectionHeader('Publish when you are satisfied', `${warnings.length} optional ${warnings.length === 1 ? 'check is' : 'checks are'} highlighted below. They do not block publishing.`) +
         `<div class="panel"><div class="row between"><div><h2>Optional checks</h2><p>Open any item you want to improve, or publish the current draft as it is.</p></div><button class="btn btn-green" data-publish-from-page>Publish with ${warnings.length} ${warnings.length === 1 ? 'warning' : 'warnings'}</button></div><div class="editable-list" style="margin-top:16px">${warnings.map(warning => `<div class="editable-row" style="grid-template-columns:minmax(180px,.8fr) minmax(220px,1.4fr) auto"><div><strong>${escapeHtml(warning.label)}</strong></div><div>${escapeHtml(warning.message)}</div><button class="btn" data-go-section="${warning.section}">Open section</button></div>`).join('')}</div></div>`;
     }
@@ -3355,14 +3938,14 @@
     function openPublishReview() {
       const coreConfigured = Boolean(draft.botName.trim() && draft.greeting.trim() && draft.sources.some(source => source.status === 'Ready'));
       const testsPassed = draft.rows.test.length > 0 && draft.rows.test.every(test => test.passed);
-      const lengthsPass = [draft.greeting,draft.disclosure,draft.voice.disclosure].every(value => visibleLength(value || '') <= 200);
+      const lengthsPass = [draft.greeting,draft.disclosure,draft.voice.disclosure].every(value => visibleWordCount(value || '',/[\u0e00-\u0e7f]/.test(value || '') ? 'th' : 'en') <= 200);
       const setResult = (iconId, textId, pass, passText, failText) => {
         const icon = $('#' + iconId); icon.textContent = pass ? '✓' : '!'; icon.classList.toggle('pending', !pass);
         $('#' + textId).textContent = pass ? passText : failText;
       };
       setResult('reviewRequiredIcon','reviewRequiredText',coreConfigured,'Core identity and knowledge have no detected warnings','Some core identity or knowledge fields are incomplete. Publishing is still available');
       setResult('reviewTestsIcon','reviewTestsText',testsPassed,'All suggested role-specific test cases passed','Suggested tests are incomplete. Testing is optional');
-      setResult('reviewLengthIcon','reviewLengthText',lengthsPass,'Configured customer messages are within 200 visible characters','Long configured messages will be limited to 200 visible characters at runtime');
+      setResult('reviewLengthIcon','reviewLengthText',lengthsPass,'Configured replies are concise and within the 200-word maximum','A configured message exceeds 200 words and must be shortened before publication');
       const warnings = releaseWarnings();
       $('#publishWarningSummary').classList.toggle('hidden', warnings.length === 0);
       $('#publishWarningTitle').textContent = `${warnings.length} optional ${warnings.length === 1 ? 'check remains' : 'checks remain'}`;
@@ -3383,13 +3966,15 @@
       const lower = message.toLowerCase();
       const faq = matchingFaq(config, message);
       if (faq) response = faq.answer;
-      else if (role === 'sales' && /(expensive|price|cost)/.test(lower) && config.rows.objections[0]) response = config.rows.objections[0].b;
+      else if (role === 'sales' && /(expensive|price|cost|budget|แพง|ราคา|งบ)/.test(lower) && config.rows.objections[0]) response = config.rows.objections[0].b;
+      else if (role === 'sales' && /^(no|nope|nah|not now|ไม่|ไม่เอา|ยังไม่)$/i.test(message.trim())) response = 'I understand. Is the main concern budget, timing, or whether this fits your needs? I can address that point directly without pressuring you to decide.';
       else if (role === 'booking' && config.rows.services[0]) response = `I can help with ${config.rows.services[0].a}. It takes ${config.rows.services[0].b}. Which day and time work for you?`;
       else if (role === 'support' && /(person|human|agent)/.test(lower) && config.rows.handover[0]) response = `I can hand this to your team through ${config.rows.handover[0].b}. Please share the best contact method for follow-up.`;
-      return Array.from(response).slice(0, 200).join('');
+      return response;
     }
 
     function renderChat(preserveGreeting = false, greeting = '', customerMessage = '') {
+      state.testMessages = [];
       const published = state.testMode === 'published';
       const testRole = published ? state.publishedRole : state.role;
       const testProduct = published ? state.publishedProduct : state.product;
@@ -3399,15 +3984,29 @@
       const firstReply = preserveGreeting && greeting ? greeting : config.greeting;
       const sampleCustomer = customerMessage || data.customer;
       const reply = configuredResponse(config, sampleCustomer, testRole);
-      $('#chatLog').innerHTML = `<div class="bubble bot"><small>${published ? `Published version ${state.version}` : voiceTest ? 'Draft voice transcript' : 'Draft text bot'}</small>${escapeHtml(firstReply)}</div><div class="bubble customer"><small>${voiceTest ? 'Simulated caller transcript' : 'Customer'}</small>${escapeHtml(sampleCustomer)}</div><div class="bubble bot"><small>${voiceTest ? 'Simulated spoken response' : 'Simulated response'}</small>${escapeHtml(reply)}</div>`;
-      $('#charEvidence').textContent = `${visibleLength(reply)} / 200 characters`;
+      $('#chatLog').innerHTML = voiceTest
+        ? `<div class="bubble bot"><small>${published ? `Published version ${state.version}` : 'Live Voice tester'}</small>Press Start, allow microphone access, and speak naturally. The configured disclosure and business instructions are sent when the secure Voice session begins.</div>`
+        : `<div class="bubble bot"><small>${published ? `Published version ${state.version}` : 'Draft text bot'}</small>${escapeHtml(firstReply)}</div><div class="bubble customer"><small>Customer</small>${escapeHtml(sampleCustomer)}</div><div class="bubble bot"><small>Simulated response</small>${escapeHtml(reply)}</div>`;
+      $('#charEvidence').textContent = voiceTest ? 'Waiting for a live response' : `${visibleWordCount(reply,/[\u0e00-\u0e7f]/.test(reply) ? 'th' : 'en')} words · 300 maximum`;
       $('#sourceEvidence').textContent = matchingFaq(config, sampleCustomer) ? 'Approved FAQ' : (config.sources?.find(source => source.status === 'Ready')?.name || 'No ready source');
       $('#toneEvidence').textContent = testProduct === 'voice' ? `${config.tone}, ${config.voice.name}, ${config.voice.speed}` : config.tone;
       $('#behaviorEvidence').textContent = config.business.agentObjective || `${data.short} role behavior`;
       $('#actionEvidence').textContent = data.action;
       $('#testerSubtitle').textContent = `${data.short} ${voiceTest ? 'voice call' : 'text chat'}, ${state.testMode} settings`;
-      $('#testerNotice').textContent = voiceTest ? 'Safe voice simulation: no microphone, phone call, booking, external action, or usage charge.' : 'Safe test mode: no customer messages, external actions, bookings, calls, or usage charges.';
+      $('#testerNotice').textContent = voiceTest ? 'Live Voice test: microphone access begins only after Start. Recording and external actions are disabled.' : 'Safe test mode: no customer messages, external actions, bookings, calls, or usage charges.';
       state.chatInitialized = true;
+    }
+
+    function scrollTestChatToLatest() {
+      const chat = $('#chatLog');
+      if (!chat) return;
+      const scroll = () => { chat.scrollTop = chat.scrollHeight; };
+      scroll();
+      requestAnimationFrame(() => {
+        scroll();
+        requestAnimationFrame(scroll);
+      });
+      setTimeout(scroll,80);
     }
 
     function leadStageMeta(status) {
@@ -3591,11 +4190,7 @@
 
     function showDashboard(view = 'overview') {
       dashboardState.view = view;
-      $('#journeyDemo').classList.add('hidden');
-      $('#onboardingDemo').classList.add('hidden');
-      $('#flowOnboardingDemo').classList.add('hidden');
-      $('#flowStudioDemo').classList.add('hidden');
-      $('#merchantDashboard').classList.remove('hidden');
+      activateSurface('merchantDashboard');
       document.body.classList.remove('tester-mobile-open');
       renderDashboard();
       $('#merchantDashboard').scrollTop = 0;
@@ -3603,7 +4198,7 @@
 
     function openConfigurationStudio() {
       if (state.product === 'flow') { openFlowStudio(flowState.section || 'map'); return; }
-      $('#merchantDashboard').classList.add('hidden');
+      activateSurface('configurationStudio');
       $('#merchantDashboard').classList.remove('nav-open');
       state.chatInitialized = false;
       render();
@@ -3727,9 +4322,9 @@
     $('#dashboardMenu').addEventListener('click', () => $('#merchantDashboard').classList.toggle('nav-open'));
     $('#dashboardBackdrop').addEventListener('click', () => $('#merchantDashboard').classList.remove('nav-open'));
     $('#dashboardWorkspaceName').addEventListener('click', () => showToast('This design demo contains one merchant workspace.'));
-    $$('[data-show-landing]').forEach(button => button.addEventListener('click', () => showCommerceScreen('landing')));
-    $$('[data-show-pricing]').forEach(button => button.addEventListener('click', () => { renderCommercePricing(); showCommerceScreen('pricing'); }));
-    $$('[data-product-plans]').forEach(button => button.addEventListener('click', () => { selectCommerceProduct(button.dataset.productPlans); showCommerceScreen('pricing'); }));
+    $$('[data-show-landing]').forEach(button => button.addEventListener('click', () => { activateSurface('journeyDemo'); showCommerceScreen('landing'); }));
+    $$('[data-show-pricing]').forEach(button => button.addEventListener('click', () => { activateSurface('journeyDemo'); renderCommercePricing(); showCommerceScreen('pricing'); }));
+    $$('[data-product-plans]').forEach(button => button.addEventListener('click', () => { activateSurface('journeyDemo'); selectCommerceProduct(button.dataset.productPlans); showCommerceScreen('pricing'); }));
     $$('[data-commerce-product]').forEach(button => button.addEventListener('click', () => selectCommerceProduct(button.dataset.commerceProduct)));
     $$('[data-scroll-products]').forEach(button => button.addEventListener('click', () => $('#productFamilies').scrollIntoView({behavior:'smooth'})));
     $('#startTrial').addEventListener('click', () => openSelectedCommerceIntent('trial'));
@@ -3765,8 +4360,7 @@
       } else showToast('Account created. Your completed configuration is ready to deploy.');
     });
     $('#backToSubscription').addEventListener('click', () => {
-      $('#onboardingDemo').classList.add('hidden');
-      $('#journeyDemo').classList.remove('hidden');
+      activateSurface('journeyDemo');
       renderCommercePricing();
       showCommerceScreen('pricing');
     });
@@ -3774,6 +4368,7 @@
     $$('[data-flow-template]').forEach(button => button.addEventListener('click',() => selectFlowTemplate(button.dataset.flowTemplate)));
     $('#flowContinueTemplate').addEventListener('click',() => {
       const identity = clone(flowDraft.identity);
+      clearFlowConnectorInteraction();
       rememberFlowDraft();
       flowDraft = createFlowDraft(flowState.template);
       flowDraft.identity = identity;
@@ -3783,16 +4378,16 @@
       markFlowChanged(); showFlowOnboardingPage('identity');
       $('#flowBotName').value = flowDraft.identity.botName; $('#flowGreetingEn').value = flowDraft.identity.greetingEn; $('#flowGreetingTh').value = flowDraft.identity.greetingTh; $('#flowBrandColor').value = flowDraft.identity.brandColor; $('#flowWidgetPosition').value = flowDraft.identity.position; $('#flowBusinessHours').value = flowDraft.identity.businessHours; $('#flowHandoverContact').value = flowDraft.identity.handoverContact; $('#flowPrivacyUrl').value = flowDraft.identity.privacyUrl; syncFlowIdentityPreview();
     });
-    $('#flowBackToPricing').addEventListener('click',() => { $('#flowOnboardingDemo').classList.add('hidden'); $('#journeyDemo').classList.remove('hidden'); renderCommercePricing(); showCommerceScreen('pricing'); });
+    $('#flowBackToPricing').addEventListener('click',() => { activateSurface('journeyDemo'); renderCommercePricing(); showCommerceScreen('pricing'); });
     $('#flowBackToTemplate').addEventListener('click',() => showFlowOnboardingPage('template'));
     $('#flowIdentityForm').addEventListener('submit',event => event.preventDefault());
     ['flowBotName','flowGreetingEn','flowGreetingTh','flowBrandColor'].forEach(id => $('#' + id).addEventListener('input',syncFlowIdentityPreview));
     $('#flowContinueIdentity').addEventListener('click',() => { applyFlowIdentityForm(); showFlowOnboardingPage('ready'); });
     $$('[data-flow-onboarding-test-language]').forEach(button => button.addEventListener('click',() => { applyFlowIdentityForm(); openFlowDraftTest(button.dataset.flowOnboardingTestLanguage,flowDraft.entryId,'entry','identity'); }));
-    $('#flowOpenDashboardEarly').addEventListener('click',() => { state.product = 'flow'; state.configured = flowState.configured; state.dirty = flowState.dirty; showDashboard('overview'); });
+    $('#flowOpenDashboardEarly').addEventListener('click',() => { clearFlowConnectorInteraction(); state.product = 'flow'; state.configured = flowState.configured; state.dirty = flowState.dirty; showDashboard('overview'); });
     $('#flowTestReady').addEventListener('click',() => openFlowDraftTest(flowState.testLanguage,flowDraft.entryId,'entry','ready'));
     $('#flowOpenStudio').addEventListener('click',() => { flowState.testReturnSurface = null; openFlowStudio('map'); });
-    $('#flowTopDashboard').addEventListener('click',() => showDashboard('overview'));
+    $('#flowTopDashboard').addEventListener('click',() => { clearFlowConnectorInteraction(); showDashboard('overview'); });
     $('#flowUndo').addEventListener('click',() => restoreFlowHistory('undo'));
     $('#flowRedo').addEventListener('click',() => restoreFlowHistory('redo'));
     $('#flowResetDemo').addEventListener('click',() => {
@@ -3803,6 +4398,7 @@
       Object.assign(flowState,{onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',widgetPreviewLanguage:null,testNodeId:null,testMessages:[],testError:'',testStartMode:'entry',testStartNodeId:null,testReturnSurface:null});
       flowUndoStack = [];
       flowRedoStack = [];
+      clearFlowConnectorInteraction();
       state.product = 'flow'; state.configured = false; state.version = 0; state.dirty = true;
       $('#flowStudioDemo').classList.remove('flow-panel-open');
       renderFlowTemplatePreview();
@@ -3810,9 +4406,20 @@
       showToast('The local Flow Bot demo has been reset.');
     });
     $$('[data-flow-panel]').forEach(button => button.addEventListener('click',() => {
+      clearFlowConnectorInteraction();
       if (button.dataset.flowPanel === 'test') { openFlowDraftTest(flowState.testLanguage,flowDraft.entryId,'entry'); return; }
       flowState.panel = button.dataset.flowPanel; $('#flowStudioDemo').classList.add('flow-panel-open'); renderFlowStudio();
     }));
+    document.addEventListener('keydown',event => {
+      if ($('#flowStudioDemo').classList.contains('hidden')) return;
+      const editing = event.target.closest?.('input,textarea,select,[contenteditable="true"]');
+      if (event.key === 'Escape' && (flowConnection || flowSelectedEdge)) {
+        event.preventDefault(); clearFlowConnectorInteraction(); renderFlowStudio(); showToast('Connector selection cleared.'); return;
+      }
+      if (!editing && (event.key === 'Delete' || event.key === 'Backspace') && flowSelectedEdge) {
+        event.preventDefault(); disconnectFlowEdge(flowSelectedEdge);
+      }
+    });
     $('#flowCancelPublish').addEventListener('click',() => $('#flowPublishDialog').close());
     $('#flowConfirmPublish').addEventListener('click',() => {
       flowPublishedDraft = clone(flowDraft); flowState.version += 1; flowState.configured = true; flowState.dirty = false; flowState.installVerified = false; flowState.live = false; flowState.snippetCopied = false; state.configured = true; state.version = flowState.version; state.dirty = false; saveFlowLocal(); $('#flowPublishDialog').close(); flowState.section = 'release'; renderFlowStudio(); showToast(`Flow Bot version ${flowState.version} published in this design simulation.`);
@@ -3833,7 +4440,6 @@
     });
     $('#startManualLearning').addEventListener('click', () => beginBusinessLearning('manual'));
     $('#retryCrawl').addEventListener('click', () => learnFromWebsite());
-    $('#usePartial').addEventListener('click', () => learnFromWebsite());
     $('#switchToManual').addEventListener('click', () => selectSourceMode('manual'));
     $('#cancelProcessing').addEventListener('click', () => { clearTimeout(onboardingState.processTimer); onboardingState.importController?.abort(); showOnboardingPage('source'); });
     const businessReviewMap = {reviewBusinessName:'name',reviewBusinessType:'type',reviewBusinessSummary:'summary',reviewBusinessOffers:'offers',reviewBusinessHours:'hours',reviewBusinessContact:'contact',reviewAgentObjective:'agentObjective',reviewAgentBehavior:'agentBehavior',reviewAgentBoundaries:'agentBoundaries'};
@@ -3848,7 +4454,7 @@
       if (!draft.botName || draft.botName === defaultDraft.botName) draft.botName = `${draft.business.name} ${roleData[state.role].short} Assistant`;
       if (!draft.greeting || draft.greeting === defaultDraft.greeting) draft.greeting = `Hello. I am the ${draft.business.name} ${roleData[state.role].short} Assistant. How can I help today?`.slice(0, 200);
       savePrototype();
-      $('#onboardingDemo').classList.add('hidden');
+      activateSurface('configurationStudio');
       state.section = firstIncompleteSection();
       state.chatInitialized = false;
       render();
@@ -3897,49 +4503,250 @@
     });
     $('#expandTester').addEventListener('click', () => { document.body.classList.toggle('tester-expanded'); document.body.classList.remove('tester-collapsed'); });
     $('#mobileTest').addEventListener('click', () => document.body.classList.add('tester-mobile-open'));
-    $('#resetTest').addEventListener('click', () => renderChat());
+    $('#resetTest').addEventListener('click', () => { stopBuilderVoiceTest('Voice test reset.'); renderChat(); });
     $('#sendTest').addEventListener('click', async () => {
       const value = $('#testInput').value.trim(); if (!value) return;
+      const sendButton = $('#sendTest');
+      if (sendButton.disabled) return;
+      sendButton.disabled = true;
       $('#chatLog').insertAdjacentHTML('beforeend', `<div class="bubble customer"><small>Customer</small>${escapeHtml(value)}</div><div class="bubble bot typing"><small>${state.testMode === 'published' ? 'Published bot' : 'Draft bot'}</small>Checking the selected configuration...</div>`);
+      scrollTestChatToLatest();
       $('#testInput').value = '';
       try {
         const testConfig = state.testMode === 'published' ? publishedDraft : draft;
         const testRole = state.testMode === 'published' ? state.publishedRole : state.role;
-        const request = await fetch('/public/builder/ai-test', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({language:testConfig.languages?.includes('th')?'th':'en',role:testRole,message:value,business:{name:testConfig.business.name,summary:testConfig.business.summary||'',offers:testConfig.business.offers||'',agentObjective:testConfig.business.agentObjective,agentBehavior:testConfig.business.agentBehavior,agentBoundaries:testConfig.business.agentBoundaries}})});
-        const result = await request.json();
-        if (!request.ok || !result.preview?.text) throw new Error(result.status || 'test_unavailable');
+        const language = /[\u0e00-\u0e7f]/.test(value) ? 'th' : 'en';
+        const request = await fetch('/public/builder/ai-test', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({language,role:testRole,message:value,messages:state.testMessages.slice(-12),business:{name:testConfig.business.name,summary:testConfig.business.summary||'',offers:testConfig.business.offers||'',hours:testConfig.business.hours||'',contact:testConfig.business.contact||'',faqs:testConfig.business.faqs||[],agentObjective:testConfig.business.agentObjective,agentBehavior:testConfig.business.agentBehavior,agentBoundaries:testConfig.business.agentBoundaries}})});
+        const result = await request.json().catch(() => ({}));
+        if (!request.ok) {
+          const failureCopy = {
+            test_quota_exhausted: `This builder has reached its ${Number(result.cap) || 500}-test maximum for the 30-day test period. Your deployed trial allowance is unchanged.`,
+            gateway_timeout: 'The AI took too long to answer. Retry this message; your draft is unchanged.',
+            gateway_invalid_response: 'The AI returned a response that did not pass DJBOT safety and format checks. Retry this message; your draft is unchanged.',
+            gateway_unavailable: 'The AI service is temporarily unavailable. Retry shortly; your draft is unchanged.',
+            not_available: 'Live AI testing is not configured on this environment. Your draft is unchanged.',
+            validation_failed: 'The test message or configuration is incomplete. Review the current fields and retry.',
+          };
+          throw new Error(`AI_TEST:${failureCopy[result.status] || 'The test service could not be reached. Retry shortly; your draft is unchanged.'}`);
+        }
+        if (!result.preview?.text) throw new Error('AI_TEST:The AI returned no usable reply. Retry this message; your draft is unchanged.');
         const response = result.preview.text;
+        state.testMessages.push({role:'user',content:value},{role:'assistant',content:response});
         const typing = $('#chatLog .typing');
         if (typing) { typing.classList.remove('typing'); typing.innerHTML = `<small>Live DJBOT response</small>${escapeHtml(response)}`; }
-        $('#charEvidence').textContent = `${visibleLength(response)} / 200 characters`;
+        $('#charEvidence').textContent = `${visibleWordCount(response,language)} words · 300 maximum`;
         const testProduct = state.testMode === 'published' ? state.publishedProduct : state.product;
         $('#sourceEvidence').textContent = result.preview.citationCount ? 'Approved draft knowledge' : 'Draft behavior and customer message';
         $('#toneEvidence').textContent = testProduct === 'voice' ? `${testConfig.tone}, ${testConfig.voice.name}, ${testConfig.voice.speed}` : testConfig.tone;
         $('#behaviorEvidence').textContent = testConfig.business.agentObjective;
         $('#actionEvidence').textContent = result.preview.proposedActionTypes?.join(', ') || 'None executed';
         $('#testerNotice').textContent = 'Live safe test: the response used the current configuration. No external action was executed.';
-        $('#chatLog').scrollTop = $('#chatLog').scrollHeight;
+        scrollTestChatToLatest();
       } catch (error) {
         const typing = $('#chatLog .typing');
-        if (typing) { typing.classList.remove('typing'); typing.innerHTML = '<small>Test unavailable</small>The AI test could not complete. Your draft is unchanged; retry when the gateway is available.'; }
-        $('#testerNotice').textContent = 'The live AI gateway is unavailable. No customer action or usage change occurred.';
+        const safeMessage = error instanceof Error && error.message.startsWith('AI_TEST:')
+          ? error.message.slice('AI_TEST:'.length)
+          : 'The test service could not be reached. Check the connection and retry; your draft is unchanged.';
+        if (typing) { typing.classList.remove('typing'); typing.innerHTML = `<small>Test not completed</small>${escapeHtml(safeMessage)}`; }
+        $('#testerNotice').textContent = 'No customer action was executed and the failed test did not change your draft.';
+        $('#testInput').value = value;
+        $('#testInput').focus();
+        scrollTestChatToLatest();
+      } finally {
+        sendButton.disabled = false;
       }
     });
     $('#testInput').addEventListener('keydown', event => { if (event.key === 'Enter') $('#sendTest').click(); });
-    $('#voiceTest').addEventListener('click', () => { $('#voiceStatus').textContent = 'Simulating customer speech, transcription, response validation, and playback. No microphone is accessed.'; setTimeout(() => { renderChat(); $('#voiceStatus').textContent = 'Simulation complete. Review the transcript and response evidence above.'; }, 600); });
+    function voiceSetControl(mode, status) {
+      const button = $('#voiceTest');
+      button.classList.remove('listening','speaking','ending');
+      if (mode === 'listening' || mode === 'speaking' || mode === 'ending') button.classList.add(mode);
+      button.textContent = builderVoice.active || builderVoice.starting ? '■' : '◉';
+      button.setAttribute('aria-label', builderVoice.active || builderVoice.starting ? 'End live voice test' : 'Start live voice test');
+      button.disabled = mode === 'ending';
+      $('#voiceStatus').textContent = status;
+    }
+
+    function voicePcmBase64(samples) {
+      const bytes = new Uint8Array(samples.buffer, samples.byteOffset, samples.byteLength);
+      let binary = '';
+      for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode(...bytes.subarray(offset,offset + 8192));
+      return btoa(binary);
+    }
+
+    function voiceResamplePcm16(samples, sourceRate) {
+      const targetRate = 24000;
+      const ratio = sourceRate / targetRate;
+      const output = new Int16Array(Math.max(1,Math.floor(samples.length / ratio)));
+      for (let index = 0; index < output.length; index += 1) {
+        const position = index * ratio;
+        const left = Math.floor(position);
+        const right = Math.min(left + 1,samples.length - 1);
+        const fraction = position - left;
+        const value = Math.max(-1,Math.min(1,(samples[left] || 0) * (1 - fraction) + (samples[right] || 0) * fraction));
+        output[index] = value < 0 ? Math.round(value * 32768) : Math.round(value * 32767);
+      }
+      return output;
+    }
+
+    function voiceAppendTranscript(speaker, text, cumulative = false) {
+      if (!text) return;
+      const key = speaker === 'customer' ? 'customerText' : 'agentText';
+      builderVoice[key] = cumulative ? text : builderVoice[key] + text;
+      const id = speaker === 'customer' ? 'liveVoiceCustomer' : 'liveVoiceAgent';
+      let bubble = $('#' + id);
+      if (!bubble) {
+        $('#chatLog').insertAdjacentHTML('beforeend',`<div class="bubble ${speaker === 'customer' ? 'customer' : 'bot'}" id="${id}"><small>${speaker === 'customer' ? 'Customer transcript' : 'Live Voice response'}</small><span></span></div>`);
+        bubble = $('#' + id);
+      }
+      bubble.querySelector('span').textContent = builderVoice[key];
+      if (speaker === 'agent') $('#charEvidence').textContent = `${visibleWordCount(builderVoice.agentText,/[\u0e00-\u0e7f]/.test(builderVoice.agentText) ? 'th' : 'en')} words · 300 maximum`;
+      if (speaker === 'agent' && visibleWordCount(builderVoice.agentText,/[\u0e00-\u0e7f]/.test(builderVoice.agentText) ? 'th' : 'en') > 200 && !builderVoice.responseCapped) {
+        builderVoice.responseCapped = true;
+        try { builderVoice.socket?.send(JSON.stringify({type:'response.cancel'})); } catch {}
+        builderVoice.playbackSources.forEach(source => { try { source.stop(); } catch {} });
+        builderVoice.playbackSources.clear(); builderVoice.playbackCursor = builderVoice.audioContext?.currentTime || 0;
+        voiceSetControl('listening','The 200-word safety maximum stopped that response. Listening for the next turn.');
+      }
+      $('#chatLog').scrollTop = $('#chatLog').scrollHeight;
+    }
+
+    function voicePlayPcm(base64) {
+      const context = builderVoice.audioContext;
+      if (!context || builderVoice.terminal) return;
+      const binary = atob(base64);
+      const sampleCount = Math.floor(binary.length / 2);
+      const buffer = context.createBuffer(1,sampleCount,24000);
+      const output = buffer.getChannelData(0);
+      for (let index = 0; index < sampleCount; index += 1) {
+        const low = binary.charCodeAt(index * 2);
+        const high = binary.charCodeAt(index * 2 + 1);
+        const signed = (high << 8) | low;
+        output[index] = (signed & 0x8000 ? signed - 0x10000 : signed) / 32768;
+      }
+      const source = context.createBufferSource();
+      source.buffer = buffer; source.connect(context.destination);
+      const startsAt = Math.max(context.currentTime + .015,builderVoice.playbackCursor);
+      source.start(startsAt); builderVoice.playbackCursor = startsAt + buffer.duration;
+      builderVoice.playbackSources.add(source);
+      source.onended = () => builderVoice.playbackSources.delete(source);
+    }
+
+    function voiceStartCapture() {
+      if (!builderVoice.stream || !builderVoice.audioContext || builderVoice.inputProcessor) return;
+      const context = builderVoice.audioContext;
+      builderVoice.inputSource = context.createMediaStreamSource(builderVoice.stream);
+      builderVoice.inputProcessor = context.createScriptProcessor(4096,1,1);
+      builderVoice.inputSilence = context.createGain(); builderVoice.inputSilence.gain.value = 0;
+      builderVoice.inputProcessor.onaudioprocess = event => {
+        if (!builderVoice.active || builderVoice.terminal || builderVoice.socket?.readyState !== WebSocket.OPEN) return;
+        const pcm = voiceResamplePcm16(event.inputBuffer.getChannelData(0),context.sampleRate);
+        builderVoice.socket.send(JSON.stringify({type:'input_audio_buffer.append',audio:voicePcmBase64(pcm)}));
+      };
+      builderVoice.inputSource.connect(builderVoice.inputProcessor);
+      builderVoice.inputProcessor.connect(builderVoice.inputSilence);
+      builderVoice.inputSilence.connect(context.destination);
+    }
+
+    function stopBuilderVoiceTest(status = 'Voice test ended. Microphone access stopped.') {
+      if (!builderVoice.active && !builderVoice.starting && !builderVoice.stream) return;
+      builderVoice.terminal = true; builderVoice.active = false; builderVoice.starting = false;
+      if (builderVoice.timer) clearTimeout(builderVoice.timer);
+      builderVoice.timer = null;
+      try { builderVoice.inputProcessor?.disconnect(); } catch {}
+      try { builderVoice.inputSource?.disconnect(); } catch {}
+      try { builderVoice.inputSilence?.disconnect(); } catch {}
+      builderVoice.inputProcessor = null; builderVoice.inputSource = null; builderVoice.inputSilence = null;
+      builderVoice.stream?.getTracks().forEach(track => track.stop()); builderVoice.stream = null;
+      builderVoice.playbackSources.forEach(source => { try { source.stop(); } catch {} }); builderVoice.playbackSources.clear();
+      if (builderVoice.socket && builderVoice.socket.readyState < WebSocket.CLOSING) builderVoice.socket.close(1000,'test_ended');
+      builderVoice.socket = null;
+      const context = builderVoice.audioContext; builderVoice.audioContext = null;
+      if (context && context.state !== 'closed') void context.close().catch(() => undefined);
+      voiceSetControl('idle',status);
+    }
+
+    async function startBuilderVoiceTest() {
+      if (builderVoice.active || builderVoice.starting) { stopBuilderVoiceTest(); return; }
+      builderVoice.starting = true; builderVoice.terminal = false; builderVoice.customerText = ''; builderVoice.agentText = ''; builderVoice.playbackCursor = 0;
+      voiceSetControl('starting','Requesting microphone permission…');
+      const config = state.testMode === 'published' ? publishedDraft : draft;
+      const role = state.testMode === 'published' ? state.publishedRole : state.role;
+      const language = config.languages?.includes('th') ? 'th' : 'en';
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error('microphone_unsupported');
+        builderVoice.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});
+        const response = await fetch('/public/builder/voice-test/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({language,role,business:{name:config.business.name,summary:config.business.summary||'',offers:config.business.offers||'',hours:config.business.hours||'',contact:config.business.contact||'',faqs:config.business.faqs||[],agentObjective:config.business.agentObjective,agentBehavior:config.business.agentBehavior,agentBoundaries:config.business.agentBoundaries}})});
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result.status !== 'issued' || !result.session?.token) throw new Error(result.status || 'voice_session_unavailable');
+        const Context = window.AudioContext || window.webkitAudioContext;
+        if (!Context) throw new Error('audio_unsupported');
+        builderVoice.audioContext = new Context(); await builderVoice.audioContext.resume();
+        builderVoice.active = true; builderVoice.starting = false;
+        $('#chatLog').innerHTML = '<div class="bubble bot"><small>Live Voice tester</small>Microphone permission granted. Connecting securely…</div>';
+        $('#testerNotice').textContent = 'Live Grok Voice test. Recording and external actions are disabled; End immediately stops microphone access.';
+        const socket = new WebSocket(result.session.websocketUrl,[`xai-client-secret.${result.session.token}`]);
+        builderVoice.socket = socket;
+        socket.onopen = () => {
+          if (builderVoice.terminal) return;
+          socket.send(JSON.stringify({type:'session.update',session:{voice:result.session.voice,instructions:result.session.instructions,turn_detection:{type:'server_vad'},audio:{input:{format:{type:'audio/pcm',rate:24000},transcription:{model:'grok-transcribe'}},output:{format:{type:'audio/pcm',rate:24000},voice:result.session.voice}}}}));
+          voiceSetControl('starting','Connected. Preparing the configured Voice assistant…');
+        };
+        socket.onmessage = event => {
+          if (builderVoice.terminal) return;
+          let message; try { message = JSON.parse(String(event.data)); } catch { stopBuilderVoiceTest('The Voice service returned an invalid event.'); return; }
+          if (message.type === 'session.updated') {
+            voiceStartCapture(); voiceSetControl('listening','Listening. Speak naturally; press ■ to end.');
+            const opening = `${config.voice.disclosure || config.disclosure || 'This is an automated Voice assistant.'} ${config.greeting}`.trim();
+            socket.send(JSON.stringify({type:'conversation.item.create',item:{type:'force_message',content:[{type:'input_text',text:opening}],interruptible:true}}));
+          } else if (message.type === 'input_audio_buffer.speech_started') {
+            builderVoice.customerText = ''; $('#liveVoiceCustomer')?.remove(); voiceSetControl('listening','Listening…');
+          } else if (message.type === 'response.created') {
+            builderVoice.responseCapped = false; builderVoice.agentText = ''; $('#liveVoiceAgent')?.remove(); voiceSetControl('speaking','Preparing the Voice response…');
+          } else if (message.type === 'response.output_audio.delta' && typeof message.delta === 'string') {
+            if (!builderVoice.responseCapped) { voiceSetControl('speaking','Speaking… You can interrupt naturally.'); voicePlayPcm(message.delta); }
+          } else if (message.type === 'response.output_audio_transcript.delta' && typeof message.delta === 'string') {
+            voiceAppendTranscript('agent',message.delta);
+          } else if (message.type === 'conversation.item.input_audio_transcription.updated' && typeof message.transcript === 'string') {
+            voiceAppendTranscript('customer',message.transcript,true);
+          } else if (message.type === 'conversation.item.input_audio_transcription.completed' && typeof message.transcript === 'string') {
+            voiceAppendTranscript('customer',message.transcript,true);
+          } else if (message.type === 'response.done') {
+            if (!builderVoice.responseCapped) voiceSetControl('listening','Listening. Speak naturally; press ■ to end.');
+          } else if (message.type === 'error') {
+            stopBuilderVoiceTest('The Voice service could not continue. Your draft is unchanged.');
+          }
+        };
+        socket.onerror = () => stopBuilderVoiceTest('The secure Voice connection failed. Your draft is unchanged.');
+        socket.onclose = event => { if (!builderVoice.terminal) stopBuilderVoiceTest(event.code === 1000 ? 'Voice test ended.' : 'The Voice connection closed unexpectedly.'); };
+        builderVoice.timer = setTimeout(() => stopBuilderVoiceTest('The three-minute Voice test maximum was reached. Microphone access stopped.'),Number(result.session.maxDurationSeconds || 180) * 1000);
+        voiceSetControl('starting','Connecting securely to Grok Voice…');
+      } catch (error) {
+        const denied = error instanceof DOMException && ['NotAllowedError','SecurityError'].includes(error.name);
+        const message = denied ? 'Microphone permission was not granted. Allow microphone access for this page and retry.'
+          : error instanceof Error && error.message === 'test_quota_exhausted' ? 'The 30-day Voice test maximum has been reached.'
+          : 'Live Voice could not start. Your draft is unchanged; retry after checking the connection.';
+        stopBuilderVoiceTest(message);
+      }
+    }
+
+    $('#voiceTest').addEventListener('click', startBuilderVoiceTest);
+    window.addEventListener('pagehide',() => stopBuilderVoiceTest('Voice test ended.'));
     $('#undoBtn').addEventListener('click', () => restoreHistory('undo'));
     $('#redoBtn').addEventListener('click', () => restoreHistory('redo'));
     $('#resetDemo').addEventListener('click', () => {
-      if (!confirm('Reset every field, rule, source, test result, version, and installation state in this local demo?')) return;
+      const resetProduct = state.product;
+      const resetRole = state.role;
+      if (!confirm(`Reset every ${commerceCatalog[resetProduct].name} field, rule, source, test result, version, and installation state?`)) return;
       localStorage.removeItem(storageKey);
       localStorage.removeItem(flowStorageKey);
       draft = clone(defaultDraft);
       publishedDraft = clone(defaultDraft);
-      flowDraft = createFlowDraft('faq'); flowPublishedDraft = clone(flowDraft); Object.assign(flowState,{onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',widgetPreviewLanguage:null,testNodeId:null,testMessages:[],testError:'',testStartMode:'entry',testStartNodeId:null,testReturnSurface:null}); flowUndoStack = []; flowRedoStack = [];
-      state.product = 'text'; state.role = 'sales'; state.publishedProduct = 'text'; state.publishedRole = 'sales'; state.section = 'business'; state.testMode = 'draft'; state.version = 0; state.configured = false; state.dirty = false; state.chatInitialized = false;
+      flowDraft = createFlowDraft('faq'); flowPublishedDraft = clone(flowDraft); Object.assign(flowState,{onboardingPage:'template',template:'faq',section:'map',panel:'edit',selectedNodeId:'menu',version:0,configured:false,dirty:true,tested:false,installVerified:false,live:false,snippetCopied:false,verifyError:false,testLanguage:'en',widgetPreviewLanguage:null,testNodeId:null,testMessages:[],testError:'',testStartMode:'entry',testStartNodeId:null,testReturnSurface:null}); flowUndoStack = []; flowRedoStack = []; clearFlowConnectorInteraction();
+      Object.assign(state,{product:resetProduct,role:resetRole,publishedProduct:resetProduct,publishedRole:resetRole,section:'business',testMode:'draft',pendingRole:null,version:0,configured:false,dirty:false,chatInitialized:false,testMessages:[],accountCreated:false,deployReturn:null});
       undoStack = []; redoStack = []; lastDraftSnapshot = JSON.stringify(draft);
       $('#saveStatus').innerHTML = '<span class="dot"></span>Draft saved';
-      render(); showToast('The local prototype has been reset.');
+      render(); showToast(`${commerceCatalog[resetProduct].name} configuration reset.`);
     });
     selectOnboardingRole(state.role);
     renderFlowTemplatePreview();
@@ -3956,7 +4763,7 @@
       if (launchIntent === 'trial' && commerceCatalog[launchProduct].trial) openSelectedCommerceIntent('trial');
       else if (launchIntent === 'subscribe') openSelectedCommerceIntent('subscribe');
       else showCommerceScreen('pricing');
-    } else showCommerceScreen('landing');
+    } else { activateSurface('journeyDemo'); showCommerceScreen('landing'); }
     render();
   </script>
 </body>

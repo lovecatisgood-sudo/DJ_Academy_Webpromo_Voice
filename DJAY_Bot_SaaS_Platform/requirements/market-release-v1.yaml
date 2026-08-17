@@ -3,7 +3,7 @@
   "schema_version": "1.0.0",
   "prd": {
     "path": "docs/product/djay-bots-v1-market-release-prd.md",
-    "expected_requirement_count": 322
+    "expected_requirement_count": 337
   },
   "packages": [
     {
@@ -2637,7 +2637,7 @@
     },
     {
       "id": "AIT-009",
-      "title": "Every customer-facing AI Text reply MUST be validated to a maximum of 200 visible characters before delivery. The limit is characters, not words, and MUST be applied without exposing internal validation or model details.",
+      "title": "Every customer-facing AI Text reply MUST be instructed to be concise, normally about 40–80 words, and validated to a hard maximum of 200 locale-aware words before delivery. English and Thai counting MUST use locale-aware segmentation. Oversized output MUST receive at most one controlled fact/citation/action-preserving rewrite and MUST never be cut off by string slicing; failure to produce a valid concise reply uses the approved safe fallback without exposing internal validation or model details.",
       "packages": [
         "ai_chat_basic",
         "ai_chat_premium"
@@ -3658,7 +3658,7 @@
     },
     {
       "id": "VOI-009",
-      "title": "Voice responses MUST be generated and validated as customer-facing written content of no more than 200 visible characters before speech output. The limit is characters, not words.",
+      "title": "Voice responses MUST normally use about 20–50 words and MUST be validated as customer-facing written content of no more than 200 locale-aware words before speech output. Oversized output uses the same single controlled rewrite and safe-fallback policy as AI Text and is never cut off directly.",
       "packages": [
         "voice_basic_gen1",
         "voice_advanced_gen2"
@@ -6872,7 +6872,7 @@
     },
     {
       "id": "ONB-012",
-      "title": "Preview and current-version test activity MUST not consume customer allowance or create production external side effects; internal provider cost MUST remain separately observable.",
+      "title": "Preview and current-version test activity MUST not consume customer allowance or create production external side effects; internal provider cost MUST remain separately observable. The anonymous AI Text builder MUST use a 50-request maximum per signed 30-day builder session and MUST NOT impose a small rolling conversation throttle.",
       "packages": [
         "shared"
       ],
@@ -7909,6 +7909,411 @@
       "meter_keys": [],
       "test_ids": [],
       "runbooks": [],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "PLT-011",
+      "title": "The approved SaaS Owner analytics experience, metric definitions, field ownership, filters, exports, privacy boundaries and change-control rules MUST follow `docs/design/djay-bots-saas-owner-analytics-contract.md`; no implementation or historical screen MAY silently substitute a different behavior.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "PLAT-05",
+      "supporting_work_packages": [
+        "PLAT-01",
+        "PLAT-02",
+        "PLAT-03",
+        "PLAT-04"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [
+        "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md"
+      ],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "PLT-012",
+      "title": "Owner Overview MUST report period-, timezone-, currency-, freshness- and reconciliation-qualified merchant, subscription, conversion, revenue, collection, refund, usage, provider-cost, margin, deployment and attention metrics; MUST include a keyboard-accessible Daily/Monthly Net revenue trend bound to the approved net-collected definition with a same-value table alternative and separate currencies; and MUST distinguish unavailable or incomplete evidence from zero.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "PLAT-05",
+      "supporting_work_packages": [
+        "PLAT-01",
+        "PLAT-02",
+        "PLAT-03",
+        "PLAT-04"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [
+        "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md"
+      ],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "PLT-013",
+      "title": "The merchant directory MUST provide server-side search, sorting, pagination, combinable URL-representable filters and governed export across approved identity, business, lifecycle, subscription, deployment, usage, revenue, support and risk fields.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "PLAT-05",
+      "supporting_work_packages": [
+        "PLAT-01",
+        "PLAT-02",
+        "PLAT-03",
+        "PLAT-04"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [
+        "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md"
+      ],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "PLT-014",
+      "title": "The SaaS user directory MUST expose approved identity, verification, security, activity, legal-acceptance and merchant-membership fields and filters; Owner-authorized User Detail MUST expose the complete lawfully stored identity-owned personal contact record under recent assurance, purpose and audit, offer 100 membership results per page and show merchant name, company role, membership state, first join date, merchant subscription start and expiry/access-end dates, subscribed products and effective access while attributing subscriptions to the merchant rather than duplicating a personal subscription for each team member.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "PLAT-05",
+      "supporting_work_packages": [
+        "PLAT-01",
+        "PLAT-02",
+        "PLAT-03",
+        "PLAT-04"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [
+        "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md"
+      ],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "PLT-015",
+      "title": "Subscription analytics MUST preserve separate Flow, Text and Voice records and expose creation, provisioning, trial, original start, current period, contract duration, renewal, scheduled and actual cancellation, access end, immutable price, invoice/payment, allowance and change-history evidence without flattening provider and entitlement states.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "PLAT-05",
+      "supporting_work_packages": [
+        "PLAT-01",
+        "PLAT-02",
+        "PLAT-03",
+        "PLAT-04"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [
+        "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md"
+      ],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "PLT-016",
+      "title": "Revenue analytics MUST keep invoiced amount, cash collected, net collected, MRR, ARR, new/expansion/contraction/reactivation/churned MRR, average recurring revenue, refunds, credits, chargebacks, provider cost and variable gross margin definitionally separate and reconcilable.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "PLAT-05",
+      "supporting_work_packages": [
+        "PLAT-01",
+        "PLAT-02",
+        "PLAT-03",
+        "PLAT-04"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [
+        "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md"
+      ],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "PLT-017",
+      "title": "Text analytics MUST keep customer-facing committed AI replies separate from internal input/cached/output/reasoning token, request, latency, reliability, quality, provider/model and cost evidence; token usage MUST NOT become a merchant billing meter without an approved commercial change.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "PLAT-05",
+      "supporting_work_packages": [
+        "PLAT-01",
+        "PLAT-02",
+        "PLAT-03",
+        "PLAT-04"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [
+        "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md"
+      ],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "PLT-018",
+      "title": "Voice analytics MUST preserve exact connected seconds, customer-facing rounded minutes, session outcomes, concurrency, provider-reported audio/text usage, provider/model/voice attribution, latency, interruption, reconnect, transfer, callback, appointment and snapshotted cost evidence.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "PLAT-05",
+      "supporting_work_packages": [
+        "PLAT-01",
+        "PLAT-02",
+        "PLAT-03",
+        "PLAT-04"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [
+        "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md"
+      ],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "PLT-019",
+      "title": "Provider and model analytics MUST be restricted to Platform Owner and expressly authorized AI Operations roles and MUST report immutable route/price versions, usage, reach, reliability, quality, incidents and cost without leaking provider/model identity into tenant or public surfaces.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "PLAT-05",
+      "supporting_work_packages": [
+        "PLAT-01",
+        "PLAT-02",
+        "PLAT-03",
+        "PLAT-04"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [
+        "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md"
+      ],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "PLT-020",
+      "title": "Every cost-bearing Text or Voice event MUST pin provider, model, currency, native usage dimensions and effective unit-price version at event time; historical cost and margin MUST NOT be recomputed from a later provider price.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "PLAT-05",
+      "supporting_work_packages": [
+        "PLAT-01",
+        "PLAT-02",
+        "PLAT-03",
+        "PLAT-04"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [
+        "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md"
+      ],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "PLT-021",
+      "title": "Owner exports MUST use a server-authoritative filter and column snapshot, bounded or asynchronous generation, spreadsheet-safe UTF-8 output, recent assurance for sensitive scope, encrypted short-lived artifacts, download/expiry/deletion audit and unconditional secret/payment-credential exclusion.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "PLAT-05",
+      "supporting_work_packages": [
+        "PLAT-01",
+        "PLAT-02",
+        "PLAT-03",
+        "PLAT-04"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [
+        "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md"
+      ],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "PLT-022",
+      "title": "Merchant-account and SaaS-user analytics MUST remain separate from merchant end-customer contacts, messages, transcripts and recordings; ordinary cross-tenant lists and exports MUST mask or exclude end-customer content and sensitive content access MUST require purpose, applicable grant, recent assurance and immutable audit.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "PLAT-05",
+      "supporting_work_packages": [
+        "PLAT-01",
+        "PLAT-02",
+        "PLAT-03",
+        "PLAT-04"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [
+        "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md"
+      ],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "PLT-023",
+      "title": "Reports MUST support approved period and cohort views across acquisition, configuration, deployment, first use, first outcome, trial conversion, renewal, retention, cancellation and churn, while alerts MUST be deduplicated, severity-labelled, assigned, deep-linked and resolved from authoritative state.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "PLAT-05",
+      "supporting_work_packages": [
+        "PLAT-01",
+        "PLAT-02",
+        "PLAT-03",
+        "PLAT-04"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [
+        "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md"
+      ],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "PLT-024",
+      "title": "Merchant 360 MUST add owner-approved identity, membership, subscription, revenue, Text/Voice usage, model-economics, deployment, support, incident and audit projections while preserving masked defaults and state-appropriate, idempotent, authorized workflows instead of arbitrary direct edits.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "PLAT-05",
+      "supporting_work_packages": [
+        "PLAT-01",
+        "PLAT-02",
+        "PLAT-03",
+        "PLAT-04"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [
+        "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md"
+      ],
+      "evidence": [],
+      "status": "planned",
+      "accepted_by": null
+    },
+    {
+      "id": "PLT-025",
+      "title": "Owner analytics read models MUST be derived and rebuildable from immutable tenant, billing and provider evidence, expose freshness and reconciliation state, retain UTC event authority, apply an explicit reporting timezone, preserve currency boundaries and distinguish empty, unavailable, delayed and zero states.",
+      "packages": [
+        "shared"
+      ],
+      "owner_work_package": "PLAT-05",
+      "supporting_work_packages": [
+        "PLAT-01",
+        "PLAT-02",
+        "PLAT-03",
+        "PLAT-04"
+      ],
+      "implementation_paths": [],
+      "migration_ids": [],
+      "api_contracts": [],
+      "ui_routes": [],
+      "entitlement_keys": [],
+      "meter_keys": [],
+      "test_ids": [],
+      "runbooks": [
+        "docs/implementation/djay-bots-saas-owner-analytics-detailed-implementation-plan.md"
+      ],
       "evidence": [],
       "status": "planned",
       "accepted_by": null
