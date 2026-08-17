@@ -33,13 +33,6 @@ function responseInvariant(value: SalesCoreOutput) {
   });
 }
 
-function conciseFallback(output: z.infer<typeof salesCoreOutputBaseSchema>, locale: "th" | "en") {
-  const customerResponse = locale === "th"
-    ? "ขออภัย คำตอบก่อนหน้ายาวเกินไป กรุณาถามทีละประเด็น แล้วฉันจะตอบให้กระชับจากข้อมูลธุรกิจที่ได้รับอนุมัติ"
-    : "I’m sorry—the previous answer was too long. Please ask about one point at a time, and I’ll answer concisely from the approved business information.";
-  return salesCoreOutputSchema.parse({ ...output, customerResponse, channelResponse: { ...output.channelResponse, quickReplies: [] } });
-}
-
 const explicitConversationExit = /\b(?:stop (?:selling|messaging|contacting|the (?:chat|conversation|call))|unsubscribe|do not contact|don't contact|no (?:more )?follow[- ]?up|leave me alone|end (?:this |the )?(?:chat|conversation|call)|goodbye|hang up)\b|(?:หยุดขาย|หยุดคุย|จบการสนทนา|วางสาย|ยกเลิกการติดต่อ|ไม่ต้องติดต่อ|อย่าติดต่อ|ไม่ต้องตาม)/iu;
 const objectionSignal = /\b(?:no|nope|nah|no thanks|not interested|do not|don't|will not|won't|cannot|can't|what if|still|risk|value|worth|workflow|already use|expensive|price|cost|budget|afford|later|not now|need (?:more )?time|need to think|not sure|doesn['’]?t fit|won['’]?t work|concern|worried|trust|risky|complicated|too much|already have|happy with|good enough|not convinced|too unusual|reject|business case|finance|learn another|hate bots?|customers? may leave|human[ -]?only|switching|wrong information)\b|(?:ไม่|ไม่เอา|ไม่สนใจ|แพง|ราคา|งบ|ไว้ก่อน|ยังไม่พร้อม|ขอคิด|ไม่แน่ใจ|ไม่เหมาะ|ไม่คุ้ม|กังวล|ไม่ไว้ใจ|เสี่ยง|ซับซ้อน|มีอยู่แล้ว|ฝ่ายการเงิน|ผู้จัดการ|ไม่ชอบบอท|มนุษย์เท่านั้น)/iu;
 const prematureFarewell = /\b(?:no problem|if you need anything|if anything changes|let me know|feel free to (?:reach out|contact)|here if you need|maybe later)\b|(?:ไม่มีปัญหา|หากต้องการ|ถ้าต้องการ|ติดต่อได้|ไว้คราวหน้า)/iu;
@@ -414,22 +407,52 @@ async function generateConciseOutput(
   if (!oversized && !repairObjection && !repairGrounding && !repairRepetition) {
     return { output: salesCoreOutputSchema.parse(candidate), nativeUsage: structured.nativeUsage };
   }
+  let repaired: GatewayResult;
   try {
-    const repairKind = repairGrounding ? "grounding-repair" : repairObjection ? "objection-repair" : repairRepetition ? "variation-repair" : "concise-repair";
-    const repaired = await gateway.generate({
+    const repairKind = oversized ? "concise-repair" : repairGrounding ? "grounding-repair" : repairObjection ? "objection-repair" : "variation-repair";
+    repaired = await gateway.generate({
       ...request,
       correlationId: `${request.correlationId}:${repairKind}`,
-      systemPolicy: repairGrounding
+      systemPolicy: oversized
+        ? `${request.systemPolicy}\nThe previous structured candidate exceeded 200 words. Return the same object with only customerResponse rewritten concisely. Preserve stage, intent, facts, citations, responseGoal, proposed actions, handover, and quick replies exactly. Never cut a sentence or remove a required fact merely to stop at a boundary.`
+        : repairGrounding
         ? `${request.systemPolicy}\nThe previous candidate used a sales claim or offered an action that is not supported by the approved information. Original customer message: ${JSON.stringify(request.customerMessage)}. Rewrite customerResponse using only direct conservative paraphrases of approved grounding. Explicitly say when a requested detail is not confirmed. Keep the next step inside this conversation unless an allowed structured action exists. Do not imply compatibility, ease, results, privacy, security, industry fit, or an action from generic product language. If this is an objection, keep stage S5_OBJECTION and intent handle_objection, address the specific concern, and ask one focused low-pressure question. Preserve every other structured field exactly; never add a fact or citation.`
         : repairObjection
         ? `${request.systemPolicy}\nThe previous candidate wrongly gave up on the customer's current objection. The objection count never authorizes closing. Original customer objection: ${JSON.stringify(request.customerMessage)}. Return stage S5_OBJECTION and intent handle_objection. Acknowledge this specific concern, change strategy instead of repeating the prior pitch, address it only with approved facts when possible, then ask one focused low-pressure question or offer one genuinely relevant comparison. Do not use a farewell, create an action, capture a lead, book, close, or hand over. Preserve facts and citations; never invent a claim.`
         : repairRepetition
           ? `${request.systemPolicy}\nThe previous candidate repeats too much wording, the same feature list, or the same question from recent assistant turns. Rewrite customerResponse to respond only to the newest customer message with a different useful angle. Do not repeat a catalogue of features. Use at most one directly relevant approved capability, then ask one new focused question. Preserve every structured field exactly and do not add a claim, citation, action, or handover.`
-        : `${request.systemPolicy}\nThe previous structured candidate exceeded 200 words. Return the same object with only customerResponse rewritten concisely. Preserve stage, intent, facts, citations, responseGoal, proposed actions, handover, and quick replies exactly. Never cut a sentence or remove a required fact merely to stop at a boundary.`,
+          : request.systemPolicy,
       messages: [],
       customerMessage: JSON.stringify(candidate),
     });
+  } catch (error) {
+    if (oversized) {
+      throw new AiTextRuntimeError("structured_output_invalid", { cause: error }, structured.nativeUsage);
+    }
+    return {
+      output: repairObjection
+        ? objectionFallback(candidate, request.locale, request.customerMessage)
+        : repairGrounding
+          ? groundingFallback(candidate, request.locale)
+          : hasActiveObjection
+            ? objectionFallback(candidate, request.locale, request.customerMessage)
+            : variationFallback(candidate, request.locale),
+      nativeUsage: structured.nativeUsage,
+    };
+  }
+  const repairedUsage = combinedUsage(structured.nativeUsage, repaired.nativeUsage);
+  try {
     const repairedOutput = salesCoreOutputSchema.parse(repaired.output);
+    if (oversized) {
+      const evidencePreserved = responseInvariant(repairedOutput) === responseInvariant(candidate as SalesCoreOutput);
+      if (!evidencePreserved
+        || (repairObjection && objectionResponseInvalid(repairedOutput))
+        || (repairGrounding && groundingResponseInvalid(repairedOutput, groundingText, request.customerMessage))
+        || (repairRepetition && repetitionResponseInvalid(repairedOutput, request.messages))) {
+        throw new AiTextRuntimeError("structured_output_invalid", undefined, repairedUsage);
+      }
+      return { output: repairedOutput, nativeUsage: repairedUsage };
+    }
     if (repairObjection || repairGrounding || repairRepetition) {
       const evidencePreserved = JSON.stringify([repairedOutput.facts, repairedOutput.knowledgeCitations])
         === JSON.stringify([candidate.facts, candidate.knowledgeCitations]);
@@ -448,24 +471,24 @@ async function generateConciseOutput(
           nativeUsage: structured.nativeUsage,
         };
       }
-    } else if (responseInvariant(repairedOutput) !== responseInvariant(candidate as SalesCoreOutput)) {
-      return { output: conciseFallback(candidate, request.locale), nativeUsage: structured.nativeUsage };
     }
     return {
       output: repairedOutput,
-      nativeUsage: combinedUsage(structured.nativeUsage, repaired.nativeUsage),
+      nativeUsage: repairedUsage,
     };
-  } catch {
+  } catch (error) {
+    if (oversized) {
+      if (error instanceof AiTextRuntimeError) throw error;
+      throw new AiTextRuntimeError("structured_output_invalid", { cause: error }, repairedUsage);
+    }
     return {
       output: repairObjection
         ? objectionFallback(candidate, request.locale, request.customerMessage)
         : repairGrounding
           ? groundingFallback(candidate, request.locale)
-          : repairRepetition
-            ? hasActiveObjection
-              ? objectionFallback(candidate, request.locale, request.customerMessage)
-              : variationFallback(candidate, request.locale)
-          : conciseFallback(candidate, request.locale),
+          : hasActiveObjection
+            ? objectionFallback(candidate, request.locale, request.customerMessage)
+            : variationFallback(candidate, request.locale),
       nativeUsage: structured.nativeUsage,
     };
   }

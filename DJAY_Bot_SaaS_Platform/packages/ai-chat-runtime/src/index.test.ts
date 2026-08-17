@@ -120,6 +120,91 @@ describe("AI text runtime", () => {
     expect(events).toEqual(["begin", "commit:110"]);
   });
 
+  it("uses the merchant-approved fallback when the one shortening rewrite is still oversized", async () => {
+    const events: string[] = [];
+    let calls = 0;
+    const fallbackContext: AiTurnContext = {
+      ...context,
+      playbook: { ...(context.playbook as object), customerMessages: {
+        fallback: { en: "Merchant-approved length fallback", th: "คำตอบสำรองด้านความยาวที่ร้านค้าอนุมัติ" },
+        handover: { en: "Handover pending", th: "กำลังรอส่งต่อ" },
+        contactPrompt: { en: "Share contact details", th: "แจ้งข้อมูลติดต่อ" },
+        bookingPrompt: { en: "Share appointment details", th: "แจ้งรายละเอียดนัดหมาย" },
+        rolePrompt: { en: "How can I help?", th: "ให้ช่วยเรื่องใด" },
+      } },
+    };
+    const runtime = new AiTextRuntime({
+      ...repository(events), async begin() { events.push("begin"); return fallbackContext; },
+    }, { async generate() {
+      calls += 1;
+      return { output: {
+        schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover_need", facts: [],
+        knowledgeCitations: [{ sourceRevisionId: ids.revision, chunkId: ids.chunk }],
+        responseGoal: "understand the need", proposedActions: [], handover: null,
+        customerResponse: Array.from({ length: 201 }, () => "word").join(" "),
+        channelResponse: { format: "text", quickReplies: [] },
+      }, nativeUsage: { inputUnits: calls === 1 ? 100 : 10, outputUnits: 20 } };
+    } });
+    await expect(runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "Tell me about consultations.",
+    })).resolves.toMatchObject({ text: "Merchant-approved length fallback", actions: [] });
+    expect(calls).toBe(2);
+    expect(events).toEqual(["begin", "commit:110"]);
+  });
+
+  it("counts Thai at runtime and accepts one complete locale-aware shortening rewrite", async () => {
+    const events: string[] = [];
+    let calls = 0;
+    const thaiContext: AiTurnContext = { ...context, language: "th" };
+    const runtime = new AiTextRuntime({
+      ...repository(events), async begin() { events.push("begin"); return thaiContext; },
+    }, { async generate() {
+      calls += 1;
+      return { output: {
+        schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover_need", facts: [],
+        knowledgeCitations: [{ sourceRevisionId: ids.revision, chunkId: ids.chunk }],
+        responseGoal: "understand the need", proposedActions: [], handover: null,
+        customerResponse: calls === 1
+          ? Array.from({ length: 201 }, () => "คำตอบ").join(" ")
+          : "คุณต้องการผลลัพธ์แบบใดมากที่สุด?",
+        channelResponse: { format: "text", quickReplies: [] },
+      }, nativeUsage: { inputUnits: calls === 1 ? 70 : 12, outputUnits: 20 } };
+    } });
+    await expect(runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "ช่วยอธิบายบริการ",
+    })).resolves.toMatchObject({ text: "คุณต้องการผลลัพธ์แบบใดมากที่สุด?" });
+    expect(calls).toBe(2);
+    expect(events).toEqual(["begin", "commit:82"]);
+  });
+
+  it("rejects a shortening rewrite that changes protected structured evidence", async () => {
+    const events: string[] = [];
+    let calls = 0;
+    const runtime = new AiTextRuntime(repository(events), { async generate() {
+      calls += 1;
+      return { output: {
+        schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: calls === 1 ? "discover_need" : "changed_intent",
+        facts: [], knowledgeCitations: [{ sourceRevisionId: ids.revision, chunkId: ids.chunk }],
+        responseGoal: "understand the need", proposedActions: [], handover: null,
+        customerResponse: calls === 1
+          ? Array.from({ length: 201 }, () => "word").join(" ")
+          : "Which result matters most to you?",
+        channelResponse: { format: "text", quickReplies: [] },
+      }, nativeUsage: { inputUnits: calls === 1 ? 30 : 5, outputUnits: 10 } };
+    } });
+    await expect(runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "Tell me more.",
+    })).resolves.toMatchObject({
+      text: "I could not confirm that from approved information. I can connect you with a person.",
+      actions: [],
+    });
+    expect(calls).toBe(2);
+    expect(events).toEqual(["begin", "commit:35"]);
+  });
+
   it("repairs invalid structured output before returning a builder or deployed response", async () => {
     const events: string[] = [];
     let calls = 0;

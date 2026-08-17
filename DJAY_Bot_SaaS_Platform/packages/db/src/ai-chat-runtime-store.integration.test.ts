@@ -332,6 +332,65 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       inputUnits: 14,
       outputUnits: 6,
     }]);
+
+    const lengthSession = await repository.start({
+      deploymentKey: deployment.deploymentKey, origin: "https://merchant.example", language: "en",
+    });
+    if (!lengthSession) throw new Error("Expected length-fallback test session.");
+    let lengthCalls = 0;
+    const lengthRuntime = new AiTextRuntime(repository, {
+      async generate() {
+        lengthCalls += 1;
+        return { output: {
+          schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover_need", facts: [],
+          knowledgeCitations: [], responseGoal: "understand the need", proposedActions: [], handover: null,
+          customerResponse: Array.from({ length: 201 }, () => "word").join(" "),
+          channelResponse: { format: "text", quickReplies: [] },
+        }, nativeUsage: { inputUnits: 9, outputUnits: 4 } };
+      },
+    });
+    const lengthInputId = randomUUID();
+    const lengthResponse = await lengthRuntime.turn({
+      deploymentKey: deployment.deploymentKey,
+      sessionToken: lengthSession.sessionToken,
+      origin: "https://merchant.example",
+      inputId: lengthInputId,
+      message: "Please answer concisely.",
+    });
+    expect(lengthResponse).toMatchObject({
+      status: "completed",
+      text: "I could not confirm that from approved information. I can connect you with a person.",
+      actions: [],
+    });
+    await expect(lengthRuntime.turn({
+      deploymentKey: deployment.deploymentKey,
+      sessionToken: lengthSession.sessionToken,
+      origin: "https://merchant.example",
+      inputId: lengthInputId,
+      message: "Please answer concisely.",
+    })).resolves.toEqual(lengthResponse);
+    expect(lengthCalls).toBe(2);
+    const lengthEvidence = await adminClient!<{
+      settled: number; intent: string; wordCount: number; inputUnits: number; outputUnits: number;
+    }[]>`
+      SELECT account.settled_quantity::int AS settled,
+        turn.structured_output_json->>'intent' AS intent,
+        array_length(regexp_split_to_array(turn.structured_output_json->>'customerResponse', '[[:space:]]+'), 1)::int AS "wordCount",
+        usage.input_units::int AS "inputUnits", usage.output_units::int AS "outputUnits"
+      FROM tenancy.ai_sessions session
+      JOIN tenancy.ai_turns turn ON turn.tenant_id = session.tenant_id AND turn.session_id = session.id
+      JOIN operations.ai_native_usage usage ON usage.tenant_id = turn.tenant_id AND usage.turn_id = turn.id
+      JOIN tenancy.quota_accounts account ON account.tenant_id = session.tenant_id
+        AND account.subscription_id = ${subscriptionId}::uuid
+      WHERE session.id = ${lengthSession.sessionId}::uuid
+    `;
+    expect(lengthEvidence).toEqual([{
+      settled: 3,
+      intent: "safe_fallback.structured_output_invalid",
+      wordCount: 15,
+      inputUnits: 18,
+      outputUnits: 8,
+    }]);
     const sentMessages: { to: string; subject: string }[] = [];
     await expect(runAiChatMerchantEmail(
       new AiChatNotificationWorkerStore(workerClient!),
@@ -416,7 +475,7 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       JOIN tenancy.quota_accounts account ON account.tenant_id = session.tenant_id AND account.subscription_id = ${subscriptionId}::uuid
       WHERE session.id = ${takeoverSession.sessionId}::uuid AND turn.input_id = ${takeoverInputId}::uuid
     `;
-    expect(takeoverState[0]).toEqual({ ai_messages: 1, released_events: 1, reserved: 0, settled: 3, native_usage: 0 });
+    expect(takeoverState[0]).toEqual({ ai_messages: 1, released_events: 1, reserved: 0, settled: 4, native_usage: 0 });
     await expect(repository.sync({
       deploymentKey: deployment.deploymentKey, sessionToken: takeoverSession.sessionToken,
       origin: "https://evil.example", afterSequence: 0,
