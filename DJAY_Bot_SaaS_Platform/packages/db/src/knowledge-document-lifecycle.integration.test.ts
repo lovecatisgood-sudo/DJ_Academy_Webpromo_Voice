@@ -46,6 +46,7 @@ describe.runIf(enabled)("document knowledge lifecycle", () => {
     const shared = new SharedDomainStore(tenantClient!);
     const worker = new KnowledgeIngestionWorkerStore(workerClient!);
     await provisionKnowledge(context.tenantId);
+    await provisionKnowledge(otherContext.tenantId);
     const existing = await ingestion.listCollections(context);
     let collectionId = existing[0]?.id;
     if (!collectionId) {
@@ -79,6 +80,35 @@ describe.runIf(enabled)("document knowledge lifecycle", () => {
       WHERE revision.tenant_id = ${context.tenantId}::uuid AND revision.source_id = ${readyUpload.sourceId}::uuid`;
     expect(revision[0]).toMatchObject({ content, chunk: content, provenance: { sourceId: readyUpload.sourceId, attribution: "page" } });
     expect((await shared.listKnowledge(otherContext)).some((source) => source.id === readyUpload.sourceId)).toBe(false);
+    await expect(ingestion.getSource(context, readyUpload.sourceId)).resolves.toMatchObject({
+      id: readyUpload.sourceId, version: 1, content, chunkCount: 1, contentTruncated: false,
+    });
+    await expect(ingestion.getSource(otherContext, readyUpload.sourceId)).resolves.toBeNull();
+    await expect(ingestion.setSourceInclusion(context, readyUpload.sourceId, false)).resolves.toEqual({ status: "excluded" });
+    const corrected = await ingestion.reviseSource(context, readyUpload.sourceId, {
+      name: "Corrected attributed guide", content: "Approved corrected business facts.",
+    });
+    expect(corrected).toMatchObject({ status: "corrected", version: 2 });
+    expect((await shared.listKnowledge(context)).find((source) => source.id === readyUpload.sourceId)?.status).toBe("excluded");
+    await expect(ingestion.setSourceInclusion(otherContext, readyUpload.sourceId, true)).resolves.toEqual({ status: "not_found" });
+    await expect(ingestion.reindexSource(context, readyUpload.sourceId)).resolves.toMatchObject({ status: "reindexed", version: 3 });
+    await expect(ingestion.reprocessSource(context, readyUpload.sourceId)).resolves.toMatchObject({ status: "queued" });
+    await expect(ingestion.reprocessSource(context, readyUpload.sourceId)).resolves.toMatchObject({ status: "already_queued" });
+    await expect(ingestion.setSourceInclusion(context, readyUpload.sourceId, true)).resolves.toEqual({ status: "included" });
+    await expect(ingestion.deleteSource(otherContext, readyUpload.sourceId)).resolves.toEqual({ status: "not_found" });
+    await expect(ingestion.deleteSource(context, readyUpload.sourceId)).resolves.toMatchObject({ status: "deleted" });
+    await expect(ingestion.getSource(context, readyUpload.sourceId)).resolves.toBeNull();
+    expect((await shared.listKnowledge(context)).some((source) => source.id === readyUpload.sourceId)).toBe(false);
+    const deletedState = await adminClient!<{ sourceStatus: string; objectStatus: string; jobStatus: string; revisionCount: number }[]>`
+      SELECT source.status AS "sourceStatus", object.status AS "objectStatus", job.status AS "jobStatus",
+        (SELECT count(*)::int FROM tenancy.knowledge_source_revisions revision
+          WHERE revision.tenant_id = source.tenant_id AND revision.source_id = source.id) AS "revisionCount"
+      FROM tenancy.knowledge_sources source JOIN tenancy.knowledge_objects object
+        ON object.tenant_id = source.tenant_id AND object.source_id = source.id
+      JOIN tenancy.knowledge_ingestion_jobs job ON job.tenant_id = source.tenant_id AND job.source_id = source.id
+      WHERE source.tenant_id = ${context.tenantId}::uuid AND source.id = ${readyUpload.sourceId}::uuid
+      ORDER BY job.created_at DESC LIMIT 1`;
+    expect(deletedState[0]).toEqual({ sourceStatus: "erased", objectStatus: "deleted", jobStatus: "dead_letter", revisionCount: 3 });
 
     const rejected = await ingestion.initiateUpload(context, {
       collectionId, name: "Rejected guide", filename: "rejected.pdf", mediaType: "application/pdf", size: 20,

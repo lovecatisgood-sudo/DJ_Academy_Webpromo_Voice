@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { chunkKnowledge } from "@djay/sales-core";
 import type { TenantContext } from "@djay/tenancy";
 import type postgres from "postgres";
 import { z } from "zod";
@@ -286,6 +287,159 @@ export class TenantKnowledgeIngestionStore {
           AND id = ${objectId}::uuid AND status = 'pending_upload'
       `;
       return rows[0] ?? null;
+    });
+  }
+
+  async getSource(context: TenantContext, sourceId: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{
+        id: string; name: string; sourceKind: string; sourceUrl: string | null; status: "active" | "archived" | "erased";
+        version: number; revisionId: string | null; revisionStatus: string | null; content: string; contentTruncated: boolean;
+        provenance: Record<string, unknown>; chunkCount: number; createdAt: Date; updatedAt: Date;
+      }[]>`SELECT source.id, source.name, source.source_kind AS "sourceKind", source.source_url AS "sourceUrl", source.status,
+        COALESCE(revision.version, 0)::int AS version, revision.id AS "revisionId", revision.status AS "revisionStatus",
+        left(COALESCE(revision.content_text, ''), 100000) AS content,
+        char_length(COALESCE(revision.content_text, '')) > 100000 AS "contentTruncated",
+        COALESCE(revision.provenance_json, '{}'::jsonb) AS provenance,
+        COALESCE((SELECT count(*)::int FROM tenancy.knowledge_chunks chunk
+          WHERE chunk.tenant_id = revision.tenant_id AND chunk.source_revision_id = revision.id), 0)::int AS "chunkCount",
+        source.created_at AS "createdAt", source.updated_at AS "updatedAt"
+        FROM tenancy.knowledge_sources source
+        LEFT JOIN LATERAL (SELECT candidate.* FROM tenancy.knowledge_source_revisions candidate
+          WHERE candidate.tenant_id = source.tenant_id AND candidate.source_id = source.id
+          ORDER BY candidate.version DESC LIMIT 1) revision ON true
+        WHERE source.tenant_id = ${context.tenantId}::uuid AND source.id = ${sourceId}::uuid AND source.status <> 'erased'`;
+      return rows[0] ?? null;
+    });
+  }
+
+  async setSourceInclusion(context: TenantContext, sourceId: string, included: boolean) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      if (included && !(await knowledgeAuthority(sql, context.tenantId)).allowed) return { status: "not_entitled" as const };
+      const rows = await sql<{ status: "active" | "archived" }[]>`UPDATE tenancy.knowledge_sources SET
+        status = ${included ? "active" : "archived"}, updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${sourceId}::uuid AND status <> 'erased'
+        RETURNING status`;
+      return rows[0] ? { status: included ? "included" as const : "excluded" as const } : { status: "not_found" as const };
+    });
+  }
+
+  async reviseSource(context: TenantContext, sourceId: string, input: Readonly<{ name: string; content: string }>) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      if (!(await knowledgeAuthority(sql, context.tenantId)).allowed) return { status: "not_entitled" as const };
+      await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${context.tenantId}:knowledge-source:${sourceId}`}, 0))`;
+      const source = await sql<{ sourceKind: string; nextVersion: number }[]>`SELECT source.source_kind AS "sourceKind",
+        COALESCE(max(revision.version), 0)::int + 1 AS "nextVersion"
+        FROM tenancy.knowledge_sources source LEFT JOIN tenancy.knowledge_source_revisions revision
+          ON revision.tenant_id = source.tenant_id AND revision.source_id = source.id
+        WHERE source.tenant_id = ${context.tenantId}::uuid AND source.id = ${sourceId}::uuid AND source.status <> 'erased'
+        GROUP BY source.id`;
+      if (!source[0]) return { status: "not_found" as const };
+      const revisionId = randomUUID(); const chunks = chunkKnowledge(input.content);
+      await sql`UPDATE tenancy.knowledge_sources SET name = ${input.name}, updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${sourceId}::uuid`;
+      await sql`INSERT INTO tenancy.knowledge_source_revisions
+        (id, tenant_id, source_id, version, content_text, checksum, status, provenance_json, created_by_membership_id)
+        VALUES (${revisionId}::uuid, ${context.tenantId}::uuid, ${sourceId}::uuid, ${source[0].nextVersion}, ${input.content},
+          ${createHash("sha256").update(input.content).digest()}, 'ready',
+          ${sql.json({ kind: "merchant_correction", correctedAt: new Date().toISOString(), previousSourceKind: source[0].sourceKind } as never)},
+          ${context.membershipId}::uuid)`;
+      for (const [index, content] of chunks.entries()) await sql`INSERT INTO tenancy.knowledge_chunks
+        (tenant_id, source_revision_id, sequence, content_text, content_hash) VALUES
+        (${context.tenantId}::uuid, ${revisionId}::uuid, ${index + 1}, ${content}, ${createHash("sha256").update(content).digest()})`;
+      const changed = await sql<{ agentId: string }[]>`UPDATE tenancy.ai_playbook_drafts draft SET
+        knowledge_revision_ids = ARRAY(SELECT value FROM (
+          SELECT unnest(draft.knowledge_revision_ids) AS value EXCEPT
+          SELECT revision.id FROM tenancy.knowledge_source_revisions revision
+            WHERE revision.tenant_id = draft.tenant_id AND revision.source_id = ${sourceId}::uuid
+        ) retained UNION SELECT ${revisionId}::uuid), revision = draft.revision + 1, updated_at = now()
+        WHERE draft.tenant_id = ${context.tenantId}::uuid AND draft.knowledge_revision_ids && ARRAY(
+          SELECT revision.id FROM tenancy.knowledge_source_revisions revision
+          WHERE revision.tenant_id = ${context.tenantId}::uuid AND revision.source_id = ${sourceId}::uuid)
+        RETURNING draft.agent_id AS "agentId"`;
+      return { status: "corrected" as const, revisionId, version: source[0].nextVersion, affectedAgentDrafts: changed.length };
+    });
+  }
+
+  async reprocessSource(context: TenantContext, sourceId: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      if (!(await knowledgeAuthority(sql, context.tenantId)).allowed) return { status: "not_entitled" as const };
+      const source = await sql<{ sourceKind: string; objectId: string | null }[]>`SELECT source.source_kind AS "sourceKind",
+        (SELECT object.id FROM tenancy.knowledge_objects object WHERE object.tenant_id = source.tenant_id
+          AND object.source_id = source.id AND object.status NOT IN ('infected', 'deleted') ORDER BY object.created_at DESC LIMIT 1) AS "objectId"
+        FROM tenancy.knowledge_sources source WHERE source.tenant_id = ${context.tenantId}::uuid
+          AND source.id = ${sourceId}::uuid AND source.status <> 'erased' FOR UPDATE`;
+      if (!source[0]) return { status: "not_found" as const };
+      const jobKind = source[0].sourceKind === "url" ? "url_crawl" : source[0].sourceKind === "file" ? "file_extract" : null;
+      if (!jobKind || (jobKind === "file_extract" && !source[0].objectId)) return { status: "not_reprocessable" as const };
+      const existing = await sql<{ id: string }[]>`SELECT id FROM tenancy.knowledge_ingestion_jobs WHERE tenant_id = ${context.tenantId}::uuid
+        AND source_id = ${sourceId}::uuid AND status IN ('waiting_upload', 'pending', 'processing', 'failed') ORDER BY created_at DESC LIMIT 1`;
+      if (existing[0]) return { status: "already_queued" as const, jobId: existing[0].id };
+      const jobId = randomUUID();
+      await sql`INSERT INTO tenancy.knowledge_ingestion_jobs
+        (id, tenant_id, source_id, object_id, job_kind, requested_by_membership_id)
+        VALUES (${jobId}::uuid, ${context.tenantId}::uuid, ${sourceId}::uuid, ${source[0].objectId}::uuid,
+          ${jobKind}, ${context.membershipId}::uuid)`;
+      return { status: "queued" as const, jobId };
+    });
+  }
+
+  async reindexSource(context: TenantContext, sourceId: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      if (!(await knowledgeAuthority(sql, context.tenantId)).allowed) return { status: "not_entitled" as const };
+      const source = await sql<{ name: string; content: string }[]>`SELECT source.name, revision.content_text AS content
+        FROM tenancy.knowledge_sources source JOIN LATERAL (SELECT candidate.content_text
+          FROM tenancy.knowledge_source_revisions candidate WHERE candidate.tenant_id = source.tenant_id
+            AND candidate.source_id = source.id AND candidate.status = 'ready' ORDER BY candidate.version DESC LIMIT 1) revision ON true
+        WHERE source.tenant_id = ${context.tenantId}::uuid AND source.id = ${sourceId}::uuid AND source.status <> 'erased'`;
+      if (!source[0]) return { status: "not_found" as const };
+      return this.reviseSourceInTransaction(sql, context, sourceId, source[0].name, source[0].content, "full_reindex");
+    });
+  }
+
+  private async reviseSourceInTransaction(sql: postgres.TransactionSql, context: TenantContext, sourceId: string,
+    name: string, content: string, kind: "full_reindex") {
+    await sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${context.tenantId}:knowledge-source:${sourceId}`}, 0))`;
+    const version = await sql<{ nextVersion: number }[]>`SELECT COALESCE(max(version), 0)::int + 1 AS "nextVersion"
+      FROM tenancy.knowledge_source_revisions WHERE tenant_id = ${context.tenantId}::uuid AND source_id = ${sourceId}::uuid`;
+    const revisionId = randomUUID(); const chunks = chunkKnowledge(content);
+    await sql`INSERT INTO tenancy.knowledge_source_revisions
+      (id, tenant_id, source_id, version, content_text, checksum, status, provenance_json, created_by_membership_id)
+      VALUES (${revisionId}::uuid, ${context.tenantId}::uuid, ${sourceId}::uuid, ${version[0]!.nextVersion}, ${content},
+        ${createHash("sha256").update(content).digest()}, 'ready', ${sql.json({ kind, reindexedAt: new Date().toISOString() } as never)},
+        ${context.membershipId}::uuid)`;
+    for (const [index, chunk] of chunks.entries()) await sql`INSERT INTO tenancy.knowledge_chunks
+      (tenant_id, source_revision_id, sequence, content_text, content_hash) VALUES
+      (${context.tenantId}::uuid, ${revisionId}::uuid, ${index + 1}, ${chunk}, ${createHash("sha256").update(chunk).digest()})`;
+    const changed = await sql<{ agentId: string }[]>`UPDATE tenancy.ai_playbook_drafts draft SET
+      knowledge_revision_ids = ARRAY(SELECT value FROM (SELECT unnest(draft.knowledge_revision_ids) AS value EXCEPT
+        SELECT revision.id FROM tenancy.knowledge_source_revisions revision WHERE revision.tenant_id = draft.tenant_id
+          AND revision.source_id = ${sourceId}::uuid) retained UNION SELECT ${revisionId}::uuid),
+      revision = draft.revision + 1, updated_at = now()
+      WHERE draft.tenant_id = ${context.tenantId}::uuid AND draft.knowledge_revision_ids && ARRAY(
+        SELECT revision.id FROM tenancy.knowledge_source_revisions revision WHERE revision.tenant_id = ${context.tenantId}::uuid
+          AND revision.source_id = ${sourceId}::uuid) RETURNING draft.agent_id AS "agentId"`;
+    return { status: "reindexed" as const, revisionId, version: version[0]!.nextVersion, affectedAgentDrafts: changed.length, name };
+  }
+
+  async deleteSource(context: TenantContext, sourceId: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ id: string }[]>`UPDATE tenancy.knowledge_sources SET status = 'erased', updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${sourceId}::uuid AND status <> 'erased' RETURNING id`;
+      if (!rows[0]) return { status: "not_found" as const };
+      await sql`UPDATE tenancy.knowledge_objects SET status = 'deleted', safe_error_code = NULL
+        WHERE tenant_id = ${context.tenantId}::uuid AND source_id = ${sourceId}::uuid AND status <> 'deleted'`;
+      await sql`UPDATE tenancy.knowledge_ingestion_jobs SET status = 'dead_letter', safe_error_code = 'source_deleted',
+        locked_at = NULL, completed_at = now() WHERE tenant_id = ${context.tenantId}::uuid AND source_id = ${sourceId}::uuid
+        AND status NOT IN ('succeeded', 'dead_letter')`;
+      const changed = await sql<{ agentId: string }[]>`UPDATE tenancy.ai_playbook_drafts draft SET
+        knowledge_revision_ids = ARRAY(SELECT value FROM (SELECT unnest(draft.knowledge_revision_ids) AS value EXCEPT
+          SELECT revision.id FROM tenancy.knowledge_source_revisions revision WHERE revision.tenant_id = draft.tenant_id
+            AND revision.source_id = ${sourceId}::uuid) retained), revision = draft.revision + 1, updated_at = now()
+        WHERE draft.tenant_id = ${context.tenantId}::uuid AND draft.knowledge_revision_ids && ARRAY(
+          SELECT revision.id FROM tenancy.knowledge_source_revisions revision WHERE revision.tenant_id = ${context.tenantId}::uuid
+            AND revision.source_id = ${sourceId}::uuid) RETURNING draft.agent_id AS "agentId"`;
+      return { status: "deleted" as const, affectedAgentDrafts: changed.length };
     });
   }
 

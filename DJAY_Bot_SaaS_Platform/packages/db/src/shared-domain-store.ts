@@ -1112,6 +1112,7 @@ export class SharedDomainStore {
     }[]>`
       SELECT source.id, source.name, source.source_kind AS "sourceKind",
         CASE
+          WHEN source.status = 'archived' THEN 'excluded'
           WHEN job.created_at > COALESCE(revision.created_at, '-infinity'::timestamptz)
             AND job.status IN ('failed', 'dead_letter') THEN 'failed'
           WHEN job.created_at > COALESCE(revision.created_at, '-infinity'::timestamptz)
@@ -1132,7 +1133,7 @@ export class SharedDomainStore {
         WHERE candidate.tenant_id = source.tenant_id AND candidate.source_id = source.id
         ORDER BY created_at DESC, id DESC LIMIT 1
       ) job ON true
-      WHERE source.tenant_id = ${context.tenantId}::uuid
+      WHERE source.tenant_id = ${context.tenantId}::uuid AND source.status <> 'erased'
       ORDER BY source.updated_at DESC
     `);
   }

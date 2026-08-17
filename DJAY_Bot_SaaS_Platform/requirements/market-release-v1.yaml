@@ -3302,16 +3302,33 @@
         "AI-03",
         "AI-06"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "implementation_paths": [
+        "packages/db/src/knowledge-ingestion-store.ts",
+        "packages/db/src/shared-domain-store.ts",
+        "apps/api/app/tenant/knowledge/[sourceId]/route.ts",
+        "apps/tenant-web/app/workspace/knowledge/page.tsx"
+      ],
+      "migration_ids": [
+        "0007_shared_domain.sql",
+        "0071_ai_knowledge_ingestion.sql",
+        "0128_active_published_knowledge_retrieval.sql"
+      ],
+      "api_contracts": [
+        "GET|PATCH|DELETE /tenant/knowledge/:sourceId"
+      ],
+      "ui_routes": [
+        "/workspace/knowledge"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "packages/db/src/knowledge-document-lifecycle.integration.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/knowledge-source-lifecycle-2026-08-17.md"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {

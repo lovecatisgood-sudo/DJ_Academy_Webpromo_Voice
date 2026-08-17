@@ -9,6 +9,8 @@ import { useWorkspaceSession } from "../useWorkspaceSession";
 import { StructuredCataloguePanel } from "./StructuredCataloguePanel";
 
 type Source = { id: string; name: string; sourceKind: string; status: string; version: number; revisionCreatedAt: string; safeErrorCode: string | null };
+type SourceDetail = Source & { sourceUrl: string | null; revisionId: string | null; revisionStatus: string | null; content: string;
+  contentTruncated: boolean; provenance: Record<string, unknown>; chunkCount: number; createdAt: string; updatedAt: string };
 type Collection = { id: string; name: string; description: string; sourceCount: number; itemCount: number };
 const sourceFailureCopy: Record<string, string> = {
   malware_detected: "The file was rejected by malware scanning.", file_signature_mismatch: "The file contents do not match its declared type.",
@@ -24,6 +26,7 @@ export default function KnowledgePage() {
   const [sources, setSources] = useState<Source[]>([]); const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState("");
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [selectedSource, setSelectedSource] = useState<SourceDetail | null>(null);
   const [message, setMessage] = useState(""); const [working, setWorking] = useState(false); const [loadError, setLoadError] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canWrite = session.allows("knowledge.write");
@@ -79,6 +82,39 @@ export default function KnowledgePage() {
       if (!completed.ok) throw new Error("complete_failed"); form.reset(); setMessage("File uploaded. Malware scanning and extraction are queued."); await load();
     } catch { setMessage("The file could not be uploaded."); } finally { setWorking(false); }
   }
+  async function previewSource(sourceId: string) {
+    setWorking(true); setMessage("");
+    try {
+      const response = await fetch(`/tenant/knowledge/${sourceId}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("preview_failed"); setSelectedSource((await response.json()).source);
+    } catch { setMessage("The source preview could not be loaded."); } finally { setWorking(false); }
+  }
+  async function commandSource(sourceId: string, action: "include" | "exclude" | "reprocess" | "reindex") {
+    setWorking(true); setMessage("");
+    const response = await safeMutationFetch(`/tenant/knowledge/${sourceId}`, { method: "PATCH",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+    setWorking(false);
+    if (!response.ok) { setMessage("The source change could not be completed."); return; }
+    const result = await response.json(); setMessage(result.status === "queued" || result.status === "already_queued"
+      ? "Source reprocessing is queued." : action === "exclude" ? "Source excluded from bot answers."
+        : action === "include" ? "Source included for approved bot drafts." : "Source fully reindexed as a new immutable revision.");
+    await load(); await previewSource(sourceId);
+  }
+  async function correctSource(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!selectedSource) return; const data = new FormData(event.currentTarget);
+    setWorking(true); setMessage("");
+    const response = await safeMutationFetch(`/tenant/knowledge/${selectedSource.id}`, { method: "PATCH",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "correct", name: data.get("name"), content: data.get("content") }) });
+    setWorking(false); if (!response.ok) { setMessage("The corrected source could not be saved."); return; }
+    setMessage("Correction saved as a new immutable revision. Publish the affected bot draft when ready.");
+    await load(); await previewSource(selectedSource.id);
+  }
+  async function deleteSource(sourceId: string) {
+    if (!window.confirm("Delete this source? It will be removed from future answers and all bot drafts immediately.")) return;
+    setWorking(true); setMessage(""); const response = await safeMutationFetch(`/tenant/knowledge/${sourceId}`, { method: "DELETE" }); setWorking(false);
+    if (!response.ok) { setMessage("The source could not be deleted."); return; }
+    setSelectedSource(null); setMessage("Source deleted from active knowledge. Governed storage cleanup remains auditable."); await load();
+  }
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">กำลังโหลดคลังความรู้...</main>;
   if (loadError) return <WorkspacePageLoadError active="knowledge" title="คลังความรู้" resource="business content" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} onRetry={() => void load()} />;
@@ -103,7 +139,12 @@ export default function KnowledgePage() {
         <StructuredCataloguePanel collectionId={selectedCollectionId} canWrite={canWrite} />
       </> : null}
       {message ? <p className="inline-message" role="status">{message}</p> : null}
-      <section className="tool-band muted-band"><div className="band-heading"><div><p>ฉบับที่พร้อมใช้</p><h2>รายการแหล่งข้อมูล</h2></div><span>{visibleSources.length} of {sources.length}</span></div><label className="source-filter">Show <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}><option value="all">All sources</option><option value="text">Pasted text</option><option value="url">Website pages</option><option value="file">Documents</option><option value="ready">Ready</option><option value="processing">Processing</option><option value="failed">Needs attention</option></select></label><div className="data-table">{visibleSources.map((source) => <div className="data-row" key={source.id}><div><strong data-no-localize>{source.name}</strong><span>{source.sourceKind} / {source.version ? `revision ${source.version}` : "revision pending"}</span>{source.status === "failed" ? <small>{sourceFailureCopy[source.safeErrorCode ?? ""] ?? "Processing failed safely. Retry or contact support with the source name."}</small> : null}</div><span>{source.status === "ready" ? "Ready for bot answers" : source.status === "failed" ? "Needs attention" : source.status === "processing" ? "Scanning or extracting" : source.status}</span><span>{new Date(source.revisionCreatedAt).toLocaleDateString(currentIntlLocale())}</span></div>)}{!visibleSources.length ? <div className="pending-line"><strong>{sources.length ? "No sources match this filter" : "ยังไม่มีแหล่งข้อมูลที่พร้อมใช้"}</strong><span>{sources.length ? "Choose All sources to see every item." : "งานสแกนและไฟล์อัปโหลดในคิวจะแสดงหลังประมวลผลและดึงข้อมูล"}</span></div> : null}</div></section>
+      <section className="tool-band muted-band"><div className="band-heading"><div><p>ฉบับที่พร้อมใช้</p><h2>รายการแหล่งข้อมูล</h2></div><span>{visibleSources.length} of {sources.length}</span></div><label className="source-filter">Show <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}><option value="all">All sources</option><option value="text">Pasted text</option><option value="url">Website pages</option><option value="file">Documents</option><option value="ready">Ready</option><option value="processing">Processing</option><option value="failed">Needs attention</option><option value="excluded">Excluded</option></select></label><div className="data-table">{visibleSources.map((source) => <div className="data-row" key={source.id}><div><strong data-no-localize>{source.name}</strong><span>{source.sourceKind} / {source.version ? `revision ${source.version}` : "revision pending"}</span>{source.status === "failed" ? <small>{sourceFailureCopy[source.safeErrorCode ?? ""] ?? "Processing failed safely. Retry or contact support with the source name."}</small> : null}</div><span>{source.status === "ready" ? "Ready for bot answers" : source.status === "failed" ? "Needs attention" : source.status === "processing" ? "Scanning or extracting" : source.status === "excluded" ? "Excluded from answers" : source.status}</span><span>{new Date(source.revisionCreatedAt).toLocaleDateString(currentIntlLocale())}</span><button type="button" className="secondary-command" disabled={working} onClick={() => void previewSource(source.id)}>Preview and manage</button></div>)}{!visibleSources.length ? <div className="pending-line"><strong>{sources.length ? "No sources match this filter" : "ยังไม่มีแหล่งข้อมูลที่พร้อมใช้"}</strong><span>{sources.length ? "Choose All sources to see every item." : "งานสแกนและไฟล์อัปโหลดในคิวจะแสดงหลังประมวลผลและดึงข้อมูล"}</span></div> : null}</div></section>
+      {selectedSource ? <section className="tool-band" aria-labelledby="source-preview-title"><div className="band-heading"><div><p>Source revision {selectedSource.version}</p><h2 id="source-preview-title" data-no-localize>{selectedSource.name}</h2></div><span>{selectedSource.chunkCount} chunks</span></div>
+        <p className="control-copy">Preview the latest immutable revision. Corrections and full reindexing create a new revision; they never rewrite published history.</p>
+        {selectedSource.sourceUrl ? <p data-no-localize>{selectedSource.sourceUrl}</p> : null}
+        <form className="knowledge-form" onSubmit={correctSource} key={`${selectedSource.id}:${selectedSource.version}`}><label>Source name<input name="name" defaultValue={selectedSource.name} minLength={2} maxLength={160} required disabled={!canWrite} /></label><label>Latest content<textarea name="content" rows={12} defaultValue={selectedSource.content} maxLength={500000} required disabled={!canWrite || selectedSource.contentTruncated} /></label>{selectedSource.contentTruncated ? <p className="control-copy">This preview is limited to 100,000 characters. Use reprocess or full reindex to avoid replacing a larger source with a truncated preview.</p> : null}{canWrite ? <div className="action-row"><button disabled={working || selectedSource.contentTruncated}>Save correction</button><button type="button" className="secondary-command" disabled={working} onClick={() => void commandSource(selectedSource.id, selectedSource.status === "archived" ? "include" : "exclude")}>{selectedSource.status === "archived" ? "Include source" : "Exclude source"}</button>{selectedSource.sourceKind === "file" || selectedSource.sourceKind === "url" ? <button type="button" className="secondary-command" disabled={working} onClick={() => void commandSource(selectedSource.id, "reprocess")}>Reprocess original</button> : null}<button type="button" className="secondary-command" disabled={working || !selectedSource.revisionId} onClick={() => void commandSource(selectedSource.id, "reindex")}>Full reindex</button><button type="button" className="secondary-command" disabled={working} onClick={() => void deleteSource(selectedSource.id)}>Delete source</button></div> : null}</form>
+      </section> : null}
     </section>
   </main>;
 }
