@@ -119,6 +119,24 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
     await expect(authoring.createAgent(context, {
       name: "Second agent", businessName: "Acme Studio", defaultLanguage: "th",
     })).resolves.toEqual({ status: "limit_reached" });
+    await expect(tenantClient!.begin(async (sql) => {
+      await sql`
+        SELECT
+          set_config('app.tenant_id', ${context.tenantId}, true),
+          set_config('app.user_id', ${context.userId}, true),
+          set_config('app.membership_id', ${context.membershipId}, true),
+          set_config('app.session_id', ${context.sessionId}, true),
+          set_config('app.request_id', 'p5-ai-chat-direct-limit-bypass', true)
+      `;
+      await sql`
+        INSERT INTO tenancy.ai_agents (
+          id, tenant_id, name, product_family, default_language, created_by_membership_id
+        ) VALUES (
+          ${randomUUID()}::uuid, ${context.tenantId}::uuid, 'Direct bypass', 'text', 'en',
+          ${context.membershipId}::uuid
+        )
+      `;
+    })).rejects.toThrow(/ai_text_active_bot_limit_reached/);
     const draft = await authoring.getDraft(context, agent.agentId);
     expect(draft).toBeTruthy();
     const updated = await authoring.updateDraft(context, agent.agentId, {

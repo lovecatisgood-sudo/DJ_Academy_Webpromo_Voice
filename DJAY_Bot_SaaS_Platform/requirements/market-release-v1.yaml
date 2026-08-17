@@ -3488,16 +3488,43 @@
         "AI-01",
         "AI-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
-      "entitlement_keys": [],
+      "implementation_paths": [
+        "packages/catalog/src/index.ts",
+        "packages/db/src/ai-chat-store.ts",
+        "packages/db/src/tenant-workspace-store.ts",
+        "apps/api/app/tenant/ai-chat/agents/route.ts",
+        "apps/tenant-web/app/workspace/ai-chat/page.tsx"
+      ],
+      "migration_ids": [
+        "0043_market_release_catalog.sql",
+        "0045_entitlement_resource_boundaries.sql",
+        "0131_ai_text_starter_admission.sql"
+      ],
+      "api_contracts": [
+        "GET|POST /tenant/ai-chat/agents"
+      ],
+      "ui_routes": [
+        "/workspace/ai-chat"
+      ],
+      "entitlement_keys": [
+        "ai.text",
+        "sales_core.enabled",
+        "active_bots",
+        "workspaces",
+        "seats"
+      ],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "packages/db/src/ai-chat-runtime-store.integration.test.ts",
+        "packages/db/src/auth-store.integration.test.ts",
+        "packages/db/src/resource-boundary-store.integration.test.ts",
+        "packages/db/src/migration-invariants.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/ai-text-starter-admission-2026-08-17.md"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {

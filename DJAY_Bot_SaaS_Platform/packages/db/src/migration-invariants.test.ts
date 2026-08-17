@@ -107,6 +107,7 @@ const governedKnowledgeCrawlingMigration = readFileSync(resolve(import.meta.dirn
 const activePublishedKnowledgeMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0128_active_published_knowledge_retrieval.sql"), "utf8");
 const knowledgeRefreshReviewMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0129_plan_bound_knowledge_refresh_reviews.sql"), "utf8");
 const knowledgeSourceCleanupMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0130_knowledge_source_cleanup.sql"), "utf8");
+const aiTextStarterAdmissionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0131_ai_text_starter_admission.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -167,6 +168,20 @@ describe("Merchant experience migration invariants", () => {
     expect(knowledgeSourceCleanupMigration).toContain("OLD.status = 'completed'");
     expect(knowledgeSourceCleanupMigration).not.toMatch(/GRANT (INSERT|UPDATE|DELETE) ON tenancy\.knowledge_source_cleanup_jobs TO djay_runtime/i);
   });
+
+  it("enforces AI Text bot admission from the active tenant contract at the database boundary", () => {
+    expect(aiTextStarterAdmissionMigration).toContain("session_user <> 'djay_runtime'");
+    expect(aiTextStarterAdmissionMigration).toContain("snapshot.product_key = 'ai_chat'");
+    expect(aiTextStarterAdmissionMigration).toContain("subscription.status IN ('active', 'trialing', 'scheduled_change')");
+    expect(aiTextStarterAdmissionMigration).toContain("resolved_json->'entitlements'");
+    expect(aiTextStarterAdmissionMigration).toContain("authority_limits->>'active_bots'");
+    expect(aiTextStarterAdmissionMigration).toContain("claim.materialized_ai_agent_id IS NULL");
+    expect(aiTextStarterAdmissionMigration).toContain("active_bot_limit := 1");
+    expect(aiTextStarterAdmissionMigration).toContain("pg_advisory_xact_lock");
+    expect(aiTextStarterAdmissionMigration).toContain("ai_text_active_bot_limit_reached");
+    expect(aiTextStarterAdmissionMigration).toContain("BEFORE INSERT OR UPDATE OF tenant_id, product_family, status");
+  });
+
   it("keeps anonymous Builder drafts versioned, expiring, pre-tenant, and unavailable to tenant runtime", () => {
     expect(anonymousBuilderDraftMigration).toContain("CREATE TABLE builder.anonymous_sessions");
     expect(anonymousBuilderDraftMigration).toContain("CREATE TABLE builder.draft_revisions");

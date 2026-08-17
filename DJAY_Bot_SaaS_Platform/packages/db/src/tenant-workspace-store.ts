@@ -162,6 +162,9 @@ async function materializeClaimedAiConfiguration(
   claim: LatestBuilderClaim,
 ) {
   if ((claim.productFamily !== "text" && claim.productFamily !== "voice") || claim.materializedAiAgentId) return;
+  await sql`SELECT pg_advisory_xact_lock(hashtextextended(
+    ${`${context.tenantId}:${claim.productFamily === "text" ? "ai_chat:active_bots" : "voice:active_bots"}`}, 0
+  ))`;
   const existing = await sql<{ id: string }[]>`
     SELECT id FROM tenancy.ai_agents
     WHERE tenant_id = ${context.tenantId}::uuid AND product_family = ${claim.productFamily}
