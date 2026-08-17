@@ -1,6 +1,6 @@
 # Non-social production-readiness requirement matrix
 
-Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; formally accepted: **0**; requirements with at least one existing mapped artifact: **73**; requirements containing stale or missing path references: **1**.
+Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; formally accepted: **0**; requirements with at least one existing mapped artifact: **74**; requirements containing stale or missing path references: **1**.
 
 > An existing file is mapping evidence, not acceptance evidence. A requirement remains unaccepted until its named tests, environment evidence, and authorized reviewer are recorded in the release registry. Social-channel implementation may exist in source but is outside the current release scope.
 
@@ -128,7 +128,7 @@ Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; f
 | KNO-007 | AI-01 | ai_chat_basic, ai_chat_premium | implemented | 10/10 | 6/6 | 3/3 | — | Provide product and service information on Starter and structured product/service catalogue support on Advanced. |
 | KNO-008 | AI-01 | ai_chat_basic, ai_chat_premium | implemented | 4/4 | 2/2 | 2/2 | — | Deleting source content MUST remove it from future retrieval and complete provider/vector cleanup within the stated retention window. |
 | ATS-001 | AI-03 | ai_chat_basic, ai_chat_premium | implemented | 5/5 | 4/4 | 1/1 | — | Allow one AI Text Bot in one business workspace with one administrator. |
-| ATS-002 | AI-03 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Provide the website chat widget and include up to 2,000 AI-generated replies per monthly allowance period. |
+| ATS-002 | AI-03 | ai_chat_basic, ai_chat_premium | implemented | 5/5 | 4/4 | 1/1 | — | Provide the website chat widget and include up to 2,000 AI-generated replies per monthly allowance period. |
 | ATS-003 | AI-03 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Provide one business knowledge base containing website content, FAQs, PDF, DOCX, TXT, and product/service information. |
 | ATS-004 | AI-03 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Support Thai and English conversations, including language detection and a configured language override. |
 | ATS-005 | AI-03 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Answer FAQs, explain products/services, recommend suitable products/services, and follow configured sales instructions. |

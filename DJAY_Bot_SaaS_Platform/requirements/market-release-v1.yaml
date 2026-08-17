@@ -3539,16 +3539,44 @@
         "AI-01",
         "AI-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
+      "implementation_paths": [
+        "packages/catalog/src/index.ts",
+        "packages/ai-chat-widget/src/index.ts",
+        "apps/widget-cdn/src/server.ts",
+        "apps/api/app/public/ai-chat/message/route.ts",
+        "packages/db/src/ai-chat-runtime-store.ts"
+      ],
+      "migration_ids": [
+        "0018_ai_chat_public_runtime.sql",
+        "0043_market_release_catalog.sql",
+        "0049_usage_period_rollover.sql",
+        "0050_runtime_usage_funding_bridge.sql"
+      ],
+      "api_contracts": [
+        "GET /public/ai-chat/config",
+        "POST /public/ai-chat/session",
+        "POST /public/ai-chat/message",
+        "POST /public/ai-chat/install"
+      ],
       "ui_routes": [],
-      "entitlement_keys": [],
-      "meter_keys": [],
-      "test_ids": [],
+      "entitlement_keys": [
+        "ai.text",
+        "channel.web"
+      ],
+      "meter_keys": [
+        "ai_response"
+      ],
+      "test_ids": [
+        "packages/ai-chat-widget/src/index.test.ts",
+        "apps/widget-cdn/src/server.test.ts",
+        "packages/db/src/ai-chat-runtime-store.integration.test.ts",
+        "packages/db/src/commerce-store.integration.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/ai-text-website-allowance-2026-08-17.md"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {
