@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { countFlowTopics, flowbotDowngradeBlockers, flowCtaNodeTypes, flowGraphAdvisories, flowNodeEdges, flowNodeSchema, flowNodeTypes, flowSnapshotSchema, isWithinFlowBusinessSchedule, validateFlowForPublish, type FlowEntitlements, type FlowNode, type FlowNodeType, type FlowSnapshot } from "./index";
+import { countFlowTopics, createFlowStarterTemplate, flowbotDowngradeBlockers, flowCtaNodeTypes, flowGraphAdvisories, flowNodeEdges, flowNodeSchema, flowNodeTypes, flowSnapshotSchema, flowStarterTemplateKeys, isWithinFlowBusinessSchedule, validateFlowForPublish, type FlowEntitlements, type FlowNode, type FlowNodeType, type FlowSnapshot } from "./index";
 
 const root = randomUUID();
 const premium = randomUUID();
@@ -12,6 +12,23 @@ const basic: FlowEntitlements = { planKey: "flowbot_basic", accessMode: "active"
 const premiumAuthority: FlowEntitlements = { planKey: "flowbot_premium", accessMode: "active", entitlements: { "ai.enabled": false, "flow.nodes.advanced": true, "flow.delays": true, "flow.webhook": "approved", "flow.team_routing": true, "branding.remove": true }, limits: { active_bots: 5, flow_nodes_per_bot: 500 } };
 
 describe("FlowBot plan validation", () => {
+  it("creates all six approved editable bilingual starting journeys for Flow Starter", () => {
+    const authority: FlowEntitlements = { ...basic, entitlements: {
+      ...basic.entitlements, "flow.forms": true, "flow.lead_capture": true,
+    } };
+    expect(flowStarterTemplateKeys).toEqual(["faq", "lead", "appointment", "product", "support", "blank"]);
+    for (const templateKey of flowStarterTemplateKeys) {
+      const template = createFlowStarterTemplate(templateKey, randomUUID);
+      expect(flowSnapshotSchema.safeParse(template).success).toBe(true);
+      expect(template.authoring?.templateKey).toBe(templateKey);
+      expect(template.nodes[template.rootNodeId]).toBeTruthy();
+      expect(validateFlowForPublish(template, authority)).toEqual([]);
+      for (const node of Object.values(template.nodes)) {
+        if ("prompt" in node && node.prompt) expect(node.prompt).toEqual(expect.objectContaining({ th: expect.any(String), en: expect.any(String) }));
+      }
+    }
+  });
+
   it("accepts bounded editor positions without changing the runtime graph", () => {
     const positioned = { ...snapshot, editor: { positions: { [root]: { x: 120, y: -40 } } } };
     expect(flowSnapshotSchema.safeParse(positioned).success).toBe(true);

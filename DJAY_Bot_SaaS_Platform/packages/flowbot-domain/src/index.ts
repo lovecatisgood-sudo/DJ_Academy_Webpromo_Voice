@@ -120,6 +120,125 @@ export const flowSnapshotSchema = z.object({
 }).strict();
 export type FlowSnapshot = z.infer<typeof flowSnapshotSchema>;
 
+export const flowStarterTemplateKeys = ["faq", "lead", "appointment", "product", "support", "blank"] as const;
+export type FlowStarterTemplateKey = (typeof flowStarterTemplateKeys)[number];
+
+/** Creates one editable tenant draft from an approved deterministic starting journey. */
+export function createFlowStarterTemplate(templateKey: FlowStarterTemplateKey, createId: () => string): FlowSnapshot {
+  const id = () => z.uuid().parse(createId());
+  const flowVersionId = id();
+  const finish = (rootNodeId: string, nodes: FlowSnapshot["nodes"], authoring: AuthoringSeed = {}) => flowSnapshotSchema.parse({
+    schemaVersion: 1, flowVersionId, rootNodeId, nodes, keywords: [],
+    authoring: { ...authoring, templateKey },
+  });
+  type NodeMap = FlowSnapshot["nodes"];
+  type AuthoringSeed = Omit<NonNullable<FlowSnapshot["authoring"]>, "templateKey">;
+
+  if (templateKey === "blank") {
+    const welcome = id();
+    return finish(welcome, { [welcome]: { id: welcome, type: "message", title: "Welcome", content: { th: "สวัสดีครับ", en: "Welcome" }, nextNodeId: null } });
+  }
+
+  if (templateKey === "faq") {
+    const root = id(); const hours = id(); const services = id(); const contact = id(); const handover = id(); const done = id();
+    const nodes: NodeMap = {
+      [root]: { id: root, type: "options", title: "FAQ and contact", prompt: { th: "สวัสดีครับ ต้องการทราบเรื่องใด?", en: "Welcome. What would you like to know?" }, options: [
+        { id: id(), label: { th: "เวลาทำการ", en: "Opening hours" }, targetNodeId: hours },
+        { id: id(), label: { th: "บริการ", en: "Services" }, targetNodeId: services },
+        { id: id(), label: { th: "ฝากข้อมูลติดต่อ", en: "Leave contact details" }, targetNodeId: contact },
+        { id: id(), label: { th: "คุยกับทีมงาน", en: "Talk to the team" }, targetNodeId: handover },
+      ] },
+      [hours]: { id: hours, type: "options", title: "Opening hours answer", prompt: { th: "เพิ่มเวลาทำการที่อนุมัติของคุณที่นี่", en: "Add your approved opening hours here." }, options: [
+        { id: id(), label: { th: "กลับเมนู", en: "Back to menu" }, targetNodeId: root },
+        { id: id(), label: { th: "ฝากข้อมูลติดต่อ", en: "Leave contact details" }, targetNodeId: contact },
+      ] },
+      [services]: { id: services, type: "options", title: "Services answer", prompt: { th: "เพิ่มข้อมูลบริการและราคาที่อนุมัติของคุณที่นี่", en: "Add your approved services and prices here." }, options: [
+        { id: id(), label: { th: "กลับเมนู", en: "Back to menu" }, targetNodeId: root },
+        { id: id(), label: { th: "คุยกับทีมงาน", en: "Talk to the team" }, targetNodeId: handover },
+      ] },
+      [contact]: { id: contact, type: "form", title: "Contact details", prompt: { th: "ฝากข้อมูลเพื่อให้ทีมงานติดต่อกลับ", en: "Leave your details for the team to contact you." }, fields: contactFields(), nextNodeId: done },
+      [handover]: { id: handover, type: "handover", title: "Human handover", message: { th: "กำลังส่งต่อให้ทีมงาน", en: "Connecting you with the team." } },
+      [done]: { id: done, type: "end", title: "Request received", message: { th: "รับข้อมูลแล้ว ทีมงานจะติดต่อกลับ", en: "Your details were received. The team will contact you." } },
+    };
+    return finish(root, nodes, defaultAuthoring("faq"));
+  }
+
+  if (templateKey === "lead") {
+    const root = id(); const form = id(); const handover = id(); const done = id();
+    return finish(root, {
+      [root]: { id: root, type: "options", title: "Lead enquiry", prompt: { th: "สนใจให้เราช่วยเรื่องใด?", en: "What can we help you with?" }, options: [
+        { id: id(), label: { th: "สินค้าและบริการ", en: "Products and services" }, targetNodeId: form },
+        { id: id(), label: { th: "ขอใบเสนอราคา", en: "Request a quotation" }, targetNodeId: form },
+        { id: id(), label: { th: "คุยกับทีมงาน", en: "Talk to the team" }, targetNodeId: handover },
+      ] },
+      [form]: { id: form, type: "form", title: "Lead details", prompt: { th: "ฝากข้อมูลและสิ่งที่สนใจ", en: "Share your contact details and enquiry." }, fields: [...contactFields(), { key: "interest", label: { th: "สิ่งที่สนใจ", en: "What are you interested in?" }, type: "textarea", required: true }], nextNodeId: done },
+      [handover]: { id: handover, type: "handover", title: "Human handover", message: { th: "กำลังส่งต่อให้ทีมงาน", en: "Connecting you with the team." } },
+      [done]: { id: done, type: "end", title: "Lead received", message: { th: "รับข้อมูลแล้ว ทีมงานจะติดต่อกลับ", en: "Your details were received. The team will contact you." } },
+    }, defaultAuthoring("lead"));
+  }
+
+  if (templateKey === "appointment") {
+    const root = id(); const form = id(); const handover = id(); const done = id();
+    return finish(root, {
+      [root]: { id: root, type: "options", title: "Choose a service", prompt: { th: "ต้องการขอนัดหมายบริการใด?", en: "Which service would you like to request?" }, options: [
+        { id: id(), label: { th: "บริการหลัก", en: "Main service" }, targetNodeId: form },
+        { id: id(), label: { th: "บริการอื่น", en: "Another service" }, targetNodeId: form },
+        { id: id(), label: { th: "ขอความช่วยเหลือ", en: "Ask for help" }, targetNodeId: handover },
+      ] },
+      [form]: { id: form, type: "form", title: "Appointment request", prompt: { th: "แจ้งวันเวลาที่สะดวก ทีมงานจะยืนยันภายหลัง", en: "Share a preferred time. The team will confirm separately." }, fields: [...contactFields(), { key: "preferred_time", label: { th: "วันและเวลาที่สะดวก", en: "Preferred date and time" }, type: "text", required: true }], nextNodeId: done },
+      [handover]: { id: handover, type: "handover", title: "Human handover", message: { th: "กำลังส่งต่อให้ทีมงาน", en: "Connecting you with the team." } },
+      [done]: { id: done, type: "end", title: "Appointment requested", message: { th: "รับคำขอแล้ว แต่ยังไม่ได้ยืนยันนัดหมาย", en: "Your request was received. The appointment is not yet confirmed." } },
+    }, defaultAuthoring("appointment"));
+  }
+
+  if (templateKey === "product") {
+    const root = id(); const products = id(); const services = id(); const question = id(); const handover = id(); const done = id();
+    return finish(root, {
+      [root]: { id: root, type: "options", title: "Product or service guide", prompt: { th: "ต้องการดูข้อมูลใด?", en: "What would you like to explore?" }, options: [
+        { id: id(), label: { th: "สินค้า", en: "Products" }, targetNodeId: products },
+        { id: id(), label: { th: "บริการ", en: "Services" }, targetNodeId: services },
+        { id: id(), label: { th: "ถามคำถาม", en: "Ask a question" }, targetNodeId: question },
+        { id: id(), label: { th: "ขอความช่วยเหลือ", en: "Request help" }, targetNodeId: handover },
+      ] },
+      [products]: { id: products, type: "options", title: "Product categories", prompt: { th: "เพิ่มหมวดสินค้าและข้อมูลที่อนุมัติของคุณที่นี่", en: "Add your approved product categories and details here." }, options: [{ id: id(), label: { th: "กลับเมนู", en: "Back to menu" }, targetNodeId: root }, { id: id(), label: { th: "ถามคำถาม", en: "Ask a question" }, targetNodeId: question }] },
+      [services]: { id: services, type: "options", title: "Service categories", prompt: { th: "เพิ่มบริการและข้อมูลที่อนุมัติของคุณที่นี่", en: "Add your approved services and details here." }, options: [{ id: id(), label: { th: "กลับเมนู", en: "Back to menu" }, targetNodeId: root }, { id: id(), label: { th: "ถามคำถาม", en: "Ask a question" }, targetNodeId: question }] },
+      [question]: { id: question, type: "form", title: "Product question", prompt: { th: "ฝากคำถามและข้อมูลติดต่อ", en: "Leave your question and contact details." }, fields: [...contactFields(), { key: "question", label: { th: "คำถาม", en: "Question" }, type: "textarea", required: true }], nextNodeId: done },
+      [handover]: { id: handover, type: "handover", title: "Human handover", message: { th: "กำลังส่งต่อให้ทีมงาน", en: "Connecting you with the team." } },
+      [done]: { id: done, type: "end", title: "Question received", message: { th: "รับคำถามแล้ว ทีมงานจะติดต่อกลับ", en: "Your question was received. The team will contact you." } },
+    }, defaultAuthoring("product"));
+  }
+
+  const root = id(); const context = id(); const guidance = id(); const handover = id(); const done = id();
+  return finish(root, {
+    [root]: { id: root, type: "options", title: "Support routing", prompt: { th: "ต้องการความช่วยเหลือเรื่องใด?", en: "What do you need help with?" }, options: [
+      { id: id(), label: { th: "การใช้งาน", en: "Using the service" }, targetNodeId: context },
+      { id: id(), label: { th: "การชำระเงิน", en: "Billing" }, targetNodeId: context },
+      { id: id(), label: { th: "ปัญหาอื่น", en: "Another issue" }, targetNodeId: context },
+      { id: id(), label: { th: "คุยกับทีมงาน", en: "Talk to the team" }, targetNodeId: handover },
+    ] },
+    [context]: { id: context, type: "form", title: "Issue context", prompt: { th: "อธิบายปัญหาและฝากข้อมูลติดต่อ", en: "Describe the issue and leave contact details." }, fields: [...contactFields(), { key: "issue", label: { th: "รายละเอียดปัญหา", en: "Issue details" }, type: "textarea", required: true }], nextNodeId: guidance },
+    [guidance]: { id: guidance, type: "options", title: "Approved guidance", prompt: { th: "เพิ่มคำแนะนำที่อนุมัติของคุณที่นี่", en: "Add your approved support guidance here." }, options: [{ id: id(), label: { th: "แก้ไขได้แล้ว", en: "Resolved" }, targetNodeId: done }, { id: id(), label: { th: "ยังต้องการทีมงาน", en: "I still need the team" }, targetNodeId: handover }] },
+    [handover]: { id: handover, type: "handover", title: "Human handover", message: { th: "กำลังส่งต่อรายละเอียดให้ทีมงาน", en: "Passing the collected context to the team." } },
+    [done]: { id: done, type: "end", title: "Support complete", message: { th: "ขอบคุณครับ", en: "Thank you." } },
+  }, defaultAuthoring("support"));
+
+  function contactFields(): LeadFieldSeed[] {
+    return [
+      { key: "name", label: { th: "ชื่อ", en: "Name" }, type: "text", required: true },
+      { key: "phone", label: { th: "เบอร์โทร", en: "Phone" }, type: "phone", required: false },
+      { key: "email", label: { th: "อีเมล", en: "Email" }, type: "email", required: false },
+    ];
+  }
+  type LeadFieldSeed = Extract<FlowNode, { type: "form" }>["fields"][number];
+  function defaultAuthoring(kind: FlowStarterTemplateKey): AuthoringSeed {
+    return {
+      lead: { fields: contactFields(), consent: "กรุณายืนยันว่าธุรกิจสามารถใช้ข้อมูลนี้เพื่อติดต่อกลับ / Please confirm the business may use these details to contact you." },
+      handover: { teamLabel: "Shared inbox", fallback: { th: "ทีมงานจะดูแลต่อ", en: "Our team will continue." }, outsideHoursMessage: "ทีมงานจะตอบกลับในเวลาทำการ / The team will reply during business hours." },
+      ...(kind === "blank" ? {} : { identity: { widgetPosition: "bottom_right", brandColor: "#126149" } }),
+    };
+  }
+}
+
 export const flowInputSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("start"), payload: z.object({}).strict() }).strict(),
   z.object({ type: z.literal("text"), payload: z.object({ text: z.string().trim().min(1).max(4000) }).strict() }).strict(),

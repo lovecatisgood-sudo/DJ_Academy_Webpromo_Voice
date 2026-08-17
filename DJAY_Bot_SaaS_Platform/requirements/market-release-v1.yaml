@@ -7058,19 +7058,37 @@
       "implementation_paths": [
         "packages/flowbot-domain/src/index.ts",
         "packages/flowbot-migration/src/index.ts",
-        "packages/db/src/tenant-workspace-store.ts"
+        "packages/db/src/tenant-workspace-store.ts",
+        "packages/db/src/flowbot-store.ts",
+        "apps/tenant-web/app/workspace/flowbot/FlowAuthoringEditor.tsx",
+        "apps/tenant-web/app/workspace/flowbot/page.tsx"
       ],
       "migration_ids": [
         "0122_builder_flow_materialization"
       ],
-      "api_contracts": [],
-      "ui_routes": [],
-      "entitlement_keys": [],
+      "api_contracts": [
+        "GET|POST /tenant/flowbot/bots",
+        "GET|PATCH /tenant/flowbot/bots/:botId/draft",
+        "POST /tenant/flowbot/bots/:botId/publish",
+        "POST /tenant/flowbot/bots/:botId/deployments"
+      ],
+      "ui_routes": [
+        "/workspace/flowbot",
+        "/workspace/flowbot/canvas"
+      ],
+      "entitlement_keys": [
+        "ai.enabled",
+        "flow.nodes.core",
+        "flow.forms",
+        "flow.lead_capture",
+        "channel.web"
+      ],
       "meter_keys": [],
       "test_ids": [
         "packages/flowbot-domain/src/index.test.ts",
         "packages/flowbot-migration/src/index.test.ts",
         "packages/db/src/anonymous-builder-store.integration.test.ts",
+        "packages/db/src/flowbot-store.integration.test.ts",
         "packages/db/src/migration-invariants.test.ts"
       ],
       "runbooks": [],

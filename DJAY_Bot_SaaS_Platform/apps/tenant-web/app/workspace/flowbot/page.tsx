@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { flowSnapshotSchema } from "@djay/flowbot-domain";
+import { createFlowStarterTemplate, flowSnapshotSchema, type FlowStarterTemplateKey } from "@djay/flowbot-domain";
 import {
   flowbotOperationsFieldConstraints,
   currentIntlLocale,
@@ -18,6 +18,7 @@ import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { WebsiteDeploymentForm } from "../WebsiteDeploymentForm";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 import { humanizeAccessMode, humanizePlanKey } from "../../../lib/workspace-labels";
+import { FlowAuthoringEditor } from "./FlowAuthoringEditor";
 import { FlowVisualEditor } from "./FlowVisualEditor";
 
 type Bot = { id: string; name: string; status: string; defaultLanguage: "th" | "en"; currentPublishedVersionId: string | null; draftRevision: number; deploymentCount: number };
@@ -66,70 +67,6 @@ function draftIssueMessage(issue: Readonly<{ path: readonly PropertyKey[]; messa
   return `Flow definition is invalid at ${path.length ? path.join(" › ") : "the document root"}: ${issue.message}`;
 }
 
-function greetingTemplate() {
-  const root = crypto.randomUUID(); const end = crypto.randomUUID(); const flowVersionId = crypto.randomUUID();
-  return { schemaVersion: 1, flowVersionId, rootNodeId: root, keywords: [], nodes: {
-    [root]: { id: root, type: "message", title: "Welcome", content: { th: "สวัสดีครับ ยินดีให้บริการ", en: "Welcome. How can we help?" }, nextNodeId: end },
-    [end]: { id: end, type: "end", title: "Complete", message: { th: "ขอบคุณครับ", en: "Thank you." } },
-  } };
-}
-
-function leadTemplate() {
-  const root = crypto.randomUUID(); const form = crypto.randomUUID(); const end = crypto.randomUUID(); const flowVersionId = crypto.randomUUID();
-  return { schemaVersion: 1, flowVersionId, rootNodeId: root, keywords: [], nodes: {
-    [root]: { id: root, type: "message", title: "Welcome", content: { th: "ฝากข้อมูลไว้ แล้วทีมงานจะติดต่อกลับ", en: "Leave your details and our team will contact you." }, nextNodeId: form },
-    [form]: { id: form, type: "form", title: "Contact details", prompt: { th: "ข้อมูลติดต่อ", en: "Contact details" }, fields: [
-      { key: "name", label: { th: "ชื่อ", en: "Name" }, type: "text", required: true },
-      { key: "phone", label: { th: "เบอร์โทร", en: "Phone" }, type: "phone", required: false },
-      { key: "email", label: { th: "อีเมล", en: "Email" }, type: "email", required: true },
-    ], nextNodeId: end },
-    [end]: { id: end, type: "end", title: "Complete", message: { th: "รับข้อมูลแล้ว ขอบคุณครับ", en: "Your details have been received. Thank you." } },
-  } };
-}
-
-function appointmentTemplate() {
-  const root = crypto.randomUUID(); const form = crypto.randomUUID(); const end = crypto.randomUUID(); const flowVersionId = crypto.randomUUID();
-  return { schemaVersion: 1, flowVersionId, rootNodeId: root, keywords: [], nodes: {
-    [root]: { id: root, type: "message", title: "Appointment welcome", content: { th: "แจ้งวันและเวลาที่สะดวก ทีมงานจะยืนยันนัดหมายกลับไป", en: "Tell us your preferred date and time. Our team will confirm the appointment." }, nextNodeId: form },
-    [form]: { id: form, type: "form", title: "Appointment request", prompt: { th: "ข้อมูลสำหรับนัดหมาย", en: "Appointment details" }, fields: [
-      { key: "name", label: { th: "ชื่อ", en: "Name" }, type: "text", required: true },
-      { key: "phone", label: { th: "เบอร์โทร", en: "Phone" }, type: "phone", required: true },
-      { key: "preferred_time", label: { th: "วันและเวลาที่สะดวก", en: "Preferred date and time" }, type: "text", required: true },
-      { key: "note", label: { th: "รายละเอียดเพิ่มเติม", en: "Additional details" }, type: "textarea", required: false },
-    ], nextNodeId: end },
-    [end]: { id: end, type: "end", title: "Request received", message: { th: "รับคำขอแล้ว ทีมงานจะติดต่อเพื่อยืนยันนัดหมาย", en: "Request received. Our team will contact you to confirm." } },
-  } };
-}
-
-function faqTemplate() {
-  const root = crypto.randomUUID(); const hours = crypto.randomUUID(); const price = crypto.randomUUID();
-  const contact = crypto.randomUUID(); const end = crypto.randomUUID(); const flowVersionId = crypto.randomUUID();
-  return { schemaVersion: 1, flowVersionId, rootNodeId: root, keywords: [], nodes: {
-    [root]: { id: root, type: "options", title: "Frequently asked questions", prompt: { th: "ต้องการทราบเรื่องใด?", en: "What would you like to know?" }, options: [
-      { id: crypto.randomUUID(), label: { th: "เวลาทำการ", en: "Opening hours" }, targetNodeId: hours },
-      { id: crypto.randomUUID(), label: { th: "ราคาและบริการ", en: "Prices and services" }, targetNodeId: price },
-      { id: crypto.randomUUID(), label: { th: "ให้ทีมงานติดต่อกลับ", en: "Ask the team to contact me" }, targetNodeId: contact },
-    ] },
-    [hours]: { id: hours, type: "message", title: "Opening hours", content: { th: "เปิดวันจันทร์–ศุกร์ เวลา 09:00–17:00 น. แก้ข้อความนี้ให้ตรงกับธุรกิจของคุณ", en: "Open Monday–Friday, 09:00–17:00. Edit this to match your business." }, nextNodeId: contact },
-    [price]: { id: price, type: "message", title: "Prices and services", content: { th: "เพิ่มข้อมูลราคาและบริการของคุณที่นี่", en: "Add your prices and services here." }, nextNodeId: contact },
-    [contact]: { id: contact, type: "form", title: "Contact request", prompt: { th: "ให้ทีมงานติดต่อกลับ", en: "Ask our team to contact you" }, fields: [
-      { key: "name", label: { th: "ชื่อ", en: "Name" }, type: "text", required: true },
-      { key: "phone", label: { th: "เบอร์โทร", en: "Phone" }, type: "phone", required: false },
-      { key: "question", label: { th: "คำถาม", en: "Question" }, type: "textarea", required: true },
-    ], nextNodeId: end },
-    [end]: { id: end, type: "end", title: "Complete", message: { th: "รับข้อมูลแล้ว ทีมงานจะติดต่อกลับ", en: "Thank you. Our team will contact you." } },
-  } };
-}
-
-function premiumTemplate() {
-  const root = crypto.randomUUID(); const wait = crypto.randomUUID(); const end = crypto.randomUUID(); const flowVersionId = crypto.randomUUID();
-  return { schemaVersion: 1, flowVersionId, rootNodeId: root, keywords: [], nodes: {
-    [root]: { id: root, type: "message", title: "Welcome", content: { th: "เราจะติดตามให้ในอีกสักครู่", en: "We will follow up shortly." }, nextNodeId: wait },
-    [wait]: { id: wait, type: "delay", title: "Follow-up delay", delaySeconds: 300, nextNodeId: end },
-    [end]: { id: end, type: "end", title: "Complete", message: { th: "ขอบคุณที่รอครับ", en: "Thank you for waiting." } },
-  } };
-}
-
 export default function FlowBotPage() {
   const session = useWorkspaceSession(); const [bots, setBots] = useState<Bot[]>([]); const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const [selectedBotId, setSelectedBotId] = useState(""); const [draft, setDraft] = useState<Draft | null>(null); const [definitionText, setDefinitionText] = useState("");
@@ -147,6 +84,7 @@ export default function FlowBotPage() {
   const [editorErrorMessage, setEditorErrorMessage] = useState("");
   const [studioTab, setStudioTab] = useState<"setup" | "flow" | "deploy" | "operations" | "advanced">("flow");
   const canAuthor = session.allows("flowbot.author");
+  const canEdit = canAuthor && capabilities?.accessMode === "active";
   const selectedBot = bots.find((bot) => bot.id === selectedBotId);
   const activeTeamMembers = teamMembers.filter((member) => member.membership_status === "active");
   const installSnippet = newDeploymentKey
@@ -333,12 +271,12 @@ export default function FlowBotPage() {
         : "Connector could not be submitted.");
     if (response.ok) { form.reset(); await loadOperations(); }
   }
-  function applyTemplate(template: "greeting" | "lead" | "appointment" | "faq" | "premium") {
-    const value = template === "greeting" ? greetingTemplate()
-      : template === "lead" ? leadTemplate()
-        : template === "appointment" ? appointmentTemplate()
-          : template === "faq" ? faqTemplate() : premiumTemplate();
-    setDefinitionText(JSON.stringify(value, null, 2)); setMessage(""); setDraftValidation(null); setEditorErrorMessage("");
+  function applyTemplate(template: FlowStarterTemplateKey) {
+    if (!window.confirm(uiCopy("แทนที่ผังปัจจุบันด้วยเส้นทางเริ่มต้นนี้หรือไม่? การตั้งค่าธุรกิจและวิดเจ็ตจะยังคงอยู่", "Replace the current map with this starting journey? Business and widget settings will be preserved."))) return;
+    const value = createFlowStarterTemplate(template, () => crypto.randomUUID());
+    const currentAuthoring = (() => { try { return (JSON.parse(definitionText) as { authoring?: typeof value.authoring }).authoring ?? {}; } catch { return {}; } })();
+    const next = { ...value, authoring: { ...value.authoring, ...currentAuthoring, templateKey: template } };
+    setDefinitionText(JSON.stringify(next, null, 2)); setMessage(""); setDraftValidation(null); setEditorErrorMessage("");
   }
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">กำลังโหลด FlowBot...</main>;
@@ -353,10 +291,11 @@ export default function FlowBotPage() {
   return <main className="workspace-shell"><WorkspaceSidebar active="flowbot" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} />
     <section id="workspace-main" className="workspace-main" tabIndex={-1}><WorkspaceSupportBanner tenantId={session.selectedTenantId} />
       <header className="workspace-header"><div><p>ระบบอัตโนมัติบนเว็บไซต์</p><h1>FlowBot</h1></div><span className="role-label">{humanizePlanKey(capabilities?.planKey)} · {humanizeAccessMode(capabilities?.accessMode)}</span></header>
+      {bots.length > 0 && !canEdit ? <section className="tool-band muted-band"><div className="band-heading"><div><p>{uiCopy("ยังไม่เปิดสิทธิ์ใช้งาน", "Access not active")}</p><h2>{uiCopy("ฉบับร่าง Flow ของคุณถูกเก็บไว้", "Your Flow draft is preserved")}</h2></div><span>{uiCopy("อ่านอย่างเดียว", "Read only")}</span></div><p>{uiCopy("คุณยังตรวจสอบผังและการตั้งค่าได้ เปิดใช้งานแพ็กเกจ Flow ก่อนแก้ไข ทดสอบ เผยแพร่ หรือติดตั้ง", "You can still review the map and settings. Activate a Flow package before editing, testing, publishing, or installing.")}</p><a className="secondary-link" href="/workspace/usage">{uiCopy("ดูแพ็กเกจและการใช้งาน", "View packages and usage")}</a></section> : null}
       <section className="tool-band flowbot-control-band"><div className="band-heading"><div><p>บอต</p><h2>ผู้ช่วยที่เผยแพร่แล้ว</h2></div><span>{bots.length}{capabilities?.limits.activeBots ? ` / ${capabilities.limits.activeBots}` : ""}</span></div>
-        {canAuthor ? <form className="flowbot-create" onSubmit={createBot}><label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label><div><strong>ภาษาของลูกค้า</strong><span>ลูกค้าเลือก English หรือ ไทย ก่อนเริ่มสนทนา</span></div><button type="submit" disabled={working}>สร้างบอต</button></form> : null}
+        {canEdit ? <form className="flowbot-create" onSubmit={createBot}><label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label><div><strong>ภาษาของลูกค้า</strong><span>ลูกค้าเลือก English หรือ ไทย ก่อนเริ่มสนทนา</span></div><button type="submit" disabled={working}>สร้างบอต</button></form> : null}
         <div className="flowbot-bot-tabs" role="tablist" aria-label="FlowBot">{bots.map((bot) => <button type="button" role="tab" id={`flowbot-bot-${bot.id}`} aria-controls="flowbot-studio-panels" aria-selected={bot.id === selectedBotId} className={bot.id === selectedBotId ? "selected" : ""} key={bot.id} onClick={() => setSelectedBotId(bot.id)}><strong data-no-localize>{bot.name}</strong><span>{bot.status} / {bot.deploymentCount} deployments</span></button>)}</div>
-        {!bots.length ? <div className="pending-line"><strong>ยังไม่มี FlowBot</strong><span>{canAuthor ? "Create the first bot." : "An administrator can create one."}</span></div> : null}
+        {!bots.length ? <div className="pending-line"><strong>ยังไม่มี FlowBot</strong><span>{canEdit ? "Create the first bot." : "Activate Flow access or ask an administrator to create one."}</span></div> : null}
         <p className="field-help"><a href="/workspace/setup">เปิดตัวช่วยตั้งค่าทีละขั้น</a> สำหรับการเปิดใช้ครั้งแรก ส่วนแท็บสตูดิโอด้านล่างใช้ปรับแต่งหลังเปิดใช้</p>
       </section>
       {selectedBot && draft ? <>
@@ -374,25 +313,26 @@ export default function FlowBotPage() {
           <div className="setup-action-row"><a className="primary-link" href="/workspace/setup">ดำเนินการต่อในตัวช่วยตั้งค่า</a><button type="button" className="secondary-command" onClick={() => setStudioTab("flow")}>เปิดตัวแก้ไข Flow</button></div>
         </section>
         <section className="tool-band" role="tabpanel" id="flowbot-panel-flow" aria-labelledby="flowbot-tab-flow" hidden={studioTab !== "flow"}><div className="band-heading"><div><p>Draft revision {draft.revision}</p><h2 data-no-localize>{selectedBot.name}</h2></div><span>{Object.keys((draft.definition.nodes as object) || {}).length} nodes</span></div>
-          {canAuthor ? <div className="template-control" aria-label="เทมเพลต Flow"><button type="button" onClick={() => applyTemplate("greeting")}>คำทักทาย</button><button type="button" onClick={() => applyTemplate("lead")}>เก็บข้อมูลผู้สนใจ</button><button type="button" onClick={() => applyTemplate("appointment")}>ขอนัดหมาย</button><button type="button" onClick={() => applyTemplate("faq")}>คำถามที่พบบ่อย</button>{capabilities?.advancedNodes ? <button type="button" onClick={() => applyTemplate("premium")}>ติดตามตามเวลาที่กำหนด</button> : null}</div> : null}
+          <FlowAuthoringEditor value={definitionText} readOnly={!canEdit} onChange={(value) => { setDefinitionText(value); setDraftValidation(null); }} />
+          {canEdit ? <div className="template-control" aria-label="เส้นทางเริ่มต้น Flow"><button type="button" onClick={() => applyTemplate("faq")}>FAQ และติดต่อ</button><button type="button" onClick={() => applyTemplate("lead")}>เก็บข้อมูลผู้สนใจ</button><button type="button" onClick={() => applyTemplate("appointment")}>ขอนัดหมาย</button><button type="button" onClick={() => applyTemplate("product")}>แนะนำสินค้าหรือบริการ</button><button type="button" onClick={() => applyTemplate("support")}>ส่งต่อฝ่ายบริการ</button><button type="button" onClick={() => applyTemplate("blank")}>เริ่มจากว่าง</button></div> : null}
           <p className="field-help"><a href="/workspace/flowbot/canvas">เปิดผังการสนทนาแบบดูอย่างเดียว</a> เพื่อดูป้ายกำกับทุกทางแยก จุดสิ้นสุดที่มีคำกระตุ้นให้ดำเนินการ และคำเตือนเส้นทางที่เข้าไม่ถึงหรือวนซ้ำ การแก้ไขยังทำผ่านตัวแก้ไขแบบรายการด้านล่าง</p>
-          <FlowVisualEditor value={definitionText} onChange={(value) => { setDefinitionText(value); setDraftValidation(null); }} onEditorErrorChange={setEditorErrorMessage} validationPath={draftValidation?.path} readOnly={!canAuthor} premium={Boolean(capabilities?.advancedNodes)} />
-          {canAuthor ? <div className="flowbot-actions"><button type="button" className="secondary-command" onClick={() => void saveDraft()} disabled={working}>บันทึกฉบับร่าง</button><button type="button" onClick={() => void publish()} disabled={working}>เผยแพร่</button></div> : null}
+          <FlowVisualEditor value={definitionText} onChange={(value) => { setDefinitionText(value); setDraftValidation(null); }} onEditorErrorChange={setEditorErrorMessage} validationPath={draftValidation?.path} readOnly={!canEdit} premium={Boolean(capabilities?.advancedNodes)} />
+          {canEdit ? <div className="flowbot-actions"><button type="button" className="secondary-command" onClick={() => void saveDraft()} disabled={working}>บันทึกฉบับร่าง</button><button type="button" onClick={() => void publish()} disabled={working}>เผยแพร่</button></div> : null}
           {draftValidation ? <p className="inline-message error" id="flowbot-draft-error" role="alert">{draftValidation.message}</p> : message ? <p className="inline-message" role="status">{message}</p> : null}
         </section>
         <section className="tool-band muted-band" role="tabpanel" id="flowbot-panel-deploy" aria-labelledby="flowbot-tab-deploy" hidden={studioTab !== "deploy"}><div className="band-heading"><div><p>การติดตั้ง</p><h2>ต้นทางเว็บไซต์</h2></div><span>{deployments.length}{capabilities?.limits.deployments ? ` / ${capabilities.limits.deployments}` : ""}</span></div>
           {installChecksLoadError ? <div className="inline-message inline-retry" role="alert"><span>โหลดสถานะตรวจสอบการติดตั้งไม่สำเร็จ แต่ข้อมูลการติดตั้งยังคงอยู่</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>ลองใหม่</button></div> : null}
-          {canAuthor && selectedBot.currentPublishedVersionId ? <WebsiteDeploymentForm className="flowbot-deploy" onCreate={createDeployment} submitLabel="สร้างการติดตั้ง" working={working} /> : null}
+          {canEdit && selectedBot.currentPublishedVersionId ? <WebsiteDeploymentForm className="flowbot-deploy" onCreate={createDeployment} submitLabel="สร้างการติดตั้ง" working={working} /> : null}
           {newDeploymentKey ? <div className="deployment-secret"><strong>กุญแจติดตั้งที่แสดงครั้งเดียว</strong><code>{newDeploymentKey}</code><pre>{installSnippet}</pre></div> : null}
-          <div className="data-table">{deployments.map((item) => { const check = installChecks.find((candidate) => candidate.deploymentId === item.id); const updateAvailable = item.trafficStatus === "live" && item.liveVersionId !== selectedBot.currentPublishedVersionId; return <div className="data-row" key={item.id}><div><strong data-no-localize>{item.name}</strong><span data-no-localize>{item.allowedOrigins.join(", ")}</span></div><div><span>{uiCopy("ติดตั้ง", "Install")}: {check?.status || "not checked"}</span><span>{uiCopy("การใช้งานจริง", "Traffic")}: {item.trafficStatus}</span></div>{canAuthor ? <div className="setup-action-row"><button type="button" className="secondary-command" disabled={working} onClick={() => void requestInstallCheck(item)}>ตรวจสอบการติดตั้ง</button>{item.trafficStatus === "live" ? <>{updateAvailable ? <button type="button" disabled={working} onClick={() => void changeTraffic(item, "go_live")}>{uiCopy("อัปเดตเวอร์ชันที่ใช้งานจริง", "Update live version")}</button> : null}<button type="button" className="secondary-command" disabled={working} onClick={() => void changeTraffic(item, "stop")}>{uiCopy("หยุดรับข้อความ", "Stop traffic")}</button></> : <button type="button" disabled={working || check?.status !== "verified"} onClick={() => void changeTraffic(item, "go_live")}>{uiCopy("เปิดใช้งานจริง", "Go live")}</button>}</div> : <code>{item.keyPrefix}...</code>}</div>; })}{!deployments.length ? <div className="pending-line"><strong>ยังไม่มีการติดตั้ง</strong><span>เผยแพร่ก่อนสร้างการติดตั้งบนเว็บไซต์</span></div> : null}</div>
+          <div className="data-table">{deployments.map((item) => { const check = installChecks.find((candidate) => candidate.deploymentId === item.id); const updateAvailable = item.trafficStatus === "live" && item.liveVersionId !== selectedBot.currentPublishedVersionId; return <div className="data-row" key={item.id}><div><strong data-no-localize>{item.name}</strong><span data-no-localize>{item.allowedOrigins.join(", ")}</span></div><div><span>{uiCopy("ติดตั้ง", "Install")}: {check?.status || "not checked"}</span><span>{uiCopy("การใช้งานจริง", "Traffic")}: {item.trafficStatus}</span></div>{canEdit ? <div className="setup-action-row"><button type="button" className="secondary-command" disabled={working} onClick={() => void requestInstallCheck(item)}>ตรวจสอบการติดตั้ง</button>{item.trafficStatus === "live" ? <>{updateAvailable ? <button type="button" disabled={working} onClick={() => void changeTraffic(item, "go_live")}>{uiCopy("อัปเดตเวอร์ชันที่ใช้งานจริง", "Update live version")}</button> : null}<button type="button" className="secondary-command" disabled={working} onClick={() => void changeTraffic(item, "stop")}>{uiCopy("หยุดรับข้อความ", "Stop traffic")}</button></> : <button type="button" disabled={working || check?.status !== "verified"} onClick={() => void changeTraffic(item, "go_live")}>{uiCopy("เปิดใช้งานจริง", "Go live")}</button>}</div> : <code>{item.keyPrefix}...</code>}</div>; })}{!deployments.length ? <div className="pending-line"><strong>ยังไม่มีการติดตั้ง</strong><span>เผยแพร่ก่อนสร้างการติดตั้งบนเว็บไซต์</span></div> : null}</div>
         </section>
         <div role="tabpanel" id="flowbot-panel-operations" aria-labelledby="flowbot-tab-operations" hidden={studioTab !== "operations"}>
-        {capabilities?.advancedNodes && canAuthor ? <section className="tool-band"><div className="band-heading"><div><p>การดำเนินงานพรีเมียม</p><h2>ตารางเวลาและการส่งต่อ</h2></div><span>ทำงานตามกติกา</span></div>
+        {capabilities?.advancedNodes && canEdit ? <section className="tool-band"><div className="band-heading"><div><p>การดำเนินงานพรีเมียม</p><h2>ตารางเวลาและการส่งต่อ</h2></div><span>ทำงานตามกติกา</span></div>
           {/* Empty routing-team state: No active team members. */}
           <div className="flowbot-operations-grid"><form onSubmit={saveSchedule} noValidate onInput={() => setOperationsValidation((current) => current?.form === "schedule" ? null : current)}><h3>เวลาทำการ</h3><label>กุญแจ<input name="scheduleKey" defaultValue="sales" {...flowbotOperationsFieldConstraints.key} required aria-invalid={operationsValidation?.form === "schedule" && operationsValidation.field === "scheduleKey" || undefined} aria-describedby={operationsValidation?.form === "schedule" && operationsValidation.field === "scheduleKey" ? "flowbot-schedule-error" : undefined} /></label><label>ชื่อ<input name="name" defaultValue="Sales hours" {...flowbotOperationsFieldConstraints.name} required aria-invalid={operationsValidation?.form === "schedule" && operationsValidation.field === "name" || undefined} aria-describedby={operationsValidation?.form === "schedule" && operationsValidation.field === "name" ? "flowbot-schedule-error" : undefined} /></label><label>เขตเวลา<input name="timezone" defaultValue="Asia/Bangkok" {...flowbotOperationsFieldConstraints.timezone} required aria-invalid={operationsValidation?.form === "schedule" && operationsValidation.field === "timezone" || undefined} aria-describedby={operationsValidation?.form === "schedule" && operationsValidation.field === "timezone" ? "flowbot-schedule-error" : undefined} /></label>{operationsValidation?.form === "schedule" ? <p id="flowbot-schedule-error" className="inline-message error" role="alert">{operationsValidation.message}</p> : null}<button disabled={working}>บันทึกวันธรรมดา 09:00–17:00</button></form>
             <form onSubmit={saveRoutingTeam} noValidate onInput={() => setOperationsValidation((current) => current?.form === "team" ? null : current)}><h3>ทีมรับช่วงการสนทนา</h3><label>กุญแจ<input name="teamKey" defaultValue="sales" {...flowbotOperationsFieldConstraints.key} required aria-invalid={operationsValidation?.form === "team" && operationsValidation.field === "teamKey" || undefined} aria-describedby={operationsValidation?.form === "team" && operationsValidation.field === "teamKey" ? "flowbot-team-error" : undefined} /></label><label>ชื่อ<input name="name" defaultValue="Sales team" {...flowbotOperationsFieldConstraints.name} required aria-invalid={operationsValidation?.form === "team" && operationsValidation.field === "name" || undefined} aria-describedby={operationsValidation?.form === "team" && operationsValidation.field === "name" ? "flowbot-team-error" : undefined} /></label>{teamLoadError ? <div className="inline-message inline-retry" role="alert"><span>โหลดสมาชิกทีมที่ใช้งานอยู่ไม่สำเร็จ</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>ลองใหม่</button></div> : activeTeamMembers.length ? <fieldset aria-describedby={operationsValidation?.form === "team" && operationsValidation.field === "membershipIds" ? "flowbot-team-error" : undefined}><legend>สมาชิกที่ใช้งานอยู่</legend>{activeTeamMembers.map((member) => <label key={member.membership_id}><input type="checkbox" name="membershipIds" value={member.membership_id} defaultChecked /> <span data-no-localize>{member.display_name}</span></label>)}</fieldset> : <div className="pending-line"><strong>ไม่มีสมาชิกทีมที่ใช้งานอยู่</strong><span>เพิ่มหรือเปิดใช้งานสมาชิกทีมก่อนสร้างทีมรับช่วงการสนทนา</span></div>}{operationsValidation?.form === "team" ? <p id="flowbot-team-error" className="inline-message error" role="alert">{operationsValidation.message}</p> : null}<button disabled={working || teamLoadError || !activeTeamMembers.length}>บันทึกทีมรับช่วง</button></form></div>
         </section> : null}
-        {capabilities?.advancedNodes && canAuthor ? <section className="tool-band"><div className="band-heading"><div><p>ส่งมอบข้อมูล</p><h2>ตัวเชื่อมต่อ</h2></div><span>{integrations.filter((item) => item.status === "approved").length} approved</span></div>
+        {capabilities?.advancedNodes && canEdit ? <section className="tool-band"><div className="band-heading"><div><p>ส่งมอบข้อมูล</p><h2>ตัวเชื่อมต่อ</h2></div><span>{integrations.filter((item) => item.status === "approved").length} approved</span></div>
           <form className="flowbot-deploy" onSubmit={createIntegration}>
             <label>ตัวเชื่อมต่อ<select name="integrationKind" defaultValue="google_sheets"><option value="google_sheets">Google Sheets</option><option value="external_api">API ภายนอก</option></select></label>
             <label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label>
@@ -402,7 +342,7 @@ export default function FlowBotPage() {
           </form>
           <div className="data-table">{integrations.map((integration) => <div className="data-row" key={integration.id}><div><strong data-no-localize>{integration.name}</strong><span data-no-localize>{integration.integrationKind.replaceAll("_", " ")} · {integration.allowedTemplateKeys.join(", ")}</span></div><span>{integration.status}</span><code>{new URL(integration.endpoint).hostname}</code></div>)}{!integrations.length ? <div className="pending-line"><strong>ยังไม่มีตัวเชื่อมต่อ</strong><span>ตัวเชื่อมต่อที่อนุมัติแล้วจะเลือกใช้ได้ในโนด webhook</span></div> : null}</div>
         </section> : null}
-        {canAuthor ? <section className="tool-band"><div className="band-heading"><div><p>การส่งข้อมูลผู้สนใจ</p><h2>การแจ้งเตือนทางอีเมลธุรกิจ</h2></div><span>{notificationsLoadError ? "Unavailable" : `${notifications.filter((item) => item.status === "active").length} active`}</span></div>
+        {canEdit ? <section className="tool-band"><div className="band-heading"><div><p>การส่งข้อมูลผู้สนใจ</p><h2>การแจ้งเตือนทางอีเมลธุรกิจ</h2></div><span>{notificationsLoadError ? "Unavailable" : `${notifications.filter((item) => item.status === "active").length} active`}</span></div>
           <form className="flowbot-deploy" onSubmit={createNotification}><label>ชื่อผู้รับ<input name="name" minLength={2} maxLength={160} placeholder="กล่องข้อความฝ่ายขาย" required /></label><label>อีเมลผู้รับ<input name="recipientEmail" type="email" maxLength={320} placeholder="sales@example.com" required /></label><button type="submit" disabled={working || notificationsLoadError}>เพิ่มผู้รับ</button></form>
           <p className="field-help">ที่อยู่ผู้รับถูกเข้ารหัส และส่งได้เฉพาะเทมเพลตแจ้งผู้สนใจที่อนุมัติแล้ว</p>
           <div className="data-table">{notificationsLoadError ? <div className="pending-line inline-retry" role="alert"><strong>โหลดรายชื่อผู้รับการแจ้งเตือนไม่สำเร็จ</strong><span>การตั้งค่าการส่งข้อมูลเดิมไม่ถูกเปลี่ยน</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>ลองใหม่</button></div> : <>{notifications.map((profile) => <div className="data-row" key={profile.id}><div><strong data-no-localize>{profile.name}</strong><span>{profile.allowedTemplateKeys.join(", ")}</span></div><span>{profile.status}</span></div>)}{!notifications.length ? <div className="pending-line"><strong>ยังไม่มีผู้รับ</strong><span>เพิ่มอีเมลธุรกิจเพื่อรับการแจ้งเตือนผู้สนใจที่ส่งซ้ำได้อย่างปลอดภัย</span></div> : null}</>}</div>
@@ -416,7 +356,7 @@ export default function FlowBotPage() {
         </section> : null}
         {preflightLoadError ? <section className="tool-band muted-band"><div className="pending-line inline-retry" role="alert"><strong>ตรวจความเข้ากันได้ก่อนลดแผนไม่สำเร็จ</strong><span>ยังไม่มีการเปลี่ยนแปลงการสมัครใช้บริการ</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>ลองใหม่</button></div></section> : null}
         {preflight ? <section className="tool-band muted-band"><div className="band-heading"><div><p>ความปลอดภัยในการเปลี่ยนแผน</p><h2>ตรวจความพร้อมก่อนลดเป็นแผน Basic</h2></div><span>{preflight.allowed ? "Ready" : `${preflight.blockers.length} blockers`}</span></div>{preflight.allowed ? <p className="inline-message">การตั้งค่าปัจจุบันรองรับ FlowBot Basic</p> : <div className="data-table">{preflight.blockers.map((blocker, index) => <div className="data-row" key={`${blocker.code}-${index}`}><strong>{blocker.code}</strong><span>{blocker.detail || "Configuration dependency"}</span><span>{preflight.remediation[index]?.action}</span></div>)}</div>}</section> : null}
-        <section className="tool-band"><div className="band-heading"><div><p>ประวัติที่แก้ไขไม่ได้</p><h2>เวอร์ชันที่เผยแพร่แล้ว</h2></div><span>{versions.length}</span></div><div className="data-table">{versions.map((version) => <div className="data-row" key={version.id}><div><strong>Version {version.version}</strong><span>{new Date(version.publishedAt).toLocaleString(currentIntlLocale())}</span></div><span>{version.sourceVersionId ? "Derived" : "Published"}</span>{canAuthor ? <button type="button" className="secondary-command" onClick={() => void rollback(version.id)} disabled={working}>เผยแพร่ข้อความ</button> : <span />}</div>)}</div></section>
+        <section className="tool-band"><div className="band-heading"><div><p>ประวัติที่แก้ไขไม่ได้</p><h2>เวอร์ชันที่เผยแพร่แล้ว</h2></div><span>{versions.length}</span></div><div className="data-table">{versions.map((version) => <div className="data-row" key={version.id}><div><strong>Version {version.version}</strong><span>{new Date(version.publishedAt).toLocaleString(currentIntlLocale())}</span></div><span>{version.sourceVersionId ? "Derived" : "Published"}</span>{canEdit ? <button type="button" className="secondary-command" onClick={() => void rollback(version.id)} disabled={working}>เผยแพร่ข้อความ</button> : <span />}</div>)}</div></section>
         </div>
         </div>
       </> : null}

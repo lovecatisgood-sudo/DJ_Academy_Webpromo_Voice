@@ -79,10 +79,21 @@ describe.runIf(enabled)("P4 FlowBot authoring repository", () => {
     } } })).resolves.toMatchObject({ status: "validation_failed", issues: expect.arrayContaining([expect.objectContaining({ code: "premium_node_not_entitled" })]) });
 
     const current = await store.getDraft(contextA, basic.botId); const form = randomUUID(); const end = randomUUID();
-    await store.updateDraft(contextA, basic.botId, { revision: current!.revision, definition: { schemaVersion: 1, flowVersionId: randomUUID(), rootNodeId: root, keywords: [], nodes: {
+    await expect(store.updateDraft(contextA, basic.botId, { revision: current!.revision, definition: { schemaVersion: 1, flowVersionId: randomUUID(), rootNodeId: root, keywords: [], nodes: {
       [root]: { id: root, type: "message", title: "Welcome", content: { th: "สวัสดี", en: "Welcome" }, nextNodeId: form },
       [form]: { id: form, type: "form", title: "Contact", prompt: { th: "ข้อมูล", en: "Details" }, fields: [{ key: "email", label: { th: "อีเมล", en: "Email" }, type: "email", required: true }], nextNodeId: end },
       [end]: { id: end, type: "end", title: "Done", message: { th: "ขอบคุณ", en: "Thank you" } },
+    }, authoring: {
+      templateKey: "lead", identity: { greeting: { th: "สวัสดี", en: "Welcome" }, brandColor: "#126149",
+        widgetPosition: "bottom_left", businessHours: "Mon-Fri", handoverContact: "Shared inbox",
+        privacyUrl: "https://merchant.example/privacy" },
+      lead: { fields: [{ key: "email", label: { th: "อีเมล", en: "Email" }, type: "email", required: true }], consent: "Contact me" },
+      handover: { teamLabel: "Sales", fallback: { th: "ทีมงานจะดูแลต่อ", en: "Our team will continue" }, outsideHoursMessage: "We will reply tomorrow" },
+      widget: { domain: "merchant.example", openOnLoad: true },
+    } } })).resolves.toMatchObject({ status: "updated" });
+    await expect(store.getDraft(contextA, basic.botId)).resolves.toMatchObject({ definition: { authoring: {
+      templateKey: "lead", identity: { widgetPosition: "bottom_left", privacyUrl: "https://merchant.example/privacy" },
+      lead: { consent: "Contact me" }, handover: { teamLabel: "Sales" }, widget: { domain: "merchant.example", openOnLoad: true },
     } } });
     const sideEffectsBefore = await adminClient!<{ leads: number; executions: number }[]>`
       SELECT
@@ -111,6 +122,14 @@ describe.runIf(enabled)("P4 FlowBot authoring repository", () => {
     `;
     expect(sideEffectsAfter[0]).toEqual(sideEffectsBefore[0]);
     const first = await store.publish(contextA, basic.botId); expect(first.status).toBe("published"); if (first.status !== "published") throw new Error("Expected publish.");
+    const publishedAuthoring = await adminClient!<{ authoring: unknown }[]>`
+      SELECT snapshot_json->'authoring' AS authoring FROM tenancy.flow_versions
+      WHERE tenant_id = ${contextA.tenantId}::uuid AND id = ${first.versionId}::uuid
+    `;
+    expect(publishedAuthoring[0]?.authoring).toMatchObject({
+      templateKey: "lead", identity: { widgetPosition: "bottom_left" }, lead: { consent: "Contact me" },
+      handover: { teamLabel: "Sales" }, widget: { domain: "merchant.example", openOnLoad: true },
+    });
     await expect(store.createDeployment(contextA, basic.botId, {
       name: "Invalid website", allowedOrigins: ["https://merchant.example/path"],
     })).resolves.toEqual({ status: "validation_failed" });

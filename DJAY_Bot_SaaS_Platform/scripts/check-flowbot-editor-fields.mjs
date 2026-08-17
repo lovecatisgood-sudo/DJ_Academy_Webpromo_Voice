@@ -40,12 +40,26 @@ for (const marker of [
 const page = read("apps/tenant-web/app/workspace/flowbot/page.tsx");
 for (const marker of [
   "flowSnapshotSchema.safeParse",
+  "createFlowStarterTemplate",
+  'capabilities?.accessMode === "active"',
+  "readOnly={!canEdit}",
   "editorErrorMessage",
   "focusFlowDefinitionIssue",
   'id="flowbot-draft-error"',
   'role="alert"',
 ]) {
   if (!page.includes(marker)) failures.push(`FlowBot draft-save boundary is missing ${marker}`);
+}
+
+const authoringEditor = read("apps/tenant-web/app/workspace/flowbot/FlowAuthoringEditor.tsx");
+for (const marker of [
+  "templateKey", "brandColor", "widgetPosition", "businessHours", "handoverContact", "privacyUrl",
+  "lead.fields", "lead.consent", "teamLabel", "outsideHoursMessage", "widget.domain", "widget.openOnLoad",
+]) {
+  if (!authoringEditor.includes(marker)) failures.push(`FlowBot authoring editor is missing ${marker}`);
+}
+for (const templateKey of ["faq", "lead", "appointment", "product", "support", "blank"]) {
+  if (!domain.includes(`\"${templateKey}\"`)) failures.push(`FlowBot approved starting journeys are missing ${templateKey}`);
 }
 const saveStart = page.indexOf("async function saveDraft");
 const saveEnd = page.indexOf("async function publish", saveStart);

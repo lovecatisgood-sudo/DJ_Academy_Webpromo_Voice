@@ -4,6 +4,7 @@ import { createTenantContext } from "@djay/tenancy";
 import { AnonymousBuilderStore } from "./anonymous-builder-store";
 import { AiChatStore } from "./ai-chat-store";
 import { createDatabaseClient } from "./client";
+import { FlowBotStore } from "./flowbot-store";
 import { TenantWorkspaceStore } from "./tenant-workspace-store";
 
 const authUrl = process.env.AUTH_DATABASE_URL;
@@ -233,7 +234,13 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
       sessionId, issuedAt: now, expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60_000), now,
     });
     const flowDraft = {
-      identity: { botName: "Preserved Builder Flow", languageMode: "customer-choice" },
+      template: "lead",
+      identity: { botName: "Preserved Builder Flow", languageMode: "customer-choice",
+        greetingEn: "Welcome", greetingTh: "ยินดีต้อนรับ", brandColor: "#126149", position: "Bottom left",
+        businessHours: "Monday-Friday 09:00-17:00", handoverContact: "Shared inbox", privacyUrl: "https://example.test/privacy" },
+      lead: { fields: [{ label: "Email", type: "email", required: true }], consent: "I agree to follow-up." },
+      handover: { team: "Shared inbox", fallbackEn: "A person can help.", fallbackTh: "ทีมงานช่วยได้", outsideHours: "We will reply during business hours." },
+      widget: { domain: "https://example.test", openOnLoad: false },
       entryId: "welcome",
       nodes: [
         { id: "welcome", type: "options", title: "Welcome", en: "How can we help?", th: "ให้เราช่วยเรื่องใด?", x: 20, y: 40,
@@ -301,6 +308,21 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
       node_types: ["handover", "options"], audits: 1,
     });
     expect(evidence[0]?.materialized_bot_id).toMatch(/^[0-9a-f-]{36}$/);
+    const flowbot = new FlowBotStore(tenantClient!);
+    const botId = evidence[0]!.materialized_bot_id!;
+    await expect(flowbot.authoringCapabilities(tenantContext)).resolves.toBeNull();
+    await expect(flowbot.listBots(tenantContext)).resolves.toEqual([
+      expect.objectContaining({ id: botId, status: "draft", draftRevision: 1, deploymentCount: 0 }),
+    ]);
+    const claimedDraft = await flowbot.getDraft(tenantContext, botId);
+    expect(claimedDraft).toMatchObject({ revision: 1, definition: { authoring: {
+      templateKey: "lead", identity: { greeting: { en: "Welcome", th: "ยินดีต้อนรับ" }, widgetPosition: "bottom_left" },
+      lead: { consent: "I agree to follow-up." }, handover: { teamLabel: "Shared inbox" },
+      widget: { domain: "https://example.test", openOnLoad: false },
+    } } });
+    await expect(flowbot.updateDraft(tenantContext, botId, {
+      revision: claimedDraft!.revision, definition: claimedDraft!.definition,
+    })).resolves.toEqual({ status: "not_entitled" });
   });
 
   it("materializes complete claimed Text and Voice configurations without publishing or deploying", async () => {
