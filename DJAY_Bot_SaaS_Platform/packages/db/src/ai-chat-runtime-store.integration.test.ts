@@ -317,6 +317,36 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       nativeUsage: { inputUnits: 10, outputUnits: 5 },
     });
     expect(suppressed).toEqual({ status: "handover" });
+    await expect(shared.appendMessage(context, began.conversationId, {
+      actorType: "human", direction: "outbound", text: "I can help now.",
+    })).resolves.toMatchObject({ status: "created" });
+    await expect(shared.releaseConversation(
+      { ...context, requestId: "ai-safe-release" }, began.conversationId,
+    )).resolves.toEqual({ status: "released", automationMode: "ai_text" });
+    const resumedInputId = randomUUID();
+    const resumed = await repository.begin({
+      deploymentKey: deployment.deploymentKey,
+      sessionToken: takeoverSession.sessionToken, origin: "https://merchant.example",
+      inputId: resumedInputId, message: "Can the bot help again?",
+    });
+    expect(resumed.recentMessages).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ content: "I can help now." }),
+    ]));
+    await expect(repository.commit({
+      deploymentKey: deployment.deploymentKey,
+      sessionToken: takeoverSession.sessionToken, origin: "https://merchant.example",
+      inputId: resumedInputId,
+      output: {
+        schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "continue_support", facts: [],
+        knowledgeCitations: [], responseGoal: "resume safely", proposedActions: [], handover: null,
+        customerResponse: "Yes, I can help again.", channelResponse: { format: "text", quickReplies: [] },
+      },
+      publicResponse: {
+        status: "completed", inputId: resumedInputId, text: "Yes, I can help again.",
+        quickReplies: [], nextTurnSequence: 3,
+      } satisfies AiPublicResponse,
+      nativeUsage: { inputUnits: 8, outputUnits: 5 },
+    })).resolves.toMatchObject({ status: "completed", text: "Yes, I can help again." });
     const takeoverState = await adminClient!<{
       ai_messages: number; released_events: number; reserved: number; settled: number; native_usage: number;
     }[]>`
@@ -330,9 +360,9 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       FROM tenancy.ai_sessions session
       JOIN tenancy.ai_turns turn ON turn.tenant_id = session.tenant_id AND turn.session_id = session.id
       JOIN tenancy.quota_accounts account ON account.tenant_id = session.tenant_id AND account.subscription_id = ${subscriptionId}::uuid
-      WHERE session.id = ${takeoverSession.sessionId}::uuid
+      WHERE session.id = ${takeoverSession.sessionId}::uuid AND turn.input_id = ${takeoverInputId}::uuid
     `;
-    expect(takeoverState[0]).toEqual({ ai_messages: 0, released_events: 1, reserved: 0, settled: 1, native_usage: 0 });
+    expect(takeoverState[0]).toEqual({ ai_messages: 1, released_events: 1, reserved: 0, settled: 2, native_usage: 0 });
     await expect(repository.sync({
       deploymentKey: deployment.deploymentKey, sessionToken: takeoverSession.sessionToken,
       origin: "https://evil.example", afterSequence: 0,

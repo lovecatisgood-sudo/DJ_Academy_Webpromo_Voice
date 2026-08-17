@@ -100,6 +100,7 @@ const aiTextDeploymentLiveVersionMigration = readFileSync(resolve(import.meta.di
 const voiceDeploymentLiveVersionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0121_voice_deployment_live_version.sql"), "utf8");
 const builderFlowMaterializationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0122_builder_flow_materialization.sql"), "utf8");
 const predeploymentAiConfigurationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0123_predeployment_ai_configurations.sql"), "utf8");
+const staffReleaseBoundariesMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0124_staff_release_boundaries.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -1076,6 +1077,16 @@ describe("P3 database migration invariants", () => {
 });
 
 describe("P4 FlowBot database migration invariants", () => {
+  it("resumes AI after staff release through narrow tenant and membership authority", () => {
+    expect(staffReleaseBoundariesMigration).toContain("SECURITY DEFINER");
+    expect(staffReleaseBoundariesMigration).toContain("tenancy.current_tenant_id()");
+    expect(staffReleaseBoundariesMigration).toContain("current_setting('app.membership_id', true)");
+    expect(staffReleaseBoundariesMigration).toContain("conversation.automation_mode = 'human'");
+    expect(staffReleaseBoundariesMigration).toContain("session.status = 'handover'");
+    expect(staffReleaseBoundariesMigration).toContain("REVOKE ALL ON FUNCTION tenancy.resume_ai_session_after_staff_release");
+    expect(staffReleaseBoundariesMigration).toContain("TO djay_runtime");
+    expect(staffReleaseBoundariesMigration).not.toMatch(/GRANT UPDATE ON tenancy\.ai_sessions/i);
+  });
   it("forces tenant isolation across every FlowBot authoring and runtime table", () => {
     for (const table of [
       "flow_bots", "flow_versions", "flow_drafts", "flow_deployments", "flow_executions",

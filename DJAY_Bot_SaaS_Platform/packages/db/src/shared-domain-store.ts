@@ -6,11 +6,19 @@ import type {
   leadInputSchema,
 } from "@djay/domain";
 import { canTransitionMode, messageInputSchema } from "@djay/domain";
+import {
+  flowExecutionStateSchema,
+  flowSnapshotSchema,
+  type FlowEntitlements,
+  type FlowInput,
+} from "@djay/flowbot-domain";
+import { advanceFlow } from "@djay/flowbot-engine";
 import { chunkKnowledge } from "@djay/sales-core";
 import { privacyJobRequestSchema, type PrivacyJobRequest } from "@djay/shared";
 import type { TenantContext } from "@djay/tenancy";
 import type { z } from "zod";
 import type { DatabaseClient } from "./client";
+import { flowbotEnvironment, flowBusinessSchedulesSchema } from "./flowbot-environment";
 import { withTenantTransaction } from "./scoped-transaction";
 
 type ContactInput = z.infer<typeof contactInputSchema>;
@@ -905,19 +913,111 @@ export class SharedDomainStore {
         : conversation.product_key === "ai_chat" ? "ai_text"
           : conversation.product_key === "voice" ? "voice" : null;
       if (!targetMode || !canTransitionMode("human", targetMode)) return { status: "transition_denied" as const };
+
+      if (targetMode === "flowbot") {
+        const executions = await sql<{
+          id: string; deployment_id: string; flow_version_id: string; snapshot_json: unknown;
+          state_json: unknown; authority_json: FlowEntitlements; next_input_sequence: number;
+        }[]>`
+          SELECT execution.id, execution.deployment_id, execution.flow_version_id,
+                 version.snapshot_json, execution.state_json, execution.next_input_sequence,
+                 jsonb_build_object(
+                   'planKey', plan.plan_key,
+                   'accessMode', snapshot.access_mode,
+                   'entitlements', COALESCE(snapshot.resolved_json->'entitlements', '{}'::jsonb),
+                   'limits', COALESCE(snapshot.resolved_json->'limits', '{}'::jsonb)
+                 ) AS authority_json
+          FROM tenancy.flow_executions execution
+          JOIN tenancy.flow_versions version
+            ON version.tenant_id = execution.tenant_id AND version.id = execution.flow_version_id
+          JOIN tenancy.entitlement_snapshots snapshot
+            ON snapshot.tenant_id = execution.tenant_id AND snapshot.id = execution.entitlement_snapshot_id
+          JOIN catalog.plan_versions plan_version ON plan_version.id = snapshot.plan_version_id
+          JOIN catalog.plans plan ON plan.id = plan_version.plan_id AND plan.product_key = 'flowbot'
+          WHERE execution.tenant_id = ${context.tenantId}::uuid
+            AND execution.conversation_id = ${conversationId}::uuid
+            AND execution.status = 'handover' AND execution.expires_at > now()
+          FOR UPDATE OF execution
+        `;
+        const execution = executions[0];
+        if (!execution) return { status: "release_unavailable" as const };
+        const scheduleRows = await sql<{
+          scheduleKey: string; timezone: string; weeklyWindows: unknown; closedDates: string[];
+        }[]>`
+          SELECT schedule_key AS "scheduleKey", timezone,
+                 weekly_windows AS "weeklyWindows", closed_dates AS "closedDates"
+          FROM tenancy.flow_business_schedules
+          WHERE tenant_id = ${context.tenantId}::uuid
+          ORDER BY schedule_key
+        `;
+        const inputId = randomUUID();
+        const flowInput: FlowInput = { type: "action", payload: { action: "return_to_flow" } };
+        const result = advanceFlow({
+          tenantId: context.tenantId,
+          deploymentId: execution.deployment_id,
+          executionId: execution.id,
+          flowVersionId: execution.flow_version_id,
+          sequence: execution.next_input_sequence,
+          inputId,
+          input: flowInput,
+          snapshot: flowSnapshotSchema.parse(execution.snapshot_json),
+          state: flowExecutionStateSchema.parse(execution.state_json),
+          authority: execution.authority_json,
+          environment: flowbotEnvironment(new Date(), flowBusinessSchedulesSchema.parse(scheduleRows)),
+        });
+        // Returning to automation is intentionally a main-menu boundary. A root that immediately
+        // performs an external action or asks for another handover must be repaired before release.
+        if (result.commands.length > 0 || result.nextState.status !== "active") {
+          return { status: "release_unavailable" as const };
+        }
+        const sequences = await sql<{ next_sequence: number }[]>`
+          SELECT next_sequence FROM tenancy.conversations
+          WHERE tenant_id = ${context.tenantId}::uuid AND id = ${conversationId}::uuid
+          FOR UPDATE
+        `;
+        let nextSequence = sequences[0]!.next_sequence;
+        for (const message of result.messages) {
+          await sql`
+            INSERT INTO tenancy.messages (
+              tenant_id, conversation_id, sequence, actor_type, direction, content_json
+            ) VALUES (
+              ${context.tenantId}::uuid, ${conversationId}::uuid, ${nextSequence},
+              'flowbot', 'outbound', ${sql.json(JSON.parse(JSON.stringify(message)))}
+            )
+          `;
+          nextSequence += 1;
+        }
+        for (const event of result.events) {
+          await sql`
+            INSERT INTO tenancy.flow_events (
+              tenant_id, bot_id, execution_id, flow_version_id, event_type, node_id, detail_json
+            ) SELECT tenant_id, bot_id, id, flow_version_id, ${event.type},
+                     ${event.nodeId ?? null}::uuid,
+                     ${sql.json(JSON.parse(JSON.stringify(event.detail ?? {})))}
+              FROM tenancy.flow_executions
+              WHERE tenant_id = ${context.tenantId}::uuid AND id = ${execution.id}::uuid
+          `;
+        }
+        await sql`
+          UPDATE tenancy.flow_executions
+          SET state_json = ${sql.json(JSON.parse(JSON.stringify(result.nextState)))},
+              status = ${result.nextState.status}, next_input_sequence = next_input_sequence + 1,
+              updated_at = now(),
+              completed_at = CASE WHEN ${result.nextState.status} = 'completed' THEN now() ELSE NULL END
+          WHERE tenant_id = ${context.tenantId}::uuid AND id = ${execution.id}::uuid
+        `;
+        await sql`
+          UPDATE tenancy.conversations SET next_sequence = ${nextSequence}
+          WHERE tenant_id = ${context.tenantId}::uuid AND id = ${conversationId}::uuid
+        `;
+      } else if (targetMode === "ai_text") {
+        await sql`SELECT tenancy.resume_ai_session_after_staff_release(${conversationId}::uuid)`;
+      }
       await sql`
         UPDATE tenancy.conversations
         SET automation_mode = ${targetMode}, assigned_membership_id = NULL, updated_at = now()
         WHERE tenant_id = ${context.tenantId}::uuid AND id = ${conversationId}::uuid
       `;
-      if (targetMode === "flowbot") {
-        await sql`
-          UPDATE tenancy.flow_executions
-          SET status = 'active', state_json = jsonb_set(state_json, '{status}', '"active"'::jsonb), updated_at = now()
-          WHERE tenant_id = ${context.tenantId}::uuid AND conversation_id = ${conversationId}::uuid
-            AND status = 'handover'
-        `;
-      }
       await sql`
         INSERT INTO tenancy.conversation_transitions (
           tenant_id, conversation_id, from_mode, to_mode, reason,

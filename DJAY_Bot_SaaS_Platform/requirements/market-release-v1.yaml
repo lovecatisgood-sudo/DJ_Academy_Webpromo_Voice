@@ -7707,7 +7707,9 @@
         "apps/api/app/tenant/conversations/[conversationId]/release/route.ts",
         "apps/tenant-web/app/workspace/inbox/page.tsx"
       ],
-      "migration_ids": [],
+      "migration_ids": [
+        "0124_staff_release_boundaries.sql"
+      ],
       "api_contracts": [
         "GET /tenant/conversations",
         "POST /tenant/conversations/:conversationId/takeover",
@@ -7720,6 +7722,7 @@
       "meter_keys": [],
       "test_ids": [
         "packages/db/src/shared-domain-store.integration.test.ts",
+        "packages/db/src/flowbot-runtime-store.integration.test.ts",
         "packages/db/src/ai-chat-runtime-store.integration.test.ts",
         "packages/db/src/voice-runtime-store.integration.test.ts",
         "scripts/check-inbox-reply-fields.mjs"
@@ -7728,7 +7731,7 @@
       "evidence": [
         "docs/validation/production-master-plan-pr09-five-minute-takeover-2026-08-17.md"
       ],
-      "status": "in_progress",
+      "status": "implemented",
       "accepted_by": null
     },
     {

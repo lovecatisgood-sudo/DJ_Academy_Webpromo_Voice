@@ -11,5 +11,6 @@ export async function POST(request: NextRequest, route: { params: Promise<{ conv
     return safeJson({ status: "not_found" }, 404);
   }
   const result = await resolved.services.sharedDomain.releaseConversation(resolved.context, parsed.data);
-  return safeJson(result, result.status === "released" ? 200 : result.status === "not_in_handover" || result.status === "transition_denied" ? 409 : 404);
+  return safeJson(result, result.status === "released" ? 200
+    : result.status === "not_in_handover" || result.status === "transition_denied" || result.status === "release_unavailable" ? 409 : 404);
 }

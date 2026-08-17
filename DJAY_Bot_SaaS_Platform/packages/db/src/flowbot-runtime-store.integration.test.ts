@@ -9,6 +9,7 @@ import { FlowBotStore } from "./flowbot-store";
 import { FlowbotWorkerStore } from "./flowbot-worker-store";
 import { FlowbotNotificationWorkerStore, TenantFlowbotNotificationStore } from "./flowbot-notification-store";
 import { PlatformFlowbotIntegrationStore, TenantFlowbotIntegrationStore } from "./flowbot-integration-store";
+import { SharedDomainStore } from "./shared-domain-store";
 
 const runtimeUrl = process.env.FLOWBOT_DATABASE_URL;
 const adminUrl = process.env.ADMIN_DATABASE_URL;
@@ -193,43 +194,56 @@ describe.runIf(enabled)("P4 FlowBot restricted public runtime", () => {
       raw_sessions: 0, ai_messages: 0, notifications: 1,
     });
 
-    const executionConversation = await adminClient!<{ conversation_id: string }[]>`
+    const takeoverSession = await runtime.start({
+      deploymentKey, origin: "https://merchant.example", language: "en",
+    });
+    const takeoverConversation = await adminClient!<{ conversation_id: string }[]>`
       SELECT conversation_id FROM tenancy.flow_executions
-      WHERE tenant_id = ${tenantId}::uuid AND deployment_id = ${deploymentId}::uuid
+      WHERE tenant_id = ${tenantId}::uuid AND session_token_hash = ${hashOpaqueToken(takeoverSession.sessionToken)}
     `;
-    await adminClient!.begin(async (sql) => {
-      const conversations = await sql<{ next_sequence: number }[]>`
-        SELECT next_sequence FROM tenancy.conversations
-        WHERE tenant_id = ${tenantId}::uuid AND id = ${executionConversation[0]!.conversation_id}::uuid
-        FOR UPDATE
-      `;
-      await sql`
-        UPDATE tenancy.conversations SET automation_mode = 'human', updated_at = now()
-        WHERE tenant_id = ${tenantId}::uuid AND id = ${executionConversation[0]!.conversation_id}::uuid
-      `;
-      await sql`
-        INSERT INTO tenancy.messages (tenant_id, conversation_id, sequence, actor_type, direction, content_json)
-        VALUES (${tenantId}::uuid, ${executionConversation[0]!.conversation_id}::uuid,
-          ${conversations[0]!.next_sequence}, 'human', 'outbound', '{"text":"A human reply"}'::jsonb)
-      `;
-      await sql`
-        UPDATE tenancy.conversations SET next_sequence = next_sequence + 1
-        WHERE tenant_id = ${tenantId}::uuid AND id = ${executionConversation[0]!.conversation_id}::uuid
-      `;
-    });
+    const takeoverConversationId = takeoverConversation[0]!.conversation_id;
+    const shared = new SharedDomainStore(tenantClient!);
+    await expect(shared.takeOverConversation(
+      { ...notificationContext, requestId: "flow-takeover" }, takeoverConversationId,
+    )).resolves.toMatchObject({ status: "accepted" });
+    await expect(shared.appendMessage(notificationContext, takeoverConversationId, {
+      actorType: "human", direction: "outbound", text: "A human reply",
+    })).resolves.toMatchObject({ status: "created", sequence: 3 });
     const handoverSync = await runtime.sync({
-      deploymentKey, sessionToken: started.sessionToken,
-      origin: "https://merchant.example", afterSequence: 4,
+      deploymentKey, sessionToken: takeoverSession.sessionToken,
+      origin: "https://merchant.example", afterSequence: 2,
     });
-    expect(handoverSync).toMatchObject({ status: "handover", lastMessageSequence: 5 });
+    expect(handoverSync).toMatchObject({ status: "handover", lastMessageSequence: 3 });
     expect(handoverSync?.messages[0]?.message).toMatchObject({ type: "text", content: { text: "A human reply" } });
+    await expect(shared.releaseConversation(
+      { ...notificationContext, requestId: "flow-release" }, takeoverConversationId,
+    )).resolves.toEqual({ status: "released", automationMode: "flowbot" });
+    const releasedState = await adminClient!<{
+      status: string; current_node_id: string | null; variables: unknown; automation_mode: string;
+    }[]>`
+      SELECT execution.status, execution.state_json->>'currentNodeId' AS current_node_id,
+             execution.state_json->'variables' AS variables, conversation.automation_mode
+      FROM tenancy.flow_executions execution
+      JOIN tenancy.conversations conversation
+        ON conversation.tenant_id = execution.tenant_id AND conversation.id = execution.conversation_id
+      WHERE execution.tenant_id = ${tenantId}::uuid AND execution.conversation_id = ${takeoverConversationId}::uuid
+    `;
+    expect(releasedState[0]).toEqual({
+      status: "active", current_node_id: formId, variables: {}, automation_mode: "flowbot",
+    });
+    const releasedSync = await runtime.sync({
+      deploymentKey, sessionToken: takeoverSession.sessionToken,
+      origin: "https://merchant.example", afterSequence: 3,
+    });
+    expect(releasedSync).toMatchObject({ status: "active", lastMessageSequence: 5 });
+    expect(releasedSync?.messages.map((entry) => entry.message.type)).toEqual(["text", "form"]);
     const analyticsStore = new FlowBotStore(tenantClient!);
     const analyticsContext = createTenantContext({
       tenantId, userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1", membershipId,
       sessionId: randomUUID(), role: "tenant_master_admin", requestId: "flowbot-analytics",
     });
     const analytics = await analyticsStore.analytics(analyticsContext, 30);
-    expect(analytics).toMatchObject({ level: "core", executions: 1, completed: 1, leads: 1 });
+    expect(analytics).toMatchObject({ level: "core", executions: 2, completed: 1, leads: 1 });
   });
 
   it("claims and completes an entitled Premium delay exactly once", async () => {
