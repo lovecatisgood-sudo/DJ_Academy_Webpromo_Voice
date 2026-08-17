@@ -82,9 +82,11 @@ export class PostgresAuthStore implements AuthStore {
 
       let builderDraftId: string | null = null;
       let builderPendingRegistrationId: string | null = null;
+      let builderCommerceIntent: "subscribe" | "trial" = "subscribe";
       if (command.builderSessionId) {
-        const drafts = await sql<{ draft_id: string; pending_registration_id: string | null }[]>`
-          SELECT draft.id AS draft_id, session.pending_registration_id
+        const drafts = await sql<{ draft_id: string; pending_registration_id: string | null; commerce_intent: "subscribe" | "trial" }[]>`
+          SELECT draft.id AS draft_id, session.pending_registration_id,
+            COALESCE(draft.state_json #>> '{access,intent}', 'subscribe') AS commerce_intent
           FROM builder.anonymous_sessions session
           JOIN builder.drafts draft ON draft.session_id = session.id
           WHERE session.id = ${command.builderSessionId}::uuid
@@ -95,10 +97,14 @@ export class PostgresAuthStore implements AuthStore {
             AND draft.product_family IS NOT NULL
             AND draft.plan_key IS NOT NULL
             AND draft.plan_key = ${command.selectedPlanKey ?? null}
+            AND COALESCE(draft.state_json #>> '{access,intent}', 'subscribe') IN ('subscribe', 'trial')
+            AND (COALESCE(draft.state_json #>> '{access,intent}', 'subscribe') <> 'trial'
+              OR draft.plan_key IN ('flowbot_basic', 'ai_chat_basic'))
           FOR UPDATE OF session, draft
         `;
         builderDraftId = drafts[0]?.draft_id ?? null;
         builderPendingRegistrationId = drafts[0]?.pending_registration_id ?? null;
+        builderCommerceIntent = drafts[0]?.commerce_intent ?? "subscribe";
         if (!builderDraftId) return { status: "builder_draft_unavailable" as const };
       }
 
@@ -203,11 +209,11 @@ export class PostgresAuthStore implements AuthStore {
         await sql`
           INSERT INTO billing.purchase_intents (
             id, registration_id, tenant_id, plan_key, plan_version_id,
-            status, created_at, expires_at
+            commerce_intent, status, created_at, expires_at
           ) VALUES (
             gen_random_uuid(), ${command.intentId}::uuid, NULL,
             ${command.selectedPlanKey}, ${planVersionId}::uuid,
-            'open', now(), ${purchaseExpiresAt}
+            ${builderCommerceIntent}, 'open', now(), ${purchaseExpiresAt}
           )
         `;
       }

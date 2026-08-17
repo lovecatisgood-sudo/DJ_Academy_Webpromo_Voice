@@ -210,7 +210,7 @@ export class AnonymousBuilderStore {
         draft_id: string; draft_status: string; revision: number; pinned_revision: number;
         draft_expires_at: Date;
         schema_version: number; product_family: "flow" | "text" | "voice" | null;
-        plan_key: string | null; state_json: unknown;
+        plan_key: string | null; state_json: unknown; commerce_intent: "subscribe" | "trial";
       }[]>`
         SELECT continuation.id AS continuation_id, continuation.status AS continuation_status,
           continuation.expires_at AS continuation_expires_at,
@@ -219,7 +219,8 @@ export class AnonymousBuilderStore {
           draft.id AS draft_id, draft.status AS draft_status, draft.revision,
           draft.expires_at AS draft_expires_at,
           continuation.draft_revision AS pinned_revision, draft.schema_version,
-          draft.product_family, draft.plan_key, draft.state_json
+          draft.product_family, draft.plan_key, draft.state_json,
+          COALESCE(draft.state_json #>> '{access,intent}', 'subscribe') AS commerce_intent
         FROM builder.claim_continuations continuation
         JOIN builder.anonymous_sessions session ON session.id = continuation.session_id
         JOIN builder.drafts draft ON draft.id = continuation.draft_id AND draft.session_id = session.id
@@ -238,7 +239,9 @@ export class AnonymousBuilderStore {
         || claim.pending_registration_id !== null
         || claim.session_expires_at.getTime() <= now.getTime()
         || claim.draft_expires_at.getTime() <= now.getTime()
-        || claim.revision !== claim.pinned_revision || !claim.product_family || !claim.plan_key) {
+        || claim.revision !== claim.pinned_revision || !claim.product_family || !claim.plan_key
+        || !["subscribe", "trial"].includes(claim.commerce_intent)
+        || (claim.commerce_intent === "trial" && !["flowbot_basic", "ai_chat_basic"].includes(claim.plan_key))) {
         return { status: "unavailable" as const };
       }
       await sql`
@@ -287,10 +290,10 @@ export class AnonymousBuilderStore {
       await sql`
         INSERT INTO billing.purchase_intents (
           id, registration_id, tenant_id, plan_key, plan_version_id,
-          status, created_at, expires_at
+          commerce_intent, status, created_at, expires_at
         ) VALUES (
           ${purchaseIntentId}::uuid, NULL, ${input.tenantId}::uuid, ${claim.plan_key},
-          ${planRows[0].plan_version_id}::uuid, 'open', ${now},
+          ${planRows[0].plan_version_id}::uuid, ${claim.commerce_intent}, 'open', ${now},
           ${new Date(now.getTime() + 72 * 60 * 60 * 1000)}
         )
       `;
@@ -315,7 +318,7 @@ export class AnonymousBuilderStore {
           ${input.tenantId}::uuid, ${input.userId}::uuid, ${input.membershipId}::uuid,
           'tenant.builder_draft_claimed', 'builder_draft', ${claim.draft_id},
           ${input.requestId}, 'succeeded',
-          ${sql.json({ revision: claim.revision, productFamily: claim.product_family, planKey: claim.plan_key })}
+          ${sql.json({ revision: claim.revision, productFamily: claim.product_family, planKey: claim.plan_key, commerceIntent: claim.commerce_intent })}
         )
       `;
       return { status: "claimed" as const, planKey: claim.plan_key };

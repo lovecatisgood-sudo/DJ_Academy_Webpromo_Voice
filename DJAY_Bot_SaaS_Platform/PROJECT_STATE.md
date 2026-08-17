@@ -20,6 +20,10 @@ The approved `/build` experience now hydrates and autosaves the current Flow/Tex
 
 Migrations `0109_anonymous_builder_draft_claim.sql` and `0110_existing_account_builder_claim.sql` cover new and existing accounts. New registration claims the exact draft during verified tenant provisioning. Existing accounts use a 15-minute, revision-pinned opaque fragment continuation through tenant login, MFA and explicit workspace selection; only an active owner/admin membership can atomically create the tenant claim, audit and tenant-bound purchase intent. Superseded, expired, stale, pending-registration and cross-tenant use fail closed. Migration `0111_versioned_merchant_onboarding.sql` records versioned guideline acceptance and the merchant survey atomically, derives the product from the tenant-owned claim, makes replay immutable and continues to that product Configuration route. Focused PostgreSQL evidence passes all 107 migrations and six draft/import/onboarding tests. PR-03 remains in progress only because permissioned new/existing-account browser E2E is open.
 
+## Production-ready master-plan PR-04 pending trial-intent checkpoint (2026-08-17)
+
+Migration `0112_purchase_intent_kind.sql` preserves `subscribe` versus `trial` through both account-claim paths. Builder and database validation permit trials only for Flow Starter and AI Text Starter; Voice and Advanced trial attempts fail closed. Fresh PostgreSQL gates pass all 108 migrations plus purchase-intent, auth/provisioning and existing-account claim coverage. No trial entitlement, clock, provider action or sellability is claimed.
+
 ## Approved SaaS Owner analytics contract (2026-08-16)
 
 The Product Owner approved a complete Platform Master analytics and merchant-intelligence scope. `docs/design/djay-bots-saas-owner-analytics-contract.md` is the single source of truth for Owner Overview, merchant and SaaS-user directories, subscription lifecycle, revenue definitions, Text replies/tokens, Voice seconds/minutes, provider/model economics, trials/conversion, reports/alerts, Merchant 360 expansion and governed exports.

@@ -668,16 +668,31 @@
         "COM-03",
         "CORE-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
+      "implementation_paths": [
+        "apps/api/lib/public-builder-draft.ts",
+        "packages/db/src/auth-store.ts",
+        "packages/db/src/anonymous-builder-store.ts"
+      ],
+      "migration_ids": [
+        "0112_purchase_intent_kind"
+      ],
+      "api_contracts": [
+        "PATCH /public/builder/draft"
+      ],
       "ui_routes": [],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "test_ids": [
+        "apps/api/lib/public-builder-draft.test.ts",
+        "packages/db/src/migration-invariants.test.ts"
+      ],
+      "runbooks": [
+        "docs/implementation/djay-bots-production-ready-master-plan.md"
+      ],
+      "evidence": [
+        "docs/validation/production-master-plan-pr04-trial-intent-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {
@@ -693,16 +708,35 @@
         "COM-03",
         "CORE-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
+      "implementation_paths": [
+        "apps/api/lib/public-builder-draft.ts",
+        "packages/db/src/auth-store.ts",
+        "packages/db/src/anonymous-builder-store.ts",
+        "packages/db/src/purchase-intent-store.ts"
+      ],
+      "migration_ids": [
+        "0112_purchase_intent_kind"
+      ],
+      "api_contracts": [
+        "PATCH /public/builder/draft",
+        "POST /public/auth/register",
+        "POST /public/builder/claim"
+      ],
       "ui_routes": [],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "test_ids": [
+        "apps/api/lib/public-builder-draft.test.ts",
+        "packages/db/src/auth-store.integration.test.ts",
+        "packages/db/src/anonymous-builder-store.integration.test.ts"
+      ],
+      "runbooks": [
+        "docs/implementation/djay-bots-production-ready-master-plan.md"
+      ],
+      "evidence": [
+        "docs/validation/production-master-plan-pr04-trial-intent-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {
@@ -6447,6 +6481,7 @@
         "apps/api/app/public/builder/claim-continuation/route.ts",
         "apps/api/app/public/builder/claim/route.ts",
         "apps/api/app/public/builder/website-imports/route.ts",
+        "apps/api/lib/public-builder-draft.ts",
         "apps/api/app/public/auth/register/route.ts",
         "apps/api/app/public/auth/verify-email/route.ts",
         "apps/api/lib/public-builder-test-quota.ts",
@@ -6463,7 +6498,8 @@
         "0108_anonymous_builder_import_jobs",
         "0109_anonymous_builder_draft_claim",
         "0110_existing_account_builder_claim",
-        "0111_versioned_merchant_onboarding"
+        "0111_versioned_merchant_onboarding",
+        "0112_purchase_intent_kind"
       ],
       "api_contracts": [
         "GET /public/builder/draft",
@@ -6505,7 +6541,8 @@
         "docs/validation/production-master-plan-pr03-draft-claim-2026-08-17.md",
         "docs/validation/production-master-plan-pr03-deploy-handoff-2026-08-17.md",
         "docs/validation/production-master-plan-pr03-existing-account-claim-2026-08-17.md",
-        "docs/validation/production-master-plan-pr03-versioned-onboarding-2026-08-17.md"
+        "docs/validation/production-master-plan-pr03-versioned-onboarding-2026-08-17.md",
+        "docs/validation/production-master-plan-pr04-trial-intent-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null

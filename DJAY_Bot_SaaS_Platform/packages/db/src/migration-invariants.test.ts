@@ -88,6 +88,7 @@ const anonymousBuilderImportMigration = readFileSync(resolve(import.meta.dirname
 const anonymousBuilderClaimMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0109_anonymous_builder_draft_claim.sql"), "utf8");
 const existingAccountBuilderClaimMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0110_existing_account_builder_claim.sql"), "utf8");
 const versionedMerchantOnboardingMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0111_versioned_merchant_onboarding.sql"), "utf8");
+const purchaseIntentKindMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0112_purchase_intent_kind.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -142,6 +143,13 @@ describe("Merchant experience migration invariants", () => {
     expect(versionedMerchantOnboardingMigration).toContain("guidelines_version text");
     expect(versionedMerchantOnboardingMigration).toContain("guidelines_accepted_at timestamptz");
     expect(versionedMerchantOnboardingMigration).toContain("preferences_completed_at IS NOT NULL");
+  });
+
+  it("preserves subscribe versus trial intent and prohibits Voice or Advanced trials", () => {
+    expect(purchaseIntentKindMigration).toContain("commerce_intent text NOT NULL DEFAULT 'subscribe'");
+    expect(purchaseIntentKindMigration).toContain("CHECK (commerce_intent IN ('subscribe', 'trial'))");
+    expect(purchaseIntentKindMigration).toContain("plan_key IN ('flowbot_basic', 'ai_chat_basic')");
+    expect(purchaseIntentKindMigration).not.toMatch(/voice_basic_gen1|voice_advanced_gen2|flowbot_premium|ai_chat_premium/);
   });
 
   it("keeps appointment recovery independently reviewed, bounded, optimistic, and replay-safe", () => {

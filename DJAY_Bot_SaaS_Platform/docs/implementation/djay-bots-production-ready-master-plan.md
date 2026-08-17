@@ -209,6 +209,8 @@ Exit gate:
 
 **Outcome:** merchants can start an approved trial or pay under immutable commercial terms.
 
+Implementation checkpoint, 2026-08-17: migration `0112_purchase_intent_kind.sql` separates `subscribe` and `trial` intent. The Builder API and PostgreSQL both allow trial intent only for Flow Starter and AI Text Starter; Voice and Advanced trial attempts fail closed. New-account verification and existing-account claim preserve the exact server draft intent. No entitlement is granted and no fixed trial clock begins in this pending-intent slice.
+
 Work:
 
 - Serve one immutable catalogue version to Pricing, registration, Checkout, entitlements, billing and Platform operations.

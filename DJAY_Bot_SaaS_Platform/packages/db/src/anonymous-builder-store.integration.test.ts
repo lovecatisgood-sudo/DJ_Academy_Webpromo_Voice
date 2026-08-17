@@ -98,7 +98,7 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
     await store.updateDraft({
       sessionId, revision: draft!.revision, schemaVersion: 1,
       productFamily: "text", planKey: "ai_chat_basic",
-      state: { schemaVersion: 1, locale: "en", configuration: { botName: "Existing Account Bot" } },
+      state: { schemaVersion: 1, locale: "en", access: { product: "text", plan: "ai_chat_basic", intent: "trial" }, configuration: { botName: "Existing Account Bot" } },
       now: new Date(now.getTime() + 1_000),
     });
     const firstHash = createHash("sha256").update("first-continuation").digest();
@@ -131,7 +131,7 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
       membershipId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb11",
     })).resolves.toEqual({ status: "unavailable" });
     const evidence = await adminClient!<{
-      claims: number; intents: number; audits: number; bot_name: string;
+      claims: number; intents: number; audits: number; bot_name: string; commerce_intent: string;
     }[]>`
       SELECT
         (SELECT count(*)::int FROM tenancy.builder_draft_claims
@@ -141,9 +141,12 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
         (SELECT count(*)::int FROM tenancy.audit_logs
           WHERE tenant_id = ${command.tenantId}::uuid AND action = 'tenant.builder_draft_claimed') AS audits,
         (SELECT state_json #>> '{configuration,botName}' FROM tenancy.builder_draft_claims
-          WHERE source_session_id = ${sessionId}::uuid) AS bot_name
+          WHERE source_session_id = ${sessionId}::uuid) AS bot_name,
+        (SELECT commerce_intent FROM billing.purchase_intents
+          WHERE tenant_id = ${command.tenantId}::uuid AND plan_key = 'ai_chat_basic' AND status = 'open'
+          ORDER BY created_at DESC LIMIT 1) AS commerce_intent
     `;
-    expect(evidence[0]).toEqual({ claims: 1, intents: 1, audits: 1, bot_name: "Existing Account Bot" });
+    expect(evidence[0]).toEqual({ claims: 1, intents: 1, audits: 1, bot_name: "Existing Account Bot", commerce_intent: "trial" });
 
     const workspace = new TenantWorkspaceStore(tenantClient!);
     const tenantContext = createTenantContext({

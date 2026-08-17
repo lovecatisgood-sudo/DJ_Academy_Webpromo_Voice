@@ -16,6 +16,7 @@ export class PurchaseIntentStore {
     ttlHours?: number;
     now?: Date;
     intentId?: string;
+    commerceIntent?: "subscribe" | "trial";
   }>): Promise<
     | Readonly<{ status: "created"; intentId: string; planVersionId: string }>
     | Readonly<{ status: "plan_unavailable" }>
@@ -24,6 +25,10 @@ export class PurchaseIntentStore {
     const ttlHours = input.ttlHours ?? defaultTtlHours;
     const expiresAt = new Date(now.getTime() + ttlHours * 60 * 60 * 1000);
     const intentId = input.intentId ?? randomUUID();
+    const commerceIntent = input.commerceIntent ?? "subscribe";
+    if (commerceIntent === "trial" && !["flowbot_basic", "ai_chat_basic"].includes(input.planKey)) {
+      return { status: "plan_unavailable" };
+    }
 
     const planRows = await this.client<{ plan_version_id: string }[]>`
       SELECT version.id AS plan_version_id
@@ -48,14 +53,14 @@ export class PurchaseIntentStore {
     await this.client`
       INSERT INTO billing.purchase_intents (
         id, registration_id, tenant_id, plan_key, plan_version_id,
-        status, created_at, expires_at
+        commerce_intent, status, created_at, expires_at
       ) VALUES (
         ${intentId}::uuid,
         ${input.registrationId ?? null}::uuid,
         ${input.tenantId ?? null}::uuid,
         ${input.planKey},
         ${planVersionId}::uuid,
-        'open',
+        ${commerceIntent}, 'open',
         ${now},
         ${expiresAt}
       )
@@ -100,15 +105,16 @@ export class PurchaseIntentStore {
     intentId: string,
     now = new Date(),
   ): Promise<
-    | Readonly<{ status: "ready"; planKey: PublicPlanKey; planVersionId: string }>
+    | Readonly<{ status: "ready"; planKey: PublicPlanKey; planVersionId: string; commerceIntent: "subscribe" | "trial" }>
     | Readonly<{ status: "unavailable" }>
   > {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const rows = await sql<{
         plan_key: PublicPlanKey;
         plan_version_id: string;
+        commerce_intent: "subscribe" | "trial";
       }[]>`
-        SELECT plan_key, plan_version_id
+        SELECT plan_key, plan_version_id, commerce_intent
         FROM billing.purchase_intents
         WHERE id = ${intentId}::uuid
           AND tenant_id = ${context.tenantId}::uuid
@@ -123,6 +129,7 @@ export class PurchaseIntentStore {
         status: "ready" as const,
         planKey: row.plan_key,
         planVersionId: row.plan_version_id,
+        commerceIntent: row.commerce_intent,
       });
     });
   }
@@ -183,6 +190,7 @@ export class PurchaseIntentStore {
         FROM billing.purchase_intents
         WHERE tenant_id = ${input.context.tenantId}::uuid
           AND plan_key = ${input.planKey}
+          AND commerce_intent = 'subscribe'
           AND status = 'open'
           AND expires_at > ${now}
         ORDER BY created_at ASC

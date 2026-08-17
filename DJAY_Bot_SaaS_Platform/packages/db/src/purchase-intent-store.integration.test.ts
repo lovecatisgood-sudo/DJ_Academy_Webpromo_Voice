@@ -107,4 +107,41 @@ describe.runIf(enabled)("purchase intents (Phase 3)", () => {
     await expect(tenantStore.resolvePurchaseIntentForCheckout(context, created.intentId, now))
       .resolves.toEqual({ status: "unavailable" });
   });
+
+  it("does not consume a pending trial intent during paid checkout", async () => {
+    const now = new Date("2026-08-17T12:00:00Z");
+    const tenantId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10";
+    const context = createTenantContext({
+      tenantId,
+      userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      membershipId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa11",
+      sessionId: randomUUID(),
+      role: "tenant_master_admin",
+      requestId: "paid-checkout-excludes-trial",
+    });
+    const store = new PurchaseIntentStore(tenantClient!);
+    const intentId = randomUUID();
+    await adminClient!`
+      INSERT INTO billing.purchase_intents (
+        id, tenant_id, plan_key, plan_version_id, commerce_intent,
+        status, created_at, expires_at
+      )
+      SELECT ${intentId}::uuid, ${tenantId}::uuid, plan.plan_key, version.id,
+        'trial', 'open', ${now}, ${new Date(now.getTime() + 72 * 60 * 60 * 1000)}
+      FROM catalog.plan_versions version
+      JOIN catalog.plans plan ON plan.id = version.plan_id
+      WHERE plan.plan_key = 'ai_chat_basic'
+      ORDER BY version.version DESC
+      LIMIT 1
+    `;
+
+    await expect(store.consumeOpenPurchaseIntentForPlan({
+      context,
+      planKey: "ai_chat_basic",
+      checkoutIntentId: randomUUID(),
+      now,
+    })).resolves.toEqual({ status: "none" });
+    await expect(store.resolvePurchaseIntentForCheckout(context, intentId, now))
+      .resolves.toMatchObject({ status: "ready", commerceIntent: "trial" });
+  });
 });

@@ -70,7 +70,7 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
       INSERT INTO builder.anonymous_sessions (id, issued_at, expires_at, last_seen_at)
       VALUES (${builderSessionId}::uuid, now(), ${builderExpiresAt}, now())
     `;
-    const builderState = { schemaVersion: 1, locale: "en", configuration: { botName: "Claimed Builder" } };
+    const builderState = { schemaVersion: 1, locale: "en", access: { product: "text", plan: "ai_chat_basic", intent: "trial" }, configuration: { botName: "Claimed Builder" } };
     await adminClient!`
       INSERT INTO builder.drafts (
         id, session_id, revision, schema_version, product_family, plan_key,
@@ -186,8 +186,9 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
       status: string;
       plan_key: string;
       tenant_id: string | null;
+      commerce_intent: string;
     }[]>`
-      SELECT status, plan_key, tenant_id::text
+      SELECT status, plan_key, tenant_id::text, commerce_intent
       FROM billing.purchase_intents
       WHERE registration_id = (
         SELECT id FROM identity.signup_intents WHERE idempotency_key = ${idempotencyKey}::uuid
@@ -198,6 +199,7 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
       status: "open",
       plan_key: "ai_chat_basic",
       tenant_id: verified.tenantId,
+      commerce_intent: "trial",
     });
 
     const tenantVisibility = await authClient!.begin(async (sql) => {
