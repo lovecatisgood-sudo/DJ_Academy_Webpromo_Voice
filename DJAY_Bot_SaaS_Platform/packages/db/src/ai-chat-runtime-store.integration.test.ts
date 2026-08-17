@@ -278,6 +278,60 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       session_playbook: published.playbookVersionId,
       current_playbook: restored.status === "published" ? restored.playbookVersionId : "missing",
     });
+
+    const fallbackSession = await repository.start({
+      deploymentKey: deployment.deploymentKey, origin: "https://merchant.example", language: "en",
+    });
+    if (!fallbackSession) throw new Error("Expected safe-fallback test session.");
+    let malformedCalls = 0;
+    const fallbackRuntime = new AiTextRuntime(repository, {
+      async generate() {
+        malformedCalls += 1;
+        return { output: { malformed: true }, nativeUsage: { inputUnits: 7, outputUnits: 3 } };
+      },
+    });
+    const fallbackInputId = randomUUID();
+    const fallbackResponse = await fallbackRuntime.turn({
+      deploymentKey: deployment.deploymentKey,
+      sessionToken: fallbackSession.sessionToken,
+      origin: "https://merchant.example",
+      inputId: fallbackInputId,
+      message: "Give me an answer even when the provider output is malformed.",
+    });
+    expect(fallbackResponse).toMatchObject({
+      status: "completed",
+      inputId: fallbackInputId,
+      text: "I could not confirm that from approved information. I can connect you with a person.",
+      actions: [],
+    });
+    await expect(fallbackRuntime.turn({
+      deploymentKey: deployment.deploymentKey,
+      sessionToken: fallbackSession.sessionToken,
+      origin: "https://merchant.example",
+      inputId: fallbackInputId,
+      message: "Give me an answer even when the provider output is malformed.",
+    })).resolves.toEqual(fallbackResponse);
+    expect(malformedCalls).toBe(2);
+    const fallbackEvidence = await adminClient!<{
+      settled: number; turnStatus: string; intent: string; inputUnits: number; outputUnits: number;
+    }[]>`
+      SELECT account.settled_quantity::int AS settled, turn.status AS "turnStatus",
+        turn.structured_output_json->>'intent' AS intent,
+        usage.input_units::int AS "inputUnits", usage.output_units::int AS "outputUnits"
+      FROM tenancy.ai_sessions session
+      JOIN tenancy.ai_turns turn ON turn.tenant_id = session.tenant_id AND turn.session_id = session.id
+      JOIN operations.ai_native_usage usage ON usage.tenant_id = turn.tenant_id AND usage.turn_id = turn.id
+      JOIN tenancy.quota_accounts account ON account.tenant_id = session.tenant_id
+        AND account.subscription_id = ${subscriptionId}::uuid
+      WHERE session.id = ${fallbackSession.sessionId}::uuid
+    `;
+    expect(fallbackEvidence).toEqual([{
+      settled: 2,
+      turnStatus: "completed",
+      intent: "safe_fallback.structured_output_invalid",
+      inputUnits: 14,
+      outputUnits: 6,
+    }]);
     const sentMessages: { to: string; subject: string }[] = [];
     await expect(runAiChatMerchantEmail(
       new AiChatNotificationWorkerStore(workerClient!),
@@ -362,7 +416,7 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       JOIN tenancy.quota_accounts account ON account.tenant_id = session.tenant_id AND account.subscription_id = ${subscriptionId}::uuid
       WHERE session.id = ${takeoverSession.sessionId}::uuid AND turn.input_id = ${takeoverInputId}::uuid
     `;
-    expect(takeoverState[0]).toEqual({ ai_messages: 1, released_events: 1, reserved: 0, settled: 2, native_usage: 0 });
+    expect(takeoverState[0]).toEqual({ ai_messages: 1, released_events: 1, reserved: 0, settled: 3, native_usage: 0 });
     await expect(repository.sync({
       deploymentKey: deployment.deploymentKey, sessionToken: takeoverSession.sessionToken,
       origin: "https://evil.example", afterSequence: 0,

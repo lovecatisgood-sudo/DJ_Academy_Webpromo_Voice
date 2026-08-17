@@ -360,11 +360,15 @@ async function parseOrRepairStructuredOutput(
       }).slice(0, 12_000),
     });
   } catch (error) {
-    throw new AiTextRuntimeError("structured_output_invalid", { cause: error });
+    throw new AiTextRuntimeError("structured_output_invalid", { cause: error }, generated.nativeUsage);
   }
   const repairedParsed = salesCoreOutputBaseSchema.safeParse(repaired.output);
   if (!repairedParsed.success) {
-    throw new AiTextRuntimeError("structured_output_invalid", { cause: repairedParsed.error });
+    throw new AiTextRuntimeError(
+      "structured_output_invalid",
+      { cause: repairedParsed.error },
+      combinedUsage(generated.nativeUsage, repaired.nativeUsage),
+    );
   }
   if (countVisibleWords(repairedParsed.data.customerResponse, request.locale) <= 200) {
     const fullyParsed = salesCoreOutputSchema.safeParse(repairedParsed.data);
@@ -502,6 +506,7 @@ export class AiTextRuntimeError extends Error {
   constructor(
     readonly code: "turn_busy" | "structured_output_invalid" | "action_not_entitled" | "grounding_invalid" | "generation_failed",
     options?: ErrorOptions,
+    readonly nativeUsage?: GatewayResult["nativeUsage"],
   ) {
     super(code, options);
   }
@@ -541,7 +546,7 @@ export async function generateAiTurn(input: Readonly<{
   }, playbook.agentRole, [approvedEvidence.join("\n"), ...selectedChunks.map((chunk) => chunk.content)].join("\n"));
   let output = generated.output;
   assertProviderNeutralCustomerText(output.customerResponse);
-  validateCitations(output, selectedChunks);
+  validateCitations(output, selectedChunks, generated.nativeUsage);
   const confidence = responseConfidence(output, selectedChunks.length, matchedClaimCount + selectedFaqs.length);
   if (confidence < playbook.confidenceThreshold && !output.handover) {
     const reason = `confidence_below_threshold:${confidence.toFixed(2)}`;
@@ -550,7 +555,7 @@ export async function generateAiTurn(input: Readonly<{
       handover: { reason, summary: output.customerResponse },
     });
   }
-  validateActionAuthority(output, input.context.authority);
+  validateActionAuthority(output, input.context.authority, generated.nativeUsage);
   const publicResponse: AiPublicResponse = {
     status: output.handover ? "handover" : "completed", inputId: input.inputId,
     text: output.customerResponse, quickReplies: output.channelResponse.quickReplies,
@@ -585,7 +590,7 @@ function countRelevantClaims(claims: readonly string[], query: string, locale: "
   return claims.filter((claim) => terms.some((term) => claim.toLocaleLowerCase().includes(term))).length;
 }
 
-function validateActionAuthority(output: SalesCoreOutput, authorityValue: unknown) {
+function validateActionAuthority(output: SalesCoreOutput, authorityValue: unknown, nativeUsage?: GatewayResult["nativeUsage"]) {
   const authority = authoritySchema.parse(authorityValue);
   const required: Partial<Record<SalesCoreOutput["proposedActions"][number]["type"], string>> = {
     "lead.capture": "lead_capture.enabled",
@@ -596,14 +601,18 @@ function validateActionAuthority(output: SalesCoreOutput, authorityValue: unknow
     "merchant_email.send": "sales_email_action.enabled",
   };
   if (output.proposedActions.some((action) => authority.entitlements[required[action.type]!] !== true)) {
-    throw new AiTextRuntimeError("action_not_entitled");
+    throw new AiTextRuntimeError("action_not_entitled", undefined, nativeUsage);
   }
 }
 
-function validateCitations(output: SalesCoreOutput, chunks: readonly { sourceRevisionId: string; chunkId: string }[]) {
+function validateCitations(
+  output: SalesCoreOutput,
+  chunks: readonly { sourceRevisionId: string; chunkId: string }[],
+  nativeUsage?: GatewayResult["nativeUsage"],
+) {
   const allowed = new Set(chunks.map((chunk) => `${chunk.sourceRevisionId}:${chunk.chunkId}`));
   if (output.knowledgeCitations.some((citation) => !allowed.has(`${citation.sourceRevisionId}:${citation.chunkId}`))) {
-    throw new AiTextRuntimeError("grounding_invalid");
+    throw new AiTextRuntimeError("grounding_invalid", undefined, nativeUsage);
   }
 }
 
@@ -622,13 +631,40 @@ function errorCode(error: unknown) {
   return "generation_failed";
 }
 
+function safeFallbackTurn(context: AiTurnContext, inputId: string, failureCode: string) {
+  const playbook = aiPlaybookSchema.parse(context.playbook);
+  const customerResponse = playbook.customerMessages.fallback[context.language];
+  const output = salesCoreOutputSchema.parse({
+    schemaVersion: "sales-core.v1",
+    stage: "S2_DISCOVERY",
+    intent: `safe_fallback.${failureCode}`.slice(0, 100),
+    facts: [],
+    knowledgeCitations: [],
+    responseGoal: "Provide the merchant-approved safe fallback without making a claim or action.",
+    proposedActions: [],
+    handover: null,
+    customerResponse,
+    channelResponse: { format: "text", quickReplies: [] },
+  });
+  const publicResponse: AiPublicResponse = {
+    status: "completed",
+    inputId,
+    text: customerResponse,
+    quickReplies: [],
+    actions: [],
+    nextTurnSequence: context.turnSequence + 1,
+  };
+  return { output, publicResponse };
+}
+
 export class AiTextRuntime {
   constructor(private readonly repository: AiTurnRepository, private readonly gateway: TextProviderGateway) {}
 
   async turn(input: Readonly<{ deploymentKey: string; sessionToken: string; origin: string; inputId: string; message: string }>) {
     let began = false;
+    let context: AiTurnContext | null = null;
     try {
-      const context = await this.repository.begin(input);
+      context = await this.repository.begin(input);
       if (context.replayResponse) return context.replayResponse;
       began = true;
       const generated = await generateAiTurn({ gateway: this.gateway, inputId: input.inputId, message: input.message, context });
@@ -641,10 +677,33 @@ export class AiTextRuntime {
         ? { ...generated.publicResponse, status: "handover" as const, text: "" }
         : committed;
     } catch (error) {
+      const failureCode = errorCode(error);
+      if (began && context && failureCode !== "turn_busy") {
+        try {
+          const fallback = safeFallbackTurn(context, input.inputId, failureCode);
+          const nativeUsage = error instanceof AiTextRuntimeError && error.nativeUsage
+            ? { ...error.nativeUsage, cachedUnits: error.nativeUsage.cachedUnits ?? 0 }
+            : { inputUnits: 0, outputUnits: 0, cachedUnits: 0 };
+          const committed = await this.repository.commit({
+            deploymentKey: input.deploymentKey,
+            sessionToken: input.sessionToken,
+            origin: input.origin,
+            inputId: input.inputId,
+            output: fallback.output,
+            publicResponse: fallback.publicResponse,
+            nativeUsage,
+          });
+          return committed.status === "handover" && !("text" in committed)
+            ? { ...fallback.publicResponse, status: "handover" as const, text: "" }
+            : committed;
+        } catch {
+          // The reserved turn must be released when even the durable fallback cannot be committed.
+        }
+      }
       if (began) await this.repository.fail({
         deploymentKey: input.deploymentKey, sessionToken: input.sessionToken,
         origin: input.origin, inputId: input.inputId,
-        errorCode: errorCode(error),
+        errorCode: failureCode,
       }).catch(() => undefined);
       if (error instanceof AiTextRuntimeError) throw error;
       if (error instanceof ProviderGatewayError || error instanceof z.ZodError) {

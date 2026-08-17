@@ -270,7 +270,7 @@ describe("AI text runtime", () => {
     expect(events).toEqual(["begin", "commit:30"]);
   });
 
-  it("releases the turn when structured output invents a citation", async () => {
+  it("commits the merchant fallback when structured output invents a citation", async () => {
     const events: string[] = [];
     const runtime = new AiTextRuntime(repository(events), { async generate() { return {
       output: {
@@ -281,8 +281,8 @@ describe("AI text runtime", () => {
       }, nativeUsage: { inputUnits: 1, outputUnits: 1 },
     }; } });
     await expect(runtime.turn({ deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test", inputId: ids.input, message: "hello" }))
-      .rejects.toEqual(new AiTextRuntimeError("grounding_invalid"));
-    expect(events).toEqual(["begin", "fail:grounding_invalid"]);
+      .resolves.toMatchObject({ status: "completed", text: "I could not confirm that from approved information. I can connect you with a person." });
+    expect(events).toEqual(["begin", "commit:1"]);
   });
 
   it("removes an invented citation from a safe builder preview instead of failing the draft test", async () => {
@@ -346,7 +346,7 @@ describe("AI text runtime", () => {
     expect(gatewayCalls).toBe(0);
   });
 
-  it("releases reserved authority and returns no upstream detail during an outage", async () => {
+  it("commits a safe customer response with no upstream detail during an outage", async () => {
     const events: string[] = [];
     const runtime = new AiTextRuntime(repository(events), {
       async generate() { throw new ProviderGatewayError("gateway_unavailable"); },
@@ -355,8 +355,25 @@ describe("AI text runtime", () => {
       deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
       inputId: ids.input, message: "hello",
     });
-    await expect(result).rejects.toEqual(expect.objectContaining({ code: "generation_failed" }));
-    expect(events).toEqual(["begin", "fail:gateway_unavailable"]);
-    await expect(result.catch((error: unknown) => String(error))).resolves.not.toMatch(/restricted|upstream body|provider|model/i);
+    await expect(result).resolves.toMatchObject({
+      status: "completed",
+      text: "I could not confirm that from approved information. I can connect you with a person.",
+      actions: [],
+    });
+    expect(events).toEqual(["begin", "commit:0"]);
+    await expect(result.then((response) => JSON.stringify(response))).resolves.not.toMatch(/restricted|upstream body|provider|model/i);
+  });
+
+  it("releases the turn if the durable fallback cannot be committed", async () => {
+    const events: string[] = [];
+    const runtime = new AiTextRuntime({
+      ...repository(events),
+      async commit() { events.push("commit:failed"); throw new Error("database unavailable"); },
+    }, { async generate() { throw new ProviderGatewayError("gateway_unavailable"); } });
+    await expect(runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "hello",
+    })).rejects.toEqual(expect.objectContaining({ code: "generation_failed" }));
+    expect(events).toEqual(["begin", "commit:failed", "fail:gateway_unavailable"]);
   });
 });
