@@ -43,11 +43,12 @@ export default function RegistrationPage() {
   const [plans, setPlans] = useState<CatalogPlan[]>([]);
   const [selectedPlanKey, setSelectedPlanKey] = useState("");
   const [catalogStage, setCatalogStage] = useState<"loading" | "ready" | "error">("loading");
+  const [builderStage, setBuilderStage] = useState<"loading" | "ready" | "error">("loading");
   const [legalStage, setLegalStage] = useState<"loading" | "ready" | "error">("loading");
   const [legal, setLegal] = useState<LegalMetadata | null>(null);
   const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
-  const selectablePlans = plans.filter((plan) => plan.sellable);
+  const configuredPlan = plans.find((plan) => plan.planKey === selectedPlanKey) ?? null;
 
   async function loadCatalog() {
     setCatalogStage("loading");
@@ -84,14 +85,31 @@ export default function RegistrationPage() {
     }
   }
 
-  useEffect(() => { void loadCatalog(); void loadLegal(); }, []);
-  useEffect(() => {
-    const requestedPlan = new URLSearchParams(window.location.search).get("plan");
-    if (requestedPlan && plans.some((plan) => plan.planKey === requestedPlan && plan.sellable)) setSelectedPlanKey(requestedPlan);
-  }, [plans]);
+  async function loadBuilderDraft() {
+    setBuilderStage("loading");
+    try {
+      const response = await fetch("/public/builder/draft", { cache: "no-store" });
+      const body = await response.json();
+      if (!response.ok || body.status !== "ready" || typeof body.draft?.planKey !== "string") {
+        throw new Error("builder_draft_unavailable");
+      }
+      setSelectedPlanKey(body.draft.planKey);
+      setBuilderStage("ready");
+    } catch {
+      setSelectedPlanKey("");
+      setBuilderStage("error");
+    }
+  }
+
+  useEffect(() => { void loadCatalog(); void loadLegal(); void loadBuilderDraft(); }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (builderStage !== "ready" || catalogStage !== "ready" || !configuredPlan) {
+      setStatus("error");
+      setMessage("โปรดกลับไปที่ Builder และบันทึก Bot ที่มีแพ็กเกจถูกต้องก่อนสร้างบัญชี");
+      return;
+    }
     if (!legal || legalStage !== "ready" || !acceptedLegal) {
       setStatus("error");
       setMessage("โปรดตรวจสอบและยอมรับข้อกำหนดบริการและประกาศความเป็นส่วนตัวฉบับปัจจุบันก่อนสมัครใช้งาน");
@@ -165,7 +183,7 @@ export default function RegistrationPage() {
   return (
     <main className="registration-page" id="main-content">
       <PublicHeader />
-      <section className="registration-intro" aria-labelledby="registration-intro-title"><p className="step-label">ขั้นตอนหลังเลือกแพ็กเกจ</p><h1 id="registration-intro-title">สร้างบัญชีเพื่อเริ่มตั้งค่า DJBOT</h1><p>การสร้างบัญชียังไม่เปิดแพ็กเกจหรือเริ่มเรียกเก็บเงิน ระบบจะบันทึกแพ็กเกจที่เลือกเมื่อแพ็กเกจนั้นได้รับอนุมัติให้เปิดขาย</p><a href="/pricing">กลับไปดูแพ็กเกจ</a></section>
+      <section className="registration-intro" aria-labelledby="registration-intro-title"><p className="step-label">ขั้นตอน Deploy Bot</p><h1 id="registration-intro-title">สร้างบัญชีเพื่อเก็บ Bot ที่คุณตั้งค่าไว้</h1><p>ระบบจะผูกฉบับร่างที่บันทึกบนเซิร์ฟเวอร์กับบัญชีหลังยืนยันอีเมล การสร้างบัญชียังไม่เปิดใช้งาน Bot เริ่มแพ็กเกจ หรือเรียกเก็บเงิน</p><a href="/build">กลับไปที่ Builder</a></section>
       <section className="signup-section" id="start" aria-labelledby="register-title">
         <div className="form-wrap">
           <p className="step-label">สมัครพื้นที่ทำงาน</p>
@@ -200,25 +218,15 @@ export default function RegistrationPage() {
             </label>
             <p className="field-help" id="registration-password-help">ใช้ 12-128 ตัวอักษร แนะนำให้ใช้วลีรหัสผ่านที่ยาวและไม่ซ้ำกับที่อื่น</p>
             <fieldset className="plan-selection">
-              <legend>เริ่มจากผลิตภัณฑ์</legend>
+              <legend>Bot ที่บันทึกไว้</legend>
               <div className="plan-options">
-                {catalogStage === "loading" ? <div className="plan-load-state" aria-live="polite" aria-busy="true">กำลังโหลดผลิตภัณฑ์ที่พร้อมใช้งาน...</div> : null}
-                {selectablePlans.map((plan) => (
-                  <label className={selectedPlanKey === plan.planKey ? "plan-option selected" : "plan-option"} key={plan.planKey}>
-                    <input
-                      type="radio"
-                      name="selectedPlanKey"
-                      value={plan.planKey}
-                      checked={selectedPlanKey === plan.planKey}
-                      onChange={() => setSelectedPlanKey(plan.planKey)}
-                    />
-                    <span><strong>{plan.publicName}</strong><small>{plan.publicHighlights[0]}</small></span>
-                  </label>
-                ))}
-                {catalogStage === "ready" && !selectablePlans.length ? <div className="plan-load-state" role="status">ยังไม่มีแพ็กเกจที่เปิดให้ซื้อด้วยตนเอง คุณสร้างบัญชีได้และเลือก Bot ตัวแรกในขั้นตอนถัดไป</div> : null}
-                {catalogStage === "error" ? <div className="plan-load-state error" role="alert"><span>โหลดผลิตภัณฑ์ไม่สำเร็จ คุณดำเนินการต่อได้โดยไม่เลือกผลิตภัณฑ์</span><button type="button" onClick={() => void loadCatalog()}>ลองอีกครั้ง</button></div> : null}
+                {builderStage === "loading" || catalogStage === "loading" ? <div className="plan-load-state" aria-live="polite" aria-busy="true">กำลังตรวจสอบฉบับร่างที่บันทึกไว้...</div> : null}
+                {builderStage === "ready" && configuredPlan ? <div className="plan-option selected"><span><strong>{configuredPlan.publicName}</strong><small>{configuredPlan.publicHighlights[0]}</small></span></div> : null}
+                {builderStage === "ready" && catalogStage === "ready" && !configuredPlan ? <div className="plan-load-state error" role="alert"><span>แพ็กเกจในฉบับร่างไม่ตรงกับแค็ตตาล็อกปัจจุบัน โปรดกลับไปเลือกแพ็กเกจอีกครั้ง</span><a href="/build">กลับไปที่ Builder</a></div> : null}
+                {builderStage === "error" ? <div className="plan-load-state error" role="alert"><span>ไม่พบฉบับร่างที่พร้อมผูกกับบัญชี โปรดกลับไปบันทึกการตั้งค่าใน Builder</span><a href="/build">กลับไปที่ Builder</a></div> : null}
+                {catalogStage === "error" ? <div className="plan-load-state error" role="alert"><span>โหลดแค็ตตาล็อกไม่สำเร็จ การสมัครหยุดไว้เพื่อป้องกันการผูกแพ็กเกจผิด</span><button type="button" onClick={() => void loadCatalog()}>ลองอีกครั้ง</button></div> : null}
               </div>
-              <p>{selectablePlans.length ? "ระบบจะบันทึกแพ็กเกจที่เลือกไว้สำหรับขั้นตอนชำระเงิน" : "การสร้างบัญชีไม่เปิดใช้แพ็กเกจหรือเริ่มเรียกเก็บเงิน"}</p>
+              <p>แพ็กเกจนี้มาจากฉบับร่างฝั่งเซิร์ฟเวอร์และแก้ไขจากหน้านี้ไม่ได้ การสร้างบัญชีไม่เปิดใช้แพ็กเกจหรือเริ่มเรียกเก็บเงิน</p>
             </fieldset>
             {legalStage === "loading" ? <div className="legal-load-state" role="status" aria-live="polite">กำลังโหลดข้อกำหนดบริการและประกาศความเป็นส่วนตัวฉบับปัจจุบัน...</div> : null}
             {legalStage === "error" ? <div className="legal-load-state error" role="alert"><span>หยุดการสมัครชั่วคราวเพราะโหลดข้อกำหนดบริการหรือประกาศความเป็นส่วนตัวที่อนุมัติแล้วไม่ได้</span><button type="button" onClick={() => void loadLegal()}>ลองอีกครั้ง</button></div> : null}
@@ -226,7 +234,7 @@ export default function RegistrationPage() {
               <input type="checkbox" name="acceptTerms" value="yes" required disabled={legalStage !== "ready"} checked={acceptedLegal} onChange={(event) => setAcceptedLegal(event.currentTarget.checked)} />
               <span>ฉันยอมรับ<a href="/terms" target="_blank" rel="noreferrer">ข้อกำหนดบริการ</a>และ<a href="/privacy" target="_blank" rel="noreferrer">ประกาศความเป็นส่วนตัว</a>{legal ? <small> เวอร์ชัน {legal.terms.version} และ {legal.privacy.version} มีผลวันที่ {legal.terms.effectiveDate} และ {legal.privacy.effectiveDate}</small> : null}</span>
             </label>
-            <button type="submit" disabled={status === "submitting" || legalStage !== "ready"}>
+            <button type="submit" disabled={status === "submitting" || legalStage !== "ready" || builderStage !== "ready" || catalogStage !== "ready" || !configuredPlan}>
               {status === "submitting" ? "กำลังสร้าง..." : "สร้างพื้นที่ทำงาน"}
             </button>
           </form>}

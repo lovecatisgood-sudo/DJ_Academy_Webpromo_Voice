@@ -2232,6 +2232,7 @@
     let serverDraftTimer = null;
     let serverDraftSaving = false;
     let serverDraftQueued = false;
+    let serverDraftLastSaveSucceeded = false;
 
     function currentBuilderPlanKey() {
       const selected = commerceState.plan;
@@ -2287,13 +2288,16 @@
         const result = await response.json().catch(() => ({}));
         if (response.status === 409) {
           serverDraftRevision = result.draft?.revision ?? serverDraftRevision;
+          serverDraftLastSaveSucceeded = false;
           updateServerSaveLabel('Newer saved draft detected — reload to reconcile');
           return;
         }
         if (!response.ok || result.status !== 'updated') throw new Error(result.status || 'draft_save_failed');
         serverDraftRevision = result.draft.revision;
+        serverDraftLastSaveSucceeded = true;
         updateServerSaveLabel('Draft saved securely');
       } catch (error) {
+        serverDraftLastSaveSucceeded = false;
         updateServerSaveLabel('Save interrupted — retrying');
         serverDraftQueued = true;
       } finally {
@@ -2333,6 +2337,7 @@
         serverDraftRevision = result.draft.revision;
         const recovered = applyServerDraft(result.draft.state);
         serverDraftReady = true;
+        serverDraftLastSaveSucceeded = recovered;
         if (!recovered) scheduleServerDraftSave();
         else {
           saveFlowLocal();
@@ -3483,13 +3488,21 @@
       $('#onboardingDemo').scrollTo({top:0,behavior:'smooth'});
     }
 
-    function openDeploymentAccount(returnTarget) {
+    async function openDeploymentAccount(returnTarget) {
       state.deployReturn = returnTarget;
-      renderAccountStep();
-      $('#accountHeading').textContent = `Create your account to deploy ${commerceCatalog[commerceState.product].name}.`;
-      $('#continueToBotOnboarding').textContent = 'Create account and continue deployment';
-      activateSurface('journeyDemo');
-      showCommerceScreen('account');
+      if (!serverDraftReady || serverDraftRevision === null) {
+        showToast('Secure draft recovery is still starting. Wait for the saved-draft indicator, then retry Deploy Bot.');
+        return;
+      }
+      clearTimeout(serverDraftTimer);
+      while (serverDraftSaving) await new Promise(resolve => setTimeout(resolve,50));
+      await saveServerDraft();
+      while (serverDraftSaving) await new Promise(resolve => setTimeout(resolve,50));
+      if (!serverDraftLastSaveSucceeded) {
+        showToast('Your secure draft could not be finalized. Keep this page open and retry Deploy Bot.');
+        return;
+      }
+      window.location.assign('/register?source=builder');
     }
 
     function returnFromDeploymentAccount() {

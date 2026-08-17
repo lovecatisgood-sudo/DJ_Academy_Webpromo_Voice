@@ -6450,6 +6450,7 @@
         "apps/api/lib/public-builder-test-quota.ts",
         "packages/auth/src/registration.ts",
         "packages/db/src/auth-store.ts",
+        "apps/public-site/app/register/page.tsx",
         "docs/design/djay-bot-text-voice-configuration-flow.html"
       ],
       "migration_ids": [
@@ -6464,7 +6465,8 @@
         "POST /public/auth/verify-email"
       ],
       "ui_routes": [
-        "/build"
+        "/build",
+        "/register"
       ],
       "entitlement_keys": [],
       "meter_keys": [],
@@ -6476,6 +6478,7 @@
         "apps/api/lib/public-builder-test-quota.test.ts",
         "packages/auth/src/registration.test.ts",
         "packages/db/src/auth-store.integration.test.ts",
+        "scripts/check-onboarding-readiness.mjs",
         "scripts/check-builder-translations.mjs"
       ],
       "runbooks": [
@@ -6485,7 +6488,8 @@
         "docs/validation/production-master-plan-pr02-server-draft-2026-08-17.md",
         "docs/validation/production-master-plan-pr02-import-jobs-2026-08-17.md",
         "docs/validation/production-master-plan-pr02-translations-2026-08-17.md",
-        "docs/validation/production-master-plan-pr03-draft-claim-2026-08-17.md"
+        "docs/validation/production-master-plan-pr03-draft-claim-2026-08-17.md",
+        "docs/validation/production-master-plan-pr03-deploy-handoff-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null

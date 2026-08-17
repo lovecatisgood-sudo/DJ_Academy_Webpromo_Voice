@@ -84,6 +84,16 @@ for (const marker of ["anonymousBuilder.ensureDraft", "anonymousBuilder.updateDr
 for (const marker of ["hydrateServerDraft", "saveServerDraft", "Draft saved securely"]) {
   if (!builder.includes(marker)) failures.push(`approved anonymous Builder is missing durable save behavior ${marker}`);
 }
+for (const marker of ["serverDraftLastSaveSucceeded", "window.location.assign('/register?source=builder')"]) {
+  if (!builder.includes(marker)) failures.push(`Deploy Bot does not finalize the server draft before registration: ${marker}`);
+}
+const registrationPage = read("apps/public-site/app/register/page.tsx");
+for (const marker of ["loadBuilderDraft", 'fetch("/public/builder/draft"', 'body.draft?.planKey', "configuredPlan", "builderStage !== \"ready\""]) {
+  if (!registrationPage.includes(marker)) failures.push(`Builder registration does not derive its immutable plan from the server draft: ${marker}`);
+}
+if (registrationPage.includes("URLSearchParams") || builder.includes("register?source=builder&plan")) {
+  failures.push("Deploy registration still transports or reads browser plan authority");
+}
 const turbo = read("turbo.json");
 if (!turbo.includes('"globalDependencies": ["docs/design/djay-bot-text-voice-configuration-flow.html"]')) {
   failures.push("Turbo cache does not invalidate builds when the approved builder HTML changes");
