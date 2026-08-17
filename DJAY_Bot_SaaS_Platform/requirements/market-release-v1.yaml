@@ -888,14 +888,17 @@
       ],
       "implementation_paths": [
         "packages/db/src/trial-store.ts",
+        "packages/db/src/commerce-store.ts",
         "apps/workers/src/index.ts",
-        "packages/ai-chat-widget/src/index.ts"
+        "packages/ai-chat-widget/src/index.ts",
+        "apps/tenant-web/app/workspace/usage/page.tsx"
       ],
       "migration_ids": [
         "0115_trial_warning_and_terminal_states"
       ],
       "api_contracts": [
-        "POST /public/ai-chat/message"
+        "POST /public/ai-chat/message",
+        "GET /tenant/usage"
       ],
       "ui_routes": [
         "/workspace/notifications",

@@ -28,6 +28,7 @@ type UsageSubscription = {
   publicName: string;
   tierName: string;
   status: string;
+  trialStatus: "active" | "expired" | "exhausted" | null;
   accessMode: "none" | "read_only" | "active";
   customerUnit: CustomerUnit;
   periodStart: string;
@@ -261,6 +262,8 @@ export default function UsagePage() {
   const isOwner = activeWorkspace?.role === "tenant_master_admin";
   const canManageUsage = isOwner || activeWorkspace?.role === "tenant_billing_manager";
   const subscriptions = usage?.subscriptions ?? [];
+  const terminalTrials = subscriptions.filter((subscription) => subscription.trialStatus === "expired"
+    || subscription.trialStatus === "exhausted");
   const activeCount = subscriptions.filter((subscription) => subscription.accessMode === "active").length;
   const updateSafetyCap = async (subscription: UsageSubscription) => {
     const draft = capDrafts[subscription.subscriptionId];
@@ -535,6 +538,24 @@ export default function UsagePage() {
           </dl>
         </section>
 
+        {terminalTrials.map((subscription) => (
+          <section className="usage-state usage-state-error" role="status" key={`trial-${subscription.subscriptionId}`}>
+            <div>
+              <strong>{subscription.trialStatus === "exhausted"
+                ? uiCopy("ทดลองใช้ครบโควตาแล้ว", "Trial allowance used")
+                : uiCopy("ช่วงทดลองใช้สิ้นสุดแล้ว", "Trial ended")}</strong>
+              <span>{uiCopy(
+                `${subscription.publicName} หยุดรับการใช้งานใหม่แล้ว เลือกแผนแบบชำระเงินเพื่อใช้งานต่อ`,
+                `${subscription.publicName} has stopped accepting new trial usage. Choose a paid plan to continue.`,
+              )}</span>
+            </div>
+            {canManageUsage ? <a className="secondary-command" href="#usage-plan-picker-title"
+              onClick={() => setSelectedPlanKey(subscription.planKey)}>
+              {uiCopy("ดูแผนแบบชำระเงิน", "View paid plans")}
+            </a> : null}
+          </section>
+        ))}
+
         {canManageUsage && !loadingUsage && !loadError ? (
           <section className="tool-band usage-plan-picker" aria-labelledby="usage-plan-picker-title">
             <div className="band-heading">
@@ -655,7 +676,8 @@ export default function UsagePage() {
                       <div><dt>การต่ออายุ</dt><dd>{subscription.cancelAt
                         ? `Ends ${formatDate(subscription.cancelAt)}` : "Renews automatically"}</dd></div>
                     </dl>
-                    {canManageUsage && (subscription.accessMode === "none" || subscription.status === "pending") ? (
+                    {canManageUsage && !subscription.trialStatus
+                      && (subscription.accessMode === "none" || subscription.status === "pending") ? (
                       <div className="usage-cap-control usage-checkout-control">
                         <span>การชำระเงินจะเปิดสิทธิ์ใช้ผลิตภัณฑ์นี้</span>
                         <button type="button" onClick={() => void startCheckout(subscription)}>
@@ -674,7 +696,7 @@ export default function UsagePage() {
                         <span aria-live="polite">{cancellationStatus[subscription.subscriptionId] ?? ""}</span>
                       </div>
                     ) : null}
-                    {canManageUsage ? (
+                    {canManageUsage && !["expired", "exhausted"].includes(subscription.trialStatus ?? "") ? (
                       <form className="usage-cap-control" onSubmit={(event) => {
                         event.preventDefault(); void updateSafetyCap(subscription);
                       }}>

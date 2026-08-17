@@ -314,6 +314,11 @@ describe.runIf(enabled)("AI Text Starter trial activation", () => {
       productKey: "ai_chat", unit: "ai_response", operationId: `text-trial-over-${randomUUID()}`,
       idempotencyKey: `text-trial-over-${randomUUID()}`, requestedQuantity: 1,
     })).resolves.toMatchObject({ status: "rejected" });
+    await expect(commerce.usageOverview(context, now)).resolves.toMatchObject({
+      subscriptions: expect.arrayContaining([
+        expect.objectContaining({ subscriptionId, status: "cancelled", accessMode: "none", trialStatus: "exhausted" }),
+      ]),
+    });
 
     const later = new Date("2026-08-18T00:00:00Z");
     await adminClient!`UPDATE tenancy.product_subscriptions SET status = 'cancelled', cancelled_at = ${later}

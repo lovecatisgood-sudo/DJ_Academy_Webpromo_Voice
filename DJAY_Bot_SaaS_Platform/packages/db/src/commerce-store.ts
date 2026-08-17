@@ -170,6 +170,7 @@ type TenantUsageOverview = Readonly<{
     publicName: string;
     tierName: string;
     status: SubscriptionState;
+    trialStatus: "active" | "expired" | "exhausted" | null;
     accessMode: "none" | "read_only" | "active";
     customerUnit: CustomerUnit;
     periodStart: Date;
@@ -416,6 +417,7 @@ export class TenantCommerceStore {
         alert_thresholds: number[] | null; exhaustion_alert: boolean | null;
         anomaly_alert: boolean | null; cooldown_hours: number | null;
         notification_profile_id: string | null;
+        trial_status: "active" | "expired" | "exhausted" | null;
         cancel_at: Date | null;
         cancellation_status: "prepared" | "scheduled" | "revoked" | "applied" | "failed" | null;
       }[]>`
@@ -428,7 +430,8 @@ export class TenantCommerceStore {
                version.overage_rates_minor ->> quota.customer_unit AS overage_rate_minor,
                quota.alert_thresholds, quota.exhaustion_alert, quota.anomaly_alert,
                quota.cooldown_hours, quota.notification_profile_id,
-               subscription.cancel_at, cancellation.status AS cancellation_status
+               subscription.cancel_at, cancellation.status AS cancellation_status,
+               trial_grant.status AS trial_status
         FROM tenancy.product_subscriptions subscription
         JOIN catalog.plan_versions version ON version.id = subscription.plan_version_id
         JOIN catalog.plans plan ON plan.id = version.plan_id
@@ -462,6 +465,13 @@ export class TenantCommerceStore {
             AND request.subscription_id = subscription.id
           ORDER BY request.created_at DESC, request.id DESC LIMIT 1
         ) cancellation ON true
+        LEFT JOIN LATERAL (
+          SELECT grant_row.status
+          FROM billing.trial_grants grant_row
+          WHERE grant_row.tenant_id = subscription.tenant_id
+            AND grant_row.subscription_id = subscription.id
+          ORDER BY grant_row.starts_at DESC, grant_row.id DESC LIMIT 1
+        ) trial_grant ON true
         WHERE subscription.tenant_id = ${context.tenantId}::uuid
         ORDER BY subscription.created_at, subscription.id
       `;
@@ -485,7 +495,8 @@ export class TenantCommerceStore {
           publicName: row.public_name,
           tierName: row.tier_name,
           status: row.status,
-          accessMode: row.access_mode ?? "none",
+          trialStatus: row.trial_status,
+          accessMode: row.status === "cancelled" ? "none" : row.access_mode ?? "none",
           customerUnit: row.customer_unit,
           periodStart: row.period_start,
           periodEnd: row.period_end,
