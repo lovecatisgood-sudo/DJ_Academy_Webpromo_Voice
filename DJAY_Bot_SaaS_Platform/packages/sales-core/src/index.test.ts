@@ -97,6 +97,8 @@ describe("Sales Conversation Core contract", () => {
     expect(policy).toContain("Do not infer a conversation-level rejection from an objection count");
     expect(policy).toContain("Only that explicit conversation-level exit permits S9_ACTION_CLOSE");
     expect(policy).toContain("For every active objection use stage S5_OBJECTION");
+    expect(policy).toContain("a Sales Associate may support the sale with an appointment.request");
+    expect(policy).toContain("request pending merchant confirmation");
     expect(policy).toContain("direct conservative paraphrase of approved claims or approved knowledge");
     expect(policy).toContain("avoid repeating the same feature list");
     expect(policy).toContain("Do not offer to send, email, schedule, register, book");

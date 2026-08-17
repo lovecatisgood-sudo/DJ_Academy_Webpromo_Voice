@@ -3065,16 +3065,43 @@
         "AI-01",
         "AI-03"
       ],
-      "implementation_paths": [],
+      "implementation_paths": [
+        "docs/design/djay-bot-text-voice-configuration-flow.html",
+        "apps/public-site/app/build/route.ts",
+        "apps/api/lib/public-builder-draft.ts",
+        "packages/sales-core/src/index.ts",
+        "packages/ai-chat-runtime/src/index.ts"
+      ],
       "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
-      "entitlement_keys": [],
+      "api_contracts": [
+        "GET|PATCH /public/builder/draft",
+        "POST /public/builder/ai-test",
+        "POST /public/ai-chat/message"
+      ],
+      "ui_routes": [
+        "/build",
+        "/workspace/ai-chat"
+      ],
+      "entitlement_keys": [
+        "lead_capture.enabled",
+        "appointment_request.enabled"
+      ],
       "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "test_ids": [
+        "scripts/check-ai-onboarding-contract.mjs",
+        "scripts/check-onboarding-readiness.mjs",
+        "packages/sales-core/src/index.test.ts",
+        "packages/ai-chat-runtime/src/index.test.ts",
+        "packages/db/src/anonymous-builder-store.integration.test.ts"
+      ],
+      "runbooks": [
+        "docs/runbooks/ai-text-runtime.md"
+      ],
+      "evidence": [
+        "docs/validation/ai-text-package-first-role-onboarding-2026-08-17.md",
+        "docs/validation/production-master-plan-pr07-pr08-builder-ai-materialization-2026-08-17.md"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {

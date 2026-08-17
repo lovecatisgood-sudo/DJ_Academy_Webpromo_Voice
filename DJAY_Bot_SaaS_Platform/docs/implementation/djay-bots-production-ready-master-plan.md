@@ -309,6 +309,8 @@ Builder configuration fidelity checkpoint, 2026-08-17: claim conversion now requ
 
 Operational-message fidelity checkpoint, 2026-08-17: fallback, pending handover, consent-aware contact prompt, request-only booking prompt, role opening and outside-hours response are typed bilingual playbook authority from anonymous Builder through tenant claim and authenticated Text/Voice editing. Thai-enabled claims reject missing or stale records. The provider policy identifies the exact approved locale strings and forbids using them as false success evidence; a malformed Builder provider response returns the merchant-approved fallback instead of unrelated hardcoded copy. Backward-compatible defaults keep older immutable playbooks readable. PostgreSQL proves exact Text/Voice materialization without publication or deployment. Browser, live-provider and human quality acceptance remain open, so PR-02, PR-07, PR-08, `ONB-006`, `ONB-008`, `AIT-002` and `AIT-007` remain `in_progress`.
 
+Package-first AI Text role checkpoint, 2026-08-17: executable source checks now preserve the approved sequence from AI Text family/package and subscribe/eligible-trial selection into the first role page with exactly Customer Support, Sales Associate and Appointment Booking. The saved role remains server-draft and claimed-playbook authority. Sales runtime policy and tests prove that Sales Associate retains typed appointment requests after discovery and resolved objections without changing roles, while lead, entitlement, time-option and pending-confirmation invariants remain enforced. `AIT-010` is implemented but unaccepted; browser, live-provider and named-merchant acceptance remain open.
+
 Exit gate:
 
 - Unmocked staging Builder → API → gateway → provider → Sales Core journeys pass.

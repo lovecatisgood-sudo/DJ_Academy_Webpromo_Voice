@@ -85,6 +85,49 @@ describe("AI text runtime", () => {
     expect(events).toEqual(["begin", "commit:25"]);
   });
 
+  it("allows a Sales Associate to propose a pending appointment after discovery without changing roles", async () => {
+    const events: string[] = [];
+    let committedOutput: unknown;
+    const salesAppointmentContext: AiTurnContext = {
+      ...context,
+      authority: { entitlements: { "lead_capture.enabled": true, "appointment_request.enabled": true }, limits: {} },
+      recentMessages: [
+        { sequence: 1, role: "assistant", content: "What would you like to improve?" },
+        { sequence: 2, role: "user", content: "Conversion from our website." },
+      ],
+    };
+    const runtime = new AiTextRuntime({
+      ...repository(events),
+      async begin() { events.push("begin"); return salesAppointmentContext; },
+      async commit(input) { events.push(`commit:${input.nativeUsage.inputUnits}`); committedOutput = input.output; return input.publicResponse; },
+    }, { async generate(request) {
+      expect(request.systemPolicy).toContain("a Sales Associate may support the sale with an appointment.request");
+      return { output: {
+        schemaVersion: "sales-core.v1", stage: "S8_APPOINTMENT", intent: "request_consultation", facts: [],
+        knowledgeCitations: [], responseGoal: "submit a consultation request",
+        proposedActions: [
+          { type: "lead.capture", name: "Ada", email: "ada@example.test", need: "Conversion consultation" },
+          { type: "appointment.request", timezone: "Asia/Bangkok", confirmationClaim: "pending_merchant_confirmation",
+            options: [
+              { startAt: "2026-08-20T09:00:00.000Z", endAt: "2026-08-20T09:30:00.000Z" },
+              { startAt: "2026-08-21T09:00:00.000Z", endAt: "2026-08-21T09:30:00.000Z" },
+            ] },
+        ], handover: null,
+        customerResponse: "I can submit these two consultation options as a request. The merchant still needs to confirm one.",
+        channelResponse: { format: "text", quickReplies: [] },
+      }, nativeUsage: { inputUnits: 30, outputUnits: 18 } };
+    } });
+    await expect(runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "I am Ada, ada@example.test. Please request a consultation.",
+    })).resolves.toMatchObject({ status: "completed", text: expect.stringContaining("still needs to confirm") });
+    expect(committedOutput).toMatchObject({
+      stage: "S8_APPOINTMENT",
+      proposedActions: [{ type: "lead.capture" }, { type: "appointment.request", confirmationClaim: "pending_merchant_confirmation" }],
+    });
+    expect(events).toEqual(["begin", "commit:30"]);
+  });
+
   it("does not treat an unrelated approved claim as grounding for a recommendation", async () => {
     const events: string[] = [];
     const ungroundedContext: AiTurnContext = {
