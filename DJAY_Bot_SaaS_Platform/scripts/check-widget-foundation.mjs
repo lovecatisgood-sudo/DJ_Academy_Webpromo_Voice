@@ -82,7 +82,7 @@ if (!environmentExample.includes("NEXT_PUBLIC_WIDGET_CDN_URL=https://cdn.djaybot
 for (const [page, product] of [
   ["apps/tenant-web/app/workspace/flowbot/page.tsx", "flowbot"],
   ["apps/tenant-web/app/workspace/ai-chat/page.tsx", "ai-chat"],
-  ["apps/tenant-web/app/workspace/voice/page.tsx", "voice"],
+  ["apps/tenant-web/app/workspace/voice/configuration/page.tsx", "voice"],
 ]) {
   const source = readFileSync(resolve(root, page), "utf8");
   if (!source.includes(`createWidgetInstallSnippet("${product}"`)) failures.push(`${page} bypasses the shared install generator`);

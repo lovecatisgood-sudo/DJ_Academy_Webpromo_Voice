@@ -36,20 +36,25 @@ for (const path of [
 
 const form = read("apps/tenant-web/app/workspace/voice/VoiceDeploymentForm.tsx");
 for (const marker of [
-  "voiceDeploymentFieldConstraints.name", "voiceDeploymentFieldConstraints.agentName",
-  "voiceDeploymentFieldConstraints.businessName", "voiceDeploymentFieldConstraints.origin",
-  "voiceDeploymentFieldConstraints.greeting", "voiceDeploymentFieldConstraints.disclosure",
+  "voiceDeploymentFieldConstraints.name", "voiceDeploymentFieldConstraints.origin",
   "voiceDeploymentFieldConstraints.maxCallSeconds", "voiceDeploymentFieldConstraints.reconnectWindowSeconds",
 ]) {
   if (!form.includes(marker)) failures.push(`Shared Voice deployment form is missing ${marker}`);
 }
 
 const studio = read("apps/tenant-web/app/workspace/voice/page.tsx");
-if ((studio.match(/<VoiceDeploymentForm /g) || []).length !== 2) failures.push("Voice first/additional deployment journeys do not share one form");
+const configuration = read("apps/tenant-web/app/workspace/voice/configuration/page.tsx");
+if ((configuration.match(/<VoiceDeploymentForm /g) || []).length !== 1
+  || !configuration.includes('agentId={configuration.id}')) {
+  failures.push("Voice installation does not use the selected published configuration");
+}
+if (studio.includes("<VoiceDeploymentForm ")) failures.push("Voice Studio still creates a deployment without the Configuration lifecycle");
 for (const marker of ["voiceDeploymentValidationError", "studioValidationMessage", 'role="alert"']) {
   if (!studio.includes(marker)) failures.push(`Voice Studio validation is missing ${marker}`);
 }
 if (studio.includes('<form className="voice-deploy"')) failures.push("A duplicated Voice deployment form remains in the Studio page");
+const deploymentRoute = read("apps/api/app/tenant/voice/deployments/route.ts");
+if (!deploymentRoute.includes("agentId: z.uuid()")) failures.push("Voice deployment API does not require a published configuration identity");
 
 const focusedBrowserGate = read("scripts/qa-p7-voice-widget.mjs");
 for (const marker of ["Each greeting must be 1–500 characters", "invalid Studio greeting reached the API", '!== "2048"']) {

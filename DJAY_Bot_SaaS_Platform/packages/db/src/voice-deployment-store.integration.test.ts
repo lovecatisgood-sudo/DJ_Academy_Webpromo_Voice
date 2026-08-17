@@ -50,7 +50,7 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
           tenantId, subscriptionId, productKey: "voice", publicPlanKey: "voice_basic_gen1", planVersionId,
           accessMode: "active", entitlements: { "voice.enabled": true, "voice.capability_profile": "voice_gen1" },
           allowances: { voice_minute: 100 }, overageRatesMinor: { voice_minute: null },
-          limits: { active_bots: 1, concurrent_calls: 1 }, resolvedAt: new Date().toISOString(),
+          limits: { active_bots: 2, concurrent_calls: 1 }, resolvedAt: new Date().toISOString(),
         })}, digest(${snapshotId}, 'sha256')
       )
     `;
@@ -72,6 +72,89 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
       role: "tenant_master_admin", requestId: "p7-voice-deployment-other",
     });
     const store = new VoiceDeploymentStore(tenantClient!);
+    const claimedAgentId = randomUUID();
+    const claimedDraftVersionId = randomUUID();
+    const claimedDefinition = {
+      schemaVersion: 1, playbookVersionId: claimedDraftVersionId, agentRole: "booking",
+      businessName: "Claimed Voice Studio", agentName: "Nok Voice", languages: ["th", "en"],
+      tone: "Warm and concise", salesGoal: "Collect an appointment request",
+      approvedClaims: [], prohibitedClaims: ["Do not promise confirmed availability"],
+      discoveryQuestions: ["Which service and time would you like?"],
+      ctaPolicy: ["Create only a merchant-confirmed appointment request"],
+      requiredContactFields: ["name", "phone"],
+      greeting: { th: "สวัสดี ต้องการนัดหมายเวลาใด?", en: "Hello. When would you like to visit?" },
+      offlineMessage: { th: "ทีมงานจะติดต่อกลับในเวลาทำการ", en: "Our team will follow up during business hours." },
+      timezone: "Asia/Bangkok",
+      weeklyWindows: [1, 2, 3, 4, 5].map((dayOfWeek) => ({ dayOfWeek, startMinute: 540, endMinute: 1020 })),
+    };
+    await adminClient!`INSERT INTO tenancy.ai_agents
+      (id, tenant_id, name, product_family, status, default_language, created_by_membership_id)
+      VALUES (${claimedAgentId}::uuid, ${tenantId}::uuid, 'Nok Voice', 'voice', 'draft', 'th', ${owner.membershipId}::uuid)`;
+    await adminClient!`INSERT INTO tenancy.ai_playbook_drafts
+      (tenant_id, agent_id, definition_json, updated_by_membership_id)
+      VALUES (${tenantId}::uuid, ${claimedAgentId}::uuid, ${adminClient!.json(claimedDefinition)}, ${owner.membershipId}::uuid)`;
+    await adminClient!`UPDATE tenancy.product_subscriptions SET status = 'paused'
+      WHERE tenant_id = ${tenantId}::uuid AND id = ${subscriptionId}::uuid`;
+    await expect(store.listConfigurations(owner)).resolves.toMatchObject({
+      capability: null,
+      configurations: [expect.objectContaining({ id: claimedAgentId, status: "draft", deploymentCount: 0 })],
+    });
+    await expect(store.getConfigurationDraft(owner, claimedAgentId)).resolves.toMatchObject({ editable: false });
+    await expect(store.updateConfigurationDraft(owner, claimedAgentId, {
+      revision: 1, definition: claimedDefinition, knowledgeRevisionIds: [],
+    })).resolves.toEqual({ status: "not_entitled" });
+    await adminClient!`UPDATE tenancy.product_subscriptions SET status = 'active'
+      WHERE tenant_id = ${tenantId}::uuid AND id = ${subscriptionId}::uuid`;
+    await expect(store.listConfigurations(owner)).resolves.toMatchObject({
+      capability: { enabled: true, publicLabel: "First-Generation Voice Engine" },
+      configurations: [expect.objectContaining({
+        id: claimedAgentId, status: "draft", draftRevision: 1, deploymentCount: 0,
+        currentPublishedPlaybookVersionId: null,
+      })],
+    });
+    const claimedDraft = await store.getConfigurationDraft(owner, claimedAgentId);
+    expect(claimedDraft).toMatchObject({ id: claimedAgentId, editable: true, revision: 1, definition: claimedDefinition });
+    await expect(store.getConfigurationDraft(other, claimedAgentId)).resolves.toBeNull();
+    await expect(store.updateConfigurationDraft(owner, claimedAgentId, {
+      revision: 1, definition: { ...claimedDefinition, tone: "Friendly, calm, and concise" },
+      knowledgeRevisionIds: [],
+    })).resolves.toEqual({ status: "updated", revision: 2 });
+    const claimedPublished = await store.publishConfiguration(owner, claimedAgentId);
+    expect(claimedPublished).toMatchObject({ status: "published", version: 1 });
+    if (claimedPublished.status !== "published") throw new Error("Expected claimed Voice configuration publication.");
+    await expect(adminClient!<{
+      deployments: number; versions: number; auditCount: number;
+    }[]>`SELECT
+      (SELECT count(*)::int FROM tenancy.voice_deployments WHERE tenant_id = ${tenantId}::uuid
+        AND agent_id = ${claimedAgentId}::uuid) AS deployments,
+      (SELECT count(*)::int FROM tenancy.ai_playbook_versions WHERE tenant_id = ${tenantId}::uuid
+        AND agent_id = ${claimedAgentId}::uuid) AS versions,
+      (SELECT count(*)::int FROM tenancy.audit_logs WHERE tenant_id = ${tenantId}::uuid
+        AND target_id = ${claimedAgentId} AND action IN ('voice.configuration.saved','voice.configuration.published')) AS "auditCount"`)
+      .resolves.toEqual([{ deployments: 0, versions: 1, auditCount: 2 }]);
+    const claimedDeployment = await store.create(owner, {
+      agentId: claimedAgentId, name: "Claimed website voice",
+      allowedOrigins: ["https://claimed.example"],
+      maxCallSeconds: 120, reconnectWindowSeconds: 30,
+    });
+    expect(claimedDeployment).toMatchObject({ status: "created" });
+    if (claimedDeployment.status !== "created") throw new Error("Expected deployment from claimed Voice configuration.");
+    await expect(adminClient!<{
+      agentId: string; versionId: string; greetingEn: string; disclosureEn: string;
+      versions: number; drafts: number;
+    }[]>`SELECT deployment.agent_id AS "agentId", agent.current_published_playbook_version_id AS "versionId",
+      deployment.greeting_en AS "greetingEn", deployment.automated_disclosure_en AS "disclosureEn",
+      (SELECT count(*)::int FROM tenancy.ai_playbook_versions WHERE tenant_id = ${tenantId}::uuid
+        AND agent_id = ${claimedAgentId}::uuid) AS versions,
+      (SELECT count(*)::int FROM tenancy.ai_playbook_drafts WHERE tenant_id = ${tenantId}::uuid
+        AND agent_id = ${claimedAgentId}::uuid) AS drafts
+      FROM tenancy.voice_deployments deployment JOIN tenancy.ai_agents agent
+        ON agent.tenant_id = deployment.tenant_id AND agent.id = deployment.agent_id
+      WHERE deployment.tenant_id = ${tenantId}::uuid AND deployment.id = ${claimedDeployment.deploymentId}::uuid`)
+      .resolves.toEqual([{ agentId: claimedAgentId, versionId: claimedPublished.playbookVersionId,
+        greetingEn: claimedDefinition.greeting.en,
+        disclosureEn: "This is an AI voice assistant and this call may be transcribed.",
+        versions: 1, drafts: 1 }]);
     const input = {
       name: "Main browser voice", agentName: "Mali", businessName: "Merchant Store",
       allowedOrigins: ["https://merchant.example"], defaultLocale: "en" as const,
@@ -80,12 +163,29 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
       automatedDisclosureEn: "This is our automated voice assistant.",
       maxCallSeconds: 90, reconnectWindowSeconds: 30,
     };
-    await expect(store.create(owner, { ...input, allowedOrigins: ["https://merchant.example/path"] }))
+    const mainAgentId = randomUUID();
+    const mainDefinition = {
+      ...claimedDefinition, playbookVersionId: randomUUID(), agentRole: "sales" as const,
+      businessName: input.businessName, agentName: input.agentName,
+      greeting: { th: input.greetingTh, en: input.greetingEn },
+    };
+    await adminClient!`INSERT INTO tenancy.ai_agents
+      (id, tenant_id, name, product_family, status, default_language, created_by_membership_id)
+      VALUES (${mainAgentId}::uuid, ${tenantId}::uuid, ${input.agentName}, 'voice', 'draft', ${input.defaultLocale}, ${owner.membershipId}::uuid)`;
+    await adminClient!`INSERT INTO tenancy.ai_playbook_drafts
+      (tenant_id, agent_id, definition_json, updated_by_membership_id)
+      VALUES (${tenantId}::uuid, ${mainAgentId}::uuid, ${adminClient!.json(mainDefinition)}, ${owner.membershipId}::uuid)`;
+    await expect(store.publishConfiguration(owner, mainAgentId)).resolves.toMatchObject({ status: "published", version: 1 });
+    const deploymentInput = {
+      agentId: mainAgentId, name: input.name, allowedOrigins: input.allowedOrigins,
+      maxCallSeconds: input.maxCallSeconds, reconnectWindowSeconds: input.reconnectWindowSeconds,
+    };
+    await expect(store.create(owner, { ...deploymentInput, allowedOrigins: ["https://merchant.example/path"] }))
       .resolves.toEqual({ status: "validation_failed" });
-    const created = await store.create(owner, input);
+    const created = await store.create(owner, deploymentInput);
     expect(created.status).toBe("created");
     if (created.status !== "created") throw new Error("Expected Voice deployment.");
-    await expect(store.create(owner, { ...input, name: "Second browser voice" }))
+    await expect(store.create(owner, { ...deploymentInput, name: "Second browser voice" }))
       .resolves.toEqual({ status: "limit_reached" });
     expect(created.deploymentKey).toMatch(/^djay_voice_deploy_/);
     const listed = await store.list(owner);
@@ -102,7 +202,7 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
     const studio = await store.getStudio(owner, created.deploymentId);
     expect(studio).toMatchObject({
       publicLabel: "First-Generation Voice Engine", editable: true, health: "ready",
-      deployment: { id: created.deploymentId, agentName: "Mali", draftRevision: 1, currentPublishedVersion: 1 },
+      deployment: { id: created.deploymentId, agentName: "Mali", draftRevision: 2, currentPublishedVersion: 1 },
       usage: { activeCalls: 0, concurrencyLimit: 1 },
       quality: { totalCalls: 0, completedCalls: 0, failedCalls: 0 },
     });
@@ -118,7 +218,7 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
       definition: { ...(studio.deployment.definition as object), tone: "Warm and direct" },
       knowledgeRevisionIds: [],
     });
-    expect(saved).toEqual({ status: "updated", revision: 2 });
+    expect(saved).toEqual({ status: "updated", revision: 3 });
     await expect(store.updateStudio(owner, created.deploymentId, {
       revision: 1, name: "Stale edit", agentName: "Mali Voice", businessName: "Merchant Store",
       defaultLocale: "th", allowedOrigins: ["https://merchant.example"],
@@ -134,7 +234,7 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
     await expect(store.getStudio(owner, created.deploymentId)).resolves.toMatchObject({
       deployment: {
         name: "Primary website voice", agentName: "Mali Voice", defaultLocale: "th",
-        draftRevision: 3, currentPublishedVersion: 2, maxCallSeconds: 120, reconnectWindowSeconds: 20,
+        draftRevision: 4, currentPublishedVersion: 2, maxCallSeconds: 120, reconnectWindowSeconds: 20,
       },
     });
     await expect(store.changeStatus(other, created.deploymentId, "revoke")).resolves.toEqual({ status: "not_found" });
@@ -261,12 +361,29 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
       role: "tenant_master_admin", requestId: "p8-voice-advanced-deployment",
     });
     const store = new VoiceDeploymentStore(tenantClient!);
+    const advancedAgentId = randomUUID();
+    const advancedDefinition = {
+      schemaVersion: 1, playbookVersionId: randomUUID(), agentRole: "sales",
+      businessName: "Advanced Merchant", agentName: "Arun", languages: ["th", "en"],
+      tone: "Warm and concise", salesGoal: "Qualify the customer need",
+      approvedClaims: [], prohibitedClaims: ["Do not invent availability"],
+      discoveryQuestions: ["What outcome are you trying to achieve?"],
+      ctaPolicy: ["Offer a relevant next step"], requiredContactFields: ["name", "phone"],
+      greeting: { th: "สวัสดีครับ", en: "Hello, how can I help?" },
+      offlineMessage: { th: "ทีมงานจะติดต่อกลับในเวลาทำการ", en: "Our team will follow up during business hours." },
+      timezone: "Asia/Bangkok",
+      weeklyWindows: [1, 2, 3, 4, 5].map((dayOfWeek) => ({ dayOfWeek, startMinute: 540, endMinute: 1020 })),
+    };
+    await adminClient!`INSERT INTO tenancy.ai_agents
+      (id, tenant_id, name, product_family, status, default_language, created_by_membership_id)
+      VALUES (${advancedAgentId}::uuid, ${tenantId}::uuid, 'Arun', 'voice', 'draft', 'en', ${owner.membershipId}::uuid)`;
+    await adminClient!`INSERT INTO tenancy.ai_playbook_drafts
+      (tenant_id, agent_id, definition_json, updated_by_membership_id)
+      VALUES (${tenantId}::uuid, ${advancedAgentId}::uuid, ${adminClient!.json(advancedDefinition)}, ${owner.membershipId}::uuid)`;
+    await expect(store.publishConfiguration(owner, advancedAgentId)).resolves.toMatchObject({ status: "published", version: 1 });
     const created = await store.create(owner, {
-      name: "Advanced browser voice", agentName: "Arun", businessName: "Advanced Merchant",
-      allowedOrigins: ["https://advanced.example"], defaultLocale: "en",
-      greetingTh: "สวัสดีครับ", greetingEn: "Hello, how can I help?",
-      automatedDisclosureTh: "นี่คือผู้ช่วยเสียงอัตโนมัติของเรา",
-      automatedDisclosureEn: "This is our automated voice assistant.",
+      agentId: advancedAgentId, name: "Advanced browser voice",
+      allowedOrigins: ["https://advanced.example"],
       maxCallSeconds: 180, reconnectWindowSeconds: 30,
     });
     expect(created.status).toBe("created");

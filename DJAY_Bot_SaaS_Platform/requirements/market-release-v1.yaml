@@ -7169,19 +7169,33 @@
       ],
       "implementation_paths": [
         "packages/sales-core/src/index.ts",
-        "packages/db/src/tenant-workspace-store.ts"
+        "packages/db/src/tenant-workspace-store.ts",
+        "packages/db/src/voice-deployment-store.ts",
+        "apps/tenant-web/app/workspace/voice/configuration/page.tsx"
       ],
       "migration_ids": [
         "0123_predeployment_ai_configurations"
       ],
-      "api_contracts": [],
-      "ui_routes": [],
-      "entitlement_keys": [],
+      "api_contracts": [
+        "GET /tenant/voice/configurations",
+        "GET|PATCH /tenant/voice/configurations/:agentId/draft",
+        "POST /tenant/voice/configurations/:agentId/publish",
+        "POST /tenant/voice/deployments"
+      ],
+      "ui_routes": [
+        "/workspace/voice/configuration",
+        "/workspace/voice"
+      ],
+      "entitlement_keys": [
+        "voice.enabled",
+        "voice.capability_profile"
+      ],
       "meter_keys": [],
       "test_ids": [
         "packages/sales-core/src/index.test.ts",
         "packages/db/src/anonymous-builder-store.integration.test.ts",
-        "packages/db/src/migration-invariants.test.ts"
+        "packages/db/src/migration-invariants.test.ts",
+        "packages/db/src/voice-deployment-store.integration.test.ts"
       ],
       "runbooks": [],
       "evidence": [

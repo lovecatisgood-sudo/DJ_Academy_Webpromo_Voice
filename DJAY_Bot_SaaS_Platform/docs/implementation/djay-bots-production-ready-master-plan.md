@@ -323,6 +323,8 @@ Work:
 
 Pre-deployment Voice checkpoint, 2026-08-17: the same family-labelled agent model allows a complete claimed Voice configuration to become one tenant-owned unpublished playbook draft without fabricating a deployment key, website origin or install state. Existing deployed Voice agents are backfilled as Voice; Text queries now filter explicitly by family. Voice disclosure and complete-but-unreviewed bilingual copy are preserved, while missing/stale required copy fails with audit evidence. The Voice Configuration UI, explicit publication-to-install transition, real media/provider qualification and acceptance remain open, so PR-08 and `ONB-008` remain `in_progress`.
 
+Authenticated Voice continuation checkpoint, 2026-08-17: `/workspace/voice/configuration` now reopens every tenant-owned Voice configuration independently of deployment. An unsubscribed merchant can review the preserved configuration and return to Dashboard without being trapped; active Voice authority is required for edits and immutable publication. Publication does not install. The subsequent exact-origin deployment command reuses the selected published agent/version, creates no duplicate agent, draft or version, and begins with traffic inactive before separate verification and activation. Store-level PostgreSQL coverage proves tenant isolation, optimistic draft conflict handling, audit evidence and the separated lifecycle. Permissioned browser acceptance, provider/media qualification and package acceptance remain open, so PR-08 and `ONB-008` remain `in_progress`.
+
 Exit gate:
 
 - Unmocked staging media and real-call journeys pass with no provider leakage.

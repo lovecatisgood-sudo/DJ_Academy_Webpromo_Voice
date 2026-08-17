@@ -594,6 +594,8 @@ Before registration, `builder.anonymous_sessions` is keyed only by a 30-day HMAC
 
 Migration `0123_predeployment_ai_configurations.sql` separates AI configuration identity from installation: `tenancy.ai_agents.product_family` distinguishes Text and Voice before either has a deployment. A complete claimed Builder configuration may create one family-labelled draft agent and one unpublished playbook draft, linked once from its tenant claim. It creates no immutable playbook version, deployment row, key, allowed origin or traffic state. Required bilingual customer copy must be current or complete-but-unreviewed; missing or stale copy fails materialization with audit evidence. Existing deployed Voice agents are backfilled as Voice while all other historical agents remain Text.
 
+Authenticated Voice configuration is agent-authoritative before it is deployment-authoritative. `GET /tenant/voice/configurations` and the agent-scoped draft endpoint expose claimed configurations even when the tenant has no active Voice entitlement, while mutation and immutable publication require active Voice authority. A website deployment may reference an existing published Voice agent; that transition reuses the immutable version, creates only the deployment key/origin resource in inactive traffic state, and never duplicates or silently republishes the configuration.
+
 The public/tenant checkout review uses a server-calculated quotation read model with exact first-term, renewal, tax behavior, add-on cadence, allowance and exclusions. A quotation has a short expiry and checksum; Checkout creation recalculates and returns a price-changed state requiring renewed confirmation if the catalogue/promotion changed.
 
 ### 17.2 Webhook processing

@@ -94,6 +94,174 @@ async function hasVoiceAuthority(
 export class VoiceDeploymentStore {
   constructor(private readonly client: DatabaseClient) {}
 
+  async listConfigurations(context: TenantContext) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const authority = await voiceAuthority(sql, context.tenantId);
+      return {
+        capability: authority
+          ? { enabled: true as const, publicLabel: publicLabel(authority.capabilityProfile) }
+          : null,
+        configurations: await sql<{
+          id: string; name: string; status: "draft" | "active" | "archived";
+          defaultLanguage: "th" | "en"; currentPublishedPlaybookVersionId: string | null;
+          currentPublishedVersion: number | null; draftRevision: number; deploymentCount: number;
+          updatedAt: Date;
+        }[]>`
+          SELECT agent.id, agent.name, agent.status, agent.default_language AS "defaultLanguage",
+                 agent.current_published_playbook_version_id AS "currentPublishedPlaybookVersionId",
+                 published.version AS "currentPublishedVersion", draft.revision AS "draftRevision",
+                 count(DISTINCT deployment.id)::int AS "deploymentCount", agent.updated_at AS "updatedAt"
+          FROM tenancy.ai_agents agent
+          JOIN tenancy.ai_playbook_drafts draft
+            ON draft.tenant_id = agent.tenant_id AND draft.agent_id = agent.id
+          LEFT JOIN tenancy.ai_playbook_versions published
+            ON published.tenant_id = agent.tenant_id
+            AND published.id = agent.current_published_playbook_version_id
+          LEFT JOIN tenancy.voice_deployments deployment
+            ON deployment.tenant_id = agent.tenant_id AND deployment.agent_id = agent.id
+            AND deployment.status <> 'revoked'
+          WHERE agent.tenant_id = ${context.tenantId}::uuid AND agent.product_family = 'voice'
+            AND agent.status <> 'archived'
+          GROUP BY agent.id, published.version, draft.revision
+          ORDER BY agent.updated_at DESC, agent.id
+        `,
+      };
+    });
+  }
+
+  async getConfigurationDraft(context: TenantContext, agentId: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{
+        id: string; name: string; defaultLanguage: "th" | "en"; status: string;
+        currentPublishedPlaybookVersionId: string | null; currentPublishedVersion: number | null;
+        revision: number; basedOnVersionId: string | null; definition: unknown;
+        knowledgeRevisionIds: string[]; deploymentCount: number; updatedAt: Date;
+      }[]>`
+        SELECT agent.id, agent.name, agent.default_language AS "defaultLanguage", agent.status,
+               agent.current_published_playbook_version_id AS "currentPublishedPlaybookVersionId",
+               published.version AS "currentPublishedVersion", draft.revision,
+               draft.based_on_version_id AS "basedOnVersionId", draft.definition_json AS definition,
+               draft.knowledge_revision_ids AS "knowledgeRevisionIds",
+               (SELECT count(*)::int FROM tenancy.voice_deployments deployment
+                WHERE deployment.tenant_id = agent.tenant_id AND deployment.agent_id = agent.id
+                  AND deployment.status <> 'revoked') AS "deploymentCount",
+               draft.updated_at AS "updatedAt"
+        FROM tenancy.ai_agents agent
+        JOIN tenancy.ai_playbook_drafts draft
+          ON draft.tenant_id = agent.tenant_id AND draft.agent_id = agent.id
+        LEFT JOIN tenancy.ai_playbook_versions published
+          ON published.tenant_id = agent.tenant_id
+          AND published.id = agent.current_published_playbook_version_id
+        WHERE agent.tenant_id = ${context.tenantId}::uuid AND agent.id = ${agentId}::uuid
+          AND agent.product_family = 'voice' AND agent.status <> 'archived'
+      `;
+      if (!rows[0]) return null;
+      return { ...rows[0], editable: Boolean(await hasVoiceAuthority(sql, context.tenantId)) };
+    });
+  }
+
+  async updateConfigurationDraft(context: TenantContext, agentId: string, input: Readonly<{
+    revision: number; definition: unknown; knowledgeRevisionIds: readonly string[];
+  }>) {
+    const definition = aiPlaybookSchema.parse(input.definition);
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      if (!(await hasVoiceAuthority(sql, context.tenantId))) return { status: "not_entitled" as const };
+      const agents = await sql<{ id: string }[]>`
+        SELECT id FROM tenancy.ai_agents
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${agentId}::uuid
+          AND product_family = 'voice' AND status <> 'archived' FOR UPDATE
+      `;
+      if (!agents[0]) return { status: "not_found" as const };
+      const revisionIds = [...new Set(input.knowledgeRevisionIds)];
+      const available = revisionIds.length ? await sql<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM tenancy.knowledge_source_revisions
+        WHERE tenant_id = ${context.tenantId}::uuid AND status = 'ready'
+          AND id = ANY(${revisionIds}::uuid[])
+      ` : [{ count: 0 }];
+      if (available[0]?.count !== revisionIds.length) return { status: "validation_failed" as const };
+      const updated = await sql<{ revision: number }[]>`
+        UPDATE tenancy.ai_playbook_drafts SET definition_json = ${sql.json(definition)},
+          knowledge_revision_ids = ${revisionIds}, revision = revision + 1,
+          updated_by_membership_id = ${context.membershipId}::uuid, updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND agent_id = ${agentId}::uuid
+          AND revision = ${input.revision}
+        RETURNING revision
+      `;
+      if (!updated[0]) return { status: "conflict" as const };
+      await sql`UPDATE tenancy.ai_agents
+        SET name = ${definition.agentName}, default_language = ${definition.languages[0] ?? "th"}, updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${agentId}::uuid`;
+      await sql`INSERT INTO tenancy.audit_logs (
+        tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id,
+        request_id, result, metadata
+      ) VALUES (
+        ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+        'voice.configuration.saved', 'ai_agent', ${agentId}, ${context.requestId}, 'succeeded',
+        ${sql.json({ revision: updated[0].revision, knowledgeRevisionCount: revisionIds.length })}
+      )`;
+      return { status: "updated" as const, revision: updated[0].revision };
+    });
+  }
+
+  async publishConfiguration(context: TenantContext, agentId: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      if (!(await hasVoiceAuthority(sql, context.tenantId))) return { status: "not_entitled" as const };
+      const rows = await sql<{ definition: unknown; knowledgeRevisionIds: string[] }[]>`
+        SELECT draft.definition_json AS definition, draft.knowledge_revision_ids AS "knowledgeRevisionIds"
+        FROM tenancy.ai_agents agent
+        JOIN tenancy.ai_playbook_drafts draft
+          ON draft.tenant_id = agent.tenant_id AND draft.agent_id = agent.id
+        WHERE agent.tenant_id = ${context.tenantId}::uuid AND agent.id = ${agentId}::uuid
+          AND agent.product_family = 'voice' AND agent.status <> 'archived'
+        FOR UPDATE OF agent, draft
+      `;
+      const row = rows[0];
+      if (!row) return { status: "not_found" as const };
+      const available = row.knowledgeRevisionIds.length ? await sql<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM tenancy.knowledge_source_revisions
+        WHERE tenant_id = ${context.tenantId}::uuid AND status = 'ready'
+          AND id = ANY(${row.knowledgeRevisionIds}::uuid[])
+      ` : [{ count: 0 }];
+      if (available[0]?.count !== row.knowledgeRevisionIds.length) {
+        return { status: "validation_failed" as const };
+      }
+      const versions = await sql<{ version: number }[]>`
+        SELECT COALESCE(max(version), 0)::int + 1 AS version FROM tenancy.ai_playbook_versions
+        WHERE tenant_id = ${context.tenantId}::uuid AND agent_id = ${agentId}::uuid
+      `;
+      const version = versions[0]!.version;
+      const versionId = randomUUID();
+      const playbook = aiPlaybookSchema.parse({ ...(row.definition as object), playbookVersionId: versionId });
+      await sql`INSERT INTO tenancy.ai_playbook_versions (
+        id, tenant_id, agent_id, version, status, playbook_json, playbook_sha256,
+        published_by_membership_id
+      ) VALUES (
+        ${versionId}::uuid, ${context.tenantId}::uuid, ${agentId}::uuid, ${version}, 'published',
+        ${sql.json(playbook)}, ${createHash("sha256").update(JSON.stringify(playbook)).digest()},
+        ${context.membershipId}::uuid
+      )`;
+      for (const revisionId of row.knowledgeRevisionIds) await sql`
+        INSERT INTO tenancy.ai_playbook_knowledge (tenant_id, agent_id, playbook_version_id, source_revision_id)
+        VALUES (${context.tenantId}::uuid, ${agentId}::uuid, ${versionId}::uuid, ${revisionId}::uuid)
+      `;
+      await sql`UPDATE tenancy.ai_agents SET status = 'active',
+        current_published_playbook_version_id = ${versionId}::uuid, updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${agentId}::uuid`;
+      await sql`UPDATE tenancy.ai_playbook_drafts SET based_on_version_id = ${versionId}::uuid,
+        definition_json = ${sql.json(playbook)}, revision = revision + 1, updated_at = now()
+        WHERE tenant_id = ${context.tenantId}::uuid AND agent_id = ${agentId}::uuid`;
+      await sql`INSERT INTO tenancy.audit_logs (
+        tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id,
+        request_id, result, metadata
+      ) VALUES (
+        ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+        'voice.configuration.published', 'ai_agent', ${agentId}, ${context.requestId}, 'succeeded',
+        ${sql.json({ playbookVersionId: versionId, version, deploymentCreated: false })}
+      )`;
+      return { status: "published" as const, playbookVersionId: versionId, version };
+    });
+  }
+
   async list(context: TenantContext) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await hasVoiceAuthority(sql, context.tenantId);
@@ -547,10 +715,8 @@ export class VoiceDeploymentStore {
   }
 
   async create(context: TenantContext, input: Readonly<{
-    name: string; agentName?: string; businessName?: string;
-    allowedOrigins: readonly string[]; defaultLocale: "th" | "en";
-    greetingTh: string; greetingEn: string; automatedDisclosureTh: string;
-    automatedDisclosureEn: string; maxCallSeconds: number; reconnectWindowSeconds: number;
+    name: string; agentId: string; allowedOrigins: readonly string[];
+    maxCallSeconds: number; reconnectWindowSeconds: number;
   }>) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       const authority = await hasVoiceAuthority(sql, context.tenantId);
@@ -566,51 +732,27 @@ export class VoiceDeploymentStore {
       if (typeof activeBotLimit === "number" && (counts[0]?.count ?? 0) >= activeBotLimit) {
         return { status: "limit_reached" as const };
       }
-      const deploymentId = randomUUID(); const agentId = randomUUID(); const playbookVersionId = randomUUID();
+      const deploymentId = randomUUID();
       const deploymentKey = `djay_voice_deploy_${createOpaqueToken()}`;
-      const agentName = input.agentName?.trim() || input.name.trim();
-      const businessName = input.businessName?.trim() || input.name.trim();
-      const playbook: AiPlaybook = aiPlaybookSchema.parse({
-        schemaVersion: 1, playbookVersionId, businessName, agentName,
-        languages: ["th", "en"], tone: "Warm, concise, and professional",
-        salesGoal: "Understand the customer's need and offer an appropriate next step",
-        approvedClaims: [], prohibitedClaims: ["Unsupported guarantees", "Unconfirmed availability"],
-        discoveryQuestions: ["What are you trying to improve?", "What is the biggest obstacle today?"],
-        ctaPolicy: ["Offer a merchant-confirmed consultation when the customer is ready"],
-        requiredContactFields: ["name", "email"],
-        greeting: { th: input.greetingTh, en: input.greetingEn },
-        offlineMessage: { th: "ทีมงานจะติดต่อกลับในเวลาทำการ", en: "Our team will follow up during business hours." },
-        timezone: "Asia/Bangkok",
-        weeklyWindows: [1, 2, 3, 4, 5].map((dayOfWeek) => ({ dayOfWeek, startMinute: 540, endMinute: 1020 })),
-      });
-      const serializedPlaybook = JSON.stringify(playbook);
-      await sql`
-        INSERT INTO tenancy.ai_agents (
-          id, tenant_id, name, status, product_family, default_language, created_by_membership_id
-        ) VALUES (
-          ${agentId}::uuid, ${context.tenantId}::uuid, ${agentName}, 'active', 'voice', ${input.defaultLocale}, ${context.membershipId}::uuid
-        )
+      const configurations = await sql<{
+        agentId: string; playbookVersionId: string; defaultLocale: "th" | "en"; playbook: unknown;
+      }[]>`
+        SELECT agent.id AS "agentId", agent.current_published_playbook_version_id AS "playbookVersionId",
+               agent.default_language AS "defaultLocale", version.playbook_json AS playbook
+        FROM tenancy.ai_agents agent
+        JOIN tenancy.ai_playbook_versions version
+          ON version.tenant_id = agent.tenant_id AND version.id = agent.current_published_playbook_version_id
+        WHERE agent.tenant_id = ${context.tenantId}::uuid AND agent.id = ${input.agentId}::uuid
+          AND agent.product_family = 'voice' AND agent.status = 'active'
+        FOR UPDATE OF agent
       `;
-      await sql`
-        INSERT INTO tenancy.ai_playbook_versions (
-          id, tenant_id, agent_id, version, status, playbook_json, playbook_sha256, published_by_membership_id
-        ) VALUES (
-          ${playbookVersionId}::uuid, ${context.tenantId}::uuid, ${agentId}::uuid, 1, 'published',
-          ${sql.json(playbook)}, ${createHash("sha256").update(serializedPlaybook).digest()}, ${context.membershipId}::uuid
-        )
-      `;
-      await sql`
-        UPDATE tenancy.ai_agents SET current_published_playbook_version_id = ${playbookVersionId}::uuid
-        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${agentId}::uuid
-      `;
-      await sql`
-        INSERT INTO tenancy.ai_playbook_drafts (
-          tenant_id, agent_id, based_on_version_id, definition_json, updated_by_membership_id
-        ) VALUES (
-          ${context.tenantId}::uuid, ${agentId}::uuid, ${playbookVersionId}::uuid,
-          ${sql.json(playbook)}, ${context.membershipId}::uuid
-        )
-      `;
+      const configuration = configurations[0];
+      if (!configuration) return { status: "configuration_required" as const };
+      const published = aiPlaybookSchema.parse(configuration.playbook);
+      const automatedDisclosureTh = published.builderContext?.voiceDisclosure?.th
+        ?? "นี่คือผู้ช่วยเสียง AI และสายนี้อาจถูกถอดความ";
+      const automatedDisclosureEn = published.builderContext?.voiceDisclosure?.en
+        ?? "This is an AI voice assistant and this call may be transcribed.";
       await sql`
         INSERT INTO tenancy.voice_deployments (
           id, tenant_id, agent_id, name, capability_profile, deployment_key_hash, key_prefix, allowed_origins,
@@ -618,11 +760,11 @@ export class VoiceDeploymentStore {
           automated_disclosure_en, max_call_seconds, reconnect_window_seconds,
           traffic_status, live_at, created_by_membership_id
         ) VALUES (
-          ${deploymentId}::uuid, ${context.tenantId}::uuid, ${agentId}::uuid, ${input.name},
+          ${deploymentId}::uuid, ${context.tenantId}::uuid, ${configuration.agentId}::uuid, ${input.name},
           ${authority.capabilityProfile},
           ${hashOpaqueToken(deploymentKey)}, ${deploymentKey.slice(0, 20)}, ${origins as string[]},
-          ${input.defaultLocale}, ${input.greetingTh}, ${input.greetingEn},
-          ${input.automatedDisclosureTh}, ${input.automatedDisclosureEn},
+          ${configuration.defaultLocale}, ${published.greeting.th}, ${published.greeting.en},
+          ${automatedDisclosureTh}, ${automatedDisclosureEn},
           ${input.maxCallSeconds}, ${input.reconnectWindowSeconds}, 'inactive', NULL, ${context.membershipId}::uuid
         )
       `;
