@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAttributedDocument, validateKnowledgeFileSignature } from "./knowledge-ingestion";
+import { buildAttributedDocument, canonicalCrawlUrl, crawlWebsite, robotsPolicy, validateKnowledgeFileSignature } from "./knowledge-ingestion";
 
 describe("knowledge document ingestion", () => {
   it("accepts only the admitted file signatures", () => {
@@ -25,5 +25,58 @@ describe("knowledge document ingestion", () => {
     expect(() => buildAttributedDocument([{ label: "Source page 1", text: "  " }])).toThrow("extracted_content_empty");
     const paragraphs = Array.from({ length: 5001 }, (_, index) => `paragraph ${index}`).join("\n\n");
     expect(() => buildAttributedDocument([{ label: "Source document", text: paragraphs }])).toThrow("extracted_content_too_many_chunks");
+  });
+});
+
+describe("governed website crawling", () => {
+  it("canonicalizes public candidates and applies the most specific robots rule", () => {
+    expect(canonicalCrawlUrl("https://EXAMPLE.com/services//plans?campaign=x#top")).toBe("https://example.com/services/plans");
+    expect(() => canonicalCrawlUrl("http://example.com/")).toThrow("crawl_url_rejected");
+    expect(() => canonicalCrawlUrl("https://example.com:8443/")).toThrow("crawl_url_rejected");
+    const robots = "User-agent: *\nDisallow: /services\nAllow: /services/public\nCrawl-delay: 2";
+    expect(robotsPolicy(robots, "/services/private")).toEqual({ allowed: false, delayMs: 2000 });
+    expect(robotsPolicy(robots, "/services/public")).toEqual({ allowed: true, delayMs: 2000 });
+  });
+
+  it("keeps Advanced discovery inside the approved path and attributes each canonical page", async () => {
+    const fetched: string[] = [];
+    const page = (url: string, text: string, links: string[]) => ({
+      url, canonicalUrl: url, title: text, text: `${text} details`, links, etag: null, lastModified: null,
+    });
+    const result = await crawlWebsite("https://example.com/services", 25, async (url) => {
+      fetched.push(url);
+      if (url.endsWith("/services")) return page(url, "Services", [
+        "https://example.com/services/consulting", "https://example.com/services/private", "https://example.com/about",
+      ]);
+      return page(url, "Consulting", []);
+    }, async () => ({ body: "User-agent: *\nDisallow: /services/private", contentType: "text/plain", etag: null, lastModified: null }), async () => {});
+    expect(fetched).toEqual(["https://example.com/services", "https://example.com/services/consulting"]);
+    expect(result.pages).toHaveLength(2);
+    expect(result.exclusions).toContainEqual({ url: "https://example.com/services/private", reason: "robots_disallowed" });
+    expect(result.chunks.every((chunk) => chunk.startsWith("[Source https://example.com/services"))).toBe(true);
+  });
+
+  it("limits Starter import to the exact approved page", async () => {
+    const fetched: string[] = [];
+    const result = await crawlWebsite("https://example.com/services", 1, async (url) => {
+      fetched.push(url); return { url, canonicalUrl: url, title: "Services", text: "Approved details",
+        links: ["https://example.com/services/next"], etag: "v1", lastModified: null };
+    }, async () => ({ body: "", contentType: "text/plain", etag: null, lastModified: null }), async () => {});
+    expect(fetched).toEqual(["https://example.com/services"]);
+    expect(result.pages).toHaveLength(1);
+  });
+
+  it("caps discovery depth and aggregate extracted content", async () => {
+    const fetched: string[] = [];
+    const result = await crawlWebsite("https://example.com/scope", 25, async (url) => {
+      fetched.push(url); const depth = url.split("/").filter(Boolean).length - 2;
+      return { url, canonicalUrl: url, title: `Depth ${depth}`, text: "Approved",
+        links: [`${url}/next`], etag: null, lastModified: null };
+    }, async () => ({ body: "", contentType: "text/plain", etag: null, lastModified: null }), async () => {});
+    expect(result.pages).toHaveLength(4);
+    expect(fetched.at(-1)).toBe("https://example.com/scope/next/next/next");
+    await expect(crawlWebsite("https://example.com/scope", 1, async (url) => ({
+      url, canonicalUrl: url, title: "Large", text: "x".repeat(1_800_001), links: [], etag: null, lastModified: null,
+    }), async () => ({ body: "", contentType: "text/plain", etag: null, lastModified: null }), async () => {})).rejects.toThrow("extracted_content_invalid");
   });
 });

@@ -14,6 +14,10 @@ const sourceFailureCopy: Record<string, string> = {
   malware_detected: "The file was rejected by malware scanning.", file_signature_mismatch: "The file contents do not match its declared type.",
   upload_size_mismatch: "The uploaded file size did not match the approved upload.", file_type_rejected: "This file type is not supported.",
   malware_scanner_unavailable: "Malware scanning is temporarily unavailable; processing will retry.",
+  crawl_robots_disallowed: "This page is excluded by the website's robots policy.",
+  crawl_access_denied: "The website did not permit access to the requested page.",
+  crawl_scope_empty: "No accessible public pages were found in the approved website scope.",
+  crawl_address_rejected: "The address is private or otherwise unsafe to crawl.",
 };
 export default function KnowledgePage() {
   const session = useWorkspaceSession();
@@ -59,7 +63,7 @@ export default function KnowledgePage() {
   async function createCrawl(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
     await mutate("/tenant/knowledge/crawls", { collectionId: selectedCollectionId, name: data.get("name"), url: data.get("url"),
-      refreshIntervalHours: Number(data.get("refreshIntervalHours")) }, "Website crawl queued.", form);
+      refreshIntervalHours: Number(data.get("refreshIntervalHours")), authorized: data.get("authorized") === "on" }, "Website crawl queued.", form);
   }
   async function uploadFile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const file = data.get("file");
@@ -94,7 +98,7 @@ export default function KnowledgePage() {
       </section>
       {canWrite && selectedCollectionId ? <>
         <section id="knowledge-paste" className="tool-band muted-band"><div className="band-heading"><div><p>ข้อความที่อนุมัติ</p><h2>เพิ่มข้อความ</h2></div></div><form className="knowledge-form" onSubmit={createSource}><label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label><label>เนื้อหา<textarea name="content" rows={6} maxLength={500000} required /></label><button disabled={working}>เพิ่มข้อความที่อนุมัติแล้ว</button></form></section>
-        <section id="knowledge-website" className="tool-band"><div className="band-heading"><div><p>นำเข้าตามกำหนดเวลา</p><h2>สแกนหน้าเว็บไซต์</h2></div></div><form className="flowbot-deploy" onSubmit={createCrawl}><label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label><label>URL หน้าเว็บแบบ HTTPS<input name="url" type="url" placeholder="https://example.com/services" required /></label><label>รีเฟรช<select name="refreshIntervalHours" defaultValue="168"><option value="168">รายสัปดาห์</option><option value="720">รายเดือน</option><option value="24">รายวัน</option></select></label><button disabled={working}>เพิ่มงานสแกนเข้าคิว</button></form></section>
+        <section id="knowledge-website" className="tool-band"><div className="band-heading"><div><p>นำเข้าตามกำหนดเวลา</p><h2>สแกนหน้าเว็บไซต์</h2></div></div><form className="flowbot-deploy" onSubmit={createCrawl}><label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label><label>URL หน้าเว็บแบบ HTTPS<input name="url" type="url" placeholder="https://example.com/services" required /></label><label>รีเฟรช<select name="refreshIntervalHours" defaultValue="168"><option value="168">รายสัปดาห์</option><option value="720">รายเดือน</option><option value="24">รายวัน</option></select></label><label><input name="authorized" type="checkbox" required /> ฉันยืนยันว่ามีสิทธิ์นำเข้าเนื้อหาสาธารณะจากเว็บไซต์นี้</label><p className="control-copy">Starter imports this exact page. Advanced discovers up to 25 public pages under the same website path, subject to robots policy and safety limits.</p><button disabled={working}>เพิ่มงานสแกนเข้าคิว</button></form></section>
         <section id="knowledge-upload" className="tool-band muted-band"><div className="band-heading"><div><p>เอกสารที่สแกนแล้ว</p><h2>อัปโหลด PDF, DOCX หรือ TXT</h2></div><span>ขนาดไม่เกิน 10 MB</span></div><form className="flowbot-deploy" onSubmit={uploadFile}><label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label><label>เอกสาร<input name="file" type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" required /></label><button disabled={working}>อัปโหลดเอกสาร</button></form></section>
         <StructuredCataloguePanel collectionId={selectedCollectionId} canWrite={canWrite} />
       </> : null}

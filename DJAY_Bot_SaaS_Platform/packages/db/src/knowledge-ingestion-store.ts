@@ -67,6 +67,21 @@ async function structuredCatalogueAllowed(sql: postgres.TransactionSql, tenantId
   return rows[0]?.allowed === true;
 }
 
+async function websiteCrawlAuthority(sql: postgres.TransactionSql, tenantId: string) {
+  const rows = await sql<{ pageLimit: number }[]>`SELECT CASE WHEN bool_or(plan.plan_key = 'ai_chat_premium') THEN 25 ELSE 1 END::int AS "pageLimit"
+    FROM tenancy.product_subscriptions subscription
+    JOIN catalog.plan_versions version ON version.id = subscription.plan_version_id
+    JOIN catalog.plans plan ON plan.id = version.plan_id
+    JOIN LATERAL (SELECT candidate.access_mode, candidate.resolved_json FROM tenancy.entitlement_snapshots candidate
+      WHERE candidate.tenant_id = subscription.tenant_id AND candidate.subscription_id = subscription.id
+      ORDER BY candidate.created_at DESC, candidate.id DESC LIMIT 1) snapshot ON true
+    WHERE subscription.tenant_id = ${tenantId}::uuid AND subscription.product_key = 'ai_chat'
+      AND subscription.status IN ('active', 'trialing', 'scheduled_change') AND snapshot.access_mode = 'active'
+      AND snapshot.resolved_json->'entitlements'->>'knowledge.enabled' = 'true'
+    HAVING count(*) > 0`;
+  return rows[0]?.pageLimit ?? 0;
+}
+
 async function publishCatalogueSource(
   sql: postgres.TransactionSql,
   context: TenantContext,
@@ -209,20 +224,20 @@ export class TenantKnowledgeIngestionStore {
     collectionId: string; name: string; url: string; refreshIntervalHours: number | null;
   }>) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
-      const authority = await knowledgeAuthority(sql, context.tenantId);
-      if (!authority.allowed) return { status: "not_entitled" as const };
+      const pageLimit = await websiteCrawlAuthority(sql, context.tenantId);
+      if (!pageLimit) return { status: "not_entitled" as const };
       const collection = await sql<{ exists: boolean }[]>`SELECT EXISTS(SELECT 1 FROM tenancy.knowledge_collections
         WHERE tenant_id = ${context.tenantId}::uuid AND id = ${input.collectionId}::uuid AND status = 'active') AS exists`;
       if (!collection[0]?.exists) return { status: "not_found" as const };
       const sourceId = randomUUID(); const jobId = randomUUID();
       await sql`INSERT INTO tenancy.knowledge_sources (id, tenant_id, name, source_kind, source_url,
-        refresh_interval_hours, next_refresh_at, created_by_membership_id) VALUES (${sourceId}::uuid,
-        ${context.tenantId}::uuid, ${input.name}, 'url', ${input.url}, ${input.refreshIntervalHours}, now(), ${context.membershipId}::uuid)`;
+        crawl_page_limit, refresh_interval_hours, next_refresh_at, created_by_membership_id) VALUES (${sourceId}::uuid,
+        ${context.tenantId}::uuid, ${input.name}, 'url', ${input.url}, ${pageLimit}, ${input.refreshIntervalHours}, now(), ${context.membershipId}::uuid)`;
       await sql`INSERT INTO tenancy.knowledge_collection_sources (tenant_id, collection_id, source_id)
         VALUES (${context.tenantId}::uuid, ${input.collectionId}::uuid, ${sourceId}::uuid)`;
       await sql`INSERT INTO tenancy.knowledge_ingestion_jobs (id, tenant_id, source_id, job_kind, requested_by_membership_id)
         VALUES (${jobId}::uuid, ${context.tenantId}::uuid, ${sourceId}::uuid, 'url_crawl', ${context.membershipId}::uuid)`;
-      return { status: "queued" as const, sourceId, jobId };
+      return { status: "queued" as const, sourceId, jobId, crawlMode: pageLimit === 1 ? "single_page" as const : "same_scope" as const, pageLimit };
     });
   }
 
@@ -436,6 +451,7 @@ export class TenantKnowledgeIngestionStore {
 const claimSchema = z.object({
   job_id: z.uuid(), tenant_id: z.uuid(), source_id: z.uuid(), object_id: z.uuid().nullable(),
   job_kind: z.enum(["file_extract", "url_crawl", "scheduled_refresh"]), source_url: z.string().nullable(),
+  crawl_page_limit: z.number().int().min(1).max(25),
   object_key: z.string().nullable(), media_type: mediaTypeSchema.nullable(), declared_size: z.coerce.number().int().nullable(),
   attempt_count: z.number().int().positive(),
 }).strict();
@@ -449,6 +465,13 @@ export class KnowledgeIngestionWorkerStore {
       return sql<{ count: number }[]>`SELECT tenancy.enqueue_due_knowledge_refreshes(${limit})::int AS count`;
     });
     return rows[0]?.count ?? 0;
+  }
+  async reserveCrawlHost(hostname: string, minimumIntervalMs: number) {
+    const rows = await this.client.begin(async (sql) => {
+      await sql`SELECT set_config('app.service', 'knowledge_worker', true)`;
+      return sql<{ waitMs: number }[]>`SELECT tenancy.reserve_knowledge_crawl_host(${hostname}, ${minimumIntervalMs})::int AS "waitMs"`;
+    });
+    return rows[0]?.waitMs ?? 0;
   }
   async claim() {
     return this.client.begin(async (sql) => {

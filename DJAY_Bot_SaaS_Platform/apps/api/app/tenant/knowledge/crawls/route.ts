@@ -9,10 +9,11 @@ const httpsUrl = z.string().trim().max(2000).url().transform((value, context) =>
   if (url.protocol !== "https:" || url.username || url.password || url.port || url.hash || url.search) {
     context.addIssue({ code: "custom", message: "A clean HTTPS page URL is required." }); return z.NEVER;
   }
+  url.pathname = url.pathname.replace(/\/{2,}/g, "/");
   return url.href;
 });
 const schema = z.object({ collectionId: z.uuid(), name: z.string().trim().min(2).max(160), url: httpsUrl,
-  refreshIntervalHours: z.number().int().min(24).max(8760).nullable().default(168) }).strict();
+  refreshIntervalHours: z.number().int().min(24).max(8760).nullable().default(168), authorized: z.literal(true) }).strict();
 export async function POST(request: NextRequest) {
   const resolved = await resolveTenantRequest(request);
   if (!resolved || !tenantRoleAllows(resolved.context.role, "knowledge.write") || !(await hasTrustedOrigin(request))) return safeJson({ status: "not_found" }, 404);

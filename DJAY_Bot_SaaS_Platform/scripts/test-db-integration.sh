@@ -262,6 +262,16 @@ if [[ "${KNOWLEDGE_DOCUMENT_ONLY:-false}" == "true" ]]; then
   exit 0
 fi
 
+if [[ "${KNOWLEDGE_CRAWL_ONLY:-false}" == "true" ]]; then
+  echo "Running focused Starter and Advanced governed website crawl authority integration test."
+  TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+    "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/knowledge-crawl-authority.integration.test.ts
+  echo "Focused governed website crawl authority passed."
+  exit 0
+fi
+
 echo "Running durable anonymous Builder draft integration test."
 AUTH_DATABASE_URL="postgresql://djay_auth_runtime:djay_auth_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
 TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
@@ -462,6 +472,12 @@ TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST
 WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/knowledge-document-lifecycle.integration.test.ts
+
+echo "Running Starter and Advanced governed website crawl authority integration test."
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/knowledge-crawl-authority.integration.test.ts
 
 echo "Running deterministic FlowBot LINE social runtime integration test."
 FLOWBOT_DATABASE_URL="postgresql://djay_flowbot_runtime:djay_flowbot_test@127.0.0.1:${TEST_DB_PORT}/postgres" \

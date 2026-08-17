@@ -3212,16 +3212,35 @@
         "AI-03",
         "AI-06"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "implementation_paths": [
+        "apps/api/app/tenant/knowledge/crawls/route.ts",
+        "apps/tenant-web/app/workspace/knowledge/page.tsx",
+        "apps/workers/src/knowledge-ingestion.ts",
+        "packages/db/src/knowledge-ingestion-store.ts"
+      ],
+      "migration_ids": [
+        "0071_ai_knowledge_ingestion.sql",
+        "0127_governed_knowledge_crawling.sql"
+      ],
+      "api_contracts": [
+        "POST /tenant/knowledge/crawls",
+        "GET /tenant/knowledge"
+      ],
+      "ui_routes": [
+        "/workspace/knowledge"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "apps/workers/src/knowledge-ingestion.test.ts",
+        "packages/db/src/knowledge-crawl-authority.integration.test.ts",
+        "packages/db/src/migration-invariants.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/governed-website-crawling-2026-08-17.md"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {

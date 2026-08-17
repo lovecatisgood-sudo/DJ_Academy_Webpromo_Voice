@@ -103,6 +103,7 @@ const predeploymentAiConfigurationMigration = readFileSync(resolve(import.meta.d
 const staffReleaseBoundariesMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0124_staff_release_boundaries.sql"), "utf8");
 const structuredKnowledgeCatalogueMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0125_structured_knowledge_catalogue_lifecycle.sql"), "utf8");
 const knowledgeIngestionDigestMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0126_knowledge_ingestion_digest_authority.sql"), "utf8");
+const governedKnowledgeCrawlingMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0127_governed_knowledge_crawling.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -126,6 +127,16 @@ describe("Merchant experience migration invariants", () => {
     expect(knowledgeIngestionDigestMigration).toContain("public.digest(extracted_content, 'sha256')");
     expect(knowledgeIngestionDigestMigration).toContain("public.digest(chunk.content, 'sha256')");
     expect(knowledgeIngestionDigestMigration).toContain("SET search_path = pg_catalog, tenancy");
+    expect(governedKnowledgeCrawlingMigration).toContain("crawl_page_limit BETWEEN 1 AND 25");
+    expect(governedKnowledgeCrawlingMigration).toContain("source.crawl_page_limit");
+    expect(governedKnowledgeCrawlingMigration).toContain("CASE WHEN authority.premium THEN source.crawl_page_limit ELSE 1 END");
+    expect(governedKnowledgeCrawlingMigration).toContain("current_snapshot.access_mode = 'active'");
+    expect(governedKnowledgeCrawlingMigration).toContain("session_user <> 'djay_worker'");
+    expect(governedKnowledgeCrawlingMigration).toContain("REVOKE ALL ON FUNCTION tenancy.claim_knowledge_ingestion");
+    expect(governedKnowledgeCrawlingMigration).toContain("CREATE TABLE tenancy.knowledge_crawl_host_pacing");
+    expect(governedKnowledgeCrawlingMigration).toContain("pg_advisory_xact_lock");
+    expect(governedKnowledgeCrawlingMigration).toContain("minimum_interval_ms NOT BETWEEN 500 AND 5000");
+    expect(governedKnowledgeCrawlingMigration).toContain("REVOKE ALL ON FUNCTION tenancy.reserve_knowledge_crawl_host");
   });
   it("keeps anonymous Builder drafts versioned, expiring, pre-tenant, and unavailable to tenant runtime", () => {
     expect(anonymousBuilderDraftMigration).toContain("CREATE TABLE builder.anonymous_sessions");
