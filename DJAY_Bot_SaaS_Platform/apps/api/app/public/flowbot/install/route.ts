@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { getServices } from "../../../../lib/container";
 import { flowbotCorsHeaders, flowbotRequestCredentials } from "../../../../lib/flowbot-http";
 import { clientAddress, enforceRateLimit, safeJson } from "../../../../lib/http";
@@ -14,4 +15,9 @@ export async function POST(request: NextRequest) {
   return safeJson({ status: "recorded", verified }, 200, flowbotCorsHeaders(credentials.origin));
 }
 
-export { OPTIONS } from "../config/route";
+export async function OPTIONS(request: NextRequest) {
+  const credentials = flowbotRequestCredentials(request);
+  return credentials
+    ? new NextResponse(null, { status: 204, headers: flowbotCorsHeaders(credentials.origin) })
+    : safeJson({ status: "not_found" }, 404);
+}

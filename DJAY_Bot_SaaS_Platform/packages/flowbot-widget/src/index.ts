@@ -96,9 +96,9 @@ class FlowbotWidget {
     this.loading = true;
     this.render();
     try {
+      await this.request<{ status: "recorded" }>("/public/flowbot/install", { method: "POST", body: "{}" });
       const result = await this.request<{ status: "available"; config: PublicConfig }>("/public/flowbot/config");
       this.config = result.config;
-      await this.request<{ status: "recorded" }>("/public/flowbot/install", { method: "POST", body: "{}" });
       this.sessionToken = this.storage?.getItem(flowbotSessionStorageKey(this.options.deploymentKey)) ?? null;
       const storedLanguage = this.storage?.getItem(flowbotLanguageStorageKey(this.options.deploymentKey));
       if (this.sessionToken) {

@@ -136,6 +136,29 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
     if (deployment.status !== "created") throw new Error("Expected web deployment.");
 
     const repository = new AiChatRuntimeStore(runtimeClient!);
+    expect(await authoring.listDeployments(context, agent.agentId)).toMatchObject([
+      { id: deployment.deploymentId, trafficStatus: "inactive", liveAt: null },
+    ]);
+    await expect(repository.config(deployment.deploymentKey, "https://merchant.example")).resolves.toBeNull();
+    await expect(authoring.changeDeploymentTraffic(context, deployment.deploymentId, "go_live"))
+      .resolves.toEqual({ status: "verification_required" });
+    const otherTenantContext = createTenantContext({
+      tenantId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb10",
+      userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+      membershipId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb11",
+      sessionId: randomUUID(), role: "tenant_master_admin", requestId: "ai-cross-tenant",
+    });
+    await expect(authoring.changeDeploymentTraffic(otherTenantContext, deployment.deploymentId, "go_live"))
+      .resolves.toEqual({ status: "not_found" });
+    await expect(authoring.requestInstallCheck(context, deployment.deploymentId, "https://merchant.example"))
+      .resolves.toMatchObject({ status: "requested" });
+    await expect(repository.reportInstall(deployment.deploymentKey, "https://evil.example")).resolves.toBe(0);
+    await expect(repository.reportInstall(deployment.deploymentKey, "https://merchant.example")).resolves.toBe(1);
+    expect(await authoring.listInstallChecks(context, deployment.deploymentId)).toMatchObject([
+      { deploymentId: deployment.deploymentId, targetOrigin: "https://merchant.example", status: "verified" },
+    ]);
+    await expect(authoring.changeDeploymentTraffic(context, deployment.deploymentId, "go_live"))
+      .resolves.toEqual({ status: "updated", trafficStatus: "live" });
     await expect(repository.config(deployment.deploymentKey, "https://merchant.example"))
       .resolves.toMatchObject({ agentName: "Mali", defaultLanguage: "en", brandingRemoved: false });
     await expect(repository.config(deployment.deploymentKey, "https://evil.example")).resolves.toBeNull();
@@ -302,5 +325,18 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       deploymentKey: deployment.deploymentKey, sessionToken: takeoverSession.sessionToken,
       origin: "https://evil.example", afterSequence: 0,
     })).resolves.toBeNull();
+    await expect(authoring.changeDeploymentTraffic(context, deployment.deploymentId, "stop"))
+      .resolves.toEqual({ status: "updated", trafficStatus: "inactive" });
+    await expect(repository.config(deployment.deploymentKey, "https://merchant.example")).resolves.toBeNull();
+    const trafficAudit = await adminClient!<{ action: string }[]>`
+      SELECT action FROM tenancy.audit_logs
+      WHERE tenant_id = ${tenantId}::uuid AND target_id = ${deployment.deploymentId}
+        AND action IN ('ai_chat.deployment.go_live', 'ai_chat.deployment.stop_traffic')
+      ORDER BY created_at
+    `;
+    expect(trafficAudit).toEqual([
+      { action: "ai_chat.deployment.go_live" },
+      { action: "ai_chat.deployment.stop_traffic" },
+    ]);
   });
 });

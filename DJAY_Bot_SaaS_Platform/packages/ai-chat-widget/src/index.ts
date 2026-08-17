@@ -72,6 +72,7 @@ class AiChatWidget {
     this.announcement = copy[this.language].connecting;
     this.loading = true; this.render();
     try {
+      await this.jsonRequest<{ status: "recorded" }>("/public/ai-chat/install", { method: "POST", body: "{}" });
       const result = await this.jsonRequest<{ status: "available"; config: PublicConfig }>("/public/ai-chat/config");
       this.config = result.config;
       this.language = this.options.language ?? result.config.defaultLanguage;

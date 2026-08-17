@@ -93,6 +93,7 @@ const flowTrialActivationMigration = readFileSync(resolve(import.meta.dirname, "
 const textTrialSetupMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0114_text_starter_trial_setup.sql"), "utf8");
 const trialLifecycleMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0115_trial_warning_and_terminal_states.sql"), "utf8");
 const flowDeploymentTrafficMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0116_flow_deployment_traffic_state.sql"), "utf8");
+const aiTextDeploymentTrafficMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0117_ai_text_deployment_traffic_state.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -195,6 +196,16 @@ describe("Merchant experience migration invariants", () => {
     expect(flowDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.flowbot_runtime_resource_active");
     expect(flowDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.flowbot_runtime_config");
     expect(flowDeploymentTrafficMigration).not.toContain("CREATE OR REPLACE FUNCTION tenancy.report_flowbot_install");
+  });
+
+  it("keeps AI Text installation verification separate from explicit live traffic authority", () => {
+    expect(aiTextDeploymentTrafficMigration).toContain("traffic_status text NOT NULL DEFAULT 'inactive'");
+    expect(aiTextDeploymentTrafficMigration).toContain("CREATE TABLE tenancy.ai_install_checks");
+    expect(aiTextDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.report_ai_chat_install");
+    expect(aiTextDeploymentTrafficMigration).toContain("deployment.traffic_status = 'live'");
+    expect(aiTextDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.ai_runtime_resource_active");
+    expect(aiTextDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.ai_runtime_config");
+    expect(aiTextDeploymentTrafficMigration).toContain("session_user <> 'djay_ai_runtime'");
   });
 
   it("keeps appointment recovery independently reviewed, bounded, optimistic, and replay-safe", () => {

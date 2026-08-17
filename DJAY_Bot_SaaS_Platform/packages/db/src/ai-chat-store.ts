@@ -281,10 +281,12 @@ export class AiChatStore {
       const deploymentId = randomUUID(); const deploymentKey = `djay_ai_${createOpaqueToken()}`;
       await sql`
         INSERT INTO tenancy.ai_deployments (
-          id, tenant_id, agent_id, name, channel, deployment_key_hash, key_prefix, allowed_origins, created_by_membership_id
+          id, tenant_id, agent_id, name, channel, deployment_key_hash, key_prefix,
+          traffic_status, live_at, allowed_origins, created_by_membership_id
         ) VALUES (
           ${deploymentId}::uuid, ${context.tenantId}::uuid, ${agentId}::uuid, ${input.name}, 'web',
-          ${hashOpaqueToken(deploymentKey)}, ${deploymentKey.slice(0, 16)}, ${origins as string[]}, ${context.membershipId}::uuid
+          ${hashOpaqueToken(deploymentKey)}, ${deploymentKey.slice(0, 16)}, 'inactive', NULL,
+          ${origins as string[]}, ${context.membershipId}::uuid
         )
       `;
       return { status: "created" as const, deploymentId, deploymentKey };
@@ -295,14 +297,119 @@ export class AiChatStore {
     return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
       id: string; name: string; channel: "web" | "line" | "whatsapp" | "messenger";
       keyPrefix: string | null; allowedOrigins: string[]; status: "active" | "disabled" | "revoked";
-      createdAt: Date; rotatedAt: Date | null;
+      trafficStatus: "inactive" | "live"; liveAt: Date | null; createdAt: Date; rotatedAt: Date | null;
     }[]>`
       SELECT id, name, channel, key_prefix AS "keyPrefix", allowed_origins AS "allowedOrigins",
-             status, created_at AS "createdAt", rotated_at AS "rotatedAt"
+             status, traffic_status AS "trafficStatus", live_at AS "liveAt",
+             created_at AS "createdAt", rotated_at AS "rotatedAt"
       FROM tenancy.ai_deployments
       WHERE tenant_id = ${context.tenantId}::uuid AND agent_id = ${agentId}::uuid
       ORDER BY created_at DESC, id DESC
     `);
+  }
+
+  async requestInstallCheck(context: TenantContext, deploymentId: string, targetOrigin: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const authority = await this.authority(sql, context.tenantId);
+      if (!authority || authority.accessMode !== "active" || authority.entitlements["channel.web"] !== true) {
+        return { status: "not_entitled" as const };
+      }
+      const deployments = await sql<{ allowed_origins: string[] }[]>`
+        SELECT allowed_origins FROM tenancy.ai_deployments
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${deploymentId}::uuid
+          AND channel = 'web' AND status = 'active'
+      `;
+      if (!deployments[0]?.allowed_origins.includes(targetOrigin)) return { status: "not_found" as const };
+      const checkId = randomUUID();
+      await sql`
+        INSERT INTO tenancy.ai_install_checks (
+          id, tenant_id, deployment_id, requested_by_membership_id, target_origin, status
+        ) VALUES (
+          ${checkId}::uuid, ${context.tenantId}::uuid, ${deploymentId}::uuid,
+          ${context.membershipId}::uuid, ${targetOrigin}, 'requested'
+        )
+      `;
+      return { status: "requested" as const, checkId };
+    });
+  }
+
+  async listInstallChecks(context: TenantContext, deploymentId?: string) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
+      id: string; deploymentId: string; targetOrigin: string; status: string;
+      safeResultCode: string | null; checkedAt: Date | null; createdAt: Date;
+    }[]>`
+      SELECT id, deployment_id AS "deploymentId", target_origin AS "targetOrigin", status,
+             safe_result_code AS "safeResultCode", checked_at AS "checkedAt", created_at AS "createdAt"
+      FROM tenancy.ai_install_checks
+      WHERE tenant_id = ${context.tenantId}::uuid
+        AND (${deploymentId ?? null}::uuid IS NULL OR deployment_id = ${deploymentId ?? null}::uuid)
+      ORDER BY created_at DESC, id DESC LIMIT 200
+    `);
+  }
+
+  async changeDeploymentTraffic(context: TenantContext, deploymentId: string, action: "go_live" | "stop") {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{
+        agent_id: string; status: string; traffic_status: "inactive" | "live"; allowed_origins: string[];
+        current_published_playbook_version_id: string | null; agent_status: string;
+      }[]>`
+        SELECT deployment.agent_id, deployment.status, deployment.traffic_status, deployment.allowed_origins,
+               agent.current_published_playbook_version_id, agent.status AS agent_status
+        FROM tenancy.ai_deployments deployment
+        JOIN tenancy.ai_agents agent ON agent.tenant_id = deployment.tenant_id AND agent.id = deployment.agent_id
+        WHERE deployment.tenant_id = ${context.tenantId}::uuid AND deployment.id = ${deploymentId}::uuid
+          AND deployment.channel = 'web'
+        FOR UPDATE OF deployment, agent
+      `;
+      const deployment = rows[0];
+      if (!deployment) return { status: "not_found" as const };
+      if (action === "stop") {
+        if (deployment.traffic_status === "inactive") return { status: "unchanged" as const, trafficStatus: "inactive" as const };
+        await sql`UPDATE tenancy.ai_deployments SET traffic_status = 'inactive'
+          WHERE tenant_id = ${context.tenantId}::uuid AND id = ${deploymentId}::uuid`;
+        await sql`INSERT INTO tenancy.audit_logs (tenant_id, actor_user_id, actor_membership_id, action, target_type,
+          target_id, request_id, result, metadata) VALUES (${context.tenantId}::uuid, ${context.userId}::uuid,
+          ${context.membershipId}::uuid, 'ai_chat.deployment.stop_traffic', 'ai_deployment', ${deploymentId},
+          ${context.requestId}, 'succeeded', '{}'::jsonb)`;
+        return { status: "updated" as const, trafficStatus: "inactive" as const };
+      }
+      const authority = await this.authority(sql, context.tenantId);
+      if (!authority || authority.accessMode !== "active" || authority.entitlements["ai.text"] !== true
+        || authority.entitlements["channel.web"] !== true) return { status: "not_entitled" as const };
+      if (deployment.status !== "active") return { status: "deployment_unavailable" as const };
+      if (deployment.agent_status !== "active" || !deployment.current_published_playbook_version_id) {
+        return { status: "not_published" as const };
+      }
+      if (!(await aiResourceWritable(sql, deployment.agent_id))) return { status: "resource_read_only" as const };
+      const verified = await sql<{ verified: boolean }[]>`
+        SELECT EXISTS (SELECT 1 FROM tenancy.ai_install_checks install_check
+          WHERE install_check.tenant_id = ${context.tenantId}::uuid
+            AND install_check.deployment_id = ${deploymentId}::uuid AND install_check.status = 'verified'
+            AND install_check.target_origin = ANY(${deployment.allowed_origins}::text[])) AS verified
+      `;
+      if (!verified[0]?.verified) return { status: "verification_required" as const };
+      const quota = await sql<{ available: boolean }[]>`
+        SELECT EXISTS (SELECT 1 FROM tenancy.quota_accounts account
+          WHERE account.tenant_id = ${context.tenantId}::uuid
+            AND account.subscription_id = ${authority.subscriptionId}::uuid
+            AND account.product_key = 'ai_chat' AND account.customer_unit = 'ai_response'
+            AND account.period_start <= now() AND account.period_end > now()
+            AND (account.safety_cap_quantity IS NULL
+              OR account.reserved_quantity + account.settled_quantity < account.safety_cap_quantity)) AS available
+      `;
+      if (!quota[0]?.available) return { status: "quota_unavailable" as const };
+      await sql`UPDATE tenancy.ai_deployments SET traffic_status = 'live', live_at = now(),
+        live_by_membership_id = ${context.membershipId}::uuid
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${deploymentId}::uuid`;
+      await sql`INSERT INTO tenancy.audit_logs (tenant_id, actor_user_id, actor_membership_id, action, target_type,
+        target_id, request_id, result, metadata) VALUES (${context.tenantId}::uuid, ${context.userId}::uuid,
+        ${context.membershipId}::uuid, 'ai_chat.deployment.go_live', 'ai_deployment', ${deploymentId},
+        ${context.requestId}, 'succeeded', ${sql.json({
+          publishedVersionId: deployment.current_published_playbook_version_id,
+          allowedOrigins: deployment.allowed_origins,
+        })})`;
+      return { status: deployment.traffic_status === "live" ? "unchanged" as const : "updated" as const, trafficStatus: "live" as const };
+    });
   }
 
   async getTestContext(context: TenantContext, agentId: string) {

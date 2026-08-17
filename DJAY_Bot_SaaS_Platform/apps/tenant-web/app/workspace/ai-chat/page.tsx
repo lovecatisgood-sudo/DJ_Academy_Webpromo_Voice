@@ -17,7 +17,8 @@ type Agent = { id: string; name: string; status: string; defaultLanguage: "th" |
 type Capabilities = { planKey: "ai_chat_basic" | "ai_chat_premium"; accessMode: string; web: boolean; social: Record<string, boolean>; limits: { deployments: number | null; knowledgeDocuments: number | null } };
 type Draft = { revision: number; definition: Record<string, unknown>; knowledgeRevisionIds: string[]; updatedAt: string };
 type Knowledge = { id: string; revisionId: string; name: string; sourceKind: string; status: string; version: number };
-type Deployment = { id: string; name: string; channel: string; keyPrefix: string | null; allowedOrigins: string[]; status: string; createdAt: string };
+type Deployment = { id: string; name: string; channel: string; keyPrefix: string | null; allowedOrigins: string[]; status: string; trafficStatus: "inactive" | "live"; liveAt: string | null; createdAt: string };
+type InstallCheck = { id: string; deploymentId: string; targetOrigin: string; status: string; safeResultCode: string | null; createdAt: string };
 type PlaybookVersion = { id: string; version: number; sourceVersionId: string | null; publishedAt: string; knowledgeCount: number };
 type Notification = { id: string; name: string; allowedTemplateKeys: string[]; status: string };
 type Preview = { stage: string; text: string; proposedActionTypes: string[]; citationCount: number; handover: boolean };
@@ -46,6 +47,7 @@ export default function AiChatPage() {
   const [validationPath, setValidationPath] = useState(""); const [validationMessage, setValidationMessage] = useState("");
   const [knowledge, setKnowledge] = useState<Knowledge[]>([]);
   const [selectedKnowledge, setSelectedKnowledge] = useState<string[]>([]); const [deployments, setDeployments] = useState<Deployment[]>([]);
+  const [installChecks, setInstallChecks] = useState<InstallCheck[]>([]);
   const [versions, setVersions] = useState<PlaybookVersion[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]); const [newDeploymentKey, setNewDeploymentKey] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null); const [analytics, setAnalytics] = useState<Analytics | null>(null);
@@ -85,19 +87,21 @@ export default function AiChatPage() {
     } catch { setAnalytics(null); setAnalyticsLoadError(true); }
   }
   async function loadAgent(agentId: string) {
-    if (!agentId) { setDraft(null); setDefinition(null); setDeployments([]); setVersions([]); return; }
+    if (!agentId) { setDraft(null); setDefinition(null); setDeployments([]); setInstallChecks([]); setVersions([]); return; }
     try {
-      const [draftResponse, deploymentResponse, versionResponse] = await Promise.all([
+      const [draftResponse, deploymentResponse, versionResponse, installResponse] = await Promise.all([
         fetch(`/tenant/ai-chat/agents/${agentId}/draft`, { cache: "no-store" }),
         fetch(`/tenant/ai-chat/agents/${agentId}/deployments`, { cache: "no-store" }),
         fetch(`/tenant/ai-chat/agents/${agentId}/versions`, { cache: "no-store" }),
+        fetch("/tenant/ai-chat/install-checks", { cache: "no-store" }),
       ]);
-      if (!draftResponse.ok || !deploymentResponse.ok || !versionResponse.ok) throw new Error("ai_chat_detail_unavailable");
+      if (!draftResponse.ok || !deploymentResponse.ok || !versionResponse.ok || !installResponse.ok) throw new Error("ai_chat_detail_unavailable");
       const value = (await draftResponse.json()).draft as Draft; const parsed = aiPlaybookSchema.safeParse(value.definition); if (!parsed.success) throw new Error("invalid_ai_playbook");
       setDraft(value); setDefinition(parsed.data); setDefinitionText(JSON.stringify(parsed.data, null, 2)); setSelectedKnowledge(value.knowledgeRevisionIds);
       setAdvancedPending(false); setDraftDirty(false); setValidationPath(""); setValidationMessage("");
       setDeployments((await deploymentResponse.json()).deployments || []); setLoadError(false);
       setVersions((await versionResponse.json()).versions || []);
+      setInstallChecks((await installResponse.json()).checks || []);
     } catch { setLoadError(true); }
   }
   useEffect(() => { if (session.selectedTenantId) { void loadAgents(); void loadShared(); } }, [session.selectedTenantId]);
@@ -154,6 +158,37 @@ export default function AiChatPage() {
     if (!selectedAgentId) return; setWorking(true); setNewDeploymentKey("");
     const response = await safeMutationFetch(`/tenant/ai-chat/agents/${selectedAgentId}/deployments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }); const result = await response.json(); setWorking(false);
     if (!response.ok) { setMessage("Website deployment could not be created."); return; } setNewDeploymentKey(result.deploymentKey); setMessage("Deployment key created. It is shown once."); form.reset(); await loadAgent(selectedAgentId);
+  }
+  async function requestInstallCheck(deployment: Deployment) {
+    const targetOrigin = deployment.allowedOrigins[0]; if (!targetOrigin) return;
+    setWorking(true); setMessage("");
+    const response = await safeMutationFetch("/tenant/ai-chat/install-checks", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deploymentId: deployment.id, targetOrigin }),
+    });
+    setWorking(false);
+    setMessage(response.ok
+      ? uiCopy("เริ่มตรวจสอบแล้ว เปิดเว็บไซต์จริงที่ติดตั้งวิดเจ็ต จากนั้นกลับมาโหลดหน้านี้ใหม่", "Install check started. Open the real website containing the widget, then reload this page.")
+      : uiCopy("เริ่มตรวจสอบการติดตั้งไม่สำเร็จ", "Install check could not be started."));
+    if (response.ok) await loadAgent(selectedAgentId);
+  }
+  async function changeTraffic(deployment: Deployment, action: "go_live" | "stop") {
+    const confirmed = window.confirm(action === "go_live"
+      ? uiCopy("เปิดรับการสนทนาจริงหรือไม่? ระบบจะตรวจสอบสิทธิ์ เวอร์ชัน โควตา และการติดตั้งอีกครั้ง", "Go live? Access, version, quota, and installation will be revalidated.")
+      : uiCopy("หยุดรับการสนทนาใหม่หรือไม่?", "Stop new conversations?"));
+    if (!confirmed) return;
+    setWorking(true); setMessage("");
+    const response = await safeMutationFetch(`/tenant/ai-chat/deployments/${deployment.id}/traffic`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }),
+    });
+    const result = await response.json(); setWorking(false);
+    const failure = result.status === "verification_required" ? uiCopy("ต้องยืนยันการติดตั้งจากเว็บไซต์ที่อนุญาตก่อน", "Verify installation from an allowed website first.")
+      : result.status === "quota_unavailable" ? uiCopy("โควตาปัจจุบันไม่พร้อมใช้งาน", "Current quota is unavailable.")
+        : uiCopy("เปลี่ยนสถานะไม่สำเร็จ", "Traffic state could not be changed.");
+    setMessage(response.ok
+      ? action === "go_live" ? uiCopy("เปิดใช้งานจริงแล้ว", "Deployment is live.") : uiCopy("หยุดรับการสนทนาใหม่แล้ว", "New conversations are stopped.")
+      : failure);
+    if (response.ok) await loadAgent(selectedAgentId);
   }
   async function createNotification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); setWorking(true);
@@ -225,7 +260,7 @@ export default function AiChatPage() {
         <section className="tool-band muted-band"><div className="band-heading"><div><p>ช่องทางพื้นฐาน</p><h2>การติดตั้งบนเว็บไซต์</h2></div><span>{deployments.length}{capabilities?.limits.deployments ? ` / ${capabilities.limits.deployments}` : ""}</span></div>
           {canAuthor && selectedAgent.currentPublishedPlaybookVersionId ? <WebsiteDeploymentForm className="flowbot-deploy" onCreate={createDeployment} submitLabel="Create web deployment" working={working} /> : null}
           {newDeploymentKey ? <div className="deployment-secret"><strong>กุญแจติดตั้งที่แสดงครั้งเดียว</strong><code>{newDeploymentKey}</code><pre>{installSnippet}</pre></div> : null}
-          <div className="data-table">{deployments.map((item) => <div className="data-row" key={item.id}><div><strong data-no-localize>{item.name}</strong><span data-no-localize>{item.allowedOrigins.join(", ")}</span></div><span>{item.channel}</span><span>{item.status}</span></div>)}{!deployments.length ? <div className="pending-line"><strong>ยังไม่มีการติดตั้ง</strong><span>เผยแพร่ก่อนสร้างการติดตั้งบนเว็บ</span></div> : null}</div>
+          <div className="data-table">{deployments.map((item) => { const check = installChecks.find((candidate) => candidate.deploymentId === item.id); return <div className="data-row" key={item.id}><div><strong data-no-localize>{item.name}</strong><span data-no-localize>{item.allowedOrigins.join(", ")}</span></div><div><span>{uiCopy("ติดตั้ง", "Install")}: {check?.status || "not checked"}</span><span>{uiCopy("การใช้งานจริง", "Traffic")}: {item.trafficStatus}</span></div>{canAuthor ? <div className="setup-action-row"><button type="button" className="secondary-command" disabled={working} onClick={() => void requestInstallCheck(item)}>{uiCopy("ตรวจสอบการติดตั้ง", "Check install")}</button><button type="button" disabled={working || (item.trafficStatus !== "live" && check?.status !== "verified")} onClick={() => void changeTraffic(item, item.trafficStatus === "live" ? "stop" : "go_live")}>{item.trafficStatus === "live" ? uiCopy("หยุดรับข้อความ", "Stop traffic") : uiCopy("เปิดใช้งานจริง", "Go live")}</button></div> : <code>{item.keyPrefix}...</code>}</div>; })}{!deployments.length ? <div className="pending-line"><strong>ยังไม่มีการติดตั้ง</strong><span>เผยแพร่ก่อนสร้างการติดตั้งบนเว็บ</span></div> : null}</div>
         </section>
         <section className="tool-band"><div className="band-heading"><div><p>ประวัติที่แก้ไขไม่ได้</p><h2>เวอร์ชันคู่มือที่เผยแพร่แล้ว</h2></div><span>{versions.length}</span></div>
           <div className="data-table">{versions.map((version) => <div className="data-row" key={version.id}><div><strong>Version {version.version}</strong><span>{new Date(version.publishedAt).toLocaleString(currentIntlLocale())} · {version.knowledgeCount} knowledge pins</span></div><span>{version.sourceVersionId ? "Published from history" : "Published"}</span>{canAuthor ? <button type="button" className="secondary-command" disabled={working || version.id === selectedAgent.currentPublishedPlaybookVersionId} onClick={() => void rollback(version.id)}>{version.id === selectedAgent.currentPublishedPlaybookVersionId ? "Current" : "Publish again"}</button> : <span />}</div>)}

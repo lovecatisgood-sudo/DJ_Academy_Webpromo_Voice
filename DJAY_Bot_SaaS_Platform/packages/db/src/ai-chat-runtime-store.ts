@@ -19,6 +19,13 @@ export class AiChatRuntimeStore implements AiTurnRepository {
     return rows[0] ?? null;
   }
 
+  async reportInstall(deploymentKey: string, origin: string) {
+    const rows = await this.client<{ report_ai_chat_install: number }[]>`
+      SELECT tenancy.report_ai_chat_install(${hashOpaqueToken(deploymentKey)}, ${origin})
+    `;
+    return rows[0]?.report_ai_chat_install ?? 0;
+  }
+
   async start(input: Readonly<{ deploymentKey: string; origin: string; language: "th" | "en" }>) {
     const sessionToken = `djay_ai_session_${createOpaqueToken()}`;
     const deploymentKeyHash = hashOpaqueToken(input.deploymentKey);
