@@ -68,7 +68,9 @@ function auditSecurityHeaders(response, name, url) {
   for (const [key, value] of Object.entries(expected)) {
     if (headers[key] !== value) failures.push(`${name}: invalid ${key} header (${headers[key] || "missing"})`);
   }
-  const microphone = url.startsWith(tenantUrl) ? "microphone=(self)" : "microphone=()";
+  const microphone = url.startsWith(tenantUrl) || (url.startsWith(publicUrl) && path === "/build")
+    ? "microphone=(self)"
+    : "microphone=()";
   const permissions = headers["permissions-policy"] || "";
   for (const policy of ["camera=()", "geolocation=()", microphone, "payment=()", "usb=()"]) {
     if (!permissions.includes(policy)) failures.push(`${name}: Permissions-Policy is missing ${policy}`);

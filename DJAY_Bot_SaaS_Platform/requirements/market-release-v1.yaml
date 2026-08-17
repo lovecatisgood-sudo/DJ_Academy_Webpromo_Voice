@@ -2683,16 +2683,33 @@
         "AI-01",
         "AI-03"
       ],
-      "implementation_paths": [],
+      "implementation_paths": [
+        "apps/api/lib/container.ts",
+        "apps/ai-gateway/src/index.ts",
+        "apps/ai-gateway/src/server.ts",
+        "packages/provider-gateway/src/index.ts",
+        "scripts/check-ai-provider-boundary.mjs",
+        "scripts/qa-release-artifacts.mjs"
+      ],
       "migration_ids": [],
-      "api_contracts": [],
+      "api_contracts": [
+        "POST /v1/generate",
+        "POST /public/ai-chat/message"
+      ],
       "ui_routes": [],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "scripts/check-ai-provider-boundary.mjs",
+        "packages/provider-gateway/src/index.test.ts",
+        "apps/ai-gateway/src/server.test.ts",
+        "scripts/qa-release-artifacts.mjs"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/ai-text-restricted-provider-boundary-2026-08-17.md"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {

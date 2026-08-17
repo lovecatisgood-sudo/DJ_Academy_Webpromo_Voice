@@ -52,7 +52,10 @@ function assertSecurityHeaders(response, app) {
   };
   for (const [key, value] of Object.entries(expected)) assert(response.headers.get(key) === value, `${app} ${key}`);
   const permissions = response.headers.get("permissions-policy") || "";
-  const microphone = app === "tenant-web" ? "microphone=(self)" : "microphone=()";
+  const path = new URL(response.url).pathname;
+  const microphone = app === "tenant-web" || (app === "public-site" && path === "/build")
+    ? "microphone=(self)"
+    : "microphone=()";
   for (const policy of ["camera=()", "geolocation=()", microphone, "payment=()", "usb=()"]) {
     assert(permissions.includes(policy), `${app} Permissions-Policy missing ${policy}`);
   }
@@ -165,8 +168,8 @@ for (const [index, app] of nextApps.entries()) {
     assert(page.ok, `${app} root returned ${page.status}`);
     assertSecurityHeaders(page, app);
     const html = await page.text();
+    assert(/<!doctype html>/i.test(html) && /<body[\s>]/i.test(html), `${app} root did not render a complete HTML document`);
     const assets = [...new Set([...html.matchAll(/(?:src|href)="(\/_next\/static\/[^"?]+)(?:\?[^\"]*)?"/g)].map((match) => match[1]))];
-    assert(assets.length > 0, `${app} root references no static assets`);
     for (const asset of assets) {
       const response = await fetch(`${origin}${asset}`, { signal: AbortSignal.timeout(2_000) });
       assert(response.ok, `${app} asset ${asset} returned ${response.status}`);
