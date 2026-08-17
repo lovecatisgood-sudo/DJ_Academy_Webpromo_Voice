@@ -4,6 +4,8 @@ Status: implemented and locally verified slice; requirements remain `in_progress
 
 Acceptance effect: none; zero requirements are formally accepted and all six packages remain non-sellable
 
+Implementation commit: `0e0790177237ec0e5c20c6d643a87698fb521e86`
+
 ## Implemented
 
 - The anonymous Text/Voice Builder exposes editable English fallback, pending handover, contact, appointment-request, role-opening and outside-hours messages.
@@ -19,6 +21,7 @@ Acceptance effect: none; zero requirements are formally accepted and all six pac
 - AI Text runtime: 14 tests passed, including exact configured fallback behavior.
 - Builder translation and authenticated editor static contracts passed.
 - Full typecheck passed across 35 packages.
+- Repository-wide `pnpm verify`, `pnpm run test:release-gate` and `git diff --check` passed; Voice transport tests were run with loopback binding permitted after the restricted sandbox correctly denied local listening sockets.
 - `TEST_DB_PORT=55531 pnpm test:db` passed all 120 migrations and every wired PostgreSQL integration, RLS, recovery and guarded rollback suite.
 - Claim integration proved exact operational-message persistence for Text and Voice with one draft, zero versions and zero Voice deployments.
 - No browser or GUI was opened.
