@@ -24,7 +24,7 @@ type Bot = { id: string; name: string; status: string; defaultLanguage: "th" | "
 type Capabilities = { planKey: "flowbot_basic" | "flowbot_premium"; accessMode: string; advancedNodes: boolean; approvedWebhooks: boolean; teamRouting: boolean; brandingRemoval: boolean; limits: { activeBots: number | null; nodesPerBot: number | null; deployments: number | null } };
 type Draft = { revision: number; definition: Record<string, unknown>; updatedAt: string };
 type Version = { id: string; version: number; sourceVersionId: string | null; publishedAt: string };
-type Deployment = { id: string; name: string; keyPrefix: string; status: string; allowedOrigins: string[]; createdAt: string };
+type Deployment = { id: string; name: string; keyPrefix: string; status: string; trafficStatus: "inactive" | "live"; liveAt: string | null; allowedOrigins: string[]; createdAt: string };
 type Analytics = { periodDays: number; level: "core" | "advanced"; executions: number; completed: number; handovers: number; leads: number; messages: number; unansweredInputs: { executionId: string; conversationId: string; contactName: string; reason: string; inputText: string | null; occurredAt: string }[]; journeys: { path: string; executions: number; completed: number; handovers: number }[] };
 type InstallCheck = { id: string; deploymentId: string; targetOrigin: string; status: string; safeResultCode: string | null; createdAt: string };
 type TeamMember = { membership_id: string; display_name: string; membership_status: string };
@@ -256,6 +256,24 @@ export default function FlowBotPage() {
     setWorking(false); setMessage(response.ok ? "Install check requested. Reload the website containing the widget to verify it." : "Install check could not be requested.");
     if (response.ok) await loadOperations();
   }
+  async function changeTraffic(deployment: Deployment, action: "go_live" | "stop") {
+    const confirmed = window.confirm(action === "go_live"
+      ? uiCopy("เปิดรับการสนทนาจริงสำหรับการติดตั้งนี้หรือไม่? ระบบจะตรวจสอบสิทธิ์ เวอร์ชัน โควตา และการติดตั้งอีกครั้ง", "Go live with this deployment? Access, version, quota, and installation will be revalidated.")
+      : uiCopy("หยุดรับการสนทนาใหม่สำหรับการติดตั้งนี้หรือไม่?", "Stop new conversations for this deployment?"));
+    if (!confirmed) return;
+    setWorking(true); setMessage("");
+    const response = await safeMutationFetch(`/tenant/flowbot/deployments/${deployment.id}/traffic`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }),
+    });
+    const result = await response.json(); setWorking(false);
+    const failure = result.status === "verification_required" ? uiCopy("ต้องยืนยันการติดตั้งจากเว็บไซต์ที่อนุญาตก่อนเปิดใช้งาน", "Verify installation from an allowed website before going live.")
+      : result.status === "quota_unavailable" ? uiCopy("โควตาปัจจุบันไม่พร้อมใช้งาน", "Current quota is unavailable.")
+        : uiCopy("เปลี่ยนสถานะการใช้งานไม่สำเร็จ", "Traffic state could not be changed.");
+    setMessage(response.ok
+      ? action === "go_live" ? uiCopy("เปิดใช้งานจริงแล้ว", "Deployment is live.") : uiCopy("หยุดรับการสนทนาใหม่แล้ว", "New conversations are stopped.")
+      : failure);
+    if (response.ok) await loadBot(selectedBotId);
+  }
   async function saveSchedule(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
     const input = {
@@ -366,7 +384,7 @@ export default function FlowBotPage() {
           {installChecksLoadError ? <div className="inline-message inline-retry" role="alert"><span>โหลดสถานะตรวจสอบการติดตั้งไม่สำเร็จ แต่ข้อมูลการติดตั้งยังคงอยู่</span><button className="secondary-command" type="button" onClick={() => void loadOperations()}>ลองใหม่</button></div> : null}
           {canAuthor && selectedBot.currentPublishedVersionId ? <WebsiteDeploymentForm className="flowbot-deploy" onCreate={createDeployment} submitLabel="สร้างการติดตั้ง" working={working} /> : null}
           {newDeploymentKey ? <div className="deployment-secret"><strong>กุญแจติดตั้งที่แสดงครั้งเดียว</strong><code>{newDeploymentKey}</code><pre>{installSnippet}</pre></div> : null}
-          <div className="data-table">{deployments.map((item) => { const check = installChecks.find((candidate) => candidate.deploymentId === item.id); return <div className="data-row" key={item.id}><div><strong data-no-localize>{item.name}</strong><span data-no-localize>{item.allowedOrigins.join(", ")}</span></div><span>{check?.status || item.status}</span>{canAuthor ? <button type="button" className="secondary-command" disabled={working} onClick={() => void requestInstallCheck(item)}>ตรวจสอบการติดตั้ง</button> : <code>{item.keyPrefix}...</code>}</div>; })}{!deployments.length ? <div className="pending-line"><strong>ยังไม่มีการติดตั้ง</strong><span>เผยแพร่ก่อนสร้างการติดตั้งบนเว็บไซต์</span></div> : null}</div>
+          <div className="data-table">{deployments.map((item) => { const check = installChecks.find((candidate) => candidate.deploymentId === item.id); return <div className="data-row" key={item.id}><div><strong data-no-localize>{item.name}</strong><span data-no-localize>{item.allowedOrigins.join(", ")}</span></div><div><span>{uiCopy("ติดตั้ง", "Install")}: {check?.status || "not checked"}</span><span>{uiCopy("การใช้งานจริง", "Traffic")}: {item.trafficStatus}</span></div>{canAuthor ? <div className="setup-action-row"><button type="button" className="secondary-command" disabled={working} onClick={() => void requestInstallCheck(item)}>ตรวจสอบการติดตั้ง</button><button type="button" disabled={working || (item.trafficStatus !== "live" && check?.status !== "verified")} onClick={() => void changeTraffic(item, item.trafficStatus === "live" ? "stop" : "go_live")}>{item.trafficStatus === "live" ? uiCopy("หยุดรับข้อความ", "Stop traffic") : uiCopy("เปิดใช้งานจริง", "Go live")}</button></div> : <code>{item.keyPrefix}...</code>}</div>; })}{!deployments.length ? <div className="pending-line"><strong>ยังไม่มีการติดตั้ง</strong><span>เผยแพร่ก่อนสร้างการติดตั้งบนเว็บไซต์</span></div> : null}</div>
         </section>
         <div role="tabpanel" id="flowbot-panel-operations" aria-labelledby="flowbot-tab-operations" hidden={studioTab !== "operations"}>
         {capabilities?.advancedNodes && canAuthor ? <section className="tool-band"><div className="band-heading"><div><p>การดำเนินงานพรีเมียม</p><h2>ตารางเวลาและการส่งต่อ</h2></div><span>ทำงานตามกติกา</span></div>

@@ -1551,16 +1551,35 @@
         "CORE-02",
         "CORE-03"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "implementation_paths": [
+        "packages/db/src/flowbot-store.ts",
+        "apps/api/app/tenant/flowbot/deployments/[deploymentId]/traffic/route.ts",
+        "apps/tenant-web/app/workspace/flowbot/page.tsx",
+        "packages/shared/src/widget-install.ts"
+      ],
+      "migration_ids": [
+        "0116_flow_deployment_traffic_state"
+      ],
+      "api_contracts": [
+        "POST /tenant/flowbot/deployments/:deploymentId/traffic"
+      ],
+      "ui_routes": [
+        "/workspace/flowbot"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "test_ids": [
+        "packages/db/src/flowbot-store.integration.test.ts",
+        "packages/db/src/flowbot-runtime-store.integration.test.ts",
+        "packages/db/src/migration-invariants.test.ts"
+      ],
+      "runbooks": [
+        "docs/implementation/djay-bots-production-ready-master-plan.md"
+      ],
+      "evidence": [
+        "docs/validation/production-master-plan-pr05-flow-traffic-state-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {
@@ -6176,16 +6195,33 @@
       "supporting_work_packages": [
         "GA-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "implementation_paths": [
+        "packages/db/src/flowbot-store.ts",
+        "apps/api/app/tenant/flowbot/deployments/[deploymentId]/traffic/route.ts",
+        "apps/tenant-web/app/workspace/flowbot/page.tsx"
+      ],
+      "migration_ids": [
+        "0116_flow_deployment_traffic_state"
+      ],
+      "api_contracts": [
+        "POST /tenant/flowbot/deployments/:deploymentId/traffic"
+      ],
+      "ui_routes": [
+        "/workspace/flowbot"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "test_ids": [
+        "packages/db/src/flowbot-store.integration.test.ts",
+        "packages/db/src/flowbot-runtime-store.integration.test.ts"
+      ],
+      "runbooks": [
+        "docs/implementation/djay-bots-production-ready-master-plan.md"
+      ],
+      "evidence": [
+        "docs/validation/production-master-plan-pr05-flow-traffic-state-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {
@@ -7551,16 +7587,36 @@
         "AI-03",
         "VOICE-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "implementation_paths": [
+        "packages/db/src/flowbot-store.ts",
+        "apps/api/app/tenant/flowbot/install-checks/route.ts",
+        "apps/api/app/tenant/flowbot/deployments/[deploymentId]/traffic/route.ts",
+        "apps/tenant-web/app/workspace/flowbot/page.tsx",
+        "packages/shared/src/widget-install.ts"
+      ],
+      "migration_ids": [
+        "0116_flow_deployment_traffic_state"
+      ],
+      "api_contracts": [
+        "POST /tenant/flowbot/install-checks",
+        "POST /tenant/flowbot/deployments/:deploymentId/traffic"
+      ],
+      "ui_routes": [
+        "/workspace/flowbot"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "test_ids": [
+        "packages/db/src/flowbot-store.integration.test.ts",
+        "packages/db/src/flowbot-runtime-store.integration.test.ts"
+      ],
+      "runbooks": [
+        "docs/implementation/djay-bots-production-ready-master-plan.md"
+      ],
+      "evidence": [
+        "docs/validation/production-master-plan-pr05-flow-traffic-state-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {

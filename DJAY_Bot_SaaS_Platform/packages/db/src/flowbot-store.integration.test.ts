@@ -120,10 +120,40 @@ describe.runIf(enabled)("P4 FlowBot authoring repository", () => {
       expect(deployment.deploymentKey).toMatch(/^djay_flow_/);
       const stored = await adminClient!<{ raw_count: number }[]>`SELECT count(*)::int AS raw_count FROM tenancy.flow_deployments WHERE deployment_key_hash = digest(${deployment.deploymentKey}, 'sha256') AND deployment_key_hash::text NOT LIKE ${`%${deployment.deploymentKey}%`}`;
       expect(stored[0]?.raw_count).toBe(1);
+      expect(await store.listDeployments(contextA, basic.botId)).toMatchObject([
+        { id: deployment.deploymentId, trafficStatus: "inactive", liveAt: null },
+      ]);
+      await expect(store.changeDeploymentTraffic(contextA, deployment.deploymentId, "go_live"))
+        .resolves.toEqual({ status: "verification_required" });
+      await expect(store.changeDeploymentTraffic(contextB, deployment.deploymentId, "go_live"))
+        .resolves.toEqual({ status: "not_found" });
       await expect(store.requestInstallCheck(contextA, deployment.deploymentId, "https://merchant.example"))
         .resolves.toMatchObject({ status: "requested" });
       expect(await store.listInstallChecks(contextA, deployment.deploymentId)).toMatchObject([
         { deploymentId: deployment.deploymentId, targetOrigin: "https://merchant.example", status: "requested" },
+      ]);
+      await adminClient!`
+        UPDATE tenancy.flow_install_checks SET status = 'verified', safe_result_code = 'widget_verified', checked_at = now()
+        WHERE tenant_id = ${contextA.tenantId}::uuid AND deployment_id = ${deployment.deploymentId}::uuid
+      `;
+      await expect(store.changeDeploymentTraffic(contextA, deployment.deploymentId, "go_live"))
+        .resolves.toEqual({ status: "updated", trafficStatus: "live" });
+      expect(await store.listDeployments(contextA, basic.botId)).toMatchObject([
+        { id: deployment.deploymentId, trafficStatus: "live", liveAt: expect.any(Date) },
+      ]);
+      await expect(store.changeDeploymentTraffic(contextA, deployment.deploymentId, "stop"))
+        .resolves.toEqual({ status: "updated", trafficStatus: "inactive" });
+      await expect(store.changeDeploymentTraffic(contextA, deployment.deploymentId, "stop"))
+        .resolves.toEqual({ status: "unchanged", trafficStatus: "inactive" });
+      const trafficAudit = await adminClient!<{ action: string }[]>`
+        SELECT action FROM tenancy.audit_logs
+        WHERE tenant_id = ${contextA.tenantId}::uuid AND target_id = ${deployment.deploymentId}
+          AND action IN ('flowbot.deployment.go_live', 'flowbot.deployment.stop_traffic')
+        ORDER BY created_at
+      `;
+      expect(trafficAudit).toEqual([
+        { action: "flowbot.deployment.go_live" },
+        { action: "flowbot.deployment.stop_traffic" },
       ]);
     }
     await expect(store.createDeployment(contextA, basic.botId, { name: "Second website", allowedOrigins: ["https://second.example"] })).resolves.toEqual({ status: "limit_reached" });

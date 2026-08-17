@@ -248,6 +248,8 @@ Work:
 - Provide version rollback, deployment disable, global/product/provider kill switches and customer-safe degraded states.
 - Route the merchant to Dashboard after verification; keep Dashboard available while Configuration is incomplete.
 
+Flow traffic-state checkpoint, 2026-08-17: migration `0116_flow_deployment_traffic_state.sql`, the tenant Flow store, `POST /tenant/flowbot/deployments/:deploymentId/traffic` and Flow Studio now separate deployment creation, install verification and live traffic. New application deployments begin inactive. Go-live revalidates active Flow authority, a published bot version, resource write state, a verified allowed origin and current quota capacity, then writes an audit event; stop is explicit and audited. Runtime configuration and new sessions fail closed unless traffic is live, while install reporting remains available before launch. Existing deployment rows preserve their historical live behavior during migration. Text/Voice parity, immutable version-pinned artifacts and real-site browser/staging acceptance remain open, so PR-05 is not complete.
+
 Exit gate:
 
 - Publish, install, verify and go-live can fail independently without corrupting one another.

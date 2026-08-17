@@ -92,6 +92,7 @@ const purchaseIntentKindMigration = readFileSync(resolve(import.meta.dirname, ".
 const flowTrialActivationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0113_flow_starter_trial_activation.sql"), "utf8");
 const textTrialSetupMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0114_text_starter_trial_setup.sql"), "utf8");
 const trialLifecycleMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0115_trial_warning_and_terminal_states.sql"), "utf8");
+const flowDeploymentTrafficMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0116_flow_deployment_traffic_state.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -185,6 +186,15 @@ describe("Merchant experience migration invariants", () => {
     expect(trialLifecycleMigration).toContain("status = 'expired'");
     expect(trialLifecycleMigration).toContain("'merchantAction', 'view_paid_plans'");
     expect(trialLifecycleMigration).toContain("session_user <> 'djay_worker'");
+  });
+
+  it("keeps Flow installation verification separate from explicit live traffic authority", () => {
+    expect(flowDeploymentTrafficMigration).toContain("traffic_status text NOT NULL DEFAULT 'inactive'");
+    expect(flowDeploymentTrafficMigration).toContain("deployment.traffic_status = 'live'");
+    expect(flowDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.resolve_flowbot_deployment");
+    expect(flowDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.flowbot_runtime_resource_active");
+    expect(flowDeploymentTrafficMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.flowbot_runtime_config");
+    expect(flowDeploymentTrafficMigration).not.toContain("CREATE OR REPLACE FUNCTION tenancy.report_flowbot_install");
   });
 
   it("keeps appointment recovery independently reviewed, bounded, optimistic, and replay-safe", () => {

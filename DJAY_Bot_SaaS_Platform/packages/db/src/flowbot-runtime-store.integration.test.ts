@@ -60,7 +60,7 @@ describe.runIf(enabled)("P4 FlowBot restricted public runtime", () => {
     await adminClient!`INSERT INTO tenancy.flow_bots (id, tenant_id, name, status, default_language, created_by_membership_id) VALUES (${botId}::uuid, ${tenantId}::uuid, 'Public runtime bot', 'draft', 'en', ${membershipId}::uuid)`;
     await adminClient!`INSERT INTO tenancy.flow_versions (id, tenant_id, bot_id, version, status, snapshot_json, snapshot_sha256, published_by_membership_id) VALUES (${versionId}::uuid, ${tenantId}::uuid, ${botId}::uuid, 1, 'published', ${adminClient!.json(snapshot)}, ${createHash("sha256").update(JSON.stringify(snapshot)).digest()}, ${membershipId}::uuid)`;
     await adminClient!`UPDATE tenancy.flow_bots SET status = 'active', current_published_version_id = ${versionId}::uuid WHERE tenant_id = ${tenantId}::uuid AND id = ${botId}::uuid`;
-    await adminClient!`INSERT INTO tenancy.flow_deployments (id, tenant_id, bot_id, name, deployment_key_hash, key_prefix, allowed_origins, created_by_membership_id) VALUES (${deploymentId}::uuid, ${tenantId}::uuid, ${botId}::uuid, 'Merchant site', ${hashOpaqueToken(deploymentKey)}, ${deploymentKey.slice(0, 16)}, ARRAY['https://merchant.example'], ${membershipId}::uuid)`;
+    await adminClient!`INSERT INTO tenancy.flow_deployments (id, tenant_id, bot_id, name, deployment_key_hash, key_prefix, traffic_status, live_at, allowed_origins, created_by_membership_id) VALUES (${deploymentId}::uuid, ${tenantId}::uuid, ${botId}::uuid, 'Merchant site', ${hashOpaqueToken(deploymentKey)}, ${deploymentKey.slice(0, 16)}, 'live', now(), ARRAY['https://merchant.example'], ${membershipId}::uuid)`;
     const notificationKey = Buffer.alloc(32, 23);
     const notificationContext = createTenantContext({
       tenantId, userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1", membershipId,
@@ -257,7 +257,7 @@ describe.runIf(enabled)("P4 FlowBot restricted public runtime", () => {
     `;
     await adminClient!`INSERT INTO tenancy.flow_versions (id, tenant_id, bot_id, version, status, snapshot_json, snapshot_sha256, published_by_membership_id) VALUES (${versionId}::uuid, ${tenantId}::uuid, ${botId}::uuid, 1, 'published', ${adminClient!.json(snapshot)}, ${createHash("sha256").update(JSON.stringify(snapshot)).digest()}, ${membershipId}::uuid)`;
     await adminClient!`UPDATE tenancy.flow_bots SET status = 'active', current_published_version_id = ${versionId}::uuid WHERE tenant_id = ${tenantId}::uuid AND id = ${botId}::uuid`;
-    await adminClient!`INSERT INTO tenancy.flow_deployments (id, tenant_id, bot_id, name, deployment_key_hash, key_prefix, allowed_origins, created_by_membership_id) VALUES (${deploymentId}::uuid, ${tenantId}::uuid, ${botId}::uuid, 'Premium site', ${hashOpaqueToken(deploymentKey)}, ${deploymentKey.slice(0, 16)}, ARRAY['https://premium.example'], ${membershipId}::uuid)`;
+    await adminClient!`INSERT INTO tenancy.flow_deployments (id, tenant_id, bot_id, name, deployment_key_hash, key_prefix, traffic_status, live_at, allowed_origins, created_by_membership_id) VALUES (${deploymentId}::uuid, ${tenantId}::uuid, ${botId}::uuid, 'Premium site', ${hashOpaqueToken(deploymentKey)}, ${deploymentKey.slice(0, 16)}, 'live', now(), ARRAY['https://premium.example'], ${membershipId}::uuid)`;
 
     const runtime = new FlowbotRuntimeStore(runtimeClient!);
     const started = await runtime.start({ deploymentKey, origin: "https://premium.example", language: "en" });
@@ -321,7 +321,7 @@ describe.runIf(enabled)("P4 FlowBot restricted public runtime", () => {
     await adminClient!`INSERT INTO tenancy.flow_bots (id, tenant_id, name, status, default_language, created_by_membership_id) VALUES (${botId}::uuid, ${tenantId}::uuid, 'Premium webhook bot', 'draft', 'en', ${tenantContext.membershipId}::uuid)`;
     await adminClient!`INSERT INTO tenancy.flow_versions (id, tenant_id, bot_id, version, status, snapshot_json, snapshot_sha256, published_by_membership_id) VALUES (${versionId}::uuid, ${tenantId}::uuid, ${botId}::uuid, 1, 'published', ${adminClient!.json(snapshot)}, ${createHash("sha256").update(JSON.stringify(snapshot)).digest()}, ${tenantContext.membershipId}::uuid)`;
     await adminClient!`UPDATE tenancy.flow_bots SET status = 'active', current_published_version_id = ${versionId}::uuid WHERE tenant_id = ${tenantId}::uuid AND id = ${botId}::uuid`;
-    await adminClient!`INSERT INTO tenancy.flow_deployments (id, tenant_id, bot_id, name, deployment_key_hash, key_prefix, allowed_origins, created_by_membership_id) VALUES (${deploymentId}::uuid, ${tenantId}::uuid, ${botId}::uuid, 'Webhook site', ${hashOpaqueToken(deploymentKey)}, ${deploymentKey.slice(0, 16)}, ARRAY['https://webhook.example'], ${tenantContext.membershipId}::uuid)`;
+    await adminClient!`INSERT INTO tenancy.flow_deployments (id, tenant_id, bot_id, name, deployment_key_hash, key_prefix, traffic_status, live_at, allowed_origins, created_by_membership_id) VALUES (${deploymentId}::uuid, ${tenantId}::uuid, ${botId}::uuid, 'Webhook site', ${hashOpaqueToken(deploymentKey)}, ${deploymentKey.slice(0, 16)}, 'live', now(), ARRAY['https://webhook.example'], ${tenantContext.membershipId}::uuid)`;
 
     const runtime = new FlowbotRuntimeStore(runtimeClient!, envelopeKey);
     const started = await runtime.start({ deploymentKey, origin: "https://webhook.example", language: "en" });

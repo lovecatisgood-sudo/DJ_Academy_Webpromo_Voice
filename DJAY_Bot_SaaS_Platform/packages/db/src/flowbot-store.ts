@@ -377,16 +377,93 @@ export class FlowBotStore {
         return { status: "limit_reached" as const };
       }
       const rawKey = `djay_flow_${createOpaqueToken()}`; const deploymentId = randomUUID();
-      await sql`INSERT INTO tenancy.flow_deployments (id, tenant_id, bot_id, name, deployment_key_hash, key_prefix, allowed_origins, created_by_membership_id) VALUES (${deploymentId}::uuid, ${context.tenantId}::uuid, ${botId}::uuid, ${input.name}, ${hashOpaqueToken(rawKey)}, ${rawKey.slice(0, 16)}, ${origins as string[]}, ${context.membershipId}::uuid)`;
+      await sql`INSERT INTO tenancy.flow_deployments (id, tenant_id, bot_id, name, deployment_key_hash, key_prefix, status, traffic_status, live_at, allowed_origins, created_by_membership_id) VALUES (${deploymentId}::uuid, ${context.tenantId}::uuid, ${botId}::uuid, ${input.name}, ${hashOpaqueToken(rawKey)}, ${rawKey.slice(0, 16)}, 'active', 'inactive', NULL, ${origins as string[]}, ${context.membershipId}::uuid)`;
       return { status: "created" as const, deploymentId, deploymentKey: rawKey };
     });
   }
 
   async listDeployments(context: TenantContext, botId: string) {
-    return withTenantTransaction(this.client, context, async ({ sql }) => sql<{ id: string; name: string; keyPrefix: string; status: string; allowedOrigins: string[]; createdAt: Date }[]>`
-      SELECT id, name, key_prefix AS "keyPrefix", status, allowed_origins AS "allowedOrigins", created_at AS "createdAt"
+    return withTenantTransaction(this.client, context, async ({ sql }) => sql<{ id: string; name: string; keyPrefix: string; status: string; trafficStatus: "inactive" | "live"; liveAt: Date | null; allowedOrigins: string[]; createdAt: Date }[]>`
+      SELECT id, name, key_prefix AS "keyPrefix", status, traffic_status AS "trafficStatus",
+             live_at AS "liveAt", allowed_origins AS "allowedOrigins", created_at AS "createdAt"
       FROM tenancy.flow_deployments WHERE tenant_id = ${context.tenantId}::uuid AND bot_id = ${botId}::uuid ORDER BY created_at DESC
     `);
+  }
+
+  async changeDeploymentTraffic(context: TenantContext, deploymentId: string, action: "go_live" | "stop") {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const deployments = await sql<{
+        bot_id: string; status: string; traffic_status: "inactive" | "live";
+        allowed_origins: string[]; current_published_version_id: string | null; bot_status: string;
+      }[]>`
+        SELECT deployment.bot_id, deployment.status, deployment.traffic_status,
+               deployment.allowed_origins, bot.current_published_version_id, bot.status AS bot_status
+        FROM tenancy.flow_deployments deployment
+        JOIN tenancy.flow_bots bot ON bot.tenant_id = deployment.tenant_id AND bot.id = deployment.bot_id
+        WHERE deployment.tenant_id = ${context.tenantId}::uuid AND deployment.id = ${deploymentId}::uuid
+        FOR UPDATE OF deployment, bot
+      `;
+      const deployment = deployments[0];
+      if (!deployment) return { status: "not_found" as const };
+
+      if (action === "stop") {
+        if (deployment.traffic_status === "inactive") return { status: "unchanged" as const, trafficStatus: "inactive" as const };
+        await sql`
+          UPDATE tenancy.flow_deployments SET traffic_status = 'inactive'
+          WHERE tenant_id = ${context.tenantId}::uuid AND id = ${deploymentId}::uuid
+        `;
+        await sql`
+          INSERT INTO tenancy.audit_logs (tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id, request_id, result, metadata)
+          VALUES (${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+            'flowbot.deployment.stop_traffic', 'flow_deployment', ${deploymentId}, ${context.requestId}, 'succeeded', '{}'::jsonb)
+        `;
+        return { status: "updated" as const, trafficStatus: "inactive" as const };
+      }
+
+      const authority = await this.authority(sql, context.tenantId);
+      if (!authority || authority.accessMode !== "active" || authority.entitlements["ai.enabled"] !== false) {
+        return { status: "not_entitled" as const };
+      }
+      if (deployment.status !== "active") return { status: "deployment_unavailable" as const };
+      if (deployment.bot_status !== "active" || !deployment.current_published_version_id) {
+        return { status: "not_published" as const };
+      }
+      if (!(await flowResourceWritable(sql, deployment.bot_id))) return { status: "resource_read_only" as const };
+      const verified = await sql<{ verified: boolean }[]>`
+        SELECT EXISTS (
+          SELECT 1 FROM tenancy.flow_install_checks install_check
+          WHERE install_check.tenant_id = ${context.tenantId}::uuid
+            AND install_check.deployment_id = ${deploymentId}::uuid
+            AND install_check.status = 'verified'
+            AND install_check.target_origin = ANY(${deployment.allowed_origins}::text[])
+        ) AS verified
+      `;
+      if (!verified[0]?.verified) return { status: "verification_required" as const };
+      const quota = await sql<{ available: boolean }[]>`
+        SELECT EXISTS (
+          SELECT 1 FROM tenancy.quota_accounts account
+          WHERE account.tenant_id = ${context.tenantId}::uuid
+            AND account.subscription_id = ${authority.subscriptionId}::uuid
+            AND account.product_key = 'flowbot' AND account.customer_unit = 'flow_execution'
+            AND account.period_start <= now() AND account.period_end > now()
+            AND (account.safety_cap_quantity IS NULL
+              OR account.reserved_quantity + account.settled_quantity < account.safety_cap_quantity)
+        ) AS available
+      `;
+      if (!quota[0]?.available) return { status: "quota_unavailable" as const };
+      await sql`
+        UPDATE tenancy.flow_deployments
+        SET traffic_status = 'live', live_at = now(), live_by_membership_id = ${context.membershipId}::uuid
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${deploymentId}::uuid
+      `;
+      await sql`
+        INSERT INTO tenancy.audit_logs (tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id, request_id, result, metadata)
+        VALUES (${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+          'flowbot.deployment.go_live', 'flow_deployment', ${deploymentId}, ${context.requestId}, 'succeeded',
+          ${sql.json({ publishedVersionId: deployment.current_published_version_id, allowedOrigins: deployment.allowed_origins })})
+      `;
+      return { status: deployment.traffic_status === "live" ? "unchanged" as const : "updated" as const, trafficStatus: "live" as const };
+    });
   }
 
   async requestInstallCheck(context: TenantContext, deploymentId: string, targetOrigin: string) {
