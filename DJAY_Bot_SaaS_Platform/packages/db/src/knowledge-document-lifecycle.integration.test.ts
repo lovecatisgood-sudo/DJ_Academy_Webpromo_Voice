@@ -54,6 +54,24 @@ describe.runIf(enabled)("document knowledge lifecycle", () => {
       if (created.status === "created") collectionId = created.collectionId;
     }
     if (!collectionId) throw new Error("Expected an entitled knowledge collection.");
+    await expect(tenantClient!.begin(async (sql) => {
+      await sql`
+        SELECT
+          set_config('app.tenant_id', ${context.tenantId}, true),
+          set_config('app.user_id', ${context.userId}, true),
+          set_config('app.membership_id', ${context.membershipId}, true),
+          set_config('app.session_id', ${context.sessionId}, true),
+          set_config('app.request_id', 'knowledge-direct-limit-bypass', true)
+      `;
+      await sql`
+        INSERT INTO tenancy.knowledge_collections (
+          id, tenant_id, name, description, created_by_membership_id
+        ) VALUES (
+          ${randomUUID()}::uuid, ${context.tenantId}::uuid, 'Direct bypass',
+          'Must be rejected by database authority', ${context.membershipId}::uuid
+        )
+      `;
+    })).rejects.toThrow(/knowledge_collection_limit_reached/);
 
     const readyUpload = await ingestion.initiateUpload(context, {
       collectionId, name: "Attributed guide", filename: "guide.txt", mediaType: "text/plain", size: 24,

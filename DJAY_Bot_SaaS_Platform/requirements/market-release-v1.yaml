@@ -3591,16 +3591,47 @@
         "AI-01",
         "AI-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
-      "entitlement_keys": [],
+      "implementation_paths": [
+        "packages/db/src/knowledge-ingestion-store.ts",
+        "apps/workers/src/knowledge-ingestion.ts",
+        "apps/api/app/tenant/knowledge/route.ts",
+        "apps/api/app/tenant/knowledge/uploads/route.ts",
+        "apps/tenant-web/app/workspace/knowledge/page.tsx",
+        "apps/tenant-web/app/workspace/knowledge/StructuredCataloguePanel.tsx"
+      ],
+      "migration_ids": [
+        "0071_ai_knowledge_ingestion.sql",
+        "0125_structured_knowledge_catalogue_lifecycle.sql",
+        "0128_active_published_knowledge_retrieval.sql",
+        "0132_knowledge_collection_admission.sql"
+      ],
+      "api_contracts": [
+        "GET|POST /tenant/knowledge",
+        "GET|POST /tenant/knowledge/collections",
+        "POST /tenant/knowledge/crawls",
+        "POST /tenant/knowledge/uploads",
+        "GET|POST /tenant/knowledge/catalog"
+      ],
+      "ui_routes": [
+        "/workspace/knowledge"
+      ],
+      "entitlement_keys": [
+        "knowledge.enabled",
+        "knowledge_collections"
+      ],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "packages/db/src/knowledge-document-lifecycle.integration.test.ts",
+        "packages/db/src/knowledge-crawl-authority.integration.test.ts",
+        "packages/db/src/knowledge-catalogue-lifecycle.integration.test.ts",
+        "apps/workers/src/knowledge-ingestion.test.ts",
+        "packages/db/src/migration-invariants.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/ai-text-business-knowledge-base-2026-08-17.md"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {

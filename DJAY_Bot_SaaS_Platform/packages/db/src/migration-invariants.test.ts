@@ -108,6 +108,7 @@ const activePublishedKnowledgeMigration = readFileSync(resolve(import.meta.dirna
 const knowledgeRefreshReviewMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0129_plan_bound_knowledge_refresh_reviews.sql"), "utf8");
 const knowledgeSourceCleanupMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0130_knowledge_source_cleanup.sql"), "utf8");
 const aiTextStarterAdmissionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0131_ai_text_starter_admission.sql"), "utf8");
+const knowledgeCollectionAdmissionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0132_knowledge_collection_admission.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -180,6 +181,16 @@ describe("Merchant experience migration invariants", () => {
     expect(aiTextStarterAdmissionMigration).toContain("pg_advisory_xact_lock");
     expect(aiTextStarterAdmissionMigration).toContain("ai_text_active_bot_limit_reached");
     expect(aiTextStarterAdmissionMigration).toContain("BEFORE INSERT OR UPDATE OF tenant_id, product_family, status");
+  });
+
+  it("enforces the active knowledge collection limit at the database boundary", () => {
+    expect(knowledgeCollectionAdmissionMigration).toContain("session_user <> 'djay_runtime'");
+    expect(knowledgeCollectionAdmissionMigration).toContain("subscription.product_key IN ('ai_chat', 'voice')");
+    expect(knowledgeCollectionAdmissionMigration).toContain("knowledge.enabled");
+    expect(knowledgeCollectionAdmissionMigration).toContain("knowledge_collections') <> 'number'");
+    expect(knowledgeCollectionAdmissionMigration).toContain("pg_advisory_xact_lock");
+    expect(knowledgeCollectionAdmissionMigration).toContain("knowledge_collection_limit_reached");
+    expect(knowledgeCollectionAdmissionMigration).toContain("BEFORE INSERT OR UPDATE OF tenant_id, status");
   });
 
   it("keeps anonymous Builder drafts versioned, expiring, pre-tenant, and unavailable to tenant runtime", () => {
