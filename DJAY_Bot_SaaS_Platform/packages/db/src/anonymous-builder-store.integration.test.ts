@@ -179,4 +179,101 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
     expect(repeatedCompletion[0]).toEqual(firstCompletion[0]);
     expect(repeatedCompletion[0]).toMatchObject({ audits: 1, first_product: "ai_chat" });
   });
+
+  it("materializes a claimed Flow graph as one non-live tenant draft during one-time onboarding", async () => {
+    const store = new AnonymousBuilderStore(authClient!);
+    const now = new Date();
+    const sessionId = randomUUID();
+    const tenantId = randomUUID();
+    const membershipId = randomUUID();
+    const userId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+    await adminClient!.begin(async (sql) => {
+      await sql`
+        INSERT INTO tenancy.tenants (id, slug, business_name, status, locale, timezone)
+        VALUES (${tenantId}::uuid, ${`flow-materialization-${tenantId.slice(0, 8)}`},
+          'Flow Materialization Test', 'active', 'en', 'Asia/Bangkok')
+      `;
+      await sql`
+        INSERT INTO tenancy.memberships (id, tenant_id, user_id, role, status, accepted_at)
+        VALUES (${membershipId}::uuid, ${tenantId}::uuid, ${userId}::uuid,
+          'tenant_master_admin', 'active', ${now})
+      `;
+      await sql`
+        INSERT INTO tenancy.tenant_onboarding (tenant_id, stage)
+        VALUES (${tenantId}::uuid, 'account_created')
+      `;
+    });
+    const draft = await store.ensureDraft({
+      sessionId, issuedAt: now, expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60_000), now,
+    });
+    const flowDraft = {
+      identity: { botName: "Preserved Builder Flow", languageMode: "customer-choice" },
+      entryId: "welcome",
+      nodes: [
+        { id: "welcome", type: "options", title: "Welcome", en: "How can we help?", th: "ให้เราช่วยเรื่องใด?", x: 20, y: 40,
+          keywords: ["hello"], next: null, fields: [], options: [
+            { en: "Talk to staff", th: "คุยกับทีมงาน", target: "handover" },
+          ] },
+        { id: "handover", type: "handover", title: "Human handover", en: "Our team will continue.", th: "ทีมงานจะดูแลต่อ", x: 300, y: 40,
+          keywords: ["human"], next: null, fields: [], options: [] },
+      ],
+    };
+    await expect(store.updateDraft({
+      sessionId, revision: draft!.revision, schemaVersion: 1, productFamily: "flow", planKey: "flowbot_basic",
+      state: {
+        schemaVersion: 1, locale: "en", family: "flow",
+        access: { product: "flow", plan: "flowbot_basic", intent: "subscribe" },
+        configuration: { flowDraft, flowUi: { configured: true, version: 1 } },
+      },
+      now: new Date(now.getTime() + 1_000),
+    })).resolves.toMatchObject({ status: "updated", draft: { revision: 2 } });
+    const tokenHash = createHash("sha256").update(`flow-materialization:${sessionId}`).digest();
+    await expect(store.issueClaimContinuation({
+      sessionId, tokenHash, now: new Date(now.getTime() + 2_000), expiresAt: new Date(now.getTime() + 15 * 60_000),
+    })).resolves.toEqual({ status: "issued", draftRevision: 2 });
+    const command = {
+      tenantId,
+      userId,
+      membershipId,
+      requestId: `flow-materialization-${sessionId}`,
+      now: new Date(now.getTime() + 3_000),
+    };
+    await expect(store.claimExistingAccountDraft({ ...command, tokenHash }))
+      .resolves.toEqual({ status: "claimed", planKey: "flowbot_basic" });
+
+    const workspace = new TenantWorkspaceStore(tenantClient!);
+    const tenantContext = createTenantContext({
+      tenantId: command.tenantId, userId: command.userId, membershipId: command.membershipId,
+      requestId: command.requestId, sessionId: randomUUID(), role: "tenant_master_admin",
+    });
+    await expect(workspace.completeMerchantOnboarding(tenantContext, {
+      version: 1, acceptedGuidelines: true, businessGoal: "capture_leads", industry: "services",
+    })).resolves.toMatchObject({ status: "completed", onboarding: { accountOnboarding: { claimedProduct: "flowbot" } } });
+    await expect(workspace.completeMerchantOnboarding(tenantContext, {
+      version: 1, acceptedGuidelines: true, businessGoal: "capture_leads", industry: "services",
+    })).resolves.toMatchObject({ status: "already_completed" });
+
+    const evidence = await adminClient!<{
+      bots: number; drafts: number; published_versions: number; materialized_bot_id: string | null;
+      bot_name: string; node_types: string[]; audits: number;
+    }[]>`
+      SELECT
+        (SELECT count(*)::int FROM tenancy.flow_bots bot WHERE bot.tenant_id = ${command.tenantId}::uuid) AS bots,
+        (SELECT count(*)::int FROM tenancy.flow_drafts target WHERE target.tenant_id = ${command.tenantId}::uuid) AS drafts,
+        (SELECT count(*)::int FROM tenancy.flow_versions version WHERE version.tenant_id = ${command.tenantId}::uuid) AS published_versions,
+        claim.materialized_flow_bot_id AS materialized_bot_id,
+        (SELECT name FROM tenancy.flow_bots bot WHERE bot.id = claim.materialized_flow_bot_id) AS bot_name,
+        (SELECT array_agg(node.value->>'type' ORDER BY node.value->>'type')
+          FROM tenancy.flow_drafts target, LATERAL jsonb_each(target.definition_json->'nodes') node
+          WHERE target.bot_id = claim.materialized_flow_bot_id) AS node_types,
+        (SELECT count(*)::int FROM tenancy.audit_logs audit
+          WHERE audit.tenant_id = claim.tenant_id AND audit.action = 'tenant.builder_flow_materialized') AS audits
+      FROM tenancy.builder_draft_claims claim WHERE claim.source_session_id = ${sessionId}::uuid
+    `;
+    expect(evidence[0]).toMatchObject({
+      bots: 1, drafts: 1, published_versions: 0, bot_name: "Preserved Builder Flow",
+      node_types: ["handover", "options"], audits: 1,
+    });
+    expect(evidence[0]?.materialized_bot_id).toMatch(/^[0-9a-f-]{36}$/);
+  });
 });

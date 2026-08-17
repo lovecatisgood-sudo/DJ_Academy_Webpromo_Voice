@@ -22,6 +22,7 @@
     "@djay/entitlements": "workspace:*",
     "@djay/flowbot-domain": "workspace:*",
     "@djay/flowbot-engine": "workspace:*",
+    "@djay/flowbot-migration": "workspace:*",
     "@djay/notifications": "workspace:*",
     "@djay/platform-auth": "workspace:*",
     "@djay/sales-core": "workspace:*",

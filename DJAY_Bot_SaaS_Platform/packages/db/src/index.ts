@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0115_trial_warning_and_terminal_states";
+export const currentSchemaVersion = "0122_builder_flow_materialization";
 
 export { PostgresAuthStore } from "./auth-store";
 export { AccountingReconciliationWorkerStore, AccountingSyncWorkerStore, BillingWebhookRecoveryWorkerStore, BillingWebhookStore, FinancialEventReconciliationWorkerStore, FinancialReconciliationWorkerStore, SubscriptionLifecycleWorkerStore } from "./billing-webhook-store";

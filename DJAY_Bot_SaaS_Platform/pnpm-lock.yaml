@@ -582,6 +582,9 @@ importers:
       '@djay/flowbot-engine':
         specifier: workspace:*
         version: link:../flowbot-engine
+      '@djay/flowbot-migration':
+        specifier: workspace:*
+        version: link:../flowbot-migration
       '@djay/notifications':
         specifier: workspace:*
         version: link:../notifications

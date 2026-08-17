@@ -7055,16 +7055,27 @@
       "supporting_work_packages": [
         "CORE-03"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
+      "implementation_paths": [
+        "packages/flowbot-migration/src/index.ts",
+        "packages/db/src/tenant-workspace-store.ts"
+      ],
+      "migration_ids": [
+        "0122_builder_flow_materialization"
+      ],
       "api_contracts": [],
       "ui_routes": [],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "packages/flowbot-migration/src/index.test.ts",
+        "packages/db/src/anonymous-builder-store.integration.test.ts",
+        "packages/db/src/migration-invariants.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/production-master-plan-pr06-builder-flow-materialization-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {

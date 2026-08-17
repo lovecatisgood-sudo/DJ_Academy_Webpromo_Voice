@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { convertClaimedBuilderFlow } from "@djay/flowbot-migration";
 import type { TenantContext, TenantRole } from "@djay/tenancy";
 import type { DatabaseClient, DatabaseTransaction } from "./client";
 import { withTenantTransaction } from "./scoped-transaction";
@@ -86,6 +88,70 @@ function productTitle(productKey: OnboardingProductKey): string {
   return productKey === "ai_chat" ? "AI Text Bot"
     : productKey === "voice" ? "AI Voice Bot"
       : "Flow Bot";
+}
+
+type LatestBuilderClaim = Readonly<{
+  id: string;
+  productFamily: "flow" | "text" | "voice";
+  sourceRevision: number;
+  state: unknown;
+  materializedFlowBotId: string | null;
+}>;
+
+async function materializeClaimedFlow(
+  sql: DatabaseTransaction,
+  context: TenantContext,
+  claim: LatestBuilderClaim,
+) {
+  if (claim.productFamily !== "flow" || claim.materializedFlowBotId) return;
+  const existing = await sql<{ id: string }[]>`
+    SELECT id FROM tenancy.flow_bots
+    WHERE tenant_id = ${context.tenantId}::uuid AND status <> 'archived'
+    ORDER BY created_at, id LIMIT 1
+  `;
+  if (existing[0]) return;
+
+  const draftVersionId = randomUUID();
+  const converted = convertClaimedBuilderFlow(claim.state, draftVersionId);
+  if (converted.status !== "converted") {
+    await sql`INSERT INTO tenancy.audit_logs (
+      tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id,
+      request_id, result, metadata
+    ) VALUES (
+      ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+      'tenant.builder_flow_materialization', 'builder_draft_claim', ${claim.id},
+      ${context.requestId}, 'failed', ${sql.json({ reasonCode: converted.reasonCode, sourceRevision: claim.sourceRevision })}
+    )`;
+    return;
+  }
+
+  const botId = randomUUID();
+  await sql`
+    INSERT INTO tenancy.flow_bots (id, tenant_id, name, default_language, created_by_membership_id)
+    VALUES (${botId}::uuid, ${context.tenantId}::uuid, ${converted.botName},
+      ${converted.defaultLanguage}, ${context.membershipId}::uuid)
+  `;
+  await sql`
+    INSERT INTO tenancy.flow_drafts (tenant_id, bot_id, definition_json, updated_by_membership_id)
+    VALUES (${context.tenantId}::uuid, ${botId}::uuid, ${sql.json(converted.snapshot)}, ${context.membershipId}::uuid)
+  `;
+  await sql`
+    UPDATE tenancy.builder_draft_claims
+    SET materialized_flow_bot_id = ${botId}::uuid, materialized_at = now()
+    WHERE tenant_id = ${context.tenantId}::uuid AND id = ${claim.id}::uuid
+      AND materialized_flow_bot_id IS NULL
+  `;
+  await sql`INSERT INTO tenancy.audit_logs (
+    tenant_id, actor_user_id, actor_membership_id, action, target_type, target_id,
+    request_id, result, metadata
+  ) VALUES (
+    ${context.tenantId}::uuid, ${context.userId}::uuid, ${context.membershipId}::uuid,
+    'tenant.builder_flow_materialized', 'flow_bot', ${botId}, ${context.requestId},
+    'succeeded', ${sql.json({
+      sourceClaimId: claim.id, sourceRevision: claim.sourceRevision,
+      warnings: converted.warnings, publicationState: "draft",
+    })}
+  )`;
 }
 
 export function buildOnboardingChecklist(input: Readonly<{
@@ -437,33 +503,38 @@ export class TenantWorkspaceStore {
         return { status: "version_mismatch" as const };
       }
       const rows = await sql<{
-        version: number; completedAt: Date | null; claimedProduct: OnboardingProductKey | null;
+        version: number; completedAt: Date | null;
       }[]>`
         SELECT onboarding.merchant_onboarding_version AS version,
-          onboarding.preferences_completed_at AS "completedAt",
-          CASE claim.product_family
-            WHEN 'flow' THEN 'flowbot' WHEN 'text' THEN 'ai_chat' WHEN 'voice' THEN 'voice'
-          END::text AS "claimedProduct"
+          onboarding.preferences_completed_at AS "completedAt"
         FROM tenancy.tenant_onboarding onboarding
-        LEFT JOIN LATERAL (
-          SELECT product_family FROM tenancy.builder_draft_claims candidate
-          WHERE candidate.tenant_id = onboarding.tenant_id
-          ORDER BY candidate.claimed_at DESC, candidate.id DESC LIMIT 1
-        ) claim ON true
         WHERE onboarding.tenant_id = ${context.tenantId}::uuid
         FOR UPDATE OF onboarding
       `;
       const existing = rows[0];
       if (!existing) return { status: "not_found" as const };
+      const claims = await sql<LatestBuilderClaim[]>`
+        SELECT id, product_family AS "productFamily", source_revision AS "sourceRevision",
+          state_json AS state, materialized_flow_bot_id AS "materializedFlowBotId"
+        FROM tenancy.builder_draft_claims
+        WHERE tenant_id = ${context.tenantId}::uuid
+        ORDER BY claimed_at DESC, id DESC LIMIT 1
+        FOR UPDATE
+      `;
+      const claim = claims[0];
+      const claimedProduct: OnboardingProductKey | null = claim?.productFamily === "flow" ? "flowbot"
+        : claim?.productFamily === "text" ? "ai_chat"
+          : claim?.productFamily === "voice" ? "voice" : null;
+      if (claim) await materializeClaimedFlow(sql, context, claim);
       if (existing.version >= currentMerchantOnboardingVersion && existing.completedAt) {
         const onboarding = await onboardingRecord(sql, context.tenantId);
         return { status: "already_completed" as const, onboarding };
       }
-      if (!existing.claimedProduct) return { status: "claim_required" as const };
+      if (!claimedProduct) return { status: "claim_required" as const };
       await sql`
         UPDATE tenancy.tenant_onboarding SET
           business_goal = ${input.businessGoal}, industry = ${input.industry},
-          first_product = ${existing.claimedProduct}, launch_channel = 'website',
+          first_product = ${claimedProduct}, launch_channel = 'website',
           preferences_completed_at = COALESCE(preferences_completed_at, now()),
           merchant_onboarding_version = ${currentMerchantOnboardingVersion},
           guidelines_version = ${currentMerchantGuidelinesVersion},
@@ -482,7 +553,7 @@ export class TenantWorkspaceStore {
           guidelinesVersion: currentMerchantGuidelinesVersion,
           businessGoal: input.businessGoal,
           industry: input.industry,
-          firstProduct: existing.claimedProduct,
+          firstProduct: claimedProduct,
         })}
       )`;
       const onboarding = await onboardingRecord(sql, context.tenantId);

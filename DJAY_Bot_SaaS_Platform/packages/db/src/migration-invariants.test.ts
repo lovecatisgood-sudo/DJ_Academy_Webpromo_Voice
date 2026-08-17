@@ -98,6 +98,7 @@ const voiceDeploymentTrafficMigration = readFileSync(resolve(import.meta.dirname
 const flowDeploymentLiveVersionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0119_flow_deployment_live_version.sql"), "utf8");
 const aiTextDeploymentLiveVersionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0120_ai_text_deployment_live_version.sql"), "utf8");
 const voiceDeploymentLiveVersionMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0121_voice_deployment_live_version.sql"), "utf8");
+const builderFlowMaterializationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0122_builder_flow_materialization.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -145,6 +146,14 @@ describe("Merchant experience migration invariants", () => {
     expect(existingAccountBuilderClaimMigration).toContain("status IN ('issued', 'consumed', 'superseded')");
     expect(existingAccountBuilderClaimMigration).toContain("builder_claim_continuations_one_active_session_uidx");
     expect(existingAccountBuilderClaimMigration).toContain("FORCE ROW LEVEL SECURITY");
+  });
+
+  it("binds a claimed Flow draft to at most one tenant Flow Bot", () => {
+    expect(builderFlowMaterializationMigration).toContain("ADD COLUMN materialized_flow_bot_id uuid");
+    expect(builderFlowMaterializationMigration).toContain("builder_draft_claims_materialized_flow_bot_fk");
+    expect(builderFlowMaterializationMigration).toContain("builder_draft_claims_materialized_flow_bot_uidx");
+    expect(builderFlowMaterializationMigration).toContain("product_family = 'flow'");
+    expect(builderFlowMaterializationMigration).toContain("GRANT UPDATE (materialized_flow_bot_id, materialized_at)");
   });
 
   it("stores versioned merchant guideline acceptance with server onboarding completion", () => {
