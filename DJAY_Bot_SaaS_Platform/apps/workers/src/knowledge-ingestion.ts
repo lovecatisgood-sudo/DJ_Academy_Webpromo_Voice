@@ -259,6 +259,7 @@ async function processClaim(claim: KnowledgeIngestionClaim, store: KnowledgeInge
 
 export async function runKnowledgeIngestionBatch(store: KnowledgeIngestionWorkerStore, config: KnowledgeWorkerConfig, limit = 5) {
   await store.enqueueDue();
+  await store.enqueueReviewsDue();
   let processed = 0;
   for (; processed < limit; processed += 1) {
     const claim = await store.claim(); if (!claim) break;

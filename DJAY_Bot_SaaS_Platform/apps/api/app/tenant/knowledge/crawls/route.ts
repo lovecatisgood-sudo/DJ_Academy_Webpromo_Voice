@@ -13,7 +13,7 @@ const httpsUrl = z.string().trim().max(2000).url().transform((value, context) =>
   return url.href;
 });
 const schema = z.object({ collectionId: z.uuid(), name: z.string().trim().min(2).max(160), url: httpsUrl,
-  refreshIntervalHours: z.number().int().min(24).max(8760).nullable().default(168), authorized: z.literal(true) }).strict();
+  authorized: z.literal(true) }).strict();
 export async function POST(request: NextRequest) {
   const resolved = await resolveTenantRequest(request);
   if (!resolved || !tenantRoleAllows(resolved.context.role, "knowledge.write") || !(await hasTrustedOrigin(request))) return safeJson({ status: "not_found" }, 404);

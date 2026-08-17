@@ -105,6 +105,7 @@ const structuredKnowledgeCatalogueMigration = readFileSync(resolve(import.meta.d
 const knowledgeIngestionDigestMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0126_knowledge_ingestion_digest_authority.sql"), "utf8");
 const governedKnowledgeCrawlingMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0127_governed_knowledge_crawling.sql"), "utf8");
 const activePublishedKnowledgeMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0128_active_published_knowledge_retrieval.sql"), "utf8");
+const knowledgeRefreshReviewMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0129_plan_bound_knowledge_refresh_reviews.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -144,6 +145,13 @@ describe("Merchant experience migration invariants", () => {
     expect(activePublishedKnowledgeMigration).toContain("version.status = 'published'");
     expect(activePublishedKnowledgeMigration).toContain("procedure.proname IN ('begin_ai_turn', 'begin_ai_social_turn')");
     expect(activePublishedKnowledgeMigration).toContain("active_knowledge_join_not_found");
+    expect(knowledgeRefreshReviewMigration).toContain("CREATE TABLE tenancy.knowledge_review_cycles");
+    expect(knowledgeRefreshReviewMigration).toContain("refresh_interval_hours = CASE WHEN authority.premium THEN NULL ELSE 168 END");
+    expect(knowledgeRefreshReviewMigration).toContain("plan.plan_key = 'ai_chat_premium'");
+    expect(knowledgeRefreshReviewMigration).toContain("CREATE OR REPLACE FUNCTION tenancy.enqueue_due_knowledge_reviews");
+    expect(knowledgeRefreshReviewMigration).toContain("UNIQUE (tenant_id, cycle_month)");
+    expect(knowledgeRefreshReviewMigration).toContain("CREATE TRIGGER tenancy_knowledge_review_evidence_immutable");
+    expect(knowledgeRefreshReviewMigration).toContain("OLD.status = 'completed'");
   });
   it("keeps anonymous Builder drafts versioned, expiring, pre-tenant, and unavailable to tenant runtime", () => {
     expect(anonymousBuilderDraftMigration).toContain("CREATE TABLE builder.anonymous_sessions");

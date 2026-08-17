@@ -69,7 +69,9 @@ async function structuredCatalogueAllowed(sql: postgres.TransactionSql, tenantId
 }
 
 async function websiteCrawlAuthority(sql: postgres.TransactionSql, tenantId: string) {
-  const rows = await sql<{ pageLimit: number }[]>`SELECT CASE WHEN bool_or(plan.plan_key = 'ai_chat_premium') THEN 25 ELSE 1 END::int AS "pageLimit"
+  const rows = await sql<{ pageLimit: number; refreshIntervalHours: number | null }[]>`SELECT
+    CASE WHEN bool_or(plan.plan_key = 'ai_chat_premium') THEN 25 ELSE 1 END::int AS "pageLimit",
+    CASE WHEN bool_or(plan.plan_key = 'ai_chat_premium') THEN NULL ELSE 168 END::int AS "refreshIntervalHours"
     FROM tenancy.product_subscriptions subscription
     JOIN catalog.plan_versions version ON version.id = subscription.plan_version_id
     JOIN catalog.plans plan ON plan.id = version.plan_id
@@ -80,7 +82,7 @@ async function websiteCrawlAuthority(sql: postgres.TransactionSql, tenantId: str
       AND subscription.status IN ('active', 'trialing', 'scheduled_change') AND snapshot.access_mode = 'active'
       AND snapshot.resolved_json->'entitlements'->>'knowledge.enabled' = 'true'
     HAVING count(*) > 0`;
-  return rows[0]?.pageLimit ?? 0;
+  return rows[0] ?? null;
 }
 
 async function publishCatalogueSource(
@@ -222,23 +224,26 @@ export class TenantKnowledgeIngestionStore {
   }
 
   async requestCrawl(context: TenantContext, input: Readonly<{
-    collectionId: string; name: string; url: string; refreshIntervalHours: number | null;
+    collectionId: string; name: string; url: string;
   }>) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
-      const pageLimit = await websiteCrawlAuthority(sql, context.tenantId);
-      if (!pageLimit) return { status: "not_entitled" as const };
+      const authority = await websiteCrawlAuthority(sql, context.tenantId);
+      if (!authority) return { status: "not_entitled" as const };
       const collection = await sql<{ exists: boolean }[]>`SELECT EXISTS(SELECT 1 FROM tenancy.knowledge_collections
         WHERE tenant_id = ${context.tenantId}::uuid AND id = ${input.collectionId}::uuid AND status = 'active') AS exists`;
       if (!collection[0]?.exists) return { status: "not_found" as const };
       const sourceId = randomUUID(); const jobId = randomUUID();
       await sql`INSERT INTO tenancy.knowledge_sources (id, tenant_id, name, source_kind, source_url,
         crawl_page_limit, refresh_interval_hours, next_refresh_at, created_by_membership_id) VALUES (${sourceId}::uuid,
-        ${context.tenantId}::uuid, ${input.name}, 'url', ${input.url}, ${pageLimit}, ${input.refreshIntervalHours}, now(), ${context.membershipId}::uuid)`;
+        ${context.tenantId}::uuid, ${input.name}, 'url', ${input.url}, ${authority.pageLimit}, ${authority.refreshIntervalHours},
+        ${authority.refreshIntervalHours === null ? null : new Date(Date.now() + authority.refreshIntervalHours * 60 * 60 * 1000)}, ${context.membershipId}::uuid)`;
       await sql`INSERT INTO tenancy.knowledge_collection_sources (tenant_id, collection_id, source_id)
         VALUES (${context.tenantId}::uuid, ${input.collectionId}::uuid, ${sourceId}::uuid)`;
       await sql`INSERT INTO tenancy.knowledge_ingestion_jobs (id, tenant_id, source_id, job_kind, requested_by_membership_id)
         VALUES (${jobId}::uuid, ${context.tenantId}::uuid, ${sourceId}::uuid, 'url_crawl', ${context.membershipId}::uuid)`;
-      return { status: "queued" as const, sourceId, jobId, crawlMode: pageLimit === 1 ? "single_page" as const : "same_scope" as const, pageLimit };
+      return { status: "queued" as const, sourceId, jobId,
+        crawlMode: authority.pageLimit === 1 ? "single_page" as const : "same_scope" as const,
+        pageLimit: authority.pageLimit, refreshIntervalHours: authority.refreshIntervalHours };
     });
   }
 
@@ -443,6 +448,60 @@ export class TenantKnowledgeIngestionStore {
     });
   }
 
+  async listKnowledgeReviews(context: TenantContext) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const advanced = await structuredCatalogueAllowed(sql, context.tenantId);
+      const owners = advanced ? await sql<{ membershipId: string; displayName: string; role: string }[]>`
+        SELECT membership_id AS "membershipId", display_name AS "displayName", membership_role AS role
+        FROM tenancy.current_tenant_team()
+        WHERE membership_status = 'active' AND membership_role IN ('tenant_master_admin', 'tenant_admin')
+        ORDER BY CASE membership_role WHEN 'tenant_master_admin' THEN 0 ELSE 1 END, display_name` : [];
+      const reviews = advanced ? await sql<{
+        id: string; cycleMonth: string; dueAt: Date; status: "due" | "in_progress" | "completed";
+        ownerMembershipId: string | null; ownerName: string | null; startedAt: Date | null; completedAt: Date | null;
+        completionNote: string | null; sourceCount: number; attentionCount: number; changedSinceCycle: number;
+      }[]>`SELECT cycle.id, cycle.cycle_month::text AS "cycleMonth", cycle.due_at AS "dueAt", cycle.status,
+        cycle.owner_membership_id AS "ownerMembershipId", owner.display_name AS "ownerName",
+        cycle.started_at AS "startedAt", cycle.completed_at AS "completedAt", cycle.completion_note AS "completionNote",
+        (SELECT count(*)::int FROM tenancy.knowledge_sources source
+          WHERE source.tenant_id = cycle.tenant_id AND source.status <> 'erased') AS "sourceCount",
+        (SELECT count(*)::int FROM tenancy.knowledge_sources source WHERE source.tenant_id = cycle.tenant_id
+          AND source.status <> 'erased' AND (source.safe_error_code IS NOT NULL OR EXISTS (
+            SELECT 1 FROM tenancy.knowledge_ingestion_jobs job WHERE job.tenant_id = source.tenant_id
+              AND job.source_id = source.id AND job.status IN ('failed', 'dead_letter') AND job.id = (
+                SELECT latest.id FROM tenancy.knowledge_ingestion_jobs latest WHERE latest.tenant_id = source.tenant_id
+                  AND latest.source_id = source.id ORDER BY latest.created_at DESC, latest.id DESC LIMIT 1)))) AS "attentionCount",
+        (SELECT count(*)::int FROM tenancy.knowledge_sources source WHERE source.tenant_id = cycle.tenant_id
+          AND source.status <> 'erased' AND source.updated_at >= cycle.cycle_month::timestamptz) AS "changedSinceCycle"
+        FROM tenancy.knowledge_review_cycles cycle
+        LEFT JOIN tenancy.current_tenant_team() owner ON owner.membership_id = cycle.owner_membership_id
+        WHERE cycle.tenant_id = ${context.tenantId}::uuid ORDER BY cycle.cycle_month DESC LIMIT 12` : [];
+      return { advanced, owners, reviews };
+    });
+  }
+
+  async updateKnowledgeReview(context: TenantContext, reviewId: string, input: Readonly<{
+    action: "start" | "complete"; ownerMembershipId: string; note?: string;
+  }>) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      if (!(await structuredCatalogueAllowed(sql, context.tenantId))) return { status: "not_entitled" as const };
+      const owner = await sql<{ exists: boolean }[]>`SELECT EXISTS(SELECT 1 FROM tenancy.memberships
+        WHERE tenant_id = ${context.tenantId}::uuid AND id = ${input.ownerMembershipId}::uuid AND status = 'active'
+          AND role IN ('tenant_master_admin', 'tenant_admin')) AS exists`;
+      if (!owner[0]?.exists) return { status: "invalid_owner" as const };
+      const rows = input.action === "start"
+        ? await sql<{ id: string }[]>`UPDATE tenancy.knowledge_review_cycles SET status = 'in_progress',
+            owner_membership_id = ${input.ownerMembershipId}::uuid, started_at = COALESCE(started_at, now()), updated_at = now()
+          WHERE tenant_id = ${context.tenantId}::uuid AND id = ${reviewId}::uuid AND status IN ('due', 'in_progress') RETURNING id`
+        : await sql<{ id: string }[]>`UPDATE tenancy.knowledge_review_cycles SET status = 'completed',
+            owner_membership_id = ${input.ownerMembershipId}::uuid, started_at = COALESCE(started_at, now()),
+            completed_at = now(), completion_note = ${input.note ?? null}, updated_at = now()
+          WHERE tenant_id = ${context.tenantId}::uuid AND id = ${reviewId}::uuid AND status IN ('due', 'in_progress') RETURNING id`;
+      if (!rows[0]) return { status: "not_found_or_completed" as const };
+      return { status: input.action === "start" ? "in_progress" as const : "completed" as const, reviewId };
+    });
+  }
+
   async saveCatalogDraft(context: TenantContext, input: KnowledgeCatalogueDraft) {
     return withTenantTransaction(this.client, context, async ({ sql }) => {
       if (!(await structuredCatalogueAllowed(sql, context.tenantId))) return { status: "not_entitled" as const };
@@ -617,6 +676,13 @@ export class KnowledgeIngestionWorkerStore {
     const rows = await this.client.begin(async (sql) => {
       await sql`SELECT set_config('app.service', 'knowledge_worker', true)`;
       return sql<{ count: number }[]>`SELECT tenancy.enqueue_due_knowledge_refreshes(${limit})::int AS count`;
+    });
+    return rows[0]?.count ?? 0;
+  }
+  async enqueueReviewsDue(limit = 100) {
+    const rows = await this.client.begin(async (sql) => {
+      await sql`SELECT set_config('app.service', 'knowledge_worker', true)`;
+      return sql<{ count: number }[]>`SELECT tenancy.enqueue_due_knowledge_reviews(${limit})::int AS count`;
     });
     return rows[0]?.count ?? 0;
   }

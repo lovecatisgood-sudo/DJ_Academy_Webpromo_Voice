@@ -3343,16 +3343,34 @@
         "AI-03",
         "AI-06"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "implementation_paths": [
+        "packages/db/src/knowledge-ingestion-store.ts",
+        "apps/workers/src/knowledge-ingestion.ts",
+        "apps/api/app/tenant/knowledge/reviews/route.ts",
+        "apps/tenant-web/app/workspace/knowledge/page.tsx"
+      ],
+      "migration_ids": [
+        "0071_ai_knowledge_ingestion.sql",
+        "0129_plan_bound_knowledge_refresh_reviews.sql"
+      ],
+      "api_contracts": [
+        "GET|PATCH /tenant/knowledge/reviews",
+        "POST /tenant/knowledge/crawls"
+      ],
+      "ui_routes": [
+        "/workspace/knowledge"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "packages/db/src/knowledge-crawl-authority.integration.test.ts",
+        "packages/db/src/migration-invariants.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/plan-bound-knowledge-refresh-review-2026-08-17.md"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {

@@ -8,10 +8,15 @@ import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 import { StructuredCataloguePanel } from "./StructuredCataloguePanel";
 
-type Source = { id: string; name: string; sourceKind: string; status: string; version: number; revisionCreatedAt: string; safeErrorCode: string | null };
+type Source = { id: string; name: string; sourceKind: string; status: string; version: number; revisionCreatedAt: string;
+  safeErrorCode: string | null; refreshIntervalHours: number | null; nextRefreshAt: string | null; lastRefreshedAt: string | null };
 type SourceDetail = Source & { sourceUrl: string | null; revisionId: string | null; revisionStatus: string | null; content: string;
   contentTruncated: boolean; provenance: Record<string, unknown>; chunkCount: number; createdAt: string; updatedAt: string };
 type Collection = { id: string; name: string; description: string; sourceCount: number; itemCount: number };
+type ReviewOwner = { membershipId: string; displayName: string; role: string };
+type KnowledgeReview = { id: string; cycleMonth: string; dueAt: string; status: "due" | "in_progress" | "completed";
+  ownerMembershipId: string | null; ownerName: string | null; startedAt: string | null; completedAt: string | null;
+  completionNote: string | null; sourceCount: number; attentionCount: number; changedSinceCycle: number };
 const sourceFailureCopy: Record<string, string> = {
   malware_detected: "The file was rejected by malware scanning.", file_signature_mismatch: "The file contents do not match its declared type.",
   upload_size_mismatch: "The uploaded file size did not match the approved upload.", file_type_rejected: "This file type is not supported.",
@@ -27,6 +32,8 @@ export default function KnowledgePage() {
   const [selectedCollectionId, setSelectedCollectionId] = useState("");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [selectedSource, setSelectedSource] = useState<SourceDetail | null>(null);
+  const [reviewAdvanced, setReviewAdvanced] = useState(false); const [reviewOwners, setReviewOwners] = useState<ReviewOwner[]>([]);
+  const [reviews, setReviews] = useState<KnowledgeReview[]>([]);
   const [message, setMessage] = useState(""); const [working, setWorking] = useState(false); const [loadError, setLoadError] = useState(false);
   const workspace = useMemo(() => session.workspaces.find((item) => item.tenantId === session.selectedTenantId), [session]);
   const canWrite = session.allows("knowledge.write");
@@ -34,11 +41,14 @@ export default function KnowledgePage() {
 
   async function load() {
     try {
-      const [sourceResponse, collectionResponse] = await Promise.all([
+      const [sourceResponse, collectionResponse, reviewResponse] = await Promise.all([
         fetch("/tenant/knowledge", { cache: "no-store" }), fetch("/tenant/knowledge/collections", { cache: "no-store" }),
+        fetch("/tenant/knowledge/reviews", { cache: "no-store" }),
       ]);
-      if (!sourceResponse.ok || !collectionResponse.ok) throw new Error("knowledge_unavailable");
+      if (!sourceResponse.ok || !collectionResponse.ok || !reviewResponse.ok) throw new Error("knowledge_unavailable");
       const nextSources = (await sourceResponse.json()).sources || []; const nextCollections = (await collectionResponse.json()).collections || [];
+      const nextReviews = await reviewResponse.json(); setReviewAdvanced(nextReviews.advanced === true);
+      setReviewOwners(nextReviews.owners || []); setReviews(nextReviews.reviews || []);
       setSources(nextSources); setCollections(nextCollections); setSelectedCollectionId((current) => current || nextCollections[0]?.id || ""); setLoadError(false);
     } catch { setLoadError(true); }
   }
@@ -66,7 +76,7 @@ export default function KnowledgePage() {
   async function createCrawl(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
     await mutate("/tenant/knowledge/crawls", { collectionId: selectedCollectionId, name: data.get("name"), url: data.get("url"),
-      refreshIntervalHours: Number(data.get("refreshIntervalHours")), authorized: data.get("authorized") === "on" }, "Website crawl queued.", form);
+      authorized: data.get("authorized") === "on" }, "Website crawl queued with the package refresh policy.", form);
   }
   async function uploadFile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form); const file = data.get("file");
@@ -115,6 +125,14 @@ export default function KnowledgePage() {
     if (!response.ok) { setMessage("The source could not be deleted."); return; }
     setSelectedSource(null); setMessage("Source deleted from active knowledge. Governed storage cleanup remains auditable."); await load();
   }
+  async function updateReview(event: FormEvent<HTMLFormElement>, action: "start" | "complete") {
+    event.preventDefault(); const data = new FormData(event.currentTarget); setWorking(true); setMessage("");
+    const response = await safeMutationFetch("/tenant/knowledge/reviews", { method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, reviewId: data.get("reviewId"), ownerMembershipId: data.get("ownerMembershipId"),
+        ...(action === "complete" ? { note: data.get("note") } : {}) }) });
+    setWorking(false); if (!response.ok) { setMessage("The monthly knowledge review could not be updated."); return; }
+    setMessage(action === "complete" ? "Monthly knowledge review completed with an audit note." : "Monthly knowledge review started."); await load();
+  }
   if (session.error) return <WorkspaceSessionLoadError onRetry={() => window.location.reload()} />;
   if (session.loading || !session.selectedTenantId) return <main className="workspace-loading">กำลังโหลดคลังความรู้...</main>;
   if (loadError) return <WorkspacePageLoadError active="knowledge" title="คลังความรู้" resource="business content" workspaces={session.workspaces} selectedTenantId={session.selectedTenantId} onSelect={(id) => void session.selectWorkspace(id)} onLogout={() => void session.logout()} onRetry={() => void load()} />;
@@ -134,12 +152,15 @@ export default function KnowledgePage() {
       </section>
       {canWrite && selectedCollectionId ? <>
         <section id="knowledge-paste" className="tool-band muted-band"><div className="band-heading"><div><p>ข้อความที่อนุมัติ</p><h2>เพิ่มข้อความ</h2></div></div><form className="knowledge-form" onSubmit={createSource}><label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label><label>เนื้อหา<textarea name="content" rows={6} maxLength={500000} required /></label><button disabled={working}>เพิ่มข้อความที่อนุมัติแล้ว</button></form></section>
-        <section id="knowledge-website" className="tool-band"><div className="band-heading"><div><p>นำเข้าตามกำหนดเวลา</p><h2>สแกนหน้าเว็บไซต์</h2></div></div><form className="flowbot-deploy" onSubmit={createCrawl}><label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label><label>URL หน้าเว็บแบบ HTTPS<input name="url" type="url" placeholder="https://example.com/services" required /></label><label>รีเฟรช<select name="refreshIntervalHours" defaultValue="168"><option value="168">รายสัปดาห์</option><option value="720">รายเดือน</option><option value="24">รายวัน</option></select></label><label><input name="authorized" type="checkbox" required /> ฉันยืนยันว่ามีสิทธิ์นำเข้าเนื้อหาสาธารณะจากเว็บไซต์นี้</label><p className="control-copy">Starter imports this exact page. Advanced discovers up to 25 public pages under the same website path, subject to robots policy and safety limits.</p><button disabled={working}>เพิ่มงานสแกนเข้าคิว</button></form></section>
+        <section id="knowledge-website" className="tool-band"><div className="band-heading"><div><p>นำเข้าตามกำหนดเวลา</p><h2>สแกนหน้าเว็บไซต์</h2></div></div><form className="flowbot-deploy" onSubmit={createCrawl}><label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label><label>URL หน้าเว็บแบบ HTTPS<input name="url" type="url" placeholder="https://example.com/services" required /></label><label><input name="authorized" type="checkbox" required /> ฉันยืนยันว่ามีสิทธิ์นำเข้าเนื้อหาสาธารณะจากเว็บไซต์นี้</label><p className="control-copy">Starter imports this exact page and refreshes it every seven days. Advanced discovers up to 25 public pages under the same website path and uses the governed monthly review workflow.</p><button disabled={working}>เพิ่มงานสแกนเข้าคิว</button></form></section>
         <section id="knowledge-upload" className="tool-band muted-band"><div className="band-heading"><div><p>เอกสารที่สแกนแล้ว</p><h2>อัปโหลด PDF, DOCX หรือ TXT</h2></div><span>ขนาดไม่เกิน 10 MB</span></div><form className="flowbot-deploy" onSubmit={uploadFile}><label>ชื่อ<input name="name" minLength={2} maxLength={160} required /></label><label>เอกสาร<input name="file" type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" required /></label><button disabled={working}>อัปโหลดเอกสาร</button></form></section>
         <StructuredCataloguePanel collectionId={selectedCollectionId} canWrite={canWrite} />
       </> : null}
       {message ? <p className="inline-message" role="status">{message}</p> : null}
-      <section className="tool-band muted-band"><div className="band-heading"><div><p>ฉบับที่พร้อมใช้</p><h2>รายการแหล่งข้อมูล</h2></div><span>{visibleSources.length} of {sources.length}</span></div><label className="source-filter">Show <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}><option value="all">All sources</option><option value="text">Pasted text</option><option value="url">Website pages</option><option value="file">Documents</option><option value="ready">Ready</option><option value="processing">Processing</option><option value="failed">Needs attention</option><option value="excluded">Excluded</option></select></label><div className="data-table">{visibleSources.map((source) => <div className="data-row" key={source.id}><div><strong data-no-localize>{source.name}</strong><span>{source.sourceKind} / {source.version ? `revision ${source.version}` : "revision pending"}</span>{source.status === "failed" ? <small>{sourceFailureCopy[source.safeErrorCode ?? ""] ?? "Processing failed safely. Retry or contact support with the source name."}</small> : null}</div><span>{source.status === "ready" ? "Ready for bot answers" : source.status === "failed" ? "Needs attention" : source.status === "processing" ? "Scanning or extracting" : source.status === "excluded" ? "Excluded from answers" : source.status}</span><span>{new Date(source.revisionCreatedAt).toLocaleDateString(currentIntlLocale())}</span><button type="button" className="secondary-command" disabled={working} onClick={() => void previewSource(source.id)}>Preview and manage</button></div>)}{!visibleSources.length ? <div className="pending-line"><strong>{sources.length ? "No sources match this filter" : "ยังไม่มีแหล่งข้อมูลที่พร้อมใช้"}</strong><span>{sources.length ? "Choose All sources to see every item." : "งานสแกนและไฟล์อัปโหลดในคิวจะแสดงหลังประมวลผลและดึงข้อมูล"}</span></div> : null}</div></section>
+      <section className="tool-band muted-band"><div className="band-heading"><div><p>ฉบับที่พร้อมใช้</p><h2>รายการแหล่งข้อมูล</h2></div><span>{visibleSources.length} of {sources.length}</span></div><label className="source-filter">Show <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}><option value="all">All sources</option><option value="text">Pasted text</option><option value="url">Website pages</option><option value="file">Documents</option><option value="ready">Ready</option><option value="processing">Processing</option><option value="failed">Needs attention</option><option value="excluded">Excluded</option></select></label><div className="data-table">{visibleSources.map((source) => <div className="data-row" key={source.id}><div><strong data-no-localize>{source.name}</strong><span>{source.sourceKind} / {source.version ? `revision ${source.version}` : "revision pending"}</span>{source.sourceKind === "url" ? <small>{source.refreshIntervalHours === 168 && source.nextRefreshAt ? `Weekly refresh · next ${new Date(source.nextRefreshAt).toLocaleDateString(currentIntlLocale())}` : "Reviewed through the Advanced monthly workflow"}</small> : null}{source.status === "failed" ? <small>{sourceFailureCopy[source.safeErrorCode ?? ""] ?? "Processing failed safely. Retry or contact support with the source name."}</small> : null}</div><span>{source.status === "ready" ? "Ready for bot answers" : source.status === "failed" ? "Needs attention" : source.status === "processing" ? "Scanning or extracting" : source.status === "excluded" ? "Excluded from answers" : source.status}</span><span>{new Date(source.revisionCreatedAt).toLocaleDateString(currentIntlLocale())}</span><button type="button" className="secondary-command" disabled={working} onClick={() => void previewSource(source.id)}>Preview and manage</button></div>)}{!visibleSources.length ? <div className="pending-line"><strong>{sources.length ? "No sources match this filter" : "ยังไม่มีแหล่งข้อมูลที่พร้อมใช้"}</strong><span>{sources.length ? "Choose All sources to see every item." : "งานสแกนและไฟล์อัปโหลดในคิวจะแสดงหลังประมวลผลและดึงข้อมูล"}</span></div> : null}</div></section>
+      {reviewAdvanced ? <section className="tool-band" aria-labelledby="knowledge-review-title"><div className="band-heading"><div><p>Advanced governance</p><h2 id="knowledge-review-title">Monthly knowledge review</h2></div><span>{reviews[0]?.status ?? "scheduled"}</span></div>
+        {!reviews.length ? <div className="pending-line"><strong>No review is due yet</strong><span>The first review becomes due after 30 days, then once each calendar month.</span></div> : <div className="data-table">{reviews.map((review) => <div className="data-row" key={review.id}><div><strong>{review.cycleMonth}</strong><span>{review.sourceCount} sources · {review.changedSinceCycle} changed · {review.attentionCount} need attention</span>{review.completionNote ? <small data-no-localize>{review.completionNote}</small> : null}</div><span>{review.ownerName ?? "Owner not assigned"}</span><span>{review.status}</span>{canWrite && review.status !== "completed" ? <form className="review-inline-form" onSubmit={(event) => void updateReview(event, review.status === "due" ? "start" : "complete")}><input type="hidden" name="reviewId" value={review.id} /><label>Review owner<select name="ownerMembershipId" defaultValue={review.ownerMembershipId ?? reviewOwners[0]?.membershipId ?? ""} required>{reviewOwners.map((owner) => <option key={owner.membershipId} value={owner.membershipId} data-no-localize>{owner.displayName}</option>)}</select></label>{review.status === "in_progress" ? <label>Completion note<input name="note" minLength={8} maxLength={2000} required /></label> : null}<button disabled={working}>{review.status === "due" ? "Start review" : "Complete review"}</button></form> : <span />}</div>)}</div>}
+      </section> : null}
       {selectedSource ? <section className="tool-band" aria-labelledby="source-preview-title"><div className="band-heading"><div><p>Source revision {selectedSource.version}</p><h2 id="source-preview-title" data-no-localize>{selectedSource.name}</h2></div><span>{selectedSource.chunkCount} chunks</span></div>
         <p className="control-copy">Preview the latest immutable revision. Corrections and full reindexing create a new revision; they never rewrite published history.</p>
         {selectedSource.sourceUrl ? <p data-no-localize>{selectedSource.sourceUrl}</p> : null}

@@ -1109,6 +1109,7 @@ export class SharedDomainStore {
     return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
       id: string; name: string; sourceKind: string; status: string;
       version: number; revisionId: string | null; revisionCreatedAt: Date; safeErrorCode: string | null;
+      refreshIntervalHours: number | null; nextRefreshAt: Date | null; lastRefreshedAt: Date | null;
     }[]>`
       SELECT source.id, source.name, source.source_kind AS "sourceKind",
         CASE
@@ -1121,7 +1122,8 @@ export class SharedDomainStore {
         END AS status,
         COALESCE(revision.version, 0)::int AS version, revision.id AS "revisionId",
         COALESCE(revision.created_at, job.created_at, source.created_at) AS "revisionCreatedAt",
-        job.safe_error_code AS "safeErrorCode"
+        job.safe_error_code AS "safeErrorCode", source.refresh_interval_hours::int AS "refreshIntervalHours",
+        source.next_refresh_at AS "nextRefreshAt", source.last_refreshed_at AS "lastRefreshedAt"
       FROM tenancy.knowledge_sources source
       LEFT JOIN LATERAL (
         SELECT id, version, status, created_at FROM tenancy.knowledge_source_revisions candidate

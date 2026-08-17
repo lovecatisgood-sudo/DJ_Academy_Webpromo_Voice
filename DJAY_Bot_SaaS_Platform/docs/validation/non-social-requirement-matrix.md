@@ -1,6 +1,6 @@
 # Non-social production-readiness requirement matrix
 
-Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; formally accepted: **0**; requirements with at least one existing mapped artifact: **70**; requirements containing stale or missing path references: **1**.
+Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; formally accepted: **0**; requirements with at least one existing mapped artifact: **71**; requirements containing stale or missing path references: **1**.
 
 > An existing file is mapping evidence, not acceptance evidence. A requirement remains unaccepted until its named tests, environment evidence, and authorized reviewer are recorded in the release registry. Social-channel implementation may exist in source but is outside the current release scope.
 
@@ -124,7 +124,7 @@ Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; f
 | KNO-003 | AI-01 | ai_chat_basic, ai_chat_premium | implemented | 4/4 | 3/3 | 1/1 | — | Support website-content import for Starter and multi-page website crawling for Advanced, respecting robots/access policy, scope allowlists, rate limits, canonical URLs, and crawl status. |
 | KNO-004 | AI-01 | ai_chat_basic, ai_chat_premium | implemented | 3/3 | 3/3 | 1/1 | — | Normalize, chunk, index, and version extracted content. Retrieval MUST reference only an active, published knowledge revision. |
 | KNO-005 | AI-01 | ai_chat_basic, ai_chat_premium | implemented | 4/4 | 1/1 | 1/1 | — | Allow source preview, exclusion, correction, reprocessing, deletion, and full reindexing. |
-| KNO-006 | AI-01 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Apply weekly knowledge refresh to AI Text Starter and monthly knowledge review workflow to AI Text Advanced, with customer-visible status and actionable failures. |
+| KNO-006 | AI-01 | ai_chat_basic, ai_chat_premium | implemented | 4/4 | 2/2 | 1/1 | — | Apply weekly knowledge refresh to AI Text Starter and monthly knowledge review workflow to AI Text Advanced, with customer-visible status and actionable failures. |
 | KNO-007 | AI-01 | ai_chat_basic, ai_chat_premium | implemented | 10/10 | 6/6 | 3/3 | — | Provide product and service information on Starter and structured product/service catalogue support on Advanced. |
 | KNO-008 | AI-01 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Deleting source content MUST remove it from future retrieval and complete provider/vector cleanup within the stated retention window. |
 | ATS-001 | AI-03 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Allow one AI Text Bot in one business workspace with one administrator. |

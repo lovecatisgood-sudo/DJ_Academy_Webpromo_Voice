@@ -325,6 +325,8 @@ Active published retrieval checkpoint, 2026-08-17: immutable source revisions an
 
 Knowledge source lifecycle checkpoint, 2026-08-17: the tenant Knowledge workspace and API now expose latest-revision preview, reversible exclusion, immutable merchant correction, governed file/website reprocessing, deterministic full reindexing and logical deletion. Correction and reindex operations replace existing draft pins with the new revision but never publish automatically. Exclusion and deletion immediately remove source authority from future retrieval; deletion also removes every draft pin, terminates queued jobs and marks stored objects deleted while preserving immutable audit evidence for the separate `KNO-008` retention/provider-cleanup workflow. `KNO-005` is implemented but unaccepted; browser, live storage cleanup, security and named-merchant acceptance remain open.
 
+Plan-bound knowledge cadence checkpoint, 2026-08-17: AI Text Starter URL sources are fixed to a seven-day server-authoritative refresh interval and reconciled by the restricted worker, while Advanced sources stop automatic refresh and enter one idempotent monthly review cycle after the first 30 days. The tenant workspace exposes next-refresh timing or review status, actionable source failures, change/attention counts, eligible Owner/Admin ownership, start/completion timestamps and a required immutable completion note. Package upgrades and downgrades are reconciled at scheduler time; arbitrary browser cadence input is no longer authoritative. `KNO-006` is implemented but unaccepted; live scheduler/provider, browser, security and named-merchant acceptance remain open.
+
 Exit gate:
 
 - Unmocked staging Builder → API → gateway → provider → Sales Core journeys pass.
