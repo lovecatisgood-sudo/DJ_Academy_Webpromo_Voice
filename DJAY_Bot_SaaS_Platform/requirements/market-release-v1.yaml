@@ -7114,14 +7114,28 @@
       ],
       "implementation_paths": [
         "packages/sales-core/src/index.ts",
-        "packages/db/src/tenant-workspace-store.ts"
+        "packages/db/src/tenant-workspace-store.ts",
+        "packages/db/src/ai-chat-store.ts",
+        "apps/tenant-web/app/workspace/ai-chat/page.tsx"
       ],
       "migration_ids": [
         "0123_predeployment_ai_configurations"
       ],
-      "api_contracts": [],
-      "ui_routes": [],
-      "entitlement_keys": [],
+      "api_contracts": [
+        "GET|POST /tenant/ai-chat/agents",
+        "GET|PATCH /tenant/ai-chat/agents/:agentId/draft",
+        "POST /tenant/ai-chat/agents/:agentId/publish",
+        "POST /tenant/ai-chat/agents/:agentId/deployments"
+      ],
+      "ui_routes": [
+        "/workspace/ai-chat"
+      ],
+      "entitlement_keys": [
+        "ai.text",
+        "sales_core.enabled",
+        "knowledge.enabled",
+        "channel.web"
+      ],
       "meter_keys": [],
       "test_ids": [
         "packages/sales-core/src/index.test.ts",

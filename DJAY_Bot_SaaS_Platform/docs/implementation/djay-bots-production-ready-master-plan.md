@@ -301,6 +301,8 @@ Work:
 
 Builder materialization checkpoint, 2026-08-17: migration `0123_predeployment_ai_configurations.sql` labels AI agents as Text or Voice before deployment. A complete claimed Text configuration now becomes exactly one tenant-owned draft agent and unpublished playbook during one-time onboarding. The converter preserves role, business profile, behavior/boundaries, FAQ, disclosure and bilingual greeting context; missing or stale required Thai copy records a failed materialization rather than substituting English. No playbook version, deployment, entitlement or traffic is created. Authenticated Studio continuation, publish acceptance and live-provider evidence remain open, so PR-07 and `ONB-006` remain `in_progress`.
 
+Authenticated Text continuation checkpoint, 2026-08-17: the existing `/workspace/ai-chat` Configuration Studio now treats active entitlement as mutation authority rather than confusing role permission with product access. A claimed draft remains listed and fully reviewable when its subscription is pending, paused or otherwise inactive, while agent creation, knowledge changes, playbook editing, testing, notification setup, immutable publication, deployment and traffic controls remain unavailable. The page provides explicit preserved/read-only state and direct Dashboard and package/usage continuations. PostgreSQL coverage proves discovery without authority and server-side mutation denial. Browser acceptance and live-provider evidence remain open, so PR-07 and `ONB-006` remain `in_progress`.
+
 Exit gate:
 
 - Unmocked staging Builder → API → gateway → provider → Sales Core journeys pass.

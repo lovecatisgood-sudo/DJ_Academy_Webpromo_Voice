@@ -13,14 +13,16 @@ This checkpoint creates honest pre-deployment Text and Voice configuration resou
 - Existing same-family agents are never overwritten. Voice materialization creates zero deployment rows, keys, origins or traffic state.
 - Authenticated `/workspace/voice/configuration` lists and reopens the preserved agent draft before deployment, including for an inactive subscription in honest read-only mode.
 - Active Voice authority permits optimistic draft saving and immutable publication. Exact-origin installation then reuses that published agent/version and creates traffic as inactive without duplicating configuration resources.
+- Authenticated AI Text Configuration lists the claimed draft without active access, keeps every mutation control read-only, and provides Dashboard and package/usage continuations; server mutation authority still fails closed.
 
 ## Verification
 
 - Sales Core: 8 tests passed, including complete bilingual Voice conversion and stale-copy rejection.
 - Database unit suite: 172 passed, 75 skipped without integration credentials; 137 migration invariants passed.
-- `TEST_DB_PORT=55521 pnpm test:db`: all 119 migrations and every wired PostgreSQL integration, RLS, recovery and guarded rollback suite passed after enforcing published-configuration-only Voice deployment creation and inactive-subscription read-only continuation.
+- `TEST_DB_PORT=55522 pnpm test:db`: all 119 migrations and every wired PostgreSQL integration, RLS, recovery and guarded rollback suite passed after enforcing published-configuration-only Voice deployment creation and inactive-subscription read-only Text continuation.
 - The materialization integration proves Text and Voice independently create one agent, one draft, zero versions, zero Voice deployments and one audit across repeated onboarding.
 - The Voice deployment integration proves claimed configuration discovery, cross-tenant denial, revision-safe editing, immutable publication and deployment reuse with one agent, one draft and one version.
+- The claimed Text integration proves the pending subscription exposes one reviewable draft while authoring capabilities remain absent and a direct draft mutation is denied.
 - No browser or GUI was opened.
 
 ## Gates intentionally open

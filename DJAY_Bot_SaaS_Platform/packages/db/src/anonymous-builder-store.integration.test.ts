@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { createTenantContext } from "@djay/tenancy";
 import { AnonymousBuilderStore } from "./anonymous-builder-store";
+import { AiChatStore } from "./ai-chat-store";
 import { createDatabaseClient } from "./client";
 import { TenantWorkspaceStore } from "./tenant-workspace-store";
 
@@ -366,6 +367,19 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
       expect(evidence[0]).toMatchObject({ agents: 1, drafts: 1, versions: 0, voice_deployments: 0,
         product_family: family, audits: 1 });
       expect(evidence[0]?.materialized_ai_agent_id).toMatch(/^[0-9a-f-]{36}$/);
+      if (family === "text") {
+        const aiChat = new AiChatStore(tenantClient!);
+        const agentId = evidence[0]!.materialized_ai_agent_id!;
+        await expect(aiChat.authoringCapabilities(context)).resolves.toBeNull();
+        await expect(aiChat.listAgents(context)).resolves.toEqual([
+          expect.objectContaining({ id: agentId, status: "draft", draftRevision: 1, deploymentCount: 0 }),
+        ]);
+        const claimedDraft = await aiChat.getDraft(context, agentId);
+        expect(claimedDraft).toMatchObject({ revision: 1 });
+        await expect(aiChat.updateDraft(context, agentId, {
+          revision: claimedDraft!.revision, definition: claimedDraft!.definition, knowledgeRevisionIds: [],
+        })).resolves.toEqual({ status: "not_entitled" });
+      }
     }
   });
 });
