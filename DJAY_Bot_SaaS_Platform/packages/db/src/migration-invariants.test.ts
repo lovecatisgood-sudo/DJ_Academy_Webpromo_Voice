@@ -102,6 +102,7 @@ const builderFlowMaterializationMigration = readFileSync(resolve(import.meta.dir
 const predeploymentAiConfigurationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0123_predeployment_ai_configurations.sql"), "utf8");
 const staffReleaseBoundariesMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0124_staff_release_boundaries.sql"), "utf8");
 const structuredKnowledgeCatalogueMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0125_structured_knowledge_catalogue_lifecycle.sql"), "utf8");
+const knowledgeIngestionDigestMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0126_knowledge_ingestion_digest_authority.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -122,6 +123,9 @@ describe("Merchant experience migration invariants", () => {
     expect(structuredKnowledgeCatalogueMigration).toContain("FORCE ROW LEVEL SECURITY");
     expect(structuredKnowledgeCatalogueMigration).toContain("tenant_id = tenancy.current_tenant_id()");
     expect(structuredKnowledgeCatalogueMigration).not.toMatch(/GRANT (UPDATE|DELETE) ON tenancy\.knowledge_catalog_item_versions/i);
+    expect(knowledgeIngestionDigestMigration).toContain("public.digest(extracted_content, 'sha256')");
+    expect(knowledgeIngestionDigestMigration).toContain("public.digest(chunk.content, 'sha256')");
+    expect(knowledgeIngestionDigestMigration).toContain("SET search_path = pg_catalog, tenancy");
   });
   it("keeps anonymous Builder drafts versioned, expiring, pre-tenant, and unavailable to tenant runtime", () => {
     expect(anonymousBuilderDraftMigration).toContain("CREATE TABLE builder.anonymous_sessions");

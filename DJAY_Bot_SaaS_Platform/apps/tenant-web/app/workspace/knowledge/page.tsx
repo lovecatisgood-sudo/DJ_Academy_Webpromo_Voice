@@ -8,8 +8,13 @@ import { WorkspaceSupportBanner } from "../WorkspaceSupportBanner";
 import { useWorkspaceSession } from "../useWorkspaceSession";
 import { StructuredCataloguePanel } from "./StructuredCataloguePanel";
 
-type Source = { id: string; name: string; sourceKind: string; status: string; version: number; revisionCreatedAt: string };
+type Source = { id: string; name: string; sourceKind: string; status: string; version: number; revisionCreatedAt: string; safeErrorCode: string | null };
 type Collection = { id: string; name: string; description: string; sourceCount: number; itemCount: number };
+const sourceFailureCopy: Record<string, string> = {
+  malware_detected: "The file was rejected by malware scanning.", file_signature_mismatch: "The file contents do not match its declared type.",
+  upload_size_mismatch: "The uploaded file size did not match the approved upload.", file_type_rejected: "This file type is not supported.",
+  malware_scanner_unavailable: "Malware scanning is temporarily unavailable; processing will retry.",
+};
 export default function KnowledgePage() {
   const session = useWorkspaceSession();
   const [sources, setSources] = useState<Source[]>([]); const [collections, setCollections] = useState<Collection[]>([]);
@@ -31,6 +36,10 @@ export default function KnowledgePage() {
     } catch { setLoadError(true); }
   }
   useEffect(() => { if (session.selectedTenantId) void load(); }, [session.selectedTenantId]);
+  useEffect(() => {
+    if (!sources.some((source) => source.status === "processing")) return;
+    const timer = window.setInterval(() => void load(), 5000); return () => window.clearInterval(timer);
+  }, [sources, session.selectedTenantId]);
 
   async function mutate(path: string, body: unknown, success: string, form?: HTMLFormElement) {
     setWorking(true); setMessage("");
@@ -90,7 +99,7 @@ export default function KnowledgePage() {
         <StructuredCataloguePanel collectionId={selectedCollectionId} canWrite={canWrite} />
       </> : null}
       {message ? <p className="inline-message" role="status">{message}</p> : null}
-      <section className="tool-band muted-band"><div className="band-heading"><div><p>ฉบับที่พร้อมใช้</p><h2>รายการแหล่งข้อมูล</h2></div><span>{visibleSources.length} of {sources.length}</span></div><label className="source-filter">Show <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}><option value="all">All sources</option><option value="text">Pasted text</option><option value="url">Website pages</option><option value="file">Documents</option><option value="ready">Ready</option><option value="processing">Processing</option><option value="failed">Needs attention</option></select></label><div className="data-table">{visibleSources.map((source) => <div className="data-row" key={source.id}><div><strong data-no-localize>{source.name}</strong><span>{source.sourceKind} / revision {source.version}</span></div><span>{source.status === "ready" ? "Ready for bot answers" : source.status === "failed" ? "Needs attention" : source.status}</span><span>{new Date(source.revisionCreatedAt).toLocaleDateString(currentIntlLocale())}</span></div>)}{!visibleSources.length ? <div className="pending-line"><strong>{sources.length ? "No sources match this filter" : "ยังไม่มีแหล่งข้อมูลที่พร้อมใช้"}</strong><span>{sources.length ? "Choose All sources to see every item." : "งานสแกนและไฟล์อัปโหลดในคิวจะแสดงหลังประมวลผลและดึงข้อมูล"}</span></div> : null}</div></section>
+      <section className="tool-band muted-band"><div className="band-heading"><div><p>ฉบับที่พร้อมใช้</p><h2>รายการแหล่งข้อมูล</h2></div><span>{visibleSources.length} of {sources.length}</span></div><label className="source-filter">Show <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}><option value="all">All sources</option><option value="text">Pasted text</option><option value="url">Website pages</option><option value="file">Documents</option><option value="ready">Ready</option><option value="processing">Processing</option><option value="failed">Needs attention</option></select></label><div className="data-table">{visibleSources.map((source) => <div className="data-row" key={source.id}><div><strong data-no-localize>{source.name}</strong><span>{source.sourceKind} / {source.version ? `revision ${source.version}` : "revision pending"}</span>{source.status === "failed" ? <small>{sourceFailureCopy[source.safeErrorCode ?? ""] ?? "Processing failed safely. Retry or contact support with the source name."}</small> : null}</div><span>{source.status === "ready" ? "Ready for bot answers" : source.status === "failed" ? "Needs attention" : source.status === "processing" ? "Scanning or extracting" : source.status}</span><span>{new Date(source.revisionCreatedAt).toLocaleDateString(currentIntlLocale())}</span></div>)}{!visibleSources.length ? <div className="pending-line"><strong>{sources.length ? "No sources match this filter" : "ยังไม่มีแหล่งข้อมูลที่พร้อมใช้"}</strong><span>{sources.length ? "Choose All sources to see every item." : "งานสแกนและไฟล์อัปโหลดในคิวจะแสดงหลังประมวลผลและดึงข้อมูล"}</span></div> : null}</div></section>
     </section>
   </main>;
 }

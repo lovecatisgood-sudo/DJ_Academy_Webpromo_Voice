@@ -317,6 +317,8 @@ Structured catalogue lifecycle checkpoint, 2026-08-17: the superseding Advanced 
 
 Manual FAQ lifecycle checkpoint, 2026-08-17: the authenticated guided Text configuration already provides bilingual manual FAQ add/edit/remove with server-validated draft persistence. It now also accepts strict bilingual CSV files with quoted-field support, atomic whole-file rejection, duplicate protection and the approved 100-item aggregate limit. Import changes only the editable draft; immutable publication, deployment and live traffic remain separate explicit actions. `KNO-001` is implemented but unaccepted; browser accessibility/responsive and named Thai merchant usability acceptance remain open.
 
+Document ingestion checkpoint, 2026-08-17: authenticated TXT, PDF and DOCX uploads enforce knowledge entitlement, collection scope, filename/MIME/size admission, short-lived signed upload authority and completion metadata matching. The restricted worker revalidates size and signature, scans before extraction, records immutable attributed revisions and fails closed. PDF page labels are embedded in normalized content and every retrieval chunk; source/media/extractor provenance is pinned. Queued and failed sources are now visible with polling and safe actionable copy. Focused PostgreSQL execution exposed and corrected the hardened security-definer function's unqualified `pgcrypto.digest` lookup through migration `0126`. `KNO-002` is implemented but unaccepted; live object-storage/scanner, browser and named-merchant acceptance remain open.
+
 Exit gate:
 
 - Unmocked staging Builder → API → gateway → provider → Sales Core journeys pass.

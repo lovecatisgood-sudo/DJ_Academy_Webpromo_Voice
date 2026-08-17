@@ -3166,16 +3166,38 @@
         "AI-03",
         "AI-06"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "implementation_paths": [
+        "apps/api/app/tenant/knowledge/uploads/route.ts",
+        "apps/api/app/tenant/knowledge/uploads/[objectId]/complete/route.ts",
+        "apps/tenant-web/app/workspace/knowledge/page.tsx",
+        "apps/workers/src/knowledge-ingestion.ts",
+        "packages/db/src/knowledge-ingestion-store.ts",
+        "packages/db/src/shared-domain-store.ts"
+      ],
+      "migration_ids": [
+        "0071_ai_knowledge_ingestion.sql",
+        "0126_knowledge_ingestion_digest_authority.sql"
+      ],
+      "api_contracts": [
+        "POST /tenant/knowledge/uploads",
+        "POST /tenant/knowledge/uploads/:objectId/complete",
+        "GET /tenant/knowledge"
+      ],
+      "ui_routes": [
+        "/workspace/knowledge"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "apps/workers/src/knowledge-ingestion.test.ts",
+        "packages/db/src/knowledge-document-lifecycle.integration.test.ts",
+        "packages/db/src/migration-invariants.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/document-knowledge-ingestion-lifecycle-2026-08-17.md"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {

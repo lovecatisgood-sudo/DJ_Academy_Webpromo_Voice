@@ -1108,16 +1108,30 @@ export class SharedDomainStore {
   async listKnowledge(context: TenantContext) {
     return withTenantTransaction(this.client, context, async ({ sql }) => sql<{
       id: string; name: string; sourceKind: string; status: string;
-      version: number; revisionId: string; revisionCreatedAt: Date;
+      version: number; revisionId: string | null; revisionCreatedAt: Date; safeErrorCode: string | null;
     }[]>`
-      SELECT source.id, source.name, source.source_kind AS "sourceKind", revision.status,
-             revision.version, revision.id AS "revisionId", revision.created_at AS "revisionCreatedAt"
+      SELECT source.id, source.name, source.source_kind AS "sourceKind",
+        CASE
+          WHEN job.created_at > COALESCE(revision.created_at, '-infinity'::timestamptz)
+            AND job.status IN ('failed', 'dead_letter') THEN 'failed'
+          WHEN job.created_at > COALESCE(revision.created_at, '-infinity'::timestamptz)
+            AND job.status IN ('waiting_upload', 'pending', 'processing') THEN 'processing'
+          ELSE COALESCE(revision.status, CASE WHEN job.status IN ('failed', 'dead_letter') THEN 'failed' ELSE 'processing' END)
+        END AS status,
+        COALESCE(revision.version, 0)::int AS version, revision.id AS "revisionId",
+        COALESCE(revision.created_at, job.created_at, source.created_at) AS "revisionCreatedAt",
+        job.safe_error_code AS "safeErrorCode"
       FROM tenancy.knowledge_sources source
-      JOIN LATERAL (
+      LEFT JOIN LATERAL (
         SELECT id, version, status, created_at FROM tenancy.knowledge_source_revisions candidate
         WHERE candidate.tenant_id = source.tenant_id AND candidate.source_id = source.id
         ORDER BY version DESC LIMIT 1
       ) revision ON true
+      LEFT JOIN LATERAL (
+        SELECT status, safe_error_code, created_at FROM tenancy.knowledge_ingestion_jobs candidate
+        WHERE candidate.tenant_id = source.tenant_id AND candidate.source_id = source.id
+        ORDER BY created_at DESC, id DESC LIMIT 1
+      ) job ON true
       WHERE source.tenant_id = ${context.tenantId}::uuid
       ORDER BY source.updated_at DESC
     `);

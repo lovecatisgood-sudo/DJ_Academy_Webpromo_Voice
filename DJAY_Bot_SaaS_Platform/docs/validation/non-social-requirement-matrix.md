@@ -1,6 +1,6 @@
 # Non-social production-readiness requirement matrix
 
-Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; formally accepted: **0**; requirements with at least one existing mapped artifact: **66**; requirements containing stale or missing path references: **1**.
+Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; formally accepted: **0**; requirements with at least one existing mapped artifact: **67**; requirements containing stale or missing path references: **1**.
 
 > An existing file is mapping evidence, not acceptance evidence. A requirement remains unaccepted until its named tests, environment evidence, and authorized reviewer are recorded in the release registry. Social-channel implementation may exist in source but is outside the current release scope.
 
@@ -120,7 +120,7 @@ Generated from `requirements/market-release-v1.yaml`. Registry count: **337**; f
 | AIT-009 | AI-02 | ai_chat_basic, ai_chat_premium | implemented | 6/6 | 4/4 | 2/2 | — | Every customer-facing AI Text reply MUST be instructed to be concise, normally about 40–80 words, and validated to a hard maximum of 200 locale-aware words before delivery. English and Thai counting MUST use locale-aware segmentation. Oversized output MUST receive at most one controlled fact/citation/action-preserving rewrite and MUST never be cut off by string slicing; failure to produce a valid concise reply uses the approved safe fallback without exposing internal validation or model details. |
 | AIT-010 | AI-02 | ai_chat_basic, ai_chat_premium | implemented | 5/5 | 5/5 | 3/3 | — | AI Text onboarding MUST begin with Customer Support, Sales Associate, or Appointment Booking role selection after the merchant has already selected the AI Text family/package. Sales Associate MUST retain appointment booking as a supporting action after discovery and objection handling. |
 | KNO-001 | AI-01 | ai_chat_basic, ai_chat_premium | implemented | 5/5 | 3/3 | 1/1 | — | Support manual FAQ authoring and import. |
-| KNO-002 | AI-01 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Support TXT, PDF, and DOCX uploads with file validation, malware scanning, text extraction, page/source attribution, and visible processing status. |
+| KNO-002 | AI-01 | ai_chat_basic, ai_chat_premium | implemented | 6/6 | 3/3 | 1/1 | — | Support TXT, PDF, and DOCX uploads with file validation, malware scanning, text extraction, page/source attribution, and visible processing status. |
 | KNO-003 | AI-01 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Support website-content import for Starter and multi-page website crawling for Advanced, respecting robots/access policy, scope allowlists, rate limits, canonical URLs, and crawl status. |
 | KNO-004 | AI-01 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Normalize, chunk, index, and version extracted content. Retrieval MUST reference only an active, published knowledge revision. |
 | KNO-005 | AI-01 | ai_chat_basic, ai_chat_premium | planned | 0/0 | 0/0 | 0/0 | — | Allow source preview, exclusion, correction, reprocessing, deletion, and full reindexing. |

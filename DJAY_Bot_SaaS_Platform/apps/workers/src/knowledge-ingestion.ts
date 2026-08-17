@@ -12,6 +12,30 @@ type KnowledgeWorkerConfig = Readonly<{
   bucket: string; malwareScannerEndpoint: string; malwareScannerToken: string;
 }>;
 
+export type KnowledgeDocumentSection = Readonly<{ label: string; text: string }>;
+
+export function validateKnowledgeFileSignature(buffer: Buffer, mediaType: string) {
+  if (mediaType === "application/pdf" && !buffer.subarray(0, 5).equals(Buffer.from("%PDF-"))) throw new Error("file_signature_mismatch");
+  if (mediaType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    && (buffer[0] !== 0x50 || buffer[1] !== 0x4b)) throw new Error("file_signature_mismatch");
+  if (mediaType === "text/plain" && buffer.includes(0)) throw new Error("file_signature_mismatch");
+  if (!["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"].includes(mediaType)) {
+    throw new Error("file_type_rejected");
+  }
+}
+
+export function buildAttributedDocument(sections: readonly KnowledgeDocumentSection[]) {
+  const usable = sections.map((section) => ({ label: section.label.trim(), text: section.text.trim() })).filter((section) => section.label && section.text);
+  if (!usable.length) throw new Error("extracted_content_empty");
+  const content = usable.map((section) => `[${section.label}]\n${section.text}`).join("\n\n");
+  const attributedChunks: string[] = [];
+  for (const section of usable) for (const paragraph of section.text.split(/\n{2,}/).map((value) => value.trim()).filter(Boolean)) {
+    for (let offset = 0; offset < paragraph.length; offset += 1200) attributedChunks.push(`[${section.label}]\n${paragraph.slice(offset, offset + 1200)}`);
+  }
+  if (attributedChunks.length > 5000) throw new Error("extracted_content_too_many_chunks");
+  return { content, chunks: attributedChunks, sectionCount: usable.length };
+}
+
 function isPublicAddress(address: string) {
   const family = isIP(address);
   if (family === 4) {
@@ -69,18 +93,19 @@ async function scan(buffer: Buffer, mediaType: string, config: KnowledgeWorkerCo
 }
 
 async function extractFile(buffer: Buffer, mediaType: string) {
+  validateKnowledgeFileSignature(buffer, mediaType);
   if (mediaType === "application/pdf") {
-    if (!buffer.subarray(0, 5).equals(Buffer.from("%PDF-"))) throw new Error("file_signature_mismatch");
     const parser = new PDFParse({ data: buffer });
-    try { return (await parser.getText()).text.trim(); } finally { await parser.destroy(); }
+    try {
+      const result = await parser.getText();
+      return buildAttributedDocument(result.pages.map((page) => ({ label: `Source page ${page.num}`, text: page.text })));
+    } finally { await parser.destroy(); }
   }
   if (mediaType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-    if (buffer[0] !== 0x50 || buffer[1] !== 0x4b) throw new Error("file_signature_mismatch");
-    return (await mammoth.extractRawText({ buffer })).value.trim();
+    return buildAttributedDocument([{ label: "Source document", text: (await mammoth.extractRawText({ buffer })).value }]);
   }
   if (mediaType === "text/plain") {
-    if (buffer.includes(0)) throw new Error("file_signature_mismatch");
-    return new TextDecoder("utf-8", { fatal: true }).decode(buffer).trim();
+    return buildAttributedDocument([{ label: "Source document", text: new TextDecoder("utf-8", { fatal: true }).decode(buffer) }]);
   }
   throw new Error("file_type_rejected");
 }
@@ -98,32 +123,45 @@ function safeError(error: unknown) {
   return /^[a-z0-9_]{2,100}$/.test(value) ? value : "knowledge_processing_failed";
 }
 
+const terminalKnowledgeErrors = new Set([
+  "malware_detected", "file_signature_mismatch", "file_type_rejected", "upload_size_mismatch",
+  "extracted_content_invalid", "extracted_content_empty", "extracted_content_too_many_chunks",
+]);
+
 async function processClaim(claim: KnowledgeIngestionClaim, store: KnowledgeIngestionWorkerStore, config: KnowledgeWorkerConfig) {
   try {
-    let content: string; let observedSize: number | undefined; let sha256: Buffer | undefined;
+    let content: string; let split: string[]; let observedSize: number | undefined; let sha256: Buffer | undefined;
+    let provenance: Record<string, unknown>;
     if (claim.job_kind === "file_extract") {
       if (!claim.object_key || !claim.media_type) throw new Error("knowledge_object_missing");
       const [buffer] = await new Storage().bucket(config.bucket).file(claim.object_key).download();
       if (buffer.length !== claim.declared_size || buffer.length > 10 * 1024 * 1024) throw new Error("upload_size_mismatch");
       await scan(buffer, claim.media_type, config);
-      content = await extractFile(buffer, claim.media_type); observedSize = buffer.length; sha256 = createHash("sha256").update(buffer).digest();
+      const extracted = await extractFile(buffer, claim.media_type);
+      content = extracted.content; split = extracted.chunks; observedSize = buffer.length; sha256 = createHash("sha256").update(buffer).digest();
+      provenance = { kind: claim.job_kind, sourceId: claim.source_id, mediaType: claim.media_type,
+        attribution: extracted.sectionCount > 1 ? "page" : "document", sectionCount: extracted.sectionCount,
+        processedAt: new Date().toISOString(), extractorVersion: "knowledge-v2" };
     } else {
       if (!claim.source_url) throw new Error("crawl_url_missing");
       content = await crawlPage(claim.source_url);
+      split = chunks(content);
+      provenance = { kind: claim.job_kind, sourceId: claim.source_id, sourceUrl: claim.source_url,
+        processedAt: new Date().toISOString(), extractorVersion: "knowledge-v2" };
     }
     if (!content || content.length > 2_000_000) throw new Error("extracted_content_invalid");
-    const split = chunks(content); if (!split.length) throw new Error("extracted_content_empty");
+    if (!split.length) throw new Error("extracted_content_empty");
     await store.complete({
       jobId: claim.job_id,
       content,
       chunks: split,
-      provenance: { kind: claim.job_kind, processedAt: new Date().toISOString(), extractorVersion: "knowledge-v1" },
+      provenance,
       ...(observedSize === undefined ? {} : { observedSize }),
       ...(sha256 === undefined ? {} : { sha256 }),
     });
   } catch (error) {
     const code = safeError(error);
-    await store.fail(claim.job_id, code, !["malware_detected", "file_signature_mismatch", "file_type_rejected", "upload_size_mismatch"].includes(code));
+    await store.fail(claim.job_id, code, !terminalKnowledgeErrors.has(code));
   }
 }
 

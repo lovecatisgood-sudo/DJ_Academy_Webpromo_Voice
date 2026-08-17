@@ -14,10 +14,10 @@ export async function POST(request: NextRequest) {
   if (!resolved || !tenantRoleAllows(resolved.context.role, "knowledge.write") || !(await hasTrustedOrigin(request))) return safeJson({ status: "not_found" }, 404);
   try {
     const input = schema.parse(await readJson(request));
-    const result = await resolved.services.knowledgeIngestion.initiateUpload(resolved.context, input);
-    if (result.status !== "created") return safeJson(result, result.status === "not_found" ? 404 : 403);
     const bucketName = resolved.services.env.KNOWLEDGE_OBJECT_BUCKET;
     if (!bucketName) return safeJson({ status: "temporarily_unavailable" }, 503);
+    const result = await resolved.services.knowledgeIngestion.initiateUpload(resolved.context, input);
+    if (result.status !== "created") return safeJson(result, result.status === "not_found" ? 404 : 403);
     const expiresAt = Date.now() + 15 * 60_000;
     const [uploadUrl] = await new Storage().bucket(bucketName).file(result.objectKey).getSignedUrl({
       version: "v4", action: "write", expires: expiresAt, contentType: result.mediaType,

@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0125_structured_knowledge_catalogue_lifecycle";
+export const currentSchemaVersion = "0126_knowledge_ingestion_digest_authority";
 
 export { PostgresAuthStore } from "./auth-store";
 export { AccountingReconciliationWorkerStore, AccountingSyncWorkerStore, BillingWebhookRecoveryWorkerStore, BillingWebhookStore, FinancialEventReconciliationWorkerStore, FinancialReconciliationWorkerStore, SubscriptionLifecycleWorkerStore } from "./billing-webhook-store";
