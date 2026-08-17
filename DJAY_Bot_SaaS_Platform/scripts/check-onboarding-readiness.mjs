@@ -74,7 +74,7 @@ for (const marker of ["djay-bot-text-voice-configuration-flow.html", '"Content-T
   if (!buildRoute.includes(marker)) failures.push(`public builder route is missing ${marker}`);
 }
 const voiceRoute = read("apps/api/app/public/builder/voice-test/session/route.ts");
-for (const marker of ["createXaiBuilderVoiceSession", "PUBLIC_BUILDER_TEST_RATE_LIMIT_SCOPE", "hasTrustedOrigin"]) {
+for (const marker of ["createXaiBuilderVoiceSession", "PUBLIC_BUILDER_TEST_RATE_LIMIT_SCOPE", "hasTrustedOrigin", "publicBuilderAiTestContext", "draftRevision"]) {
   if (!voiceRoute.includes(marker)) failures.push(`anonymous Grok Voice test route is missing ${marker}`);
 }
 const builderDraftRoute = read("apps/api/app/public/builder/draft/route.ts");
@@ -104,8 +104,15 @@ const workspace = read("apps/tenant-web/app/workspace/page.tsx");
 if (workspace.includes('window.location.replace("/workspace/setup")')) failures.push("workspace still traps incomplete accounts in the retired setup wizard");
 
 const aiTest = read("apps/api/app/public/builder/ai-test/route.ts");
-for (const marker of ["runAiTextPreview", "public_builder_ai_test", "services.aiTextGateway", "hasTrustedOrigin"]) {
+for (const marker of ["runAiTextPreview", "public_builder_ai_test", "services.aiTextGateway", "hasTrustedOrigin", "publicBuilderAiTestContext", "draftRevision"]) {
   if (!aiTest.includes(marker)) failures.push(`anonymous Grok test route is missing ${marker}`);
+}
+const translateRoute = read("apps/api/app/public/builder/translate/route.ts");
+for (const marker of ["publicBuilderDraftStrings", "resolvePublicBuilderTestSession", "draft_revision_changed", "source_not_in_saved_draft"]) {
+  if (!translateRoute.includes(marker)) failures.push(`anonymous Builder translation route is missing ${marker}`);
+}
+if (builder.includes("role:testRole") || builder.includes("business:{name:testConfig.business.name") || builder.includes("business:{name:config.business.name")) {
+  failures.push("anonymous Builder still sends browser-owned role or business knowledge to a provider test route");
 }
 
 const websiteImport = read("apps/api/app/public/builder/website-profile/route.ts");

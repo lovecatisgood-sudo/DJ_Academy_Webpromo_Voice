@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z, ZodError } from "zod";
 import { getServices } from "../../../../../lib/container";
+import { publicBuilderAiTestContext } from "../../../../../lib/public-builder-draft-context";
 import { enforceRateLimit, hasTrustedOrigin, readJson, safeJson } from "../../../../../lib/http";
 import {
   PUBLIC_BUILDER_TEST_CAP,
@@ -14,21 +15,8 @@ import { createXaiBuilderVoiceSession } from "../../../../../lib/public-builder-
 
 const requestSchema = z.object({
   language: z.enum(["th", "en"]),
-  role: z.enum(["support", "sales", "booking"]),
-  business: z.object({
-    name: z.string().trim().min(2).max(200),
-    summary: z.string().trim().max(1000).default(""),
-    offers: z.string().trim().max(2000).default(""),
-    hours: z.string().trim().max(1000).default(""),
-    contact: z.string().trim().max(1000).default(""),
-    faqs: z.array(z.object({
-      question: z.string().trim().min(1).max(500),
-      answer: z.string().trim().min(1).max(2000),
-    }).strict()).max(50).default([]),
-    agentObjective: z.string().trim().min(2).max(500),
-    agentBehavior: z.string().trim().min(2).max(1000),
-    agentBoundaries: z.string().trim().min(2).max(1000),
-  }).strict(),
+  draftRevision: z.number().int().min(1),
+  mode: z.enum(["draft", "published"]).default("draft"),
 }).strict();
 
 export async function POST(request: NextRequest) {
@@ -47,6 +35,16 @@ export async function POST(request: NextRequest) {
     sessionHeaders = {
       "Set-Cookie": publicBuilderTestCookie(builderSession.cookieValue, services.env.NODE_ENV === "production"),
     };
+    const savedDraft = await services.anonymousBuilder.ensureDraft(builderSession);
+    if (!savedDraft || savedDraft.revision !== input.draftRevision) {
+      return safeJson({ status: "draft_revision_changed" }, 409, sessionHeaders);
+    }
+    let context;
+    try {
+      context = publicBuilderAiTestContext(savedDraft.state, input.mode);
+    } catch {
+      return safeJson({ status: "draft_context_unavailable" }, 409, sessionHeaders);
+    }
     const allowed = await enforceRateLimit(
       PUBLIC_BUILDER_TEST_RATE_LIMIT_SCOPE,
       builderSession.sessionId,
@@ -59,7 +57,7 @@ export async function POST(request: NextRequest) {
     const session = await createXaiBuilderVoiceSession({
       gatewayEndpoint: services.env.AI_TEXT_GATEWAY_ENDPOINT,
       serviceToken: services.env.AI_TEXT_GATEWAY_SERVICE_TOKEN,
-      profile: input,
+      profile: { language: input.language, role: context.role, business: context.business },
     });
     return safeJson({ status: "issued", session }, 201, sessionHeaders);
   } catch (error) {

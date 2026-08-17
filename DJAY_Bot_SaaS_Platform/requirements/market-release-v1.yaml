@@ -6932,6 +6932,7 @@
       ],
       "implementation_paths": [
         "apps/api/lib/public-builder-test-quota.ts",
+        "apps/api/lib/public-builder-draft-context.ts",
         "apps/api/app/public/builder/ai-test/route.ts",
         "apps/api/app/public/builder/voice-test/session/route.ts"
       ],
@@ -6947,13 +6948,15 @@
       "meter_keys": [],
       "test_ids": [
         "apps/api/lib/public-builder-test-quota.test.ts",
+        "apps/api/lib/public-builder-draft-context.test.ts",
         "apps/api/lib/public-builder-voice.test.ts"
       ],
       "runbooks": [
         "docs/implementation/djay-bots-production-ready-master-plan.md"
       ],
       "evidence": [
-        "docs/validation/production-master-plan-pr02-server-draft-2026-08-17.md"
+        "docs/validation/production-master-plan-pr02-server-draft-2026-08-17.md",
+        "docs/validation/production-master-plan-pr02-grounding-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null

@@ -1429,7 +1429,7 @@
       <details class="evidence" open>
         <summary>Response evidence</summary>
         <dl>
-          <dt>Reply length</dt><dd id="charEvidence">0 words · 300 maximum</dd>
+          <dt>Reply length</dt><dd id="charEvidence">0 words · 200 maximum</dd>
           <dt>Knowledge used</dt><dd id="sourceEvidence">Product catalogue</dd>
           <dt>Style used</dt><dd id="toneEvidence">Warm and concise</dd>
           <dt>Behavior used</dt><dd id="behaviorEvidence">Sales objective and boundaries</dd>
@@ -1834,7 +1834,9 @@
       return [...new Set(errors)];
     }
     async function requestFlowTranslations(texts,sourceLanguage='en',targetLanguage='th') {
-      const response = await fetch('/public/builder/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sourceLanguage,targetLanguage,texts})});
+      await saveServerDraft();
+      if (serverDraftRevision === null) throw new Error('draft_unavailable');
+      const response = await fetch('/public/builder/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sourceLanguage,targetLanguage,texts,draftRevision:serverDraftRevision})});
       const body = await response.json().catch(() => ({}));
       if (!response.ok || body.status !== 'completed' || !Array.isArray(body.translations)) throw new Error(body.status || 'translation_failed');
       return body.translations;
@@ -3898,7 +3900,7 @@
 
     function textExperience() {
       return sectionHeader('Text experience', 'Configure the controls and formatting customers see in website chat. These settings apply only to AI Text Bot.') +
-        `<div class="panel"><h2>Conversation controls</h2><p>Keep customer choices helpful without forcing every conversation into buttons.</p><div class="field-grid"><label>Suggested replies<select data-bind="text.suggestions">${optionList(['Show up to 3 suggested replies','Show only at the welcome message','Do not show suggested replies'], draft.text.suggestions)}</select></label><label>Business links<select data-bind="text.links">${optionList(['Open business links in a new tab','Open links in the same tab','Do not send clickable links'], draft.text.links)}</select></label><label>Customer information forms<select data-bind="text.forms">${optionList(['Ask in conversation, one field at a time','Show a compact form after consent','Send to a secure merchant form'], draft.text.forms)}</select></label><label>Response formatting<select data-bind="text.formatting">${optionList(['Short paragraphs and simple lists','Plain text only','One short paragraph'], draft.text.formatting)}</select></label><label>Knowledge citations<select data-bind="text.citations">${optionList(['Show approved source links when useful','Show source name without link','Keep sources in merchant tester only'], draft.text.citations)}</select></label><label>Reply policy<input value="Aim for 40–80 words · 300 maximum" disabled><span class="help">The agent is instructed to be concise before generation; oversized output is rejected for controlled rewriting, never cut off.</span></label></div></div>` +
+        `<div class="panel"><h2>Conversation controls</h2><p>Keep customer choices helpful without forcing every conversation into buttons.</p><div class="field-grid"><label>Suggested replies<select data-bind="text.suggestions">${optionList(['Show up to 3 suggested replies','Show only at the welcome message','Do not show suggested replies'], draft.text.suggestions)}</select></label><label>Business links<select data-bind="text.links">${optionList(['Open business links in a new tab','Open links in the same tab','Do not send clickable links'], draft.text.links)}</select></label><label>Customer information forms<select data-bind="text.forms">${optionList(['Ask in conversation, one field at a time','Show a compact form after consent','Send to a secure merchant form'], draft.text.forms)}</select></label><label>Response formatting<select data-bind="text.formatting">${optionList(['Short paragraphs and simple lists','Plain text only','One short paragraph'], draft.text.formatting)}</select></label><label>Knowledge citations<select data-bind="text.citations">${optionList(['Show approved source links when useful','Show source name without link','Keep sources in merchant tester only'], draft.text.citations)}</select></label><label>Reply policy<input value="Aim for 40–80 words · 200 maximum" disabled><span class="help">The agent is instructed to be concise before generation; oversized output is rejected for controlled rewriting, never cut off.</span></label></div></div>` +
         `<div class="panel"><h2>Preview customer controls</h2><p>Try the configured response behavior in the tester. Buttons and actions remain simulated.</p><div class="token-list"><span class="token">Compare packages</span><span class="token">Book consultation</span><span class="token">Speak to a person</span></div></div>`;
     }
 
@@ -4144,7 +4146,7 @@
       $('#chatLog').innerHTML = voiceTest
         ? `<div class="bubble bot"><small>${published ? `Published version ${state.version}` : 'Live Voice tester'}</small>Press Start, allow microphone access, and speak naturally. The configured disclosure and business instructions are sent when the secure Voice session begins.</div>`
         : `<div class="bubble bot"><small>${published ? `Published version ${state.version}` : 'Draft text bot'}</small>${escapeHtml(firstReply)}</div><div class="bubble customer"><small>Customer</small>${escapeHtml(sampleCustomer)}</div><div class="bubble bot"><small>Simulated response</small>${escapeHtml(reply)}</div>`;
-      $('#charEvidence').textContent = voiceTest ? 'Waiting for a live response' : `${visibleWordCount(reply,/[\u0e00-\u0e7f]/.test(reply) ? 'th' : 'en')} words · 300 maximum`;
+      $('#charEvidence').textContent = voiceTest ? 'Waiting for a live response' : `${visibleWordCount(reply,/[\u0e00-\u0e7f]/.test(reply) ? 'th' : 'en')} words · 200 maximum`;
       $('#sourceEvidence').textContent = matchingFaq(config, sampleCustomer) ? 'Approved FAQ' : (config.sources?.find(source => source.status === 'Ready')?.name || 'No ready source');
       $('#toneEvidence').textContent = testProduct === 'voice' ? `${config.tone}, ${config.voice.name}, ${config.voice.speed}` : config.tone;
       $('#behaviorEvidence').textContent = config.business.agentObjective || `${data.short} role behavior`;
@@ -4671,9 +4673,10 @@
       $('#testInput').value = '';
       try {
         const testConfig = state.testMode === 'published' ? publishedDraft : draft;
-        const testRole = state.testMode === 'published' ? state.publishedRole : state.role;
         const language = /[\u0e00-\u0e7f]/.test(value) ? 'th' : 'en';
-        const request = await fetch('/public/builder/ai-test', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({language,role:testRole,message:value,messages:state.testMessages.slice(-12),business:{name:testConfig.business.name,summary:testConfig.business.summary||'',offers:testConfig.business.offers||'',hours:testConfig.business.hours||'',contact:testConfig.business.contact||'',faqs:testConfig.business.faqs||[],agentObjective:testConfig.business.agentObjective,agentBehavior:testConfig.business.agentBehavior,agentBoundaries:testConfig.business.agentBoundaries}})});
+        await saveServerDraft();
+        if (serverDraftRevision === null) throw new Error('AI_TEST:Secure draft context is unavailable. Wait for the saved-draft indicator and retry.');
+        const request = await fetch('/public/builder/ai-test', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({language,draftRevision:serverDraftRevision,mode:state.testMode === 'published' ? 'published' : 'draft',message:value,messages:state.testMessages.slice(-12)})});
         const result = await request.json().catch(() => ({}));
         if (!request.ok) {
           const failureCopy = {
@@ -4683,6 +4686,7 @@
             gateway_unavailable: 'The AI service is temporarily unavailable. Retry shortly; your draft is unchanged.',
             not_available: 'Live AI testing is not configured on this environment. Your draft is unchanged.',
             validation_failed: 'The test message or configuration is incomplete. Review the current fields and retry.',
+            draft_revision_changed: 'Your draft changed before this test began. Wait for the saved-draft indicator, then retry.',
           };
           throw new Error(`AI_TEST:${failureCopy[result.status] || 'The test service could not be reached. Retry shortly; your draft is unchanged.'}`);
         }
@@ -4691,7 +4695,7 @@
         state.testMessages.push({role:'user',content:value},{role:'assistant',content:response});
         const typing = $('#chatLog .typing');
         if (typing) { typing.classList.remove('typing'); typing.innerHTML = `<small>Live DJBOT response</small>${escapeHtml(response)}`; }
-        $('#charEvidence').textContent = `${visibleWordCount(response,language)} words · 300 maximum`;
+        $('#charEvidence').textContent = `${visibleWordCount(response,language)} words · 200 maximum`;
         const testProduct = state.testMode === 'published' ? state.publishedProduct : state.product;
         $('#sourceEvidence').textContent = result.preview.citationCount ? 'Approved draft knowledge' : 'Draft behavior and customer message';
         $('#toneEvidence').textContent = testProduct === 'voice' ? `${testConfig.tone}, ${testConfig.voice.name}, ${testConfig.voice.speed}` : testConfig.tone;
@@ -4757,7 +4761,7 @@
         bubble = $('#' + id);
       }
       bubble.querySelector('span').textContent = builderVoice[key];
-      if (speaker === 'agent') $('#charEvidence').textContent = `${visibleWordCount(builderVoice.agentText,/[\u0e00-\u0e7f]/.test(builderVoice.agentText) ? 'th' : 'en')} words · 300 maximum`;
+      if (speaker === 'agent') $('#charEvidence').textContent = `${visibleWordCount(builderVoice.agentText,/[\u0e00-\u0e7f]/.test(builderVoice.agentText) ? 'th' : 'en')} words · 200 maximum`;
       if (speaker === 'agent' && visibleWordCount(builderVoice.agentText,/[\u0e00-\u0e7f]/.test(builderVoice.agentText) ? 'th' : 'en') > 200 && !builderVoice.responseCapped) {
         builderVoice.responseCapped = true;
         try { builderVoice.socket?.send(JSON.stringify({type:'response.cancel'})); } catch {}
@@ -4828,12 +4832,13 @@
       builderVoice.starting = true; builderVoice.terminal = false; builderVoice.customerText = ''; builderVoice.agentText = ''; builderVoice.playbackCursor = 0;
       voiceSetControl('starting','Requesting microphone permission…');
       const config = state.testMode === 'published' ? publishedDraft : draft;
-      const role = state.testMode === 'published' ? state.publishedRole : state.role;
       const language = config.languages?.includes('th') ? 'th' : 'en';
       try {
         if (!navigator.mediaDevices?.getUserMedia) throw new Error('microphone_unsupported');
+        await saveServerDraft();
+        if (serverDraftRevision === null) throw new Error('draft_context_unavailable');
         builderVoice.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});
-        const response = await fetch('/public/builder/voice-test/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({language,role,business:{name:config.business.name,summary:config.business.summary||'',offers:config.business.offers||'',hours:config.business.hours||'',contact:config.business.contact||'',faqs:config.business.faqs||[],agentObjective:config.business.agentObjective,agentBehavior:config.business.agentBehavior,agentBoundaries:config.business.agentBoundaries}})});
+        const response = await fetch('/public/builder/voice-test/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({language,draftRevision:serverDraftRevision,mode:state.testMode === 'published' ? 'published' : 'draft'})});
         const result = await response.json().catch(() => ({}));
         if (!response.ok || result.status !== 'issued' || !result.session?.token) throw new Error(result.status || 'voice_session_unavailable');
         const Context = window.AudioContext || window.webkitAudioContext;
