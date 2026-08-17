@@ -91,6 +91,19 @@ describe("registration service", () => {
     expect(Buffer.from(rawToken!, "utf8").equals(store.signup!.tokenHash)).toBe(false);
   });
 
+  it("passes server-only Builder session authority to persistence", async () => {
+    const store = new MemoryStore();
+    const service = createRegistrationService(store, {
+      publicAppUrl: "https://app.example.test",
+      legalVersions: { termsVersion: "terms-1", privacyVersion: "privacy-1" },
+      requestHashKey: randomBytes(32),
+      emailEnvelopeKey: randomBytes(32),
+    });
+    const builderSessionId = "77777777-7777-4777-8777-777777777777";
+    await service.register(registration, { builderSessionId });
+    expect(store.signup?.builderSessionId).toBe(builderSessionId);
+  });
+
   it("uses a keyed request hash that changes with password input", async () => {
     const store = new MemoryStore();
     const service = createRegistrationService(store, {

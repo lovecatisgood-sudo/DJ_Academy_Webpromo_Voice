@@ -4,6 +4,7 @@ import {
   PUBLIC_BUILDER_TEST_COOKIE,
   PUBLIC_BUILDER_TEST_RATE_LIMIT_SCOPE,
   PUBLIC_BUILDER_TEST_WINDOW_MS,
+  parsePublicBuilderTestSession,
   publicBuilderTestCookie,
   resolvePublicBuilderTestSession,
 } from "./public-builder-test-quota";
@@ -42,5 +43,13 @@ describe("public builder test quota identity", () => {
     expect(PUBLIC_BUILDER_TEST_WINDOW_MS).toBe(30 * 24 * 60 * 60 * 1_000);
     expect(publicBuilderTestCookie("signed", true)).toContain(`${PUBLIC_BUILDER_TEST_COOKIE}=signed`);
     expect(publicBuilderTestCookie("signed", true)).toContain("Secure");
+  });
+
+  it("parses only an existing valid signed session without silently minting one", () => {
+    const now = new Date("2026-08-17T00:00:00.000Z");
+    const created = resolvePublicBuilderTestSession(undefined, key, now);
+    expect(parsePublicBuilderTestSession(created.cookieValue, key, now)?.sessionId).toBe(created.sessionId);
+    expect(parsePublicBuilderTestSession(undefined, key, now)).toBeNull();
+    expect(parsePublicBuilderTestSession(`${created.cookieValue}tampered`, key, now)).toBeNull();
   });
 });

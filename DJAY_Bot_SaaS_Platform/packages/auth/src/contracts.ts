@@ -33,13 +33,14 @@ export type RegistrationResponse = Readonly<{
   message: string;
 }> | Readonly<{
   accepted: false;
-  status: "registration_unavailable" | "legal_version_changed";
+  status: "registration_unavailable" | "legal_version_changed" | "builder_draft_unavailable";
   message: string;
 }>;
 
 export type VerificationResponse =
   | Readonly<{ status: "verified"; tenantId: string }>
   | Readonly<{ status: "already_verified"; tenantId: string }>
+  | Readonly<{ status: "builder_draft_expired" }>
   | Readonly<{ status: "invalid_or_expired" }>;
 
 export const loginInputSchema = z.object({

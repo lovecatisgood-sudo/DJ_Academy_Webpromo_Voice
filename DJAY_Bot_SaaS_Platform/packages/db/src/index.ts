@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0108_anonymous_builder_import_jobs";
+export const currentSchemaVersion = "0109_anonymous_builder_draft_claim";
 
 export { PostgresAuthStore } from "./auth-store";
 export { AccountingReconciliationWorkerStore, AccountingSyncWorkerStore, BillingWebhookRecoveryWorkerStore, BillingWebhookStore, FinancialEventReconciliationWorkerStore, FinancialReconciliationWorkerStore, SubscriptionLifecycleWorkerStore } from "./billing-webhook-store";

@@ -23,6 +23,23 @@ export function resolvePublicBuilderTestSession(
   key: Buffer,
   now = new Date(),
 ) {
+  const existing = parsePublicBuilderTestSession(cookieValue, key, now);
+  if (existing) return existing;
+  const nextSessionId = randomUUID();
+  const nextIssuedAtMs = now.getTime();
+  return {
+    sessionId: nextSessionId,
+    issuedAt: now,
+    expiresAt: new Date(nextIssuedAtMs + PUBLIC_BUILDER_TEST_WINDOW_MS),
+    cookieValue: `${nextSessionId}.${nextIssuedAtMs}.${signature(nextSessionId, nextIssuedAtMs, key)}`,
+  } as const;
+}
+
+export function parsePublicBuilderTestSession(
+  cookieValue: string | undefined,
+  key: Buffer,
+  now = new Date(),
+) {
   const [sessionId, issuedAtText, suppliedSignature, ...extra] = cookieValue?.split(".") ?? [];
   const issuedAtMs = Number(issuedAtText);
   const ageMs = now.getTime() - issuedAtMs;
@@ -44,14 +61,7 @@ export function resolvePublicBuilderTestSession(
       cookieValue: `${sessionId}.${issuedAtText}.${suppliedSignature}`,
     } as const;
   }
-  const nextSessionId = randomUUID();
-  const nextIssuedAtMs = now.getTime();
-  return {
-    sessionId: nextSessionId,
-    issuedAt: now,
-    expiresAt: new Date(nextIssuedAtMs + PUBLIC_BUILDER_TEST_WINDOW_MS),
-    cookieValue: `${nextSessionId}.${nextIssuedAtMs}.${signature(nextSessionId, nextIssuedAtMs, key)}`,
-  } as const;
+  return null;
 }
 
 export function publicBuilderTestCookie(value: string, production: boolean) {

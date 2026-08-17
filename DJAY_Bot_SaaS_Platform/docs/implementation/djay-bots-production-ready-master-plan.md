@@ -197,6 +197,8 @@ Work:
 - Make duplicate registration, resend, verification and draft-claim operations idempotent.
 - Add explicit recovery for conflicting ownership, expired drafts and existing emails.
 
+Implementation checkpoint, 2026-08-17: migration `0109_anonymous_builder_draft_claim.sql` binds a configured Builder session to one registration, freezes draft writes and new/running imports while verification is pending, and atomically copies the exact server-owned revision into a tenant-scoped claim when verification provisions the tenant and sole active Master Admin. The selected registration plan must match the server draft. Concurrent registration replay is idempotent, a second registration cannot substitute the same draft, and an expired linked draft fails closed before any user or tenant is provisioned. Existing-account sign-in continuation, browser-driven Deploy integration, onboarding continuation and permissioned E2E acceptance remain open, so PR-03 is not complete.
+
 Exit gate:
 
 - New-account and existing-account E2E journeys reach the correct owned workspace with the exact draft.

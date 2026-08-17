@@ -48,6 +48,20 @@ type VerificationRow = {
   provisioned_tenant_id: string | null;
 };
 
+type BuilderClaimRow = {
+  session_id: string;
+  session_status: "active" | "claimed" | "expired";
+  session_expires_at: Date;
+  draft_id: string;
+  draft_status: "active" | "claimed" | "expired";
+  draft_expires_at: Date;
+  revision: number;
+  schema_version: number;
+  product_family: "flow" | "text" | "voice" | null;
+  plan_key: string | null;
+  state_json: unknown;
+};
+
 function slugForBusiness(businessName: string, tenantId: string): string {
   const base = businessName
     .normalize("NFKD")
@@ -66,6 +80,28 @@ export class PostgresAuthStore implements AuthStore {
     return this.client.begin(async (sql) => {
       await sql`SELECT pg_advisory_xact_lock(hashtextextended(${command.emailNormalized}, 0))`;
 
+      let builderDraftId: string | null = null;
+      let builderPendingRegistrationId: string | null = null;
+      if (command.builderSessionId) {
+        const drafts = await sql<{ draft_id: string; pending_registration_id: string | null }[]>`
+          SELECT draft.id AS draft_id, session.pending_registration_id
+          FROM builder.anonymous_sessions session
+          JOIN builder.drafts draft ON draft.session_id = session.id
+          WHERE session.id = ${command.builderSessionId}::uuid
+            AND session.status = 'active'
+            AND session.expires_at > now()
+            AND draft.status = 'active'
+            AND draft.expires_at > now()
+            AND draft.product_family IS NOT NULL
+            AND draft.plan_key IS NOT NULL
+            AND draft.plan_key = ${command.selectedPlanKey ?? null}
+          FOR UPDATE OF session, draft
+        `;
+        builderDraftId = drafts[0]?.draft_id ?? null;
+        builderPendingRegistrationId = drafts[0]?.pending_registration_id ?? null;
+        if (!builderDraftId) return { status: "builder_draft_unavailable" as const };
+      }
+
       const matchingKey = await sql<SignupRow[]>`
         SELECT id, request_hash
         FROM identity.signup_intents
@@ -74,10 +110,21 @@ export class PostgresAuthStore implements AuthStore {
       `;
       const existingByKey = matchingKey[0];
       if (existingByKey) {
+        if (command.builderSessionId) {
+          const linked = await sql<{ linked: boolean }[]>`
+            SELECT EXISTS (
+              SELECT 1 FROM builder.anonymous_sessions
+              WHERE id = ${command.builderSessionId}::uuid
+                AND (pending_registration_id = ${existingByKey.id}::uuid OR claimed_registration_id = ${existingByKey.id}::uuid)
+            ) AS linked
+          `;
+          if (!linked[0]?.linked) return { status: "idempotency_conflict" as const };
+        }
         return secureBufferEquals(existingByKey.request_hash, command.requestHash)
           ? { status: "replayed" as const, intentId: existingByKey.id }
           : { status: "idempotency_conflict" as const };
       }
+      if (builderPendingRegistrationId) return { status: "builder_draft_unavailable" as const };
 
       const pendingEmail = await sql<{ id: string }[]>`
         SELECT id
@@ -118,6 +165,19 @@ export class PostgresAuthStore implements AuthStore {
           ${command.outboxPayloadCiphertext}, ${`verify:${command.intentId}`}
         )
       `;
+
+      if (command.builderSessionId && builderDraftId) {
+        const linked = await sql<{ id: string }[]>`
+          UPDATE builder.anonymous_sessions
+          SET pending_registration_id = ${command.intentId}::uuid,
+              last_seen_at = now()
+          WHERE id = ${command.builderSessionId}::uuid
+            AND status = 'active'
+            AND pending_registration_id IS NULL
+          RETURNING id
+        `;
+        if (!linked[0]) throw new Error("builder_draft_link_conflict");
+      }
 
       if (command.selectedPlanKey) {
         const planRows = await sql<{ plan_version_id: string }[]>`
@@ -201,6 +261,27 @@ export class PostgresAuthStore implements AuthStore {
         return { status: "invalid_or_expired" as const };
       }
 
+      const builderClaims = await sql<BuilderClaimRow[]>`
+        SELECT session.id AS session_id, session.status AS session_status,
+          session.expires_at AS session_expires_at, draft.id AS draft_id,
+          draft.status AS draft_status, draft.expires_at AS draft_expires_at,
+          draft.revision, draft.schema_version, draft.product_family, draft.plan_key,
+          draft.state_json
+        FROM builder.anonymous_sessions session
+        JOIN builder.drafts draft ON draft.session_id = session.id
+        WHERE session.pending_registration_id = ${signup.intent_id}::uuid
+        FOR UPDATE OF session, draft
+      `;
+      const builderClaim = builderClaims[0] ?? null;
+      if (builderClaim && (
+        builderClaim.session_status !== "active"
+        || builderClaim.draft_status !== "active"
+        || builderClaim.session_expires_at.getTime() <= command.now.getTime()
+        || builderClaim.draft_expires_at.getTime() <= command.now.getTime()
+        || !builderClaim.product_family
+        || !builderClaim.plan_key
+      )) return { status: "builder_draft_expired" as const };
+
       const existingEmail = await sql<{ user_id: string }[]>`
         SELECT user_id FROM identity.email_addresses
         WHERE email_normalized = ${signup.email_normalized}
@@ -250,6 +331,33 @@ export class PostgresAuthStore implements AuthStore {
         INSERT INTO tenancy.tenant_onboarding (tenant_id, stage)
         VALUES (${command.tenantId}::uuid, 'account_created')
       `;
+      if (builderClaim?.product_family && builderClaim.plan_key) {
+        await sql`
+          INSERT INTO tenancy.builder_draft_claims (
+            tenant_id, claimed_by_user_id, claimed_by_membership_id,
+            source_session_id, source_draft_id, source_revision, schema_version,
+            product_family, plan_key, state_json, claimed_at
+          ) VALUES (
+            ${command.tenantId}::uuid, ${command.userId}::uuid, ${command.membershipId}::uuid,
+            ${builderClaim.session_id}::uuid, ${builderClaim.draft_id}::uuid,
+            ${builderClaim.revision}, ${builderClaim.schema_version},
+            ${builderClaim.product_family}, ${builderClaim.plan_key},
+            ${sql.json(builderClaim.state_json as never)}, ${command.now}
+          )
+        `;
+        await sql`
+          UPDATE builder.drafts SET status = 'claimed', updated_at = ${command.now}
+          WHERE id = ${builderClaim.draft_id}::uuid AND status = 'active'
+        `;
+        await sql`
+          UPDATE builder.anonymous_sessions
+          SET status = 'claimed', pending_registration_id = NULL,
+              claimed_registration_id = ${signup.intent_id}::uuid,
+              claimed_tenant_id = ${command.tenantId}::uuid,
+              claimed_at = ${command.now}, last_seen_at = ${command.now}
+          WHERE id = ${builderClaim.session_id}::uuid AND status = 'active'
+        `;
+      }
       if (signup.selected_plan_key) {
         const planRows = await sql<{
           product_key: string;

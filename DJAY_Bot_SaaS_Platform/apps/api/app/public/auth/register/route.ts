@@ -1,9 +1,11 @@
 import { registrationInputSchema } from "@djay/auth";
+import type { NextRequest } from "next/server";
 import { ZodError } from "zod";
 import { getServices } from "../../../../lib/container";
 import { clientAddress, enforceRateLimit, hasTrustedOrigin, readJson, requestId, safeJson } from "../../../../lib/http";
+import { PUBLIC_BUILDER_TEST_COOKIE, parsePublicBuilderTestSession } from "../../../../lib/public-builder-test-quota";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const id = requestId();
   if (!(await hasTrustedOrigin(request))) return safeJson({ code: "authorization_denied", message: "คำขอถูกปฏิเสธ", requestId: id }, 403);
   let locale: "th" | "en" = "th";
@@ -21,7 +23,8 @@ export async function POST(request: Request) {
         "Retry-After": String(retry),
       });
     }
-    const { registration, legalDocuments } = await getServices();
+    const services = await getServices();
+    const { registration, legalDocuments } = services;
     if (!legalDocuments) {
       return safeJson({
         code: "registration_unavailable",
@@ -29,7 +32,19 @@ export async function POST(request: Request) {
         requestId: id,
       }, 503);
     }
-    const result = await registration.register(body);
+    const builderSession = parsePublicBuilderTestSession(
+      request.cookies.get(PUBLIC_BUILDER_TEST_COOKIE)?.value,
+      services.rateLimitKey,
+    );
+    if (!builderSession) {
+      return safeJson({
+        accepted: false,
+        status: "builder_draft_unavailable",
+        message: locale === "en" ? "Return to the Builder and save your configuration before creating the account." : "โปรดกลับไปที่ Builder และบันทึกการตั้งค่าก่อนสร้างบัญชี",
+        requestId: id,
+      }, 409);
+    }
+    const result = await registration.register(body, { builderSessionId: builderSession.sessionId });
     return safeJson(result, result.accepted ? 202 : 409);
   } catch (error) {
     if (error instanceof ZodError || error instanceof SyntaxError || (error instanceof Error && error.message === "request_too_large")) {

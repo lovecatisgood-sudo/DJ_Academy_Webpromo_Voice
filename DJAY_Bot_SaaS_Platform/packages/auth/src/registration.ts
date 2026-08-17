@@ -55,7 +55,7 @@ export function createRegistrationService(store: AuthStore, config: Registration
   const verificationTtlMs = config.verificationTtlMs ?? 30 * 60 * 1000;
 
   return {
-    async register(input: RegistrationInput): Promise<RegistrationResponse> {
+    async register(input: RegistrationInput, context: Readonly<{ builderSessionId?: string }> = {}): Promise<RegistrationResponse> {
       const parsed = registrationInputSchema.parse(input);
       if (!config.legalVersions) {
         return Object.freeze({
@@ -80,7 +80,7 @@ export function createRegistrationService(store: AuthStore, config: Registration
       const verificationUrl = new URL("/verify-email", config.publicAppUrl);
       verificationUrl.hash = new URLSearchParams({ token: verificationToken }).toString();
 
-      await store.createSignupIntent({
+      const created = await store.createSignupIntent({
         intentId,
         tokenId,
         idempotencyKey: parsed.idempotencyKey,
@@ -104,7 +104,16 @@ export function createRegistrationService(store: AuthStore, config: Registration
           expiresAt: expiresAt.toISOString(),
           locale: parsed.locale,
         }, config.emailEnvelopeKey),
+        ...(context.builderSessionId ? { builderSessionId: context.builderSessionId } : {}),
       });
+
+      if (created.status === "builder_draft_unavailable") {
+        return Object.freeze({
+          accepted: false as const,
+          status: "builder_draft_unavailable" as const,
+          message: parsed.locale === "en" ? "Your Builder draft is unavailable or incomplete. Return to the Builder and save it before creating the account." : "แบบร่าง Builder ไม่พร้อมใช้งานหรือยังไม่สมบูรณ์ โปรดกลับไปที่ Builder และบันทึกก่อนสร้างบัญชี",
+        });
+      }
 
       return Object.freeze({ accepted: true, message: registrationMessage(parsed.locale) });
     },
@@ -124,7 +133,7 @@ export function createRegistrationService(store: AuthStore, config: Registration
         requestId: parsed.requestId,
       });
 
-      if (result.status === "invalid_or_expired") return result;
+      if (result.status === "invalid_or_expired" || result.status === "builder_draft_expired") return result;
       return Object.freeze({
         status: result.status === "provisioned" ? "verified" : "already_verified",
         tenantId: result.tenantId,

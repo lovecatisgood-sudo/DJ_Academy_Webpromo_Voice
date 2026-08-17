@@ -18,9 +18,9 @@ export async function POST(request: Request) {
     if (!limit.allowed) return safeJson({ status: "invalid_or_expired" }, 400);
     const { registration } = await getServices();
     const result = await registration.verify(body);
-    return result.status === "invalid_or_expired"
-      ? safeJson({ status: result.status }, 400)
-      : safeJson({ status: result.status }, 200);
+    if (result.status === "invalid_or_expired") return safeJson({ status: result.status }, 400);
+    if (result.status === "builder_draft_expired") return safeJson({ status: result.status }, 409);
+    return safeJson({ status: result.status }, 200);
   } catch (error) {
     if (error instanceof ZodError || error instanceof SyntaxError) {
       return safeJson({ status: "invalid_or_expired" }, 400);

@@ -6445,16 +6445,23 @@
         "packages/db/src/anonymous-builder-import-store.ts",
         "apps/api/app/public/builder/draft/route.ts",
         "apps/api/app/public/builder/website-imports/route.ts",
+        "apps/api/app/public/auth/register/route.ts",
+        "apps/api/app/public/auth/verify-email/route.ts",
         "apps/api/lib/public-builder-test-quota.ts",
+        "packages/auth/src/registration.ts",
+        "packages/db/src/auth-store.ts",
         "docs/design/djay-bot-text-voice-configuration-flow.html"
       ],
       "migration_ids": [
         "0107_anonymous_builder_drafts",
-        "0108_anonymous_builder_import_jobs"
+        "0108_anonymous_builder_import_jobs",
+        "0109_anonymous_builder_draft_claim"
       ],
       "api_contracts": [
         "GET /public/builder/draft",
-        "PATCH /public/builder/draft"
+        "PATCH /public/builder/draft",
+        "POST /public/auth/register",
+        "POST /public/auth/verify-email"
       ],
       "ui_routes": [
         "/build"
@@ -6467,6 +6474,8 @@
         "apps/api/lib/public-builder-draft.test.ts",
         "apps/api/lib/public-builder-import.test.ts",
         "apps/api/lib/public-builder-test-quota.test.ts",
+        "packages/auth/src/registration.test.ts",
+        "packages/db/src/auth-store.integration.test.ts",
         "scripts/check-builder-translations.mjs"
       ],
       "runbooks": [
@@ -6475,7 +6484,8 @@
       "evidence": [
         "docs/validation/production-master-plan-pr02-server-draft-2026-08-17.md",
         "docs/validation/production-master-plan-pr02-import-jobs-2026-08-17.md",
-        "docs/validation/production-master-plan-pr02-translations-2026-08-17.md"
+        "docs/validation/production-master-plan-pr02-translations-2026-08-17.md",
+        "docs/validation/production-master-plan-pr03-draft-claim-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null

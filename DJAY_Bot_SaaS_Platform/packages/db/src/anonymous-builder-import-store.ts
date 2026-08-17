@@ -78,6 +78,7 @@ export class AnonymousBuilderImportStore {
         JOIN builder.anonymous_sessions session ON session.id = draft.session_id
         WHERE draft.session_id = ${input.sessionId}::uuid
           AND draft.status = 'active' AND session.status = 'active'
+          AND session.pending_registration_id IS NULL
           AND draft.expires_at > ${now} AND session.expires_at > ${now}
           AND draft.revision = ${input.draftRevision}
         FOR UPDATE OF draft
@@ -127,6 +128,7 @@ export class AnonymousBuilderImportStore {
         JOIN builder.anonymous_sessions session ON session.id = job.session_id
         WHERE job.id = ${jobId}::uuid AND job.session_id = ${sessionId}::uuid
           AND session.status = 'active' AND session.expires_at > ${now}
+          AND session.pending_registration_id IS NULL
         FOR UPDATE OF job
       `;
       const row = rows[0];

@@ -117,6 +117,7 @@ export class AnonymousBuilderStore {
         WHERE draft.session_id = ${input.sessionId}::uuid
           AND draft.status = 'active'
           AND session.status = 'active'
+          AND session.pending_registration_id IS NULL
           AND draft.expires_at > ${now}
           AND session.expires_at > ${now}
         FOR UPDATE OF draft

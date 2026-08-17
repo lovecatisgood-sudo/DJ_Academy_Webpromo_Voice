@@ -85,6 +85,7 @@ const appointmentCalendarReconciliationMigration = readFileSync(resolve(import.m
 const appointmentRecoveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0101_appointment_recovery_and_repeat_reschedule.sql"), "utf8");
 const anonymousBuilderDraftMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0107_anonymous_builder_drafts.sql"), "utf8");
 const anonymousBuilderImportMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0108_anonymous_builder_import_jobs.sql"), "utf8");
+const anonymousBuilderClaimMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0109_anonymous_builder_draft_claim.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -113,6 +114,16 @@ describe("Merchant experience migration invariants", () => {
     expect(anonymousBuilderImportMigration).toContain("profile_sha256 bytea");
     expect(anonymousBuilderImportMigration).toContain("provenance_json jsonb");
     expect(anonymousBuilderImportMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+builder\.website_import[^;]+TO djay_runtime/i);
+  });
+
+  it("claims one exact Builder draft into one tenant under auth authority", () => {
+    expect(anonymousBuilderClaimMigration).toContain("pending_registration_id uuid");
+    expect(anonymousBuilderClaimMigration).toContain("CREATE TABLE tenancy.builder_draft_claims");
+    expect(anonymousBuilderClaimMigration).toContain("source_session_id uuid NOT NULL UNIQUE");
+    expect(anonymousBuilderClaimMigration).toContain("source_draft_id uuid NOT NULL UNIQUE");
+    expect(anonymousBuilderClaimMigration).toContain("builder_draft_claims_tenant_claimed_idx");
+    expect(anonymousBuilderClaimMigration).toContain("FORCE ROW LEVEL SECURITY");
+    expect(anonymousBuilderClaimMigration).toContain("FOREIGN KEY (claimed_by_membership_id, tenant_id)");
   });
 
   it("keeps appointment recovery independently reviewed, bounded, optimistic, and replay-safe", () => {

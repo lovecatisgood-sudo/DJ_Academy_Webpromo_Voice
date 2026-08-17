@@ -121,6 +121,7 @@ export const anonymousBuilderSessions = builderSchema.table("anonymous_sessions"
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
   status: text("status").notNull().default("active"),
+  pendingRegistrationId: uuid("pending_registration_id").references(() => signupIntents.id, { onDelete: "restrict" }),
   claimedRegistrationId: uuid("claimed_registration_id").references(() => signupIntents.id, { onDelete: "restrict" }),
   claimedTenantId: uuid("claimed_tenant_id").references(() => tenants.id, { onDelete: "restrict" }),
   claimedAt: timestamp("claimed_at", { withTimezone: true }),
@@ -148,6 +149,21 @@ export const anonymousBuilderDraftRevisions = builderSchema.table("draft_revisio
   state: jsonb("state_json").notNull(),
   createdAt: createdAt(),
 }, (table) => [primaryKey({ columns: [table.draftId, table.revision] })]);
+
+export const tenantBuilderDraftClaims = tenancySchema.table("builder_draft_claims", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
+  claimedByUserId: uuid("claimed_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  claimedByMembershipId: uuid("claimed_by_membership_id").notNull().references(() => memberships.id, { onDelete: "restrict" }),
+  sourceSessionId: uuid("source_session_id").notNull().unique().references(() => anonymousBuilderSessions.id, { onDelete: "restrict" }),
+  sourceDraftId: uuid("source_draft_id").notNull().unique().references(() => anonymousBuilderDrafts.id, { onDelete: "restrict" }),
+  sourceRevision: integer("source_revision").notNull(),
+  schemaVersion: integer("schema_version").notNull(),
+  productFamily: text("product_family").notNull(),
+  planKey: text("plan_key").notNull(),
+  state: jsonb("state_json").notNull(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull(),
+});
 
 export const anonymousBuilderWebsiteImportJobs = builderSchema.table("website_import_jobs", {
   id: uuid("id").primaryKey(),

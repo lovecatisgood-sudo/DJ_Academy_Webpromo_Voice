@@ -15,6 +15,8 @@ import {
 import { createTenantContext } from "@djay/tenancy";
 import { runEmailBatch } from "@djay/notifications";
 import { PostgresAuthStore } from "./auth-store";
+import { AnonymousBuilderStore } from "./anonymous-builder-store";
+import { AnonymousBuilderImportStore } from "./anonymous-builder-import-store";
 import { createDatabaseClient } from "./client";
 import { PostgresEmailOutboxStore } from "./email-outbox-store";
 
@@ -45,6 +47,8 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
       emailEnvelopeKey,
     });
     const idempotencyKey = randomUUID();
+    const builderSessionId = randomUUID();
+    const builderDraftId = randomUUID();
     const email = `owner-${randomUUID()}@example.test`;
     const registration = {
       idempotencyKey,
@@ -61,7 +65,45 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
       acceptPrivacy: true as const,
     };
 
-    await Promise.all([service.register(registration), service.register(registration)]);
+    const builderExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000);
+    await adminClient!`
+      INSERT INTO builder.anonymous_sessions (id, issued_at, expires_at, last_seen_at)
+      VALUES (${builderSessionId}::uuid, now(), ${builderExpiresAt}, now())
+    `;
+    const builderState = { schemaVersion: 1, locale: "en", configuration: { botName: "Claimed Builder" } };
+    await adminClient!`
+      INSERT INTO builder.drafts (
+        id, session_id, revision, schema_version, product_family, plan_key,
+        state_json, status, expires_at
+      ) VALUES (
+        ${builderDraftId}::uuid, ${builderSessionId}::uuid, 1, 1, 'text', 'ai_chat_basic',
+        ${adminClient!.json(builderState)}, 'active', ${builderExpiresAt}
+      )
+    `;
+    await adminClient!`
+      INSERT INTO builder.draft_revisions (draft_id, revision, schema_version, state_json)
+      VALUES (${builderDraftId}::uuid, 1, 1, ${adminClient!.json(builderState)})
+    `;
+
+    await Promise.all([
+      service.register(registration, { builderSessionId }),
+      service.register(registration, { builderSessionId }),
+    ]);
+    await expect(new AnonymousBuilderStore(authClient!).updateDraft({
+      sessionId: builderSessionId,
+      revision: 1,
+      schemaVersion: 1,
+      productFamily: "text",
+      planKey: "ai_chat_basic",
+      state: { ...builderState, configuration: { botName: "Changed after registration" } },
+    })).resolves.toEqual({ status: "unavailable" });
+    await expect(new AnonymousBuilderImportStore(authClient!).createJob({
+      sessionId: builderSessionId,
+      idempotencyKey: randomUUID(),
+      draftRevision: 1,
+      requestedUrl: "https://example.test/",
+      normalizedUrl: "https://example.test/",
+    })).resolves.toEqual({ status: "unavailable" });
 
     const outboxRows = await adminClient!<{ payload_ciphertext: string }[]>`
       SELECT payload_ciphertext
@@ -93,6 +135,10 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
       snapshot_count: number;
       quota_count: number;
       password_cleared: boolean;
+      builder_claim_count: number;
+      builder_session_status: string;
+      builder_draft_status: string;
+      claimed_bot_name: string;
     }[]>`
       SELECT
         (SELECT count(*)::int FROM tenancy.tenants WHERE id = ${verified.tenantId}::uuid) AS tenant_count,
@@ -112,7 +158,13 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
         (SELECT count(*)::int FROM tenancy.quota_accounts
           WHERE tenant_id = ${verified.tenantId}::uuid AND customer_unit = 'ai_response') AS quota_count,
         (SELECT password_hash IS NULL FROM identity.signup_intents
-          WHERE idempotency_key = ${idempotencyKey}::uuid) AS password_cleared
+          WHERE idempotency_key = ${idempotencyKey}::uuid) AS password_cleared,
+        (SELECT count(*)::int FROM tenancy.builder_draft_claims
+          WHERE tenant_id = ${verified.tenantId}::uuid AND source_draft_id = ${builderDraftId}::uuid) AS builder_claim_count,
+        (SELECT status FROM builder.anonymous_sessions WHERE id = ${builderSessionId}::uuid) AS builder_session_status,
+        (SELECT status FROM builder.drafts WHERE id = ${builderDraftId}::uuid) AS builder_draft_status,
+        (SELECT state_json #>> '{configuration,botName}' FROM tenancy.builder_draft_claims
+          WHERE tenant_id = ${verified.tenantId}::uuid) AS claimed_bot_name
     `;
     expect(counts[0]).toEqual({
       tenant_count: 1,
@@ -124,6 +176,10 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
       snapshot_count: 1,
       quota_count: 1,
       password_cleared: true,
+      builder_claim_count: 1,
+      builder_session_status: "claimed",
+      builder_draft_status: "claimed",
+      claimed_bot_name: "Claimed Builder",
     });
 
     const purchaseIntents = await adminClient!<{
@@ -539,5 +595,65 @@ describe.runIf(enabled)("PostgreSQL registration and tenant provisioning", () =>
     expect(deliveryResult.sent).toBeGreaterThanOrEqual(4);
     expect(delivered).toContain(email.toLowerCase());
     expect(delivered).toContain(invitedEmail);
+  });
+
+  it("denies a second registration and fails verification closed after its linked draft expires", async () => {
+    const requestHashKey = randomBytes(32);
+    const emailEnvelopeKey = randomBytes(32);
+    const service = createRegistrationService(new PostgresAuthStore(authClient!), {
+      publicAppUrl: "https://signup.example.test",
+      legalVersions: { termsVersion: "terms-test-1", privacyVersion: "privacy-test-1" },
+      requestHashKey,
+      emailEnvelopeKey,
+    });
+    const builderSessionId = randomUUID();
+    const builderDraftId = randomUUID();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1_000);
+    await adminClient!`
+      INSERT INTO builder.anonymous_sessions (id, issued_at, expires_at, last_seen_at)
+      VALUES (${builderSessionId}::uuid, now(), ${expiresAt}, now())
+    `;
+    await adminClient!`
+      INSERT INTO builder.drafts (
+        id, session_id, product_family, plan_key, state_json, expires_at
+      ) VALUES (
+        ${builderDraftId}::uuid, ${builderSessionId}::uuid, 'flow', 'flowbot_basic',
+        ${adminClient!.json({ schemaVersion: 1, locale: "th", configuration: { botName: "Expiring draft" } })},
+        ${expiresAt}
+      )
+    `;
+    const firstKey = randomUUID();
+    const base = {
+      name: "Draft Owner",
+      businessName: "Draft Business",
+      password: "integration password 456",
+      locale: "en" as const,
+      timezone: "Asia/Bangkok",
+      selectedPlanKey: "flowbot_basic" as const,
+      termsVersion: "terms-test-1",
+      privacyVersion: "privacy-test-1",
+      acceptTerms: true as const,
+      acceptPrivacy: true as const,
+    };
+    await expect(service.register({ ...base, idempotencyKey: firstKey, email: `first-${randomUUID()}@example.test` }, { builderSessionId }))
+      .resolves.toMatchObject({ accepted: true });
+    await expect(service.register({ ...base, idempotencyKey: randomUUID(), email: `second-${randomUUID()}@example.test` }, { builderSessionId }))
+      .resolves.toMatchObject({ accepted: false, status: "builder_draft_unavailable" });
+
+    const outbox = await adminClient!<{ payload_ciphertext: string }[]>`
+      SELECT payload_ciphertext FROM operations.outbox
+      WHERE aggregate_id = (SELECT id FROM identity.signup_intents WHERE idempotency_key = ${firstKey}::uuid)
+    `;
+    const payload = openJson<{ verificationUrl: string }>(outbox[0]!.payload_ciphertext, emailEnvelopeKey);
+    const token = new URLSearchParams(new URL(payload.verificationUrl).hash.slice(1)).get("token")!;
+    await adminClient!`UPDATE builder.drafts SET expires_at = now() - interval '1 second' WHERE id = ${builderDraftId}::uuid`;
+    await adminClient!`UPDATE builder.anonymous_sessions SET expires_at = now() - interval '1 second' WHERE id = ${builderSessionId}::uuid`;
+    await expect(service.verify({ token, requestId: "expired-builder-verify" }))
+      .resolves.toEqual({ status: "builder_draft_expired" });
+    const provisioned = await adminClient!<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM identity.signup_intents
+      WHERE idempotency_key = ${firstKey}::uuid AND status = 'provisioned'
+    `;
+    expect(provisioned[0]?.count).toBe(0);
   });
 });

@@ -16,11 +16,12 @@ export type CreateSignupIntentCommand = Readonly<{
   tokenHash: Buffer;
   tokenExpiresAt: Date;
   outboxPayloadCiphertext: string;
+  builderSessionId?: string;
 }>;
 
 export type CreateSignupIntentResult =
   | Readonly<{ status: "created" | "replayed"; intentId: string }>
-  | Readonly<{ status: "email_already_pending" | "idempotency_conflict" }>;
+  | Readonly<{ status: "email_already_pending" | "idempotency_conflict" | "builder_draft_unavailable" }>;
 
 export type ProvisionSignupCommand = Readonly<{
   tokenHash: Buffer;
@@ -37,7 +38,8 @@ export type ProvisionSignupCommand = Readonly<{
 
 export type ProvisionSignupResult =
   | Readonly<{ status: "provisioned" | "already_provisioned"; tenantId: string; userId: string }>
-  | Readonly<{ status: "invalid_or_expired" }>;
+  | Readonly<{ status: "invalid_or_expired" }>
+  | Readonly<{ status: "builder_draft_expired" }>;
 
 export interface AuthStore {
   createSignupIntent(command: CreateSignupIntentCommand): Promise<CreateSignupIntentResult>;
