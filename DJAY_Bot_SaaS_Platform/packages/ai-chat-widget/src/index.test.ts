@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aiChatSessionStorageKey, normalizeAiApiBaseUrl } from "./index";
+import { aiChatSessionStorageKey, aiChatUnavailableCopy, normalizeAiApiBaseUrl } from "./index";
 
 describe("AI Chat web widget", () => {
   it("normalizes API URLs and scopes persisted sessions", () => {
@@ -11,5 +11,10 @@ describe("AI Chat web widget", () => {
   it("exports no routing controls", async () => {
     const source = await import("./index");
     expect(Object.keys(source).join(" ")).not.toMatch(/provider|model/i);
+  });
+
+  it("keeps the customer-safe unavailable fallback in both supported languages", () => {
+    expect(aiChatUnavailableCopy("en")).toContain("Please contact the business directly");
+    expect(aiChatUnavailableCopy("th")).toContain("กรุณาติดต่อธุรกิจโดยตรง");
   });
 });

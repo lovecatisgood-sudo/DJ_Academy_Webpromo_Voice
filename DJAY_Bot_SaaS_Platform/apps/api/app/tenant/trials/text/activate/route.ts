@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
+import { sealJson } from "@djay/auth";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { safeJson } from "../../../../../lib/http";
@@ -20,6 +21,9 @@ export async function POST(request: NextRequest) {
     try {
       const setup = await resolved.services.trials.getTextStarterCardSetup(resolved.context, resolved.body.purchaseIntentId);
       if (!setup) return safeJson({ status: "not_eligible" }, 409);
+      if (!resolved.services.usageAlertNotificationEnvelopeKey) return safeJson({ status: "not_available" }, 503);
+      const ownerEmail = await resolved.services.trials.verifiedOwnerEmail(resolved.context);
+      if (!ownerEmail) return safeJson({ status: "not_eligible" }, 409);
       const evidence = await resolved.services.stripePaymentProvider.retrieveTrialCardSetup({
         externalSetupIntentRef: setup.external_setup_intent_ref,
         expectedCustomerRef: setup.external_customer_ref,
@@ -33,6 +37,8 @@ export async function POST(request: NextRequest) {
         externalSetupIntentRef: evidence.externalSetupIntentRef,
         externalPaymentMethodRef: evidence.externalPaymentMethodRef, fingerprintHash,
         trialGrantId: randomUUID(), entitlementSnapshotId: randomUUID(), idempotencyKey: idempotencyKey.data,
+        notificationProfileId: randomUUID(),
+        ownerRecipientCiphertext: sealJson({ email: ownerEmail }, resolved.services.usageAlertNotificationEnvelopeKey),
       });
       return safeJson(result, result.status === "activated" ? 200 : 409);
     } catch (error) {

@@ -19,12 +19,13 @@ type SyncResponse = Readonly<{
 }>;
 
 const copy = {
-  en: { open: "Open AI chat", close: "Close AI chat", product: "AI sales assistant", send: "Send", placeholder: "Ask a question…", connecting: "Connecting…", thinking: "Preparing a response…", unavailable: "Chat is temporarily unavailable. Your conversation is still saved.", retry: "Reconnect", handover: "A team member will continue this conversation.", completed: "This conversation is complete.", failed: "This conversation could not continue.", expired: "This conversation has expired.", newConversation: "Start a new conversation", powered: "Powered by DJAY Bot" },
-  th: { open: "เปิดแชท AI", close: "ปิดแชท AI", product: "ผู้ช่วยฝ่ายขาย AI", send: "ส่ง", placeholder: "สอบถามได้เลย…", connecting: "กำลังเชื่อมต่อ…", thinking: "กำลังเตรียมคำตอบ…", unavailable: "แชทไม่พร้อมใช้งานชั่วคราว การสนทนาของคุณยังถูกบันทึกไว้", retry: "เชื่อมต่อใหม่", handover: "ทีมงานจะเข้ามาดูแลการสนทนาต่อ", completed: "การสนทนานี้เสร็จสิ้นแล้ว", failed: "ไม่สามารถดำเนินการสนทนานี้ต่อได้", expired: "การสนทนานี้หมดอายุแล้ว", newConversation: "เริ่มการสนทนาใหม่", powered: "ขับเคลื่อนโดย DJAY Bot" },
+  en: { open: "Open AI chat", close: "Close AI chat", product: "AI sales assistant", send: "Send", placeholder: "Ask a question…", connecting: "Connecting…", thinking: "Preparing a response…", unavailable: "Chat is unavailable. Please contact the business directly; your conversation is still saved.", retry: "Reconnect", handover: "A team member will continue this conversation.", completed: "This conversation is complete.", failed: "This conversation could not continue.", expired: "This conversation has expired.", newConversation: "Start a new conversation", powered: "Powered by DJAY Bot" },
+  th: { open: "เปิดแชท AI", close: "ปิดแชท AI", product: "ผู้ช่วยฝ่ายขาย AI", send: "ส่ง", placeholder: "สอบถามได้เลย…", connecting: "กำลังเชื่อมต่อ…", thinking: "กำลังเตรียมคำตอบ…", unavailable: "แชทไม่พร้อมใช้งาน กรุณาติดต่อธุรกิจโดยตรง การสนทนาของคุณยังถูกบันทึกไว้", retry: "เชื่อมต่อใหม่", handover: "ทีมงานจะเข้ามาดูแลการสนทนาต่อ", completed: "การสนทนานี้เสร็จสิ้นแล้ว", failed: "ไม่สามารถดำเนินการสนทนานี้ต่อได้", expired: "การสนทนานี้หมดอายุแล้ว", newConversation: "เริ่มการสนทนาใหม่", powered: "ขับเคลื่อนโดย DJAY Bot" },
 } as const;
 
 export function normalizeAiApiBaseUrl(value: string) { return normalizeWidgetApiOrigin(value); }
 export function aiChatSessionStorageKey(deploymentKey: string) { return `djay:ai-chat:${deploymentKey.slice(0, 24)}:session`; }
+export function aiChatUnavailableCopy(language: "th" | "en") { return copy[language].unavailable; }
 export function mountAiChatWidget(options: AiChatWidgetOptions) { return new AiChatWidget(options).mount(); }
 
 let aiChatWidgetSequence = 0;

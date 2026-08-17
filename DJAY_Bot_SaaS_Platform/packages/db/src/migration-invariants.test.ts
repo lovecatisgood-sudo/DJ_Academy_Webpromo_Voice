@@ -91,6 +91,7 @@ const versionedMerchantOnboardingMigration = readFileSync(resolve(import.meta.di
 const purchaseIntentKindMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0112_purchase_intent_kind.sql"), "utf8");
 const flowTrialActivationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0113_flow_starter_trial_activation.sql"), "utf8");
 const textTrialSetupMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0114_text_starter_trial_setup.sql"), "utf8");
+const trialLifecycleMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0115_trial_warning_and_terminal_states.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -173,6 +174,17 @@ describe("Merchant experience migration invariants", () => {
     expect(textTrialSetupMigration).toContain("octet_length(fingerprint_hash) = 32");
     expect(textTrialSetupMigration).toContain("FORCE ROW LEVEL SECURITY");
     expect(textTrialSetupMigration).not.toMatch(/card_number|security_code|\bcvc\b|client_secret/);
+  });
+
+  it("deduplicates the 100-remaining warning and terminates exhausted or expired trials", () => {
+    expect(trialLifecycleMigration).toContain("'trial_100_remaining'");
+    expect(trialLifecycleMigration).toContain("OLD.settled_quantity < 400");
+    expect(trialLifecycleMigration).toContain("'text-trial-100-remaining:' || trial.id::text");
+    expect(trialLifecycleMigration).toContain("status = 'exhausted'");
+    expect(trialLifecycleMigration).toContain("CREATE OR REPLACE FUNCTION billing.reconcile_expired_trials");
+    expect(trialLifecycleMigration).toContain("status = 'expired'");
+    expect(trialLifecycleMigration).toContain("'merchantAction', 'view_paid_plans'");
+    expect(trialLifecycleMigration).toContain("session_user <> 'djay_worker'");
   });
 
   it("keeps appointment recovery independently reviewed, bounded, optimistic, and replay-safe", () => {

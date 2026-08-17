@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0114_text_starter_trial_setup";
+export const currentSchemaVersion = "0115_trial_warning_and_terminal_states";
 
 export { PostgresAuthStore } from "./auth-store";
 export { AccountingReconciliationWorkerStore, AccountingSyncWorkerStore, BillingWebhookRecoveryWorkerStore, BillingWebhookStore, FinancialEventReconciliationWorkerStore, FinancialReconciliationWorkerStore, SubscriptionLifecycleWorkerStore } from "./billing-webhook-store";
@@ -8,7 +8,7 @@ export {
   UsageAlertWorkerStore, UsagePeriodWorkerStore,
 } from "./commerce-store";
 export { PurchaseIntentStore } from "./purchase-intent-store";
-export { TrialStore } from "./trial-store";
+export { TrialStore, TrialLifecycleWorkerStore } from "./trial-store";
 export { AnonymousBuilderStore, type AnonymousBuilderDraft } from "./anonymous-builder-store";
 export { AnonymousBuilderImportStore, type AnonymousBuilderImportJob } from "./anonymous-builder-import-store";
 export { SharedDomainStore } from "./shared-domain-store";

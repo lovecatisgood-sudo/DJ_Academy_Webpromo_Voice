@@ -843,16 +843,34 @@
         "COM-03",
         "CORE-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
+      "implementation_paths": [
+        "packages/db/src/trial-store.ts",
+        "apps/api/app/tenant/trials/text/activate/route.ts",
+        "apps/workers/src/index.ts"
+      ],
+      "migration_ids": [
+        "0115_trial_warning_and_terminal_states"
+      ],
       "api_contracts": [],
-      "ui_routes": [],
+      "ui_routes": [
+        "/workspace/notifications",
+        "/workspace/usage"
+      ],
       "entitlement_keys": [],
-      "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "meter_keys": [
+        "ai_response"
+      ],
+      "test_ids": [
+        "packages/db/src/trial-store.integration.test.ts",
+        "packages/db/src/migration-invariants.test.ts"
+      ],
+      "runbooks": [
+        "docs/implementation/djay-bots-production-ready-master-plan.md"
+      ],
+      "evidence": [
+        "docs/validation/production-master-plan-pr04-trial-lifecycle-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {
@@ -868,16 +886,38 @@
         "COM-03",
         "CORE-02"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "implementation_paths": [
+        "packages/db/src/trial-store.ts",
+        "apps/workers/src/index.ts",
+        "packages/ai-chat-widget/src/index.ts"
+      ],
+      "migration_ids": [
+        "0115_trial_warning_and_terminal_states"
+      ],
+      "api_contracts": [
+        "POST /public/ai-chat/message"
+      ],
+      "ui_routes": [
+        "/workspace/notifications",
+        "/workspace/usage"
+      ],
       "entitlement_keys": [],
-      "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "meter_keys": [
+        "ai_response",
+        "flow_execution"
+      ],
+      "test_ids": [
+        "packages/db/src/trial-store.integration.test.ts",
+        "packages/db/src/migration-invariants.test.ts",
+        "packages/ai-chat-widget/src/index.test.ts"
+      ],
+      "runbooks": [
+        "docs/implementation/djay-bots-production-ready-master-plan.md"
+      ],
+      "evidence": [
+        "docs/validation/production-master-plan-pr04-trial-lifecycle-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {

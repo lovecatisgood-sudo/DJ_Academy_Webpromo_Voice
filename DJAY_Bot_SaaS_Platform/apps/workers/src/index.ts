@@ -9,7 +9,7 @@ import {
   KnowledgeIngestionWorkerStore,
   PostgresEmailOutboxStore, PrivacyStore, ProviderUsageReconciliationWorkerStore,
   UsageAlertNotificationWorkerStore,
-  UsageAlertWorkerStore, UsagePeriodWorkerStore, VoiceReaperStore,
+  UsageAlertWorkerStore, UsagePeriodWorkerStore, VoiceReaperStore, TrialLifecycleWorkerStore,
   SupportAttachmentWorkerStore,
   AppointmentSyncWorkerStore,
   SubscriptionLifecycleWorkerStore,
@@ -189,6 +189,7 @@ const usageAlertWorker = new UsageAlertWorkerStore(client);
 const usageAlertNotificationWorker = new UsageAlertNotificationWorkerStore(client);
 const billingNotificationWorker = new BillingNotificationWorkerStore(client);
 const usagePeriodWorker = new UsagePeriodWorkerStore(client);
+const trialLifecycleWorker = new TrialLifecycleWorkerStore(client);
 const usageReconciliationWorker = new ProviderUsageReconciliationWorkerStore(client);
 const billingWebhookWorker = new BillingWebhookStore(client);
 const subscriptionLifecycleWorker = new SubscriptionLifecycleWorkerStore(client);
@@ -419,9 +420,10 @@ do {
   }
   if (env.USAGE_PERIOD_WORKER_ENABLED === "true" && Date.now() >= nextUsagePeriodSweepAt) {
     const result = await usagePeriodWorker.roll();
+    const expiredTrials = await trialLifecycleWorker.reconcileExpired();
     nextUsagePeriodSweepAt = Date.now() + 3_600_000;
-    if (result.periodsCreated > 0 || result.reservationsReleased > 0) {
-      console.info("usage_period_rollover_complete", result);
+    if (result.periodsCreated > 0 || result.reservationsReleased > 0 || expiredTrials > 0) {
+      console.info("usage_period_rollover_complete", { ...result, expiredTrials });
     }
   }
   if (env.USAGE_RECONCILIATION_WORKER_ENABLED === "true" && Date.now() >= nextUsageReconciliationSweepAt) {

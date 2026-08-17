@@ -7,6 +7,22 @@ const fixedTrialDurationMs = 30 * 24 * 60 * 60 * 1000;
 export class TrialStore {
   constructor(private readonly client: DatabaseClient) {}
 
+  async verifiedOwnerEmail(context: TenantContext) {
+    return withTenantTransaction(this.client, context, async ({ sql }) => {
+      const rows = await sql<{ email_normalized: string }[]>`
+        SELECT email.email_normalized
+        FROM tenancy.memberships membership
+        JOIN identity.users account ON account.id = membership.user_id AND account.status = 'active'
+        JOIN identity.email_addresses email ON email.user_id = account.id
+          AND email.is_primary = true AND email.verified_at IS NOT NULL
+        WHERE membership.tenant_id = ${context.tenantId}::uuid
+          AND membership.role = 'tenant_master_admin' AND membership.status = 'active'
+        ORDER BY membership.accepted_at, membership.id LIMIT 1
+      `;
+      return rows[0]?.email_normalized ?? null;
+    });
+  }
+
   async prepareTextStarterCardSetup(context: TenantContext, input: Readonly<{
     purchaseIntentId: string; setupId: string; idempotencyKey: string; now?: Date;
   }>) {
@@ -99,6 +115,7 @@ export class TrialStore {
     purchaseIntentId: string; setupId: string; externalCustomerRef: string;
     externalSetupIntentRef: string; externalPaymentMethodRef: string; fingerprintHash: Buffer;
     trialGrantId: string; entitlementSnapshotId: string; idempotencyKey: string; now?: Date;
+    notificationProfileId: string; ownerRecipientCiphertext: string;
   }>) {
     const now = input.now ?? new Date();
     const expiresAt = new Date(now.getTime() + fixedTrialDurationMs);
@@ -172,6 +189,24 @@ export class TrialStore {
           AND customer_unit = 'ai_response' AND reserved_quantity = 0 AND settled_quantity = 0 RETURNING id
       `;
       if (!quotas[0]) throw new Error("trial_quota_activation_failed");
+      await sql`
+        INSERT INTO tenancy.notification_profiles (
+          id, tenant_id, name, recipient_ciphertext, allowed_template_keys, created_by_membership_id
+        ) VALUES (
+          ${input.notificationProfileId}::uuid, ${context.tenantId}::uuid,
+          'AI Text trial notices', ${input.ownerRecipientCiphertext},
+          ARRAY['usage.allowance_alert'], ${context.membershipId}::uuid
+        )
+      `;
+      await sql`
+        INSERT INTO tenancy.usage_alert_preferences (
+          tenant_id, quota_account_id, thresholds, exhaustion_alert, anomaly_alert,
+          cooldown_hours, notification_profile_id, updated_by_user_id, updated_at
+        ) VALUES (
+          ${context.tenantId}::uuid, ${quotas[0].id}::uuid, ARRAY[80]::smallint[],
+          true, false, 24, ${input.notificationProfileId}::uuid, ${context.userId}::uuid, ${now}
+        )
+      `;
       await sql`
         INSERT INTO tenancy.entitlement_snapshots (id, tenant_id, subscription_id, product_key, plan_version_id,
           subscription_status, access_mode, resolved_json, resolution_hash)
@@ -379,5 +414,16 @@ export class TrialStore {
       `;
       return { status: "activated" as const, trialGrantId: input.trialGrantId, startsAt: now, expiresAt, replayed: false };
     });
+  }
+}
+
+export class TrialLifecycleWorkerStore {
+  constructor(private readonly client: DatabaseClient) {}
+
+  async reconcileExpired(now = new Date(), limit = 500) {
+    const rows = await this.client<{ reconciled: number }[]>`
+      SELECT billing.reconcile_expired_trials(${now}, ${limit})::int AS reconciled
+    `;
+    return rows[0]?.reconciled ?? 0;
   }
 }

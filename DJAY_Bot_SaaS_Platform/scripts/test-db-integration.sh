@@ -192,6 +192,7 @@ if [[ "${FLOW_TRIAL_ONLY:-false}" == "true" ]]; then
   echo "Running focused Flow Starter trial integration test."
   TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
   ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  WORKER_DATABASE_URL="postgresql://djay_worker:djay_worker_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
     "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/trial-store.integration.test.ts
   echo "Focused Flow Starter trial activation passed."
   exit 0
