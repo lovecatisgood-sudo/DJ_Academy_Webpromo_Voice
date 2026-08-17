@@ -260,8 +260,16 @@ export class AnonymousBuilderStore {
         FOR UPDATE
       `;
       if (!memberships[0]) return { status: "unavailable" as const };
-      const planRows = await sql<{ plan_version_id: string }[]>`
-        SELECT version.id AS plan_version_id
+      await sql`SELECT id FROM tenancy.tenants WHERE id = ${input.tenantId}::uuid FOR UPDATE`;
+      const planRows = await sql<{
+        plan_version_id: string; product_key: "flowbot" | "ai_chat" | "voice";
+        entitlements: Record<string, boolean | string | number | null>;
+        allowances: Record<string, number | null>;
+        overage_rates_minor: Record<string, number | null>;
+        limits: Record<string, number | null>;
+      }[]>`
+        SELECT version.id AS plan_version_id, plan.product_key, version.entitlements,
+          version.allowances, version.overage_rates_minor, version.limits
         FROM catalog.catalog_versions catalog_version
         JOIN catalog.plan_commercial_terms terms ON terms.catalog_version_id = catalog_version.id
         JOIN catalog.plan_versions version ON version.id = terms.plan_version_id
@@ -274,7 +282,16 @@ export class AnonymousBuilderStore {
           AND (version.effective_to IS NULL OR version.effective_to > ${now})
         ORDER BY version.version DESC LIMIT 1
       `;
-      if (!planRows[0]) return { status: "unavailable" as const };
+      const selectedPlan = planRows[0];
+      if (!selectedPlan) return { status: "unavailable" as const };
+      const existingSubscriptions = await sql<{ id: string }[]>`
+        SELECT id FROM tenancy.product_subscriptions
+        WHERE tenant_id = ${input.tenantId}::uuid
+          AND product_key = ${selectedPlan.product_key} AND status <> 'cancelled'
+        LIMIT 1
+      `;
+      const provisionPendingAuthority = !existingSubscriptions[0];
+      const subscriptionId = randomUUID();
       await sql`
         INSERT INTO tenancy.builder_draft_claims (
           tenant_id, claimed_by_user_id, claimed_by_membership_id,
@@ -293,10 +310,48 @@ export class AnonymousBuilderStore {
           commerce_intent, status, created_at, expires_at
         ) VALUES (
           ${purchaseIntentId}::uuid, NULL, ${input.tenantId}::uuid, ${claim.plan_key},
-          ${planRows[0].plan_version_id}::uuid, ${claim.commerce_intent}, 'open', ${now},
+          ${selectedPlan.plan_version_id}::uuid, ${claim.commerce_intent}, 'open', ${now},
           ${new Date(now.getTime() + 72 * 60 * 60 * 1000)}
         )
       `;
+      if (provisionPendingAuthority) {
+        const resolved = {
+          tenantId: input.tenantId, subscriptionId, productKey: selectedPlan.product_key,
+          publicPlanKey: claim.plan_key, planVersionId: selectedPlan.plan_version_id,
+          accessMode: "none", entitlements: selectedPlan.entitlements,
+          allowances: selectedPlan.allowances, overageRatesMinor: selectedPlan.overage_rates_minor,
+          limits: selectedPlan.limits, resolvedAt: now.toISOString(),
+        };
+        await sql`
+          INSERT INTO tenancy.product_subscriptions (id, tenant_id, product_key, plan_version_id, status)
+          VALUES (${subscriptionId}::uuid, ${input.tenantId}::uuid, ${selectedPlan.product_key},
+            ${selectedPlan.plan_version_id}::uuid, 'pending')
+        `;
+        await sql`
+          INSERT INTO tenancy.entitlement_snapshots (
+            id, tenant_id, subscription_id, product_key, plan_version_id,
+            subscription_status, access_mode, resolved_json, resolution_hash
+          ) VALUES (
+            ${randomUUID()}::uuid, ${input.tenantId}::uuid, ${subscriptionId}::uuid,
+            ${selectedPlan.product_key}, ${selectedPlan.plan_version_id}::uuid,
+            'pending', 'none', ${sql.json(resolved)},
+            digest(convert_to(${JSON.stringify(resolved)}, 'UTF8'), 'sha256')
+          )
+        `;
+        const customerUnit = selectedPlan.product_key === "flowbot" ? "flow_execution"
+          : selectedPlan.product_key === "ai_chat" ? "ai_response" : "voice_minute";
+        await sql`
+          INSERT INTO tenancy.quota_accounts (
+            id, tenant_id, subscription_id, product_key, customer_unit,
+            period_start, period_end, included_quantity
+          ) VALUES (
+            ${randomUUID()}::uuid, ${input.tenantId}::uuid, ${subscriptionId}::uuid,
+            ${selectedPlan.product_key}, ${customerUnit}, ${now},
+            ${new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000)},
+            ${(selectedPlan.allowances[customerUnit] as number | null | undefined) ?? null}
+          )
+        `;
+      }
       await sql`UPDATE builder.drafts SET status = 'claimed', updated_at = ${now} WHERE id = ${claim.draft_id}::uuid`;
       await sql`
         UPDATE builder.anonymous_sessions
@@ -318,7 +373,8 @@ export class AnonymousBuilderStore {
           ${input.tenantId}::uuid, ${input.userId}::uuid, ${input.membershipId}::uuid,
           'tenant.builder_draft_claimed', 'builder_draft', ${claim.draft_id},
           ${input.requestId}, 'succeeded',
-          ${sql.json({ revision: claim.revision, productFamily: claim.product_family, planKey: claim.plan_key, commerceIntent: claim.commerce_intent })}
+          ${sql.json({ revision: claim.revision, productFamily: claim.product_family, planKey: claim.plan_key,
+            commerceIntent: claim.commerce_intent, pendingSubscriptionProvisioned: provisionPendingAuthority })}
         )
       `;
       return { status: "claimed" as const, planKey: claim.plan_key };

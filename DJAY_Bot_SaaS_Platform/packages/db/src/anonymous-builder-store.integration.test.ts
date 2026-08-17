@@ -92,6 +92,19 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
     const store = new AnonymousBuilderStore(authClient!);
     const now = new Date();
     const sessionId = randomUUID();
+    const tenantId = randomUUID();
+    const membershipId = randomUUID();
+    const userId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
+    await adminClient!.begin(async (sql) => {
+      await sql`INSERT INTO tenancy.tenants (id, slug, business_name, status, locale, timezone)
+        VALUES (${tenantId}::uuid, ${`existing-claim-${tenantId.slice(0, 8)}`},
+          'Existing Claim Test', 'active', 'en', 'Asia/Bangkok')`;
+      await sql`INSERT INTO tenancy.memberships (id, tenant_id, user_id, role, status, accepted_at)
+        VALUES (${membershipId}::uuid, ${tenantId}::uuid, ${userId}::uuid,
+          'tenant_master_admin', 'active', ${now})`;
+      await sql`INSERT INTO tenancy.tenant_onboarding (tenant_id, stage)
+        VALUES (${tenantId}::uuid, 'account_created')`;
+    });
     const draft = await store.ensureDraft({
       sessionId, issuedAt: now, expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60_000), now,
     });
@@ -112,9 +125,9 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
       expiresAt: new Date(now.getTime() + 16 * 60_000),
     })).resolves.toEqual({ status: "issued", draftRevision: 2 });
     const command = {
-      tenantId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10",
-      userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
-      membershipId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa11",
+      tenantId,
+      userId,
+      membershipId,
       requestId: "existing-builder-claim-1",
       now: new Date(now.getTime() + 4_000),
     };
@@ -132,6 +145,7 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
     })).resolves.toEqual({ status: "unavailable" });
     const evidence = await adminClient!<{
       claims: number; intents: number; audits: number; bot_name: string; commerce_intent: string;
+      subscriptions: number; snapshots: number; quotas: number;
     }[]>`
       SELECT
         (SELECT count(*)::int FROM tenancy.builder_draft_claims
@@ -140,18 +154,29 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
           WHERE tenant_id = ${command.tenantId}::uuid AND plan_key = 'ai_chat_basic' AND status = 'open') AS intents,
         (SELECT count(*)::int FROM tenancy.audit_logs
           WHERE tenant_id = ${command.tenantId}::uuid AND action = 'tenant.builder_draft_claimed') AS audits,
+        (SELECT count(*)::int FROM tenancy.product_subscriptions
+          WHERE tenant_id = ${command.tenantId}::uuid AND product_key = 'ai_chat' AND status = 'pending') AS subscriptions,
+        (SELECT count(*)::int FROM tenancy.entitlement_snapshots snapshot
+          JOIN tenancy.product_subscriptions subscription ON subscription.id = snapshot.subscription_id
+          WHERE snapshot.tenant_id = ${command.tenantId}::uuid AND subscription.product_key = 'ai_chat') AS snapshots,
+        (SELECT count(*)::int FROM tenancy.quota_accounts quota
+          JOIN tenancy.product_subscriptions subscription ON subscription.id = quota.subscription_id
+          WHERE quota.tenant_id = ${command.tenantId}::uuid AND subscription.product_key = 'ai_chat') AS quotas,
         (SELECT state_json #>> '{configuration,botName}' FROM tenancy.builder_draft_claims
           WHERE source_session_id = ${sessionId}::uuid) AS bot_name,
         (SELECT commerce_intent FROM billing.purchase_intents
           WHERE tenant_id = ${command.tenantId}::uuid AND plan_key = 'ai_chat_basic' AND status = 'open'
           ORDER BY created_at DESC LIMIT 1) AS commerce_intent
     `;
-    expect(evidence[0]).toEqual({ claims: 1, intents: 1, audits: 1, bot_name: "Existing Account Bot", commerce_intent: "trial" });
+    expect(evidence[0]).toEqual({
+      claims: 1, intents: 1, audits: 1, bot_name: "Existing Account Bot", commerce_intent: "trial",
+      subscriptions: 1, snapshots: 1, quotas: 1,
+    });
 
     const workspace = new TenantWorkspaceStore(tenantClient!);
     const tenantContext = createTenantContext({
       tenantId: command.tenantId, userId: command.userId, membershipId: command.membershipId,
-      requestId: command.requestId, sessionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa13", role: "tenant_master_admin",
+      requestId: command.requestId, sessionId: randomUUID(), role: "tenant_master_admin",
     });
     await expect(workspace.completeMerchantOnboarding(tenantContext, {
       version: 1, acceptedGuidelines: true, businessGoal: "capture_leads", industry: "services",
