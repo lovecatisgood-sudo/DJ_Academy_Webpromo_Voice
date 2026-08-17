@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 type NodeRecord = Record<string, unknown> & { id: string; type: string; title: string };
 type Definition = { schemaVersion: number; flowVersionId: string; rootNodeId: string; keywords: unknown[]; nodes: Record<string, NodeRecord> };
 
-const coreTypes = ["message", "media_reference", "product_card", "carousel", "actions", "options", "input_capture", "form", "condition", "jump", "end"] as const;
+const coreTypes = ["message", "media_reference", "product_card", "carousel", "actions", "options", "input_capture", "form", "condition", "jump", "handover", "end"] as const;
 const premiumTypes = ["advanced_condition", "variable_set", "delay", "business_hours", "team_route"] as const;
 
 function starterNode(type: string, id: string, rootNodeId: string): NodeRecord {
@@ -24,6 +24,7 @@ function starterNode(type: string, id: string, rootNodeId: string): NodeRecord {
   if (type === "form") return { ...base, prompt: { th: "ข้อมูลติดต่อ", en: "Contact details" }, fields: [{ key: "email", label: { th: "อีเมล", en: "Email" }, type: "email", required: true }], nextNodeId: null };
   if (type === "condition") return { ...base, variableKey: "answer", operator: "exists", trueNodeId: rootNodeId, falseNodeId: rootNodeId };
   if (type === "jump") return { ...base, targetNodeId: rootNodeId };
+  if (type === "handover") return { ...base, message: { th: "ทีมงานจะดูแลต่อ", en: "Our team will continue." } };
   if (type === "end") return { ...base, message: { th: "ขอบคุณครับ", en: "Thank you." } };
   if (type === "advanced_condition") return { ...base, mode: "all", clauses: [{ variableKey: "answer", operator: "exists" }], trueNodeId: rootNodeId, falseNodeId: rootNodeId };
   if (type === "variable_set") return { ...base, variableKey: "value", valueTemplate: "{{answer}}", nextNodeId: rootNodeId };

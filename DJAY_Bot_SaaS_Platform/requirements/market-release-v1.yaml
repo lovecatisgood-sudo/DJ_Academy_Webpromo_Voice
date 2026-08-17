@@ -2146,16 +2146,25 @@
         "FLOW-02",
         "FLOW-03"
       ],
-      "implementation_paths": [],
+      "implementation_paths": [
+        "packages/flowbot-domain/src/index.ts",
+        "packages/flowbot-engine/src/index.ts",
+        "apps/tenant-web/app/workspace/flowbot/FlowVisualEditor.tsx"
+      ],
       "migration_ids": [],
       "api_contracts": [],
       "ui_routes": [],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
+      "test_ids": [
+        "packages/flowbot-domain/src/index.test.ts",
+        "packages/flowbot-engine/src/index.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/production-master-plan-pr06-starter-handover-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {

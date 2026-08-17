@@ -57,6 +57,27 @@ describe("deterministic FlowBot engine", () => {
     })).toThrowError("Flow execution was rejected.");
   });
 
+  it("hands a Basic-plan conversation to the default inbox without Premium team routing", () => {
+    const handoverId = randomUUID();
+    const snapshot = {
+      ...base.snapshot,
+      rootNodeId: handoverId,
+      nodes: {
+        [handoverId]: {
+          id: handoverId,
+          type: "handover" as const,
+          title: "Talk to staff",
+          message: { th: "ทีมงานจะดูแลต่อ", en: "Our team will continue." },
+        },
+      },
+    };
+    const result = advanceFlow({ ...base, snapshot });
+    expect(result.messages).toMatchObject([{ type: "text", nodeId: handoverId, content: { text: "Our team will continue." } }]);
+    expect(result.commands).toMatchObject([{ type: "handover.request", payload: { reason: "configured_handover", strategy: "owner" } }]);
+    expect(result.events).toContainEqual({ type: "handover_requested", nodeId: handoverId, detail: { reason: "configured_handover" } });
+    expect(result.nextState).toMatchObject({ currentNodeId: handoverId, status: "handover" });
+  });
+
   it("executes an immutable embedded subflow and returns to the parent graph", () => {
     const childVersion = randomUUID(); const subflowNode = randomUUID();
     const childRoot = randomUUID(); const childEnd = randomUUID(); const parentEnd = randomUUID();

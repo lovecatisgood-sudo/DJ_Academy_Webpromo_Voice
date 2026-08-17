@@ -275,6 +275,8 @@ Work:
 - Finish advanced workflow, schedule, routing, Sheets/webhook/API and reporting behavior.
 - Keep Flow deterministic and free of AI/provider imports.
 
+Implementation checkpoint, 2026-08-17: the production Flow schema, visual editor and deterministic engine now include a core terminal `handover` node for Starter and Advanced. It routes to the tenant default inbox with owner strategy and optional localized customer copy, emits the existing durable handover command/event, and requires no Premium routing entitlement. Premium `team_route` remains separate for named-team and routing-strategy selection. Domain graph analysis treats both as conversion outcomes, and executable tests cover schema/edge/CTA exhaustiveness and Basic-plan runtime behavior. Full collected-context operations, widget/browser acceptance, all six templates and exhaustive bilingual route proofs remain open, so PR-06 and `FLS-011` are only `in_progress`.
+
 Exit gate:
 
 - Flow Starter and Advanced package checklists pass locally and in staging.

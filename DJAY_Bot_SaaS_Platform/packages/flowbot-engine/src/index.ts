@@ -184,6 +184,13 @@ function runAutomatic(request: FlowEngineRequest, result: MutableResult, startin
       nodeId = frame.returnNodeId;
       continue;
     }
+    if (node.type === "handover") {
+      if (node.message) result.messages.push({ type: "text", nodeId: node.id, content: { text: localized(node.message, result.state.lang) } });
+      result.state = { ...result.state, status: "handover" };
+      result.commands.push(command(request, node.id, "handover.request", { reason: "configured_handover", strategy: "owner" }));
+      result.events.push({ type: "handover_requested", nodeId: node.id, detail: { reason: "configured_handover" } });
+      return freeze(result);
+    }
     if (node.type === "delay") { result.state = { ...result.state, status: "waiting" }; result.commands.push(command(request, node.id, "timer.schedule", { delaySeconds: node.delaySeconds, nodeId: node.id })); return freeze(result); }
     if (node.type === "subflow") {
       const target = graphFor(request.snapshot, node.targetFlowVersionId);

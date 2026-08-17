@@ -45,7 +45,7 @@ const flowCardSchema = z.object({
 }).strict();
 
 export const coreFlowNodeTypes = [
-  "message", "media_reference", "product_card", "carousel", "actions", "options", "input_capture", "form", "condition", "jump", "end",
+  "message", "media_reference", "product_card", "carousel", "actions", "options", "input_capture", "form", "condition", "jump", "handover", "end",
 ] as const;
 export const premiumFlowNodeTypes = [
   "advanced_condition", "variable_set", "delay", "subflow", "business_hours", "team_route", "webhook",
@@ -64,6 +64,8 @@ export const flowNodeSchema = z.discriminatedUnion("type", [
   z.object({ ...baseNode, type: z.literal("form"), prompt: localizedTextSchema, fields: z.array(formFieldSchema).min(1).max(20), nextNodeId: nextNodeSchema }).strict(),
   z.object({ ...baseNode, type: z.literal("condition"), variableKey: z.string().min(1).max(64), operator: z.enum(["equals", "not_equals", "exists"]), value: z.string().max(1000).optional(), trueNodeId: z.uuid(), falseNodeId: z.uuid() }).strict(),
   z.object({ ...baseNode, type: z.literal("jump"), targetNodeId: z.uuid() }).strict(),
+  // Core handover uses the tenant's default inbox. Named-team and routing-strategy selection remain Premium-only.
+  z.object({ ...baseNode, type: z.literal("handover"), message: localizedTextSchema.optional() }).strict(),
   z.object({ ...baseNode, type: z.literal("end"), message: localizedTextSchema.optional() }).strict(),
   z.object({ ...baseNode, type: z.literal("advanced_condition"), mode: z.enum(["all", "any"]), clauses: z.array(z.object({ variableKey: z.string().min(1).max(64), operator: z.enum(["equals", "not_equals", "contains", "greater_than", "less_than", "exists"]), value: z.string().max(1000).optional() }).strict()).min(1).max(20), trueNodeId: z.uuid(), falseNodeId: z.uuid() }).strict(),
   z.object({ ...baseNode, type: z.literal("variable_set"), variableKey: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/), valueTemplate: z.string().max(5000), nextNodeId: z.uuid() }).strict(),
@@ -228,7 +230,7 @@ export function flowNodeEdges(node: FlowNode): readonly FlowNodeEdge[] {
     // The engine resumes at `returnNodeId` when the embedded subflow ends (flowbot-engine/src/index.ts:137),
     // so it is a real outgoing edge and must be validated like any other target.
     case "subflow": return edge(node.returnNodeId, "subflow_return");
-    case "end": case "team_route": return [];
+    case "handover": case "end": case "team_route": return [];
     default: { const exhaustive: never = node; void exhaustive; return []; }
   }
 }
@@ -243,7 +245,7 @@ function references(node: FlowNode): readonly string[] {
  * `input_capture` is also excluded: it is a generic mid-flow variable capture (a name, an order
  * number) and does not by itself ask for a call, a booking, a checkout, a lead or a human.
  */
-export const flowCtaNodeTypes = ["actions", "form", "team_route"] as const;
+export const flowCtaNodeTypes = ["actions", "form", "handover", "team_route"] as const;
 export type FlowCtaNodeType = (typeof flowCtaNodeTypes)[number];
 const isCtaNode = (node: FlowNode) => (flowCtaNodeTypes as readonly string[]).includes(node.type);
 

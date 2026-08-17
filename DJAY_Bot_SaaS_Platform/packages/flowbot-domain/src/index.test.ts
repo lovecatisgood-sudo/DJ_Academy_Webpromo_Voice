@@ -89,6 +89,7 @@ const nodeOfEveryType: Readonly<Record<FlowNodeType, FlowNode>> = {
   form: { id: randomUUID(), type: "form", title: "Form", prompt: { th: "กรอกข้อมูล", en: "Fill in" }, fields: [{ key: "name", label: { th: "ชื่อ", en: "Name" }, type: "text", required: true }], nextNodeId: target },
   condition: { id: randomUUID(), type: "condition", title: "Condition", variableKey: "customer_name", operator: "exists", trueNodeId: target, falseNodeId: alternate },
   jump: { id: randomUUID(), type: "jump", title: "Jump", targetNodeId: target },
+  handover: { id: randomUUID(), type: "handover", title: "Handover", message: { th: "ทีมงานจะดูแลต่อ", en: "Our team will continue." } },
   end: { id: randomUUID(), type: "end", title: "End", message: { th: "จบ", en: "Done" } },
   advanced_condition: { id: randomUUID(), type: "advanced_condition", title: "Advanced", mode: "all", clauses: [{ variableKey: "customer_name", operator: "exists" }], trueNodeId: target, falseNodeId: alternate },
   variable_set: { id: randomUUID(), type: "variable_set", title: "Set", variableKey: "stage", valueTemplate: "qualified", nextNodeId: target },
@@ -126,6 +127,7 @@ describe("FlowBot labelled edge model", () => {
     expect(flowNodeEdges(nodeOfEveryType.webhook)).toEqual([{ targetNodeId: target, kind: "next" }, { targetNodeId: alternate, kind: "failure" }]);
     expect(flowNodeEdges(nodeOfEveryType.jump)).toEqual([{ targetNodeId: target, kind: "jump" }]);
     expect(flowNodeEdges(nodeOfEveryType.subflow)).toEqual([{ targetNodeId: target, kind: "subflow_return" }]);
+    expect(flowNodeEdges(nodeOfEveryType.handover)).toEqual([]);
     expect(flowNodeEdges(nodeOfEveryType.end)).toEqual([]);
     expect(flowNodeEdges(nodeOfEveryType.team_route)).toEqual([]);
   });
@@ -137,7 +139,7 @@ describe("FlowBot labelled edge model", () => {
   });
 
   it("exposes the CTA node types as a reviewable constant", () => {
-    expect([...flowCtaNodeTypes]).toEqual(["actions", "form", "team_route"]);
+    expect([...flowCtaNodeTypes]).toEqual(["actions", "form", "handover", "team_route"]);
     expect(flowCtaNodeTypes).not.toContain("end");
     expect(flowCtaNodeTypes).not.toContain("input_capture");
   });
@@ -206,14 +208,16 @@ describe("FlowBot graph validation", () => {
     expect(codesFor(validateFlowForPublish(branching, graphAuthority))).not.toContain("path_without_cta");
   });
 
-  it("treats a terminal team_route or form path as carrying a CTA", () => {
-    const menu = randomUUID(); const handover = randomUUID(); const lead = randomUUID(); const thanks = randomUUID();
+  it("treats terminal default handover, team routing, and form paths as carrying a CTA", () => {
+    const menu = randomUUID(); const handover = randomUUID(); const routed = randomUUID(); const lead = randomUUID(); const thanks = randomUUID();
     const covered = buildSnapshot(menu, {
       [menu]: { id: menu, type: "options", title: "Menu", prompt: { th: "เลือก", en: "Choose" }, options: [
         { id: randomUUID(), label: { th: "คุยกับทีม", en: "Team" }, targetNodeId: handover },
+        { id: randomUUID(), label: { th: "ฝ่ายขาย", en: "Sales team" }, targetNodeId: routed },
         { id: randomUUID(), label: { th: "ฝากข้อมูล", en: "Lead" }, targetNodeId: lead },
       ] },
-      [handover]: { id: handover, type: "team_route", title: "Team", teamKey: "sales", strategy: "owner" },
+      [handover]: { id: handover, type: "handover", title: "Team" },
+      [routed]: { id: routed, type: "team_route", title: "Sales team", teamKey: "sales", strategy: "owner" },
       [lead]: { id: lead, type: "form", title: "Lead", prompt: { th: "กรอกข้อมูล", en: "Fill in" }, fields: [{ key: "name", label: { th: "ชื่อ", en: "Name" }, type: "text", required: true }], nextNodeId: thanks },
       [thanks]: { id: thanks, type: "end", title: "Thanks", message: { th: "ขอบคุณ", en: "Thanks" } },
     });
