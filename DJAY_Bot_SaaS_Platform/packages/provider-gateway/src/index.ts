@@ -70,9 +70,19 @@ async function directProviderHttpError(response: Response) {
 }
 
 const restrictedCustomerTerms = /\b(openai|anthropic|claude|gemini|xai|x\.ai|grok|gpt(?:-[a-z0-9.]+)?|model[_ -]?id|provider[_ -]?(?:name|key|id))\b/i;
+const restrictedSecretPatterns = [
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/u,
+  /\b(?:sk|ghp|github_pat|xox[baprs])[-_][A-Za-z0-9_-]{16,}\b/u,
+  /\bAKIA[0-9A-Z]{16}\b/u,
+  /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/u,
+  /\b(?:api[_ -]?key|client[_ -]?secret|access[_ -]?token|refresh[_ -]?token|password)\s*[:=]\s*["']?[^\s"',;]{8,}/iu,
+  /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^\s"']+/iu,
+] as const;
 
 export function assertProviderNeutralCustomerText(value: string) {
-  if (restrictedCustomerTerms.test(value)) throw new ProviderGatewayError("gateway_invalid_response");
+  if (restrictedCustomerTerms.test(value) || restrictedSecretPatterns.some((pattern) => pattern.test(value))) {
+    throw new ProviderGatewayError("gateway_invalid_response");
+  }
   return value;
 }
 

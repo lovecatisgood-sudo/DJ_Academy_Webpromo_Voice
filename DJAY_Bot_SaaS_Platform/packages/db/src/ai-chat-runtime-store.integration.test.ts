@@ -149,6 +149,38 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       membershipId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb11",
       sessionId: randomUUID(), role: "tenant_master_admin", requestId: "ai-cross-tenant",
     });
+    const otherSubscriptionId = randomUUID();
+    const otherSnapshotId = randomUUID();
+    await adminClient!`
+      UPDATE tenancy.product_subscriptions SET status = 'cancelled', cancelled_at = now()
+      WHERE tenant_id = ${otherTenantContext.tenantId}::uuid
+        AND product_key = 'ai_chat' AND status <> 'cancelled'
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.product_subscriptions (
+        id, tenant_id, product_key, plan_version_id, status, period_start, period_end
+      ) VALUES (
+        ${otherSubscriptionId}::uuid, ${otherTenantContext.tenantId}::uuid, 'ai_chat',
+        ${planVersionId}::uuid, 'active', now(), now() + interval '30 days'
+      )
+    `;
+    await adminClient!`
+      INSERT INTO tenancy.entitlement_snapshots (
+        id, tenant_id, subscription_id, product_key, plan_version_id, subscription_status,
+        access_mode, resolved_json, resolution_hash
+      ) VALUES (
+        ${otherSnapshotId}::uuid, ${otherTenantContext.tenantId}::uuid,
+        ${otherSubscriptionId}::uuid, 'ai_chat', ${planVersionId}::uuid, 'active', 'active',
+        ${adminClient!.json({ entitlements: { "knowledge.enabled": true }, limits })},
+        digest(${otherSnapshotId}, 'sha256')
+      )
+    `;
+    const crossTenantKnowledge = await new SharedDomainStore(tenantClient!).createKnowledgeSource(otherTenantContext, {
+      name: "Other tenant private knowledge",
+      sourceKind: "text",
+      content: "CROSS_TENANT_KNOWLEDGE_CANARY must never enter Acme Studio retrieval.",
+    });
+    expect(crossTenantKnowledge.status).toBe("created");
     await expect(authoring.changeDeploymentTraffic(otherTenantContext, deployment.deploymentId, "go_live"))
       .resolves.toEqual({ status: "not_found" });
     await expect(authoring.requestInstallCheck(context, deployment.deploymentId, "https://merchant.example"))
@@ -196,7 +228,10 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       async generate(request) {
         gatewayCalls += 1;
         expect(request.systemPolicy).toContain("30 minutes");
-        const citation = request.systemPolicy.match(/\[([0-9a-f-]{36}):([0-9a-f-]{36})\]/i);
+        expect(request.systemPolicy).not.toContain("CROSS_TENANT_KNOWLEDGE_CANARY");
+        const citation = request.systemPolicy.match(
+          /"sourceRevisionId"\s*:\s*"([0-9a-f-]{36})"\s*,\s*"chunkId"\s*:\s*"([0-9a-f-]{36})"/i,
+        );
         if (!citation) throw new Error("Expected pinned citation IDs.");
         const firstStart = new Date(Date.now() + 172_800_000).toISOString();
         const secondStart = new Date(Date.now() + 259_200_000).toISOString();
@@ -263,17 +298,22 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
     })).rejects.toThrow();
 
     const effects = await adminClient!<{
-      leads: number; appointments: number; appointment_options: number; emails: number;
+      leads: number; appointments: number; confirmedAppointments: number; appointment_options: number; emails: number;
+      successfulActions: number;
       settled: number; reserved: number; native_usage: number; fundingIncluded: number;
       session_playbook: string; current_playbook: string;
     }[]>`
       SELECT
         (SELECT count(*)::int FROM tenancy.leads lead WHERE lead.tenant_id = session.tenant_id AND lead.source = 'ai_chat_web') AS leads,
         (SELECT count(*)::int FROM tenancy.appointment_requests request WHERE request.tenant_id = session.tenant_id AND request.conversation_id = session.conversation_id AND request.status = 'requested') AS appointments,
+        (SELECT count(*)::int FROM tenancy.appointment_requests request WHERE request.tenant_id = session.tenant_id AND request.conversation_id = session.conversation_id AND request.status = 'confirmed') AS "confirmedAppointments",
         (SELECT count(*)::int FROM tenancy.appointment_time_options option WHERE option.tenant_id = session.tenant_id AND option.appointment_request_id IN (
           SELECT id FROM tenancy.appointment_requests request WHERE request.tenant_id = session.tenant_id AND request.conversation_id = session.conversation_id
         )) AS appointment_options,
         (SELECT count(*)::int FROM tenancy.outbox item WHERE item.tenant_id = session.tenant_id AND item.topic = 'ai_chat.merchant_email.requested') AS emails,
+        (SELECT count(*)::int FROM tenancy.action_results result
+          JOIN tenancy.action_requests request ON request.tenant_id = result.tenant_id AND request.id = result.action_request_id
+          WHERE request.tenant_id = session.tenant_id AND request.conversation_id = session.conversation_id AND result.success) AS "successfulActions",
         account.settled_quantity::int AS settled, account.reserved_quantity::int AS reserved,
         (SELECT (reservation.funding_json->>'included')::numeric::int
           FROM tenancy.ai_turns turn
@@ -290,7 +330,7 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       WHERE session.id = ${started.sessionId}::uuid
     `;
     expect(effects[0]).toMatchObject({
-      leads: 1, appointments: 1, appointment_options: 2, emails: 1,
+      leads: 1, appointments: 1, confirmedAppointments: 0, appointment_options: 2, emails: 1, successfulActions: 4,
       settled: 1, reserved: 0, native_usage: 1, fundingIncluded: 1,
       session_playbook: published.playbookVersionId,
       current_playbook: restored.status === "published" ? restored.playbookVersionId : "missing",

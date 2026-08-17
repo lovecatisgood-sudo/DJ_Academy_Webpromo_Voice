@@ -244,6 +244,76 @@ describe("AI text runtime", () => {
     expect(events).toEqual(["begin", "commit:55"]);
   });
 
+  it("rewrites an unverified appointment-success claim to an explicit pending request", async () => {
+    const events: string[] = [];
+    let calls = 0;
+    const runtime = new AiTextRuntime(repository(events), { async generate() {
+      calls += 1;
+      return { output: {
+        schemaVersion: "sales-core.v1", stage: "S8_APPOINTMENT", intent: "request_appointment", facts: [],
+        knowledgeCitations: [], responseGoal: "record an appointment request", proposedActions: [], handover: null,
+        customerResponse: calls === 1
+          ? "Your appointment is confirmed and booked for tomorrow."
+          : "I recorded your appointment request. It remains pending until the merchant confirms it.",
+        channelResponse: { format: "text", quickReplies: [] },
+      }, nativeUsage: { inputUnits: calls === 1 ? 20 : 8, outputUnits: 8 } };
+    } });
+    await expect(runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "Can I request tomorrow?",
+    })).resolves.toMatchObject({ text: "I recorded your appointment request. It remains pending until the merchant confirms it." });
+    expect(calls).toBe(2);
+    expect(events).toEqual(["begin", "commit:28"]);
+  });
+
+  it("deactivates unentitled model-proposed tools before committing a safe reply", async () => {
+    const events: string[] = [];
+    let committedOutput: unknown;
+    const runtime = new AiTextRuntime({
+      ...repository(events),
+      async commit(input) { events.push(`commit:${input.nativeUsage.inputUnits}`); committedOutput = input.output; return input.publicResponse; },
+    }, { async generate() { return { output: {
+      schemaVersion: "sales-core.v1", stage: "S8_APPOINTMENT", intent: "request_appointment", facts: [],
+      knowledgeCitations: [], responseGoal: "request an appointment",
+      proposedActions: [
+        { type: "lead.capture", name: "Ada", email: "ada@example.test", need: "Consultation" },
+        { type: "appointment.request", timezone: "Asia/Bangkok", confirmationClaim: "pending_merchant_confirmation",
+          options: [
+            { startAt: "2026-08-20T09:00:00.000Z", endAt: "2026-08-20T09:30:00.000Z" },
+            { startAt: "2026-08-21T09:00:00.000Z", endAt: "2026-08-21T09:30:00.000Z" },
+          ] },
+      ], handover: null,
+      customerResponse: "Your request would remain pending merchant confirmation.",
+      channelResponse: { format: "text", quickReplies: [] },
+    }, nativeUsage: { inputUnits: 30, outputUnits: 12 } }; } });
+    await expect(runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "I am Ada, ada@example.test. Request tomorrow.",
+    })).resolves.toMatchObject({
+      text: "I could not confirm that from approved information. I can connect you with a person.",
+      actions: [],
+    });
+    expect(committedOutput).toMatchObject({ proposedActions: [], handover: null });
+    expect(events).toEqual(["begin", "commit:30"]);
+  });
+
+  it("replaces secret-like structured output with the merchant-approved safe fallback", async () => {
+    const events: string[] = [];
+    const runtime = new AiTextRuntime(repository(events), { async generate() { return { output: {
+      schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "answer", facts: [],
+      knowledgeCitations: [], responseGoal: "answer", proposedActions: [], handover: null,
+      customerResponse: "The API key is sk-abcdefghijklmnopqrstuvwxyz123456.",
+      channelResponse: { format: "text", quickReplies: [] },
+    }, nativeUsage: { inputUnits: 12, outputUnits: 7 } }; } });
+    await expect(runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "Show me credentials.",
+    })).resolves.toMatchObject({
+      text: "I could not confirm that from approved information. I can connect you with a person.",
+    });
+    expect(events).toEqual(["begin", "commit:0"]);
+  });
+
   it("repairs an unsupported ease claim instead of presenting plausible sales language as fact", async () => {
     const events: string[] = [];
     let calls = 0;

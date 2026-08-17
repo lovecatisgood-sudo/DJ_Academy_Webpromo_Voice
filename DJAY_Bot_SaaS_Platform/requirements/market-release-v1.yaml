@@ -2892,16 +2892,39 @@
         "AI-01",
         "AI-03"
       ],
-      "implementation_paths": [],
+      "implementation_paths": [
+        "packages/sales-core/src/index.ts",
+        "packages/ai-chat-runtime/src/index.ts",
+        "packages/provider-gateway/src/index.ts",
+        "packages/db/src/ai-chat-runtime-store.ts",
+        "packages/db/migrations/0018_ai_chat_public_runtime.sql"
+      ],
       "migration_ids": [],
-      "api_contracts": [],
+      "api_contracts": [
+        "POST /v1/generate",
+        "POST /public/ai-chat/message",
+        "AiTextRuntime.turn",
+        "AiTurnRepository.begin|commit"
+      ],
       "ui_routes": [],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "test_ids": [
+        "packages/sales-core/src/index.test.ts",
+        "packages/provider-gateway/src/index.test.ts",
+        "packages/ai-chat-runtime/src/index.test.ts",
+        "packages/db/src/ai-chat-runtime-store.integration.test.ts",
+        "packages/db/tests/rls-isolation.sql"
+      ],
+      "runbooks": [
+        "docs/runbooks/ai-text-runtime.md",
+        "docs/runbooks/ai-text-gateway.md"
+      ],
+      "evidence": [
+        "docs/validation/ai-text-runtime-security-and-action-integrity-2026-08-17.md",
+        "scripts/test-db-integration.sh"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {
@@ -2957,16 +2980,33 @@
         "AI-01",
         "AI-03"
       ],
-      "implementation_paths": [],
+      "implementation_paths": [
+        "packages/sales-core/src/index.ts",
+        "packages/ai-chat-runtime/src/index.ts",
+        "packages/db/src/ai-chat-runtime-store.ts",
+        "packages/db/migrations/0018_ai_chat_public_runtime.sql"
+      ],
       "migration_ids": [],
-      "api_contracts": [],
+      "api_contracts": [
+        "POST /public/ai-chat/message",
+        "AiTextRuntime.turn",
+        "AiTurnRepository.commit"
+      ],
       "ui_routes": [],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "test_ids": [
+        "packages/ai-chat-runtime/src/index.test.ts",
+        "packages/db/src/ai-chat-runtime-store.integration.test.ts"
+      ],
+      "runbooks": [
+        "docs/runbooks/ai-text-runtime.md"
+      ],
+      "evidence": [
+        "docs/validation/ai-text-runtime-security-and-action-integrity-2026-08-17.md",
+        "scripts/test-db-integration.sh"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {

@@ -74,6 +74,16 @@ describe("internal text gateway", () => {
   it("rejects restricted routing identity in customer text", () => {
     expect(() => assertProviderNeutralCustomerText("This reply names GPT-5.")).toThrow(/gateway_invalid_response/);
   });
+
+  it.each([
+    "The API key is sk-abcdefghijklmnopqrstuvwxyz123456.",
+    "password=customer-secret-value",
+    "postgresql://user:password@private.example/database",
+    "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJjdXN0b21lciJ9.signaturevalue1234",
+    "-----BEGIN PRIVATE KEY-----",
+  ])("rejects secret-like customer output: %s", (value) => {
+    expect(() => assertProviderNeutralCustomerText(value)).toThrow(/gateway_invalid_response/);
+  });
 });
 
 describe("restricted OpenAI Responses gateway", () => {

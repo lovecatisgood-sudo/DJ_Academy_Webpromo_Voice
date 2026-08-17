@@ -275,6 +275,20 @@ function groundingResponseInvalid(
   return groundingRules.some(({ claim, evidence }) => claim.test(declarativeText) && !evidence.test(groundingText));
 }
 
+const unverifiedExternalSuccess = [
+  /\b(?:your|the|this)?\s*(?:appointment|booking|reservation)\b.{0,24}\b(?:is|was|has been|'s)\s+(?:now\s+)?(?:booked|confirmed|scheduled|reserved|completed|successful)\b/iu,
+  /\b(?:your|the|this)?\s*(?:order|payment|transfer|refund|external update)\b.{0,24}\b(?:is|was|has been|'s)\s+(?:now\s+)?(?:placed|confirmed|paid|processed|completed|sent|updated|successful|succeeded)\b/iu,
+  /\b(?:i(?:'ve| have)?|we(?:'ve| have)?)\s+(?:booked|confirmed|scheduled|placed|processed|completed|transferred|updated|sent)\b/iu,
+  /\bsuccessfully\s+(?:booked|scheduled|placed|paid|processed|completed|transferred|updated|sent)\b/iu,
+  /(?:นัดหมาย|การจอง).{0,35}(?:ยืนยันแล้ว|จองสำเร็จ|เสร็จสิ้นแล้ว)/u,
+  /(?:สั่งซื้อ|ชำระเงิน|โอนเงิน|คืนเงิน|อัปเดต).{0,25}(?:สำเร็จ|เสร็จสิ้นแล้ว)/u,
+  /(?:ส่งอีเมลแล้ว|นัดหมายให้แล้ว|ดำเนินการให้แล้ว)/u,
+] as const;
+
+function actionSuccessClaimInvalid(output: z.infer<typeof salesCoreOutputBaseSchema>) {
+  return unverifiedExternalSuccess.some((pattern) => pattern.test(output.customerResponse));
+}
+
 const repetitionStopWords = new Set([
   "about", "after", "again", "also", "been", "being", "business", "could", "customer", "does", "from", "have",
   "into", "most", "that", "their", "there", "these", "they", "this", "understand", "website", "what", "when", "which",
@@ -406,17 +420,21 @@ async function generateConciseOutput(
   const repairObjection = hasActiveObjection && objectionResponseInvalid(candidate);
   const repairGrounding = groundingResponseInvalid(candidate, groundingText, request.customerMessage);
   const repairRepetition = repetitionResponseInvalid(candidate, request.messages);
-  if (!oversized && !repairObjection && !repairGrounding && !repairRepetition) {
+  const repairActionClaim = actionSuccessClaimInvalid(candidate);
+  if (!oversized && !repairObjection && !repairGrounding && !repairRepetition && !repairActionClaim) {
     return { output: salesCoreOutputSchema.parse(candidate), nativeUsage: structured.nativeUsage };
   }
   let repaired: GatewayResult;
   try {
-    const repairKind = oversized ? "concise-repair" : repairGrounding ? "grounding-repair" : repairObjection ? "objection-repair" : "variation-repair";
+    const repairKind = oversized ? "concise-repair" : repairActionClaim ? "action-claim-repair"
+      : repairGrounding ? "grounding-repair" : repairObjection ? "objection-repair" : "variation-repair";
     repaired = await gateway.generate({
       ...request,
       correlationId: `${request.correlationId}:${repairKind}`,
       systemPolicy: oversized
         ? `${request.systemPolicy}\nThe previous structured candidate exceeded 200 words. Return the same object with only customerResponse rewritten concisely. Preserve stage, intent, facts, citations, responseGoal, proposed actions, handover, and quick replies exactly. Never cut a sentence or remove a required fact merely to stop at a boundary.`
+        : repairActionClaim
+        ? `${request.systemPolicy}\nThe previous candidate claimed that an appointment, order, payment, transfer, message, or external update succeeded without a verified tool result. Rewrite only customerResponse. Describe every proposed effect as requested, queued, or pending confirmation as appropriate. Never say booked, confirmed, paid, completed, transferred, sent, updated, or successful. Preserve every structured field exactly and do not add an action or result.`
         : repairGrounding
         ? `${request.systemPolicy}\nThe previous candidate used a sales claim or offered an action that is not supported by the approved information. Original customer message: ${JSON.stringify(request.customerMessage)}. Rewrite customerResponse using only direct conservative paraphrases of approved grounding. Explicitly say when a requested detail is not confirmed. Keep the next step inside this conversation unless an allowed structured action exists. Do not imply compatibility, ease, results, privacy, security, industry fit, or an action from generic product language. If this is an objection, keep stage S5_OBJECTION and intent handle_objection, address the specific concern, and ask one focused low-pressure question. Preserve every other structured field exactly; never add a fact or citation.`
         : repairObjection
@@ -428,6 +446,9 @@ async function generateConciseOutput(
       customerMessage: JSON.stringify(candidate),
     });
   } catch (error) {
+    if (repairActionClaim) {
+      throw new AiTextRuntimeError("action_integrity_invalid", { cause: error }, structured.nativeUsage);
+    }
     if (oversized) {
       throw new AiTextRuntimeError("structured_output_invalid", { cause: error }, structured.nativeUsage);
     }
@@ -448,10 +469,18 @@ async function generateConciseOutput(
     if (oversized) {
       const evidencePreserved = responseInvariant(repairedOutput) === responseInvariant(candidate as SalesCoreOutput);
       if (!evidencePreserved
+        || actionSuccessClaimInvalid(repairedOutput)
         || (repairObjection && objectionResponseInvalid(repairedOutput))
         || (repairGrounding && groundingResponseInvalid(repairedOutput, groundingText, request.customerMessage))
         || (repairRepetition && repetitionResponseInvalid(repairedOutput, request.messages))) {
         throw new AiTextRuntimeError("structured_output_invalid", undefined, repairedUsage);
+      }
+      return { output: repairedOutput, nativeUsage: repairedUsage };
+    }
+    if (repairActionClaim) {
+      if (responseInvariant(repairedOutput) !== responseInvariant(candidate as SalesCoreOutput)
+        || actionSuccessClaimInvalid(repairedOutput)) {
+        throw new AiTextRuntimeError("action_integrity_invalid", undefined, repairedUsage);
       }
       return { output: repairedOutput, nativeUsage: repairedUsage };
     }
@@ -479,6 +508,10 @@ async function generateConciseOutput(
       nativeUsage: repairedUsage,
     };
   } catch (error) {
+    if (repairActionClaim) {
+      if (error instanceof AiTextRuntimeError) throw error;
+      throw new AiTextRuntimeError("action_integrity_invalid", { cause: error }, repairedUsage);
+    }
     if (oversized) {
       if (error instanceof AiTextRuntimeError) throw error;
       throw new AiTextRuntimeError("structured_output_invalid", { cause: error }, repairedUsage);
@@ -529,7 +562,7 @@ export interface AiTurnRepository {
 
 export class AiTextRuntimeError extends Error {
   constructor(
-    readonly code: "turn_busy" | "structured_output_invalid" | "action_not_entitled" | "grounding_invalid" | "generation_failed",
+    readonly code: "turn_busy" | "structured_output_invalid" | "action_integrity_invalid" | "action_not_entitled" | "grounding_invalid" | "generation_failed",
     options?: ErrorOptions,
     readonly nativeUsage?: GatewayResult["nativeUsage"],
   ) {
@@ -570,7 +603,7 @@ export async function generateAiTurn(input: Readonly<{
     structuredOutputSchemaVersion: "sales-core.v1",
   }, playbook.agentRole, [approvedEvidence.join("\n"), ...selectedChunks.map((chunk) => chunk.content)].join("\n"));
   let output = generated.output;
-  assertProviderNeutralCustomerText(output.customerResponse);
+  assertProviderNeutralCustomerText(JSON.stringify(output));
   validateCitations(output, selectedChunks, generated.nativeUsage);
   const confidence = responseConfidence(output, selectedChunks.length, matchedClaimCount + selectedFaqs.length);
   output = salesCoreOutputSchema.parse({ ...output, confidence });
@@ -795,7 +828,8 @@ export async function runAiTextPreview(input: Readonly<{
       [approvedEvidence.join("\n"), ...selectedChunks.map((chunk) => chunk.content)].join("\n"),
     );
   } catch (error) {
-    if (!(error instanceof AiTextRuntimeError) || error.code !== "structured_output_invalid") throw error;
+    if (!(error instanceof AiTextRuntimeError)
+      || !["structured_output_invalid", "action_integrity_invalid"].includes(error.code)) throw error;
     const base = salesCoreOutputBaseSchema.parse({
       schemaVersion: "sales-core.v1",
       stage: "S2_DISCOVERY",
@@ -824,7 +858,7 @@ export async function runAiTextPreview(input: Readonly<{
     });
   }
   const output = restrictPreviewCitations(generated.output, selectedChunks);
-  assertProviderNeutralCustomerText(output.customerResponse);
+  assertProviderNeutralCustomerText(JSON.stringify(output));
   validateCitations(output, selectedChunks);
   return Object.freeze({
     status: "completed" as const,
