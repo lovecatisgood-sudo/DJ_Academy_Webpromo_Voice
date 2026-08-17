@@ -14,6 +14,7 @@ import { createLineChannelClient, createSocialDeliveryClient } from "@djay/chann
 import {
   AiChatRuntimeStore,
   AnonymousBuilderStore,
+  AnonymousBuilderImportStore,
   AiChatStore,
   TenantAiOperationsStore,
   AiSocialConnectionStore,
@@ -185,6 +186,7 @@ async function buildServices() {
     purchaseIntents: new PurchaseIntentStore(tenantClient),
     authPurchaseIntents: new PurchaseIntentStore(client),
     anonymousBuilder: new AnonymousBuilderStore(client),
+    anonymousBuilderImports: new AnonymousBuilderImportStore(client),
     tenantBillingNotifications: new TenantBillingNotificationStore(tenantClient),
     billingNotificationEnvelopeKey: env.BILLING_NOTIFICATION_ENVELOPE_KEY
       ? parse32ByteSecret(env.BILLING_NOTIFICATION_ENVELOPE_KEY, "BILLING_NOTIFICATION_ENVELOPE_KEY") : null,

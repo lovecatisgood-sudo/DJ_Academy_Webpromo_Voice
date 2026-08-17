@@ -1,4 +1,4 @@
-export const currentSchemaVersion = "0107_anonymous_builder_drafts";
+export const currentSchemaVersion = "0108_anonymous_builder_import_jobs";
 
 export { PostgresAuthStore } from "./auth-store";
 export { AccountingReconciliationWorkerStore, AccountingSyncWorkerStore, BillingWebhookRecoveryWorkerStore, BillingWebhookStore, FinancialEventReconciliationWorkerStore, FinancialReconciliationWorkerStore, SubscriptionLifecycleWorkerStore } from "./billing-webhook-store";
@@ -9,6 +9,7 @@ export {
 } from "./commerce-store";
 export { PurchaseIntentStore } from "./purchase-intent-store";
 export { AnonymousBuilderStore, type AnonymousBuilderDraft } from "./anonymous-builder-store";
+export { AnonymousBuilderImportStore, type AnonymousBuilderImportJob } from "./anonymous-builder-import-store";
 export { SharedDomainStore } from "./shared-domain-store";
 export { FlowBotStore } from "./flowbot-store";
 export { AiChatStore } from "./ai-chat-store";

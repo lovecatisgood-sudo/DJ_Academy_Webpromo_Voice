@@ -1,18 +1,13 @@
-import { randomUUID } from "node:crypto";
 import type { NextRequest } from "next/server";
-import { z, ZodError } from "zod";
+import { ZodError } from "zod";
 import { getServices } from "../../../../lib/container";
 import { enforceRateLimit, hasTrustedOrigin, readJson, safeJson } from "../../../../lib/http";
-import { executePublicBuilderImport, normalizedPublicWebsiteUrl } from "../../../../lib/public-builder-import";
+import { normalizedPublicWebsiteUrl, publicBuilderImportCreateSchema } from "../../../../lib/public-builder-import";
 import {
   PUBLIC_BUILDER_TEST_COOKIE,
   publicBuilderTestCookie,
   resolvePublicBuilderTestSession,
 } from "../../../../lib/public-builder-test-quota";
-
-const requestSchema = z.object({
-  url: z.string().trim().min(3).max(2048),
-}).strict();
 
 export async function POST(request: NextRequest) {
   if (!(await hasTrustedOrigin(request))) return safeJson({ status: "not_found" }, 404);
@@ -26,31 +21,22 @@ export async function POST(request: NextRequest) {
     headers = { "Set-Cookie": publicBuilderTestCookie(session.cookieValue, services.env.NODE_ENV === "production") };
     const draft = await services.anonymousBuilder.ensureDraft(session);
     if (!draft) return safeJson({ status: "unavailable" }, 404, headers);
+    const input = publicBuilderImportCreateSchema.parse(await readJson(request, 4096));
     const allowed = await enforceRateLimit("public_builder_website_import_create", session.sessionId, 5, 60_000);
     if (!allowed.allowed) return safeJson({ status: "rate_limited" }, 429, headers);
-    const input = requestSchema.parse(await readJson(request, 4096));
-    const created = await services.anonymousBuilderImports.createJob({
+    const result = await services.anonymousBuilderImports.createJob({
       sessionId: session.sessionId,
-      idempotencyKey: randomUUID(),
-      draftRevision: draft.revision,
+      idempotencyKey: input.idempotencyKey,
+      draftRevision: input.draftRevision,
       requestedUrl: input.url,
       normalizedUrl: normalizedPublicWebsiteUrl(input.url),
     });
-    if (!created.job) return safeJson({ status: "unavailable" }, 409, headers);
-    const result = await executePublicBuilderImport({
-      store: services.anonymousBuilderImports,
-      sessionId: session.sessionId,
-      jobId: created.job.id,
-    });
-    if (result.status === "completed" && result.job?.profile) {
-      return safeJson({ status: "completed", profile: result.job.profile, jobId: result.job.id }, 200, headers);
-    }
-    const reason = "reason" in result ? result.reason : result.status;
-    return safeJson({ status: "not_available", reason, jobId: created.job.id }, 422, headers);
+    if (result.status === "conflict") return safeJson(result, 409, headers);
+    if (result.status === "unavailable") return safeJson(result, 409, headers);
+    return safeJson(result, result.status === "created" ? 201 : 200, headers);
   } catch (error) {
     if (error instanceof ZodError || error instanceof SyntaxError) return safeJson({ status: "validation_failed" }, 400, headers);
     const reason = error instanceof Error && /^website_[a-z_]+$/.test(error.message) ? error.message : "website_import_failed";
-    console.error("public_builder_website_import_failed", { reason });
     return safeJson({ status: "not_available", reason }, 422, headers);
   }
 }

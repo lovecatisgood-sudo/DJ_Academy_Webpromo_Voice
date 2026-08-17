@@ -191,7 +191,7 @@ if [[ "${ANONYMOUS_BUILDER_ONLY:-false}" == "true" ]]; then
   AUTH_DATABASE_URL="postgresql://djay_auth_runtime:djay_auth_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
   TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
   ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
-    "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/anonymous-builder-store.integration.test.ts
+    "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/anonymous-builder-store.integration.test.ts src/anonymous-builder-import-store.integration.test.ts
   echo "Focused durable anonymous Builder draft test passed."
   exit 0
 fi
@@ -234,6 +234,12 @@ AUTH_DATABASE_URL="postgresql://djay_auth_runtime:djay_auth_test@127.0.0.1:${TES
 TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
 ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
   "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/anonymous-builder-store.integration.test.ts
+
+echo "Running durable anonymous Builder website import job integration test."
+AUTH_DATABASE_URL="postgresql://djay_auth_runtime:djay_auth_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+ADMIN_DATABASE_URL="postgresql://postgres:djay_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
+  "$ROOT_DIR/scripts/use-node24.sh" pnpm --filter @djay/db exec vitest run src/anonymous-builder-import-store.integration.test.ts
 expect_failure /workspace/packages/db/tests/cross-tenant-insert-must-fail.sql
 expect_failure /workspace/packages/db/tests/cross-tenant-reference-must-fail.sql
 expect_failure /workspace/packages/db/tests/last-owner-must-fail.sql

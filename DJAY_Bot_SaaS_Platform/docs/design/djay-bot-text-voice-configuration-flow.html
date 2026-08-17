@@ -1568,7 +1568,7 @@
 
     const state = { product: 'text', role: 'sales', publishedProduct: 'text', publishedRole: 'sales', section: 'business', testMode: 'draft', pendingRole: null, version: 0, configured: false, dirty: false, chatInitialized: false, testMessages: [], accountCreated: false, deployReturn: null };
     const builderVoice = {active:false,starting:false,terminal:false,responseCapped:false,stream:null,socket:null,audioContext:null,inputSource:null,inputProcessor:null,inputSilence:null,playbackCursor:0,playbackSources:new Set(),timer:null,customerText:'',agentText:''};
-    const onboardingState = { page: 'role', source: 'website', processTimer: null, importController: null, importedSources: [] };
+    const onboardingState = { page: 'role', source: 'website', processTimer: null, importController: null, importedSources: [], importJobId:null, importIdempotencyKey:null, importUrl:null, importRunning:false };
     const commerceState = { product: 'text', plan: 'ai_chat_basic', intent: 'subscribe' };
     const commerceCatalog = {
       flow: {
@@ -2217,7 +2217,7 @@
           textDraft:draft,textPublishedDraft:publishedDraft,
           textUi:{product:state.product,role:state.role,publishedProduct:state.publishedProduct,publishedRole:state.publishedRole,section:state.section,version:state.version,configured:state.configured,dirty:state.dirty},
           flowDraft,flowPublishedDraft,flowUi:flowState,
-          onboarding:{page:onboardingState.page,source:onboardingState.source}
+          onboarding:{page:onboardingState.page,source:onboardingState.source,importJobId:onboardingState.importJobId,importIdempotencyKey:onboardingState.importIdempotencyKey,importUrl:onboardingState.importUrl}
         },
         advisoryTests: {text:draft.rows?.test || [],flowTested:flowState.tested || false}
       };
@@ -3569,6 +3569,12 @@
           message:'Retry once the public HTTPS website responds, or enter the business information manually. Your current draft has not been replaced.'
         };
       }
+      if (reason === 'draft_revision_changed' || reason === 'stale') {
+        return {
+          title:'Your draft changed while the website was being read.',
+          message:'The older import was not applied. Review the current draft, then retry to import against its latest saved version.'
+        };
+      }
       return {
         title:'We could not read this website.',
         message:'The public HTTPS website may be unavailable, blocking automated access, or returning unsupported content. Retry or enter the information manually; your current draft has not been replaced.'
@@ -3621,36 +3627,68 @@
       const submittedUrl = $('#businessUrl').value.trim();
       $('#processingTitle').textContent = `Learning from ${submittedUrl}`;
       resetProcessingProgress('Connecting to the public website you provided.','Checking website access',12);
-      onboardingState.importController?.abort();
+      if (serverDraftRevision === null) {
+        showOnboardingPage('source');
+        showCrawlError('Secure draft recovery is still starting.','Wait for the saved-draft indicator, then retry. No website request was sent.');
+        return;
+      }
+      if (onboardingState.importRunning && onboardingState.importJobId) {
+        onboardingState.importController?.abort();
+        await fetch(`/public/builder/website-imports/${encodeURIComponent(onboardingState.importJobId)}`,{method:'DELETE'}).catch(() => undefined);
+      }
+      if (onboardingState.importUrl !== submittedUrl || !onboardingState.importIdempotencyKey) {
+        onboardingState.importUrl = submittedUrl;
+        onboardingState.importIdempotencyKey = crypto.randomUUID();
+        onboardingState.importJobId = null;
+      }
       onboardingState.importController = new AbortController();
+      onboardingState.importRunning = true;
       try {
-        const response = await fetch('/public/builder/website-profile', {
+        const createResponse = await fetch('/public/builder/website-imports', {
           method:'POST',
           headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({url:submittedUrl}),
+          body:JSON.stringify({url:submittedUrl,draftRevision:serverDraftRevision,idempotencyKey:onboardingState.importIdempotencyKey}),
           signal:onboardingState.importController.signal
         });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || result.status !== 'completed' || !result.profile) {
+        const created = await createResponse.json().catch(() => ({}));
+        if (!createResponse.ok || !created.job?.id) {
+          const failure = new Error(created.reason || created.status || 'website_import_failed');
+          failure.status = createResponse.status;
+          failure.reason = created.reason || created.status || 'website_import_failed';
+          throw failure;
+        }
+        onboardingState.importJobId = created.job.id;
+        resetProcessingProgress('Reading approved public pages safely.','Import job saved',32);
+        const runResponse = await fetch(`/public/builder/website-imports/${encodeURIComponent(created.job.id)}/run`,{
+          method:'POST',signal:onboardingState.importController.signal
+        });
+        const result = await runResponse.json().catch(() => ({}));
+        const profile = result.job?.profile;
+        if (!runResponse.ok || result.status !== 'completed' || !profile) {
           const failure = new Error(result.reason || result.status || 'website_import_failed');
-          failure.status = response.status;
+          failure.status = runResponse.status;
           failure.reason = result.reason || result.status || 'website_import_failed';
           throw failure;
         }
-        resetProcessingProgress('Organizing the public business information found.',`${result.profile.pageCount} public page${result.profile.pageCount === 1 ? '' : 's'} read`,78);
-        applyImportedWebsiteProfile(result.profile);
-        $('#processingTitle').textContent = `Learning about ${result.profile.name}`;
-        $('#sourceBadge').textContent = `${result.profile.pageCount} public page${result.profile.pageCount === 1 ? '' : 's'}`;
+        resetProcessingProgress('Organizing the public business information found.',`${profile.pageCount} public page${profile.pageCount === 1 ? '' : 's'} read`,78);
+        applyImportedWebsiteProfile(profile);
+        $('#processingTitle').textContent = `Learning about ${profile.name}`;
+        $('#sourceBadge').textContent = `${profile.pageCount} public page${profile.pageCount === 1 ? '' : 's'}`;
         generatedSections();
         resetProcessingProgress('Your imported business profile is ready for review.','No customer-facing changes made',100);
         setTimeout(() => showOnboardingPage('review'), 350);
       } catch (error) {
         if (error.name === 'AbortError') return;
+        if (error.reason === 'draft_revision_changed' || error.reason === 'stale') {
+          onboardingState.importJobId = null;
+          onboardingState.importIdempotencyKey = null;
+        }
         showOnboardingPage('source');
         const copy = websiteImportErrorCopy(Number(error.status || 0),error.reason || error.message);
         showCrawlError(copy.title,copy.message);
       } finally {
         onboardingState.importController = null;
+        onboardingState.importRunning = false;
       }
     }
 

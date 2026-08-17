@@ -149,6 +149,37 @@ export const anonymousBuilderDraftRevisions = builderSchema.table("draft_revisio
   createdAt: createdAt(),
 }, (table) => [primaryKey({ columns: [table.draftId, table.revision] })]);
 
+export const anonymousBuilderWebsiteImportJobs = builderSchema.table("website_import_jobs", {
+  id: uuid("id").primaryKey(),
+  sessionId: uuid("session_id").notNull().references(() => anonymousBuilderSessions.id, { onDelete: "restrict" }),
+  draftId: uuid("draft_id").notNull().references(() => anonymousBuilderDrafts.id, { onDelete: "restrict" }),
+  idempotencyKey: uuid("idempotency_key").notNull(),
+  expectedDraftRevision: integer("expected_draft_revision").notNull(),
+  requestedUrl: text("requested_url").notNull(),
+  normalizedUrl: text("normalized_url").notNull(),
+  status: text("status").notNull(),
+  generation: smallint("generation").notNull().default(1),
+  profile: jsonb("profile_json"),
+  errorReason: text("error_reason"),
+  createdAt: createdAt(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  updatedAt: updatedAt(),
+}, (table) => [uniqueIndex("builder_website_import_jobs_session_idempotency_uidx").on(table.sessionId, table.idempotencyKey)]);
+
+export const anonymousBuilderWebsiteImportAttempts = builderSchema.table("website_import_attempts", {
+  jobId: uuid("job_id").notNull().references(() => anonymousBuilderWebsiteImportJobs.id, { onDelete: "restrict" }),
+  generation: smallint("generation").notNull(),
+  status: text("status").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true }).notNull(),
+  errorReason: text("error_reason"),
+  pageCount: smallint("page_count"),
+  warnings: jsonb("warnings_json").notNull().default([]),
+  profileSha256: bytea("profile_sha256"),
+  provenance: jsonb("provenance_json").notNull().default([]),
+}, (table) => [primaryKey({ columns: [table.jobId, table.generation] })]);
+
 export const products = catalogSchema.table("products", {
   productKey: text("product_key").primaryKey(),
   publicName: text("public_name").notNull(),

@@ -35,7 +35,9 @@ for (const marker of [
   "incoming connection",
   "live Grok testing",
   "fetch('/public/builder/ai-test'",
-  "fetch('/public/builder/website-profile'",
+  "fetch('/public/builder/website-imports'",
+  "draftRevision:serverDraftRevision",
+  "importIdempotencyKey",
   "fetch('/public/builder/voice-test/session'",
   "navigator.mediaDevices.getUserMedia",
   "xai-client-secret.${result.session.token}",
@@ -107,9 +109,17 @@ for (const marker of ["runAiTextPreview", "public_builder_ai_test", "services.ai
 }
 
 const websiteImport = read("apps/api/app/public/builder/website-profile/route.ts");
+const websiteImportJobs = read("apps/api/app/public/builder/website-imports/route.ts");
+const websiteImportRunner = read("apps/api/lib/public-builder-import.ts");
 const websiteProfile = read("apps/api/lib/public-website-profile.ts");
-for (const marker of ["crawlPublicWebsite", "extractPublicWebsiteProfile", "public_builder_website_profile", "hasTrustedOrigin"]) {
+for (const marker of ["executePublicBuilderImport", "anonymousBuilderImports.createJob", "public_builder_website_import_create", "hasTrustedOrigin"]) {
   if (!websiteImport.includes(marker)) failures.push(`public website import route is missing ${marker}`);
+}
+for (const marker of ["idempotencyKey", "draftRevision", "anonymousBuilderImports.createJob", "resolvePublicBuilderTestSession"]) {
+  if (!websiteImportJobs.includes(marker)) failures.push(`persisted website import job route is missing ${marker}`);
+}
+for (const marker of ["crawlPublicWebsite", "extractPublicWebsiteProfile", "claimJob", "completeJob", "failJob"]) {
+  if (!websiteImportRunner.includes(marker)) failures.push(`persisted website import runner is missing ${marker}`);
 }
 for (const marker of ["isPublicWebsiteAddress", "website_response_too_large", "website_timeout", "comparableHost", "application/ld+json"]) {
   if (!websiteProfile.includes(marker)) failures.push(`public website importer is missing ${marker}`);

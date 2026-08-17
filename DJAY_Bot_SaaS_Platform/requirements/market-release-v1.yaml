@@ -6442,12 +6442,15 @@
       ],
       "implementation_paths": [
         "packages/db/src/anonymous-builder-store.ts",
+        "packages/db/src/anonymous-builder-import-store.ts",
         "apps/api/app/public/builder/draft/route.ts",
+        "apps/api/app/public/builder/website-imports/route.ts",
         "apps/api/lib/public-builder-test-quota.ts",
         "docs/design/djay-bot-text-voice-configuration-flow.html"
       ],
       "migration_ids": [
-        "0107_anonymous_builder_drafts"
+        "0107_anonymous_builder_drafts",
+        "0108_anonymous_builder_import_jobs"
       ],
       "api_contracts": [
         "GET /public/builder/draft",
@@ -6460,14 +6463,17 @@
       "meter_keys": [],
       "test_ids": [
         "packages/db/src/anonymous-builder-store.integration.test.ts",
+        "packages/db/src/anonymous-builder-import-store.integration.test.ts",
         "apps/api/lib/public-builder-draft.test.ts",
+        "apps/api/lib/public-builder-import.test.ts",
         "apps/api/lib/public-builder-test-quota.test.ts"
       ],
       "runbooks": [
         "docs/implementation/djay-bots-production-ready-master-plan.md"
       ],
       "evidence": [
-        "docs/validation/production-master-plan-pr02-server-draft-2026-08-17.md"
+        "docs/validation/production-master-plan-pr02-server-draft-2026-08-17.md",
+        "docs/validation/production-master-plan-pr02-import-jobs-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null
@@ -6483,16 +6489,40 @@
         "CORE-02",
         "CORE-03"
       ],
-      "implementation_paths": [],
-      "migration_ids": [],
-      "api_contracts": [],
-      "ui_routes": [],
+      "implementation_paths": [
+        "apps/api/lib/public-website-profile.ts",
+        "apps/api/lib/public-builder-import.ts",
+        "apps/api/app/public/builder/website-imports/route.ts",
+        "apps/api/app/public/builder/website-imports/[jobId]/run/route.ts",
+        "packages/db/src/anonymous-builder-import-store.ts",
+        "docs/design/djay-bot-text-voice-configuration-flow.html"
+      ],
+      "migration_ids": [
+        "0108_anonymous_builder_import_jobs"
+      ],
+      "api_contracts": [
+        "POST /public/builder/website-imports",
+        "GET /public/builder/website-imports/:jobId",
+        "DELETE /public/builder/website-imports/:jobId",
+        "POST /public/builder/website-imports/:jobId/run"
+      ],
+      "ui_routes": [
+        "/build"
+      ],
       "entitlement_keys": [],
       "meter_keys": [],
-      "test_ids": [],
-      "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "test_ids": [
+        "apps/api/lib/public-website-profile.test.ts",
+        "apps/api/lib/public-builder-import.test.ts",
+        "packages/db/src/anonymous-builder-import-store.integration.test.ts"
+      ],
+      "runbooks": [
+        "docs/implementation/djay-bots-production-ready-master-plan.md"
+      ],
+      "evidence": [
+        "docs/validation/production-master-plan-pr02-import-jobs-2026-08-17.md"
+      ],
+      "status": "in_progress",
       "accepted_by": null
     },
     {

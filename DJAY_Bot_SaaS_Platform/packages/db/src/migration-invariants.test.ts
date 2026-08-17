@@ -84,6 +84,7 @@ const notificationSourceCoverageMigration = readFileSync(resolve(import.meta.dir
 const appointmentCalendarReconciliationMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0100_appointment_calendar_reconciliation.sql"), "utf8");
 const appointmentRecoveryMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0101_appointment_recovery_and_repeat_reschedule.sql"), "utf8");
 const anonymousBuilderDraftMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0107_anonymous_builder_drafts.sql"), "utf8");
+const anonymousBuilderImportMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0108_anonymous_builder_import_jobs.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -103,6 +104,15 @@ describe("Merchant experience migration invariants", () => {
     expect(anonymousBuilderDraftMigration).toContain("expires_at > issued_at");
     expect(anonymousBuilderDraftMigration).toContain("TO djay_auth_runtime");
     expect(anonymousBuilderDraftMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+builder\.[^;]+TO djay_runtime/i);
+  });
+
+  it("keeps anonymous website imports idempotent, bounded, immutable, and unavailable to tenant runtime", () => {
+    expect(anonymousBuilderImportMigration).toContain("UNIQUE (session_id, idempotency_key)");
+    expect(anonymousBuilderImportMigration).toContain("generation BETWEEN 1 AND 3");
+    expect(anonymousBuilderImportMigration).toContain("builder_website_import_attempts_immutable");
+    expect(anonymousBuilderImportMigration).toContain("profile_sha256 bytea");
+    expect(anonymousBuilderImportMigration).toContain("provenance_json jsonb");
+    expect(anonymousBuilderImportMigration).not.toMatch(/GRANT (SELECT|INSERT|UPDATE|DELETE)[^;]+builder\.website_import[^;]+TO djay_runtime/i);
   });
 
   it("keeps appointment recovery independently reviewed, bounded, optimistic, and replay-safe", () => {

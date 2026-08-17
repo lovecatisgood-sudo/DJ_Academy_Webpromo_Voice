@@ -30,7 +30,7 @@ The browser-backed Flow command was not used as acceptance evidence. It attempte
 
 ## Remaining PR-02 gates
 
-- Idempotent persisted import jobs with cancellation, retry, provenance and stale-job protection.
+- Idempotent persisted import jobs are completed in the follow-on `production-master-plan-pr02-import-jobs-2026-08-17.md` checkpoint.
 - Complete EN/TH translation lifecycle and server-retrieved test knowledge/context.
 - Maintained application-component extraction from the approved HTML source.
 - Action-specific permission and passing desktop/mobile/keyboard/reduced-motion browser evidence.
