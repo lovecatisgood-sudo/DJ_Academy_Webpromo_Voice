@@ -187,6 +187,8 @@ if [[ "${PURCHASE_INTENT_ONLY:-false}" == "true" ]]; then
 fi
 
 if [[ "${ANONYMOUS_BUILDER_ONLY:-false}" == "true" ]]; then
+  echo "Preparing tenant seed for anonymous Builder claim tests."
+  run_sql /workspace/packages/db/tests/seed.sql
   echo "Running focused durable anonymous Builder draft integration test."
   AUTH_DATABASE_URL="postgresql://djay_auth_runtime:djay_auth_test@127.0.0.1:${TEST_DB_PORT}/postgres" \
   TENANT_DATABASE_URL="postgresql://djay_runtime:djay_tenant_test@127.0.0.1:${TEST_DB_PORT}/postgres" \

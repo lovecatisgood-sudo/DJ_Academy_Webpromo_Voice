@@ -165,6 +165,19 @@ export const tenantBuilderDraftClaims = tenancySchema.table("builder_draft_claim
   claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull(),
 });
 
+export const anonymousBuilderClaimContinuations = builderSchema.table("claim_continuations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tokenHash: bytea("token_hash").notNull().unique(),
+  sessionId: uuid("session_id").notNull().references(() => anonymousBuilderSessions.id, { onDelete: "restrict" }),
+  draftId: uuid("draft_id").notNull().references(() => anonymousBuilderDrafts.id, { onDelete: "restrict" }),
+  draftRevision: integer("draft_revision").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  status: text("status").notNull().default("issued"),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  claimedTenantId: uuid("claimed_tenant_id").references(() => tenants.id, { onDelete: "restrict" }),
+  createdAt: createdAt(),
+});
+
 export const anonymousBuilderWebsiteImportJobs = builderSchema.table("website_import_jobs", {
   id: uuid("id").primaryKey(),
   sessionId: uuid("session_id").notNull().references(() => anonymousBuilderSessions.id, { onDelete: "restrict" }),

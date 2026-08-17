@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { AnonymousBuilderStore } from "./anonymous-builder-store";
 import { createDatabaseClient } from "./client";
@@ -84,5 +84,63 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
       state: { schemaVersion: 1, locale: "th" },
       now: expiresAt,
     })).resolves.toEqual({ status: "unavailable" });
+  });
+
+  it("pins and atomically claims an existing-account continuation into one authorized workspace", async () => {
+    const store = new AnonymousBuilderStore(authClient!);
+    const now = new Date("2026-08-17T06:00:00.000Z");
+    const sessionId = randomUUID();
+    const draft = await store.ensureDraft({
+      sessionId, issuedAt: now, expiresAt: new Date("2026-09-16T06:00:00.000Z"), now,
+    });
+    await store.updateDraft({
+      sessionId, revision: draft!.revision, schemaVersion: 1,
+      productFamily: "text", planKey: "ai_chat_basic",
+      state: { schemaVersion: 1, locale: "en", configuration: { botName: "Existing Account Bot" } },
+      now: new Date(now.getTime() + 1_000),
+    });
+    const firstHash = createHash("sha256").update("first-continuation").digest();
+    const activeHash = createHash("sha256").update("active-continuation").digest();
+    await expect(store.issueClaimContinuation({
+      sessionId, tokenHash: firstHash, now: new Date(now.getTime() + 2_000),
+      expiresAt: new Date(now.getTime() + 15 * 60_000),
+    })).resolves.toEqual({ status: "issued", draftRevision: 2 });
+    await expect(store.issueClaimContinuation({
+      sessionId, tokenHash: activeHash, now: new Date(now.getTime() + 3_000),
+      expiresAt: new Date(now.getTime() + 16 * 60_000),
+    })).resolves.toEqual({ status: "issued", draftRevision: 2 });
+    const command = {
+      tenantId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10",
+      userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      membershipId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa11",
+      requestId: "existing-builder-claim-1",
+      now: new Date(now.getTime() + 4_000),
+    };
+    await expect(store.claimExistingAccountDraft({ ...command, tokenHash: firstHash }))
+      .resolves.toEqual({ status: "unavailable" });
+    await expect(store.claimExistingAccountDraft({ ...command, tokenHash: activeHash }))
+      .resolves.toEqual({ status: "claimed", planKey: "ai_chat_basic" });
+    await expect(store.claimExistingAccountDraft({ ...command, tokenHash: activeHash }))
+      .resolves.toEqual({ status: "replayed", planKey: "ai_chat_basic" });
+    await expect(store.claimExistingAccountDraft({
+      ...command, tokenHash: activeHash,
+      tenantId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb10",
+      userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+      membershipId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb11",
+    })).resolves.toEqual({ status: "unavailable" });
+    const evidence = await adminClient!<{
+      claims: number; intents: number; audits: number; bot_name: string;
+    }[]>`
+      SELECT
+        (SELECT count(*)::int FROM tenancy.builder_draft_claims
+          WHERE source_session_id = ${sessionId}::uuid) AS claims,
+        (SELECT count(*)::int FROM billing.purchase_intents
+          WHERE tenant_id = ${command.tenantId}::uuid AND plan_key = 'ai_chat_basic' AND status = 'open') AS intents,
+        (SELECT count(*)::int FROM tenancy.audit_logs
+          WHERE tenant_id = ${command.tenantId}::uuid AND action = 'tenant.builder_draft_claimed') AS audits,
+        (SELECT state_json #>> '{configuration,botName}' FROM tenancy.builder_draft_claims
+          WHERE source_session_id = ${sessionId}::uuid) AS bot_name
+    `;
+    expect(evidence[0]).toEqual({ claims: 1, intents: 1, audits: 1, bot_name: "Existing Account Bot" });
   });
 });

@@ -48,6 +48,7 @@ export default function RegistrationPage() {
   const [legal, setLegal] = useState<LegalMetadata | null>(null);
   const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
+  const [existingAccountStatus, setExistingAccountStatus] = useState<"idle" | "working" | "error">("idle");
   const configuredPlan = plans.find((plan) => plan.planKey === selectedPlanKey) ?? null;
 
   async function loadCatalog() {
@@ -180,6 +181,23 @@ export default function RegistrationPage() {
     }
   }
 
+  async function continueWithExistingAccount() {
+    setExistingAccountStatus("working");
+    setMessage("");
+    try {
+      const response = await safeMutationFetch("/public/builder/claim-continuation", { method: "POST" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.status !== "issued" || typeof result.token !== "string"
+        || typeof result.tenantLoginUrl !== "string") throw new Error("ไม่สามารถเตรียมการเข้าสู่ระบบได้ โปรดกลับไปบันทึก Bot แล้วลองอีกครั้ง");
+      const destination = new URL("/", result.tenantLoginUrl);
+      destination.hash = new URLSearchParams({ builder_claim: result.token }).toString();
+      window.location.assign(destination.toString());
+    } catch (error) {
+      setExistingAccountStatus("error");
+      setMessage(error instanceof Error ? error.message : "ไม่สามารถดำเนินการต่อได้");
+    }
+  }
+
   return (
     <main className="registration-page" id="main-content">
       <PublicHeader />
@@ -239,7 +257,7 @@ export default function RegistrationPage() {
             </button>
           </form>}
           {message && status !== "accepted" ? <p className={`form-message ${status}`} role={status === "error" ? "alert" : "status"}>{message}</p> : null}
-          <p className="sign-in">สมัครแล้ว? <a href="/login">เข้าสู่ระบบ</a></p>
+          <p className="sign-in">มีบัญชีแล้ว? <button type="button" disabled={existingAccountStatus === "working" || builderStage !== "ready"} onClick={() => void continueWithExistingAccount()}>{existingAccountStatus === "working" ? "กำลังเตรียมการเข้าสู่ระบบ..." : "เข้าสู่ระบบและเก็บ Bot นี้"}</button></p>
         </div>
       </section>
     </main>

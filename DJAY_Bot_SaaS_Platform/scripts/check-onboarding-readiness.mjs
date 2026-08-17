@@ -91,7 +91,7 @@ const registrationPage = read("apps/public-site/app/register/page.tsx");
 for (const marker of ["loadBuilderDraft", 'fetch("/public/builder/draft"', 'body.draft?.planKey', "configuredPlan", "builderStage !== \"ready\""]) {
   if (!registrationPage.includes(marker)) failures.push(`Builder registration does not derive its immutable plan from the server draft: ${marker}`);
 }
-if (registrationPage.includes("URLSearchParams") || builder.includes("register?source=builder&plan")) {
+if (registrationPage.includes("new URLSearchParams(window.location.search)") || builder.includes("register?source=builder&plan")) {
   failures.push("Deploy registration still transports or reads browser plan authority");
 }
 const turbo = read("turbo.json");

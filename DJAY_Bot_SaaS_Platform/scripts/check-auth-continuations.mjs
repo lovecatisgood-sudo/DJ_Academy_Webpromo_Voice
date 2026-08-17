@@ -56,6 +56,25 @@ for (const [path, marker] of [
   if (!read(path).includes(marker)) failures.push(`${path} does not keep one-time state out of HTTP query strings`);
 }
 
+const builderClaimIssuer = read("apps/api/app/public/builder/claim-continuation/route.ts");
+const builderClaimConsumer = read("apps/api/app/public/builder/claim/route.ts");
+const registration = read("apps/public-site/app/register/page.tsx");
+for (const marker of ["createOpaqueToken", "hashOpaqueToken", "issueClaimContinuation", "TENANT_APP_URL"]) {
+  if (!builderClaimIssuer.includes(marker)) failures.push(`Builder claim issuer is missing ${marker}`);
+}
+for (const marker of ["hashOpaqueToken", "session.current", "selectedTenantId", "claimExistingAccountDraft", "onboarding.update"]) {
+  if (!builderClaimConsumer.includes(marker)) failures.push(`Builder claim consumer is missing ${marker}`);
+}
+for (const marker of ["destination.hash", "builder_claim", "/public/builder/claim-continuation"]) {
+  if (!registration.includes(marker)) failures.push(`Existing-account registration continuation is missing ${marker}`);
+}
+for (const marker of ["retainBrowserOneTimeValues", "clearBrowserOneTimeValues", "/public/builder/claim", "workspace_required"]) {
+  if (!login.includes(marker)) failures.push(`Tenant Builder claim continuation is missing ${marker}`);
+}
+if (registration.includes("searchParams.set(\"builder_claim\"") || login.includes("searchParams.get(\"builder_claim\"")) {
+  failures.push("Builder claim continuation exposes its one-time token in the query string");
+}
+
 const securityHeaders = read("config/next-security-headers.ts");
 for (const marker of ["oneTimeAccountRoutes", 'value: "no-referrer"', '"/verify-email"', '"/recovery/complete"']) {
   if (!securityHeaders.includes(marker)) failures.push(`One-time account-route header policy is missing ${marker}`);

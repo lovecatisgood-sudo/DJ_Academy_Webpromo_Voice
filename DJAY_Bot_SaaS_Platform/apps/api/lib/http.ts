@@ -55,6 +55,7 @@ const tenantPublicMutationPaths = new Set([
   "/public/auth/mfa/challenge",
   "/public/auth/recovery/complete",
   "/public/auth/recovery/request",
+  "/public/builder/claim",
 ]);
 
 function canonicalOrigin(value: string): string | null {

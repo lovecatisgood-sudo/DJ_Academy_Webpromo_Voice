@@ -86,6 +86,7 @@ const appointmentRecoveryMigration = readFileSync(resolve(import.meta.dirname, "
 const anonymousBuilderDraftMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0107_anonymous_builder_drafts.sql"), "utf8");
 const anonymousBuilderImportMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0108_anonymous_builder_import_jobs.sql"), "utf8");
 const anonymousBuilderClaimMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0109_anonymous_builder_draft_claim.sql"), "utf8");
+const existingAccountBuilderClaimMigration = readFileSync(resolve(import.meta.dirname, "../migrations/0110_existing_account_builder_claim.sql"), "utf8");
 
 const tenantTables = [
   "tenants",
@@ -124,6 +125,15 @@ describe("Merchant experience migration invariants", () => {
     expect(anonymousBuilderClaimMigration).toContain("builder_draft_claims_tenant_claimed_idx");
     expect(anonymousBuilderClaimMigration).toContain("FORCE ROW LEVEL SECURITY");
     expect(anonymousBuilderClaimMigration).toContain("FOREIGN KEY (claimed_by_membership_id, tenant_id)");
+  });
+
+  it("uses a short-lived revision-pinned one-time continuation for existing-account claims", () => {
+    expect(existingAccountBuilderClaimMigration).toContain("CREATE TABLE builder.claim_continuations");
+    expect(existingAccountBuilderClaimMigration).toContain("token_hash bytea NOT NULL UNIQUE");
+    expect(existingAccountBuilderClaimMigration).toContain("draft_revision integer NOT NULL");
+    expect(existingAccountBuilderClaimMigration).toContain("status IN ('issued', 'consumed', 'superseded')");
+    expect(existingAccountBuilderClaimMigration).toContain("builder_claim_continuations_one_active_session_uidx");
+    expect(existingAccountBuilderClaimMigration).toContain("FORCE ROW LEVEL SECURITY");
   });
 
   it("keeps appointment recovery independently reviewed, bounded, optimistic, and replay-safe", () => {

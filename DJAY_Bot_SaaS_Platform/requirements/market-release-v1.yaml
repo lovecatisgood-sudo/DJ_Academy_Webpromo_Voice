@@ -6444,6 +6444,8 @@
         "packages/db/src/anonymous-builder-store.ts",
         "packages/db/src/anonymous-builder-import-store.ts",
         "apps/api/app/public/builder/draft/route.ts",
+        "apps/api/app/public/builder/claim-continuation/route.ts",
+        "apps/api/app/public/builder/claim/route.ts",
         "apps/api/app/public/builder/website-imports/route.ts",
         "apps/api/app/public/auth/register/route.ts",
         "apps/api/app/public/auth/verify-email/route.ts",
@@ -6451,22 +6453,27 @@
         "packages/auth/src/registration.ts",
         "packages/db/src/auth-store.ts",
         "apps/public-site/app/register/page.tsx",
+        "apps/tenant-web/app/page.tsx",
         "docs/design/djay-bot-text-voice-configuration-flow.html"
       ],
       "migration_ids": [
         "0107_anonymous_builder_drafts",
         "0108_anonymous_builder_import_jobs",
-        "0109_anonymous_builder_draft_claim"
+        "0109_anonymous_builder_draft_claim",
+        "0110_existing_account_builder_claim"
       ],
       "api_contracts": [
         "GET /public/builder/draft",
         "PATCH /public/builder/draft",
+        "POST /public/builder/claim-continuation",
+        "POST /public/builder/claim",
         "POST /public/auth/register",
         "POST /public/auth/verify-email"
       ],
       "ui_routes": [
         "/build",
-        "/register"
+        "/register",
+        "tenant login"
       ],
       "entitlement_keys": [],
       "meter_keys": [],
@@ -6478,6 +6485,7 @@
         "apps/api/lib/public-builder-test-quota.test.ts",
         "packages/auth/src/registration.test.ts",
         "packages/db/src/auth-store.integration.test.ts",
+        "packages/db/src/migration-invariants.test.ts",
         "scripts/check-onboarding-readiness.mjs",
         "scripts/check-builder-translations.mjs"
       ],
@@ -6489,7 +6497,8 @@
         "docs/validation/production-master-plan-pr02-import-jobs-2026-08-17.md",
         "docs/validation/production-master-plan-pr02-translations-2026-08-17.md",
         "docs/validation/production-master-plan-pr03-draft-claim-2026-08-17.md",
-        "docs/validation/production-master-plan-pr03-deploy-handoff-2026-08-17.md"
+        "docs/validation/production-master-plan-pr03-deploy-handoff-2026-08-17.md",
+        "docs/validation/production-master-plan-pr03-existing-account-claim-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null

@@ -21,6 +21,7 @@ describe("browser mutation origin isolation", () => {
     ["/public/auth/mfa/challenge", "https://app.djaybot.test"],
     ["/public/auth/recovery/request", "https://app.djaybot.test"],
     ["/public/auth/recovery/complete", "https://app.djaybot.test"],
+    ["/public/builder/claim", "https://app.djaybot.test"],
   ])("maps %s to only %s", (pathname, origin) => {
     expect(expectedBrowserMutationOrigin(pathname, urls)).toBe(origin);
     expect(isTrustedBrowserMutationOrigin(origin, pathname, urls)).toBe(true);

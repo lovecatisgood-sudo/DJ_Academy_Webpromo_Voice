@@ -149,4 +149,176 @@ export class AnonymousBuilderStore {
       return { status: "updated" as const, draft: draftFromRow(draft) };
     });
   }
+
+  async issueClaimContinuation(input: Readonly<{
+    sessionId: string;
+    tokenHash: Buffer;
+    now?: Date;
+    expiresAt: Date;
+  }>): Promise<Readonly<{ status: "issued"; draftRevision: number } | { status: "unavailable" }>> {
+    const now = input.now ?? new Date();
+    return this.client.begin(async (sql) => {
+      const rows = await sql<{ draft_id: string; revision: number }[]>`
+        SELECT draft.id AS draft_id, draft.revision
+        FROM builder.anonymous_sessions session
+        JOIN builder.drafts draft ON draft.session_id = session.id
+        WHERE session.id = ${input.sessionId}::uuid
+          AND session.status = 'active'
+          AND session.pending_registration_id IS NULL
+          AND session.expires_at > ${now}
+          AND draft.status = 'active'
+          AND draft.expires_at > ${now}
+          AND draft.product_family IS NOT NULL
+          AND draft.plan_key IS NOT NULL
+        FOR UPDATE OF session, draft
+      `;
+      const draft = rows[0];
+      if (!draft || input.expiresAt.getTime() <= now.getTime()) return { status: "unavailable" as const };
+      await sql`
+        UPDATE builder.claim_continuations
+        SET status = 'superseded', consumed_at = ${now}
+        WHERE session_id = ${input.sessionId}::uuid AND status = 'issued'
+      `;
+      await sql`
+        INSERT INTO builder.claim_continuations (
+          token_hash, session_id, draft_id, draft_revision, expires_at
+        ) VALUES (
+          ${input.tokenHash}, ${input.sessionId}::uuid, ${draft.draft_id}::uuid,
+          ${draft.revision}, ${input.expiresAt}
+        )
+      `;
+      return { status: "issued" as const, draftRevision: draft.revision };
+    });
+  }
+
+  async claimExistingAccountDraft(input: Readonly<{
+    tokenHash: Buffer;
+    tenantId: string;
+    userId: string;
+    membershipId: string;
+    requestId: string;
+    now?: Date;
+    purchaseIntentId?: string;
+  }>): Promise<Readonly<{ status: "claimed" | "replayed"; planKey: string } | { status: "unavailable" }>> {
+    const now = input.now ?? new Date();
+    const purchaseIntentId = input.purchaseIntentId ?? randomUUID();
+    return this.client.begin(async (sql) => {
+      const rows = await sql<{
+        continuation_id: string; continuation_status: string; continuation_expires_at: Date;
+        claimed_tenant_id: string | null; session_id: string; session_status: string;
+        pending_registration_id: string | null; session_expires_at: Date;
+        draft_id: string; draft_status: string; revision: number; pinned_revision: number;
+        draft_expires_at: Date;
+        schema_version: number; product_family: "flow" | "text" | "voice" | null;
+        plan_key: string | null; state_json: unknown;
+      }[]>`
+        SELECT continuation.id AS continuation_id, continuation.status AS continuation_status,
+          continuation.expires_at AS continuation_expires_at,
+          continuation.claimed_tenant_id, session.id AS session_id, session.status AS session_status,
+          session.pending_registration_id, session.expires_at AS session_expires_at,
+          draft.id AS draft_id, draft.status AS draft_status, draft.revision,
+          draft.expires_at AS draft_expires_at,
+          continuation.draft_revision AS pinned_revision, draft.schema_version,
+          draft.product_family, draft.plan_key, draft.state_json
+        FROM builder.claim_continuations continuation
+        JOIN builder.anonymous_sessions session ON session.id = continuation.session_id
+        JOIN builder.drafts draft ON draft.id = continuation.draft_id AND draft.session_id = session.id
+        WHERE continuation.token_hash = ${input.tokenHash}
+        FOR UPDATE OF continuation, session, draft
+      `;
+      const claim = rows[0];
+      if (!claim) return { status: "unavailable" as const };
+      if (claim.continuation_status === "consumed"
+        && claim.claimed_tenant_id === input.tenantId && claim.plan_key) {
+        return { status: "replayed" as const, planKey: claim.plan_key };
+      }
+      if (claim.continuation_status !== "issued"
+        || claim.continuation_expires_at.getTime() <= now.getTime()
+        || claim.session_status !== "active" || claim.draft_status !== "active"
+        || claim.pending_registration_id !== null
+        || claim.session_expires_at.getTime() <= now.getTime()
+        || claim.draft_expires_at.getTime() <= now.getTime()
+        || claim.revision !== claim.pinned_revision || !claim.product_family || !claim.plan_key) {
+        return { status: "unavailable" as const };
+      }
+      await sql`
+        SELECT set_config('app.tenant_id', ${input.tenantId}, true),
+          set_config('app.user_id', ${input.userId}, true),
+          set_config('app.membership_id', ${input.membershipId}, true),
+          set_config('app.request_id', ${input.requestId}, true)
+      `;
+      const memberships = await sql<{ role: string }[]>`
+        SELECT role FROM tenancy.memberships
+        WHERE id = ${input.membershipId}::uuid
+          AND tenant_id = ${input.tenantId}::uuid
+          AND user_id = ${input.userId}::uuid
+          AND status = 'active'
+          AND role IN ('tenant_master_admin', 'tenant_admin')
+        FOR UPDATE
+      `;
+      if (!memberships[0]) return { status: "unavailable" as const };
+      const planRows = await sql<{ plan_version_id: string }[]>`
+        SELECT version.id AS plan_version_id
+        FROM catalog.catalog_versions catalog_version
+        JOIN catalog.plan_commercial_terms terms ON terms.catalog_version_id = catalog_version.id
+        JOIN catalog.plan_versions version ON version.id = terms.plan_version_id
+        JOIN catalog.plans plan ON plan.id = version.plan_id
+        WHERE plan.plan_key = ${claim.plan_key}
+          AND plan.status = 'active' AND catalog_version.status = 'active'
+          AND catalog_version.effective_from <= ${now}
+          AND (catalog_version.effective_to IS NULL OR catalog_version.effective_to > ${now})
+          AND version.status = 'published' AND version.effective_from <= ${now}
+          AND (version.effective_to IS NULL OR version.effective_to > ${now})
+        ORDER BY version.version DESC LIMIT 1
+      `;
+      if (!planRows[0]) return { status: "unavailable" as const };
+      await sql`
+        INSERT INTO tenancy.builder_draft_claims (
+          tenant_id, claimed_by_user_id, claimed_by_membership_id,
+          source_session_id, source_draft_id, source_revision, schema_version,
+          product_family, plan_key, state_json, claimed_at
+        ) VALUES (
+          ${input.tenantId}::uuid, ${input.userId}::uuid, ${input.membershipId}::uuid,
+          ${claim.session_id}::uuid, ${claim.draft_id}::uuid, ${claim.revision},
+          ${claim.schema_version}, ${claim.product_family}, ${claim.plan_key},
+          ${sql.json(claim.state_json as never)}, ${now}
+        )
+      `;
+      await sql`
+        INSERT INTO billing.purchase_intents (
+          id, registration_id, tenant_id, plan_key, plan_version_id,
+          status, created_at, expires_at
+        ) VALUES (
+          ${purchaseIntentId}::uuid, NULL, ${input.tenantId}::uuid, ${claim.plan_key},
+          ${planRows[0].plan_version_id}::uuid, 'open', ${now},
+          ${new Date(now.getTime() + 72 * 60 * 60 * 1000)}
+        )
+      `;
+      await sql`UPDATE builder.drafts SET status = 'claimed', updated_at = ${now} WHERE id = ${claim.draft_id}::uuid`;
+      await sql`
+        UPDATE builder.anonymous_sessions
+        SET status = 'claimed', pending_registration_id = NULL,
+          claimed_registration_id = NULL, claimed_tenant_id = ${input.tenantId}::uuid,
+          claimed_at = ${now}, last_seen_at = ${now}
+        WHERE id = ${claim.session_id}::uuid
+      `;
+      await sql`
+        UPDATE builder.claim_continuations
+        SET status = 'consumed', consumed_at = ${now}, claimed_tenant_id = ${input.tenantId}::uuid
+        WHERE id = ${claim.continuation_id}::uuid
+      `;
+      await sql`
+        INSERT INTO tenancy.audit_logs (
+          tenant_id, actor_user_id, actor_membership_id, action, target_type,
+          target_id, request_id, result, metadata
+        ) VALUES (
+          ${input.tenantId}::uuid, ${input.userId}::uuid, ${input.membershipId}::uuid,
+          'tenant.builder_draft_claimed', 'builder_draft', ${claim.draft_id},
+          ${input.requestId}, 'succeeded',
+          ${sql.json({ revision: claim.revision, productFamily: claim.product_family, planKey: claim.plan_key })}
+        )
+      `;
+      return { status: "claimed" as const, planKey: claim.plan_key };
+    });
+  }
 }

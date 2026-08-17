@@ -21,6 +21,7 @@ function requiresBrowserOrigin(relativePath) {
   return relativePath.startsWith("apps/api/app/tenant/")
     || relativePath.startsWith("apps/api/app/platform/")
     || relativePath.startsWith("apps/api/app/public/auth/")
+    || relativePath.startsWith("apps/api/app/public/builder/")
     || relativePath.startsWith("apps/api/app/public/invitations/");
 }
 
