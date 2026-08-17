@@ -94,6 +94,44 @@ describe("restricted AI gateway", () => {
     expect(await response.json()).toMatchObject({ output: { response: "Recovered" } });
   });
 
+  it.each([
+    [429, { error: { message: "Sensitive quota detail" } }, 429, "provider_quota_exhausted"],
+    [400, { error: { code: "content_policy_violation", message: "Sensitive policy detail" } }, 422, "policy_violation"],
+  ] as const)("returns one stable operator-classified state for provider HTTP %s", async (providerStatus, body, expectedStatus, code) => {
+    let calls = 0;
+    const handler = createAiGatewayHandler({
+      serviceToken: "service-token-abcdefghijklmnopqrstuvwxyz", provider: "openai",
+      apiKey: "sk-restricted-abcdefghijklmnopqrstuvwxyz", model: "restricted-route",
+      fetchImpl: async () => { calls += 1; return Response.json(body, { status: providerStatus }); },
+    });
+    const response = await handler(new Request("https://internal.example/v1/generate", {
+      method: "POST",
+      headers: { authorization: "Bearer service-token-abcdefghijklmnopqrstuvwxyz", "content-type": "application/json" },
+      body: JSON.stringify(requestBody),
+    }));
+    expect(response.status).toBe(expectedStatus);
+    expect(await response.json()).toEqual({ status: code });
+    expect(calls).toBe(1);
+  });
+
+  it("returns a stable refusal state without provider text", async () => {
+    const handler = createAiGatewayHandler({
+      serviceToken: "service-token-abcdefghijklmnopqrstuvwxyz", provider: "openai",
+      apiKey: "sk-restricted-abcdefghijklmnopqrstuvwxyz", model: "restricted-route",
+      fetchImpl: async () => Response.json({
+        status: "completed", output: [{ type: "message", content: [{ type: "refusal", refusal: "Sensitive refusal detail" }] }],
+        usage: { input_tokens: 2, output_tokens: 1 },
+      }),
+    });
+    const response = await handler(new Request("https://internal.example/v1/generate", {
+      method: "POST",
+      headers: { authorization: "Bearer service-token-abcdefghijklmnopqrstuvwxyz", "content-type": "application/json" },
+      body: JSON.stringify(requestBody),
+    }));
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ status: "provider_refusal" });
+  });
+
   it("accepts translation.v1 with its caller-supplied strict output schema", async () => {
     const handler = createAiGatewayHandler({
       serviceToken: "service-token-abcdefghijklmnopqrstuvwxyz",

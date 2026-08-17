@@ -122,7 +122,11 @@ export function createAiGatewayHandler(config: Readonly<{
     } catch (error) {
       if (error instanceof ProviderGatewayError) {
         console.error("ai_gateway_provider_failed", { reason: error.code });
-        return json({ status: error.code }, error.code === "gateway_timeout" ? 504 : 503);
+        const status = error.code === "gateway_timeout" ? 504
+          : error.code === "provider_quota_exhausted" ? 429
+          : error.code === "provider_refusal" || error.code === "policy_violation" ? 422
+          : 503;
+        return json({ status: error.code }, status);
       }
       console.error("ai_gateway_request_failed", {
         reason: error instanceof Error ? error.message : "unknown_error",

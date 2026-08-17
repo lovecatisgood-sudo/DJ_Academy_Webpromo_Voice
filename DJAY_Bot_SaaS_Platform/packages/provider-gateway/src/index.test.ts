@@ -48,6 +48,19 @@ describe("internal text gateway", () => {
     await expect(gateway.generate(request)).rejects.toEqual(new ProviderGatewayError("gateway_unavailable"));
   });
 
+  it.each([
+    [429, "provider_quota_exhausted"],
+    [422, "provider_refusal"],
+    [422, "policy_violation"],
+    [504, "gateway_timeout"],
+  ] as const)("preserves the internal gateway's safe %s failure state", async (status, code) => {
+    const gateway = createHttpTextProviderGateway({
+      endpoint: "https://ai-gateway.internal/generate", serviceToken: "secret",
+      fetchImpl: async () => Response.json({ status: code }, { status }),
+    });
+    await expect(gateway.generate(request)).rejects.toEqual(new ProviderGatewayError(code));
+  });
+
   it("bounds a stalled upstream call and collapses it to a safe timeout", async () => {
     const gateway = createHttpTextProviderGateway({
       endpoint: "https://ai-gateway.internal/generate", serviceToken: "secret", timeoutMs: 5,
@@ -100,6 +113,24 @@ describe("restricted OpenAI Responses gateway", () => {
       }), { status: 200 }),
     });
     await expect(gateway.generate(request)).rejects.toEqual(new ProviderGatewayError("gateway_invalid_response"));
+  });
+
+  it("classifies refusal, policy filtering, and quota exhaustion without exposing provider detail", async () => {
+    const responses = [
+      Response.json({
+        status: "completed", output: [{ type: "message", content: [{ type: "refusal", refusal: "Sensitive refusal detail" }] }],
+        usage: { input_tokens: 2, output_tokens: 1 },
+      }),
+      Response.json({ status: "incomplete", incomplete_details: { reason: "content_filter" }, output: [], usage: { input_tokens: 2, output_tokens: 0 } }),
+      Response.json({ error: { message: "Sensitive quota detail" } }, { status: 429 }),
+    ];
+    const gateway = createOpenAIResponsesGateway({
+      apiKey: "sk-restricted-abcdefghijklmnopqrstuvwxyz", model: "restricted-text-route",
+      fetchImpl: async () => responses.shift()!,
+    });
+    await expect(gateway.generate(request)).rejects.toEqual(new ProviderGatewayError("provider_refusal"));
+    await expect(gateway.generate(request)).rejects.toEqual(new ProviderGatewayError("policy_violation"));
+    await expect(gateway.generate(request)).rejects.toEqual(new ProviderGatewayError("provider_quota_exhausted"));
   });
 });
 
@@ -171,6 +202,18 @@ describe("restricted compatible Chat Completions gateway", () => {
       }), { status: 200 }),
     });
     await expect(gateway.generate(request)).rejects.toEqual(new ProviderGatewayError("gateway_invalid_response"));
+  });
+
+  it("classifies a compatible-provider refusal as a stable safe state", async () => {
+    const gateway = createCompatibleChatTextGateway({
+      apiKey: "restricted-provider-key-abcdefghijklmnopqrstuvwxyz",
+      model: "owner-selected-route", endpoint: "https://api.x.ai/v1/chat/completions",
+      fetchImpl: async () => Response.json({
+        choices: [{ message: { content: null, refusal: "Sensitive refusal detail" }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 2, completion_tokens: 1 },
+      }),
+    });
+    await expect(gateway.generate(request)).rejects.toEqual(new ProviderGatewayError("provider_refusal"));
   });
 });
 

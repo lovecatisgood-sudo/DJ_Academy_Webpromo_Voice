@@ -2811,16 +2811,36 @@
         "AI-01",
         "AI-03"
       ],
-      "implementation_paths": [],
+      "implementation_paths": [
+        "packages/provider-gateway/src/index.ts",
+        "apps/ai-gateway/src/server.ts",
+        "packages/ai-chat-runtime/src/index.ts",
+        "packages/db/src/ai-chat-runtime-store.ts",
+        "packages/db/migrations/0018_ai_chat_public_runtime.sql"
+      ],
       "migration_ids": [],
-      "api_contracts": [],
+      "api_contracts": [
+        "POST /v1/generate",
+        "POST /public/ai-chat/message",
+        "AiTextRuntime.turn"
+      ],
       "ui_routes": [],
       "entitlement_keys": [],
-      "meter_keys": [],
-      "test_ids": [],
+      "meter_keys": [
+        "ai_response"
+      ],
+      "test_ids": [
+        "packages/provider-gateway/src/index.test.ts",
+        "apps/ai-gateway/src/server.test.ts",
+        "packages/ai-chat-runtime/src/index.test.ts",
+        "packages/db/src/ai-chat-runtime-store.integration.test.ts"
+      ],
       "runbooks": [],
-      "evidence": [],
-      "status": "planned",
+      "evidence": [
+        "docs/validation/ai-text-provider-failure-states-2026-08-17.md",
+        "scripts/test-db-integration.sh"
+      ],
+      "status": "implemented",
       "accepted_by": null
     },
     {

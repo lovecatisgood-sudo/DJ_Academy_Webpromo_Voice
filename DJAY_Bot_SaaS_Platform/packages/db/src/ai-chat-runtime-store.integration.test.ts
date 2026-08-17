@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { AiTextRuntime, type AiPublicResponse } from "@djay/ai-chat-runtime";
+import { ProviderGatewayError } from "@djay/provider-gateway";
 import { createTenantContext } from "@djay/tenancy";
 import { runAiChatMerchantEmail } from "@djay/notifications";
 import { afterAll, describe, expect, it } from "vitest";
@@ -391,6 +392,55 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       inputUnits: 18,
       outputUnits: 8,
     }]);
+
+    const providerStateSession = await repository.start({
+      deploymentKey: deployment.deploymentKey, origin: "https://merchant.example", language: "en",
+    });
+    if (!providerStateSession) throw new Error("Expected provider-state test session.");
+    let providerStateCalls = 0;
+    const providerStateRuntime = new AiTextRuntime(repository, {
+      async generate() { providerStateCalls += 1; throw new ProviderGatewayError("provider_quota_exhausted"); },
+    });
+    const providerStateInputId = randomUUID();
+    const providerStateResponse = await providerStateRuntime.turn({
+      deploymentKey: deployment.deploymentKey,
+      sessionToken: providerStateSession.sessionToken,
+      origin: "https://merchant.example",
+      inputId: providerStateInputId,
+      message: "Can you still answer safely?",
+    });
+    expect(providerStateResponse).toMatchObject({
+      status: "completed",
+      text: "I could not confirm that from approved information. I can connect you with a person.",
+      actions: [],
+    });
+    await expect(providerStateRuntime.turn({
+      deploymentKey: deployment.deploymentKey,
+      sessionToken: providerStateSession.sessionToken,
+      origin: "https://merchant.example",
+      inputId: providerStateInputId,
+      message: "Can you still answer safely?",
+    })).resolves.toEqual(providerStateResponse);
+    expect(providerStateCalls).toBe(1);
+    const providerStateEvidence = await adminClient!<{
+      settled: number; intent: string; inputUnits: number; outputUnits: number;
+    }[]>`
+      SELECT account.settled_quantity::int AS settled,
+        turn.structured_output_json->>'intent' AS intent,
+        usage.input_units::int AS "inputUnits", usage.output_units::int AS "outputUnits"
+      FROM tenancy.ai_sessions session
+      JOIN tenancy.ai_turns turn ON turn.tenant_id = session.tenant_id AND turn.session_id = session.id
+      JOIN operations.ai_native_usage usage ON usage.tenant_id = turn.tenant_id AND usage.turn_id = turn.id
+      JOIN tenancy.quota_accounts account ON account.tenant_id = session.tenant_id
+        AND account.subscription_id = ${subscriptionId}::uuid
+      WHERE session.id = ${providerStateSession.sessionId}::uuid
+    `;
+    expect(providerStateEvidence).toEqual([{
+      settled: 4,
+      intent: "safe_fallback.provider_quota_exhausted",
+      inputUnits: 0,
+      outputUnits: 0,
+    }]);
     const sentMessages: { to: string; subject: string }[] = [];
     await expect(runAiChatMerchantEmail(
       new AiChatNotificationWorkerStore(workerClient!),
@@ -475,7 +525,7 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       JOIN tenancy.quota_accounts account ON account.tenant_id = session.tenant_id AND account.subscription_id = ${subscriptionId}::uuid
       WHERE session.id = ${takeoverSession.sessionId}::uuid AND turn.input_id = ${takeoverInputId}::uuid
     `;
-    expect(takeoverState[0]).toEqual({ ai_messages: 1, released_events: 1, reserved: 0, settled: 4, native_usage: 0 });
+    expect(takeoverState[0]).toEqual({ ai_messages: 1, released_events: 1, reserved: 0, settled: 5, native_usage: 0 });
     await expect(repository.sync({
       deploymentKey: deployment.deploymentKey, sessionToken: takeoverSession.sessionToken,
       origin: "https://evil.example", afterSequence: 0,

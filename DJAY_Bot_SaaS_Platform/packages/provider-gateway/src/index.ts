@@ -28,10 +28,45 @@ export interface TextProviderGateway {
   generate(request: TextGenerationRequest): Promise<TextGenerationResult>;
 }
 
+export const providerGatewayErrorCodeSchema = z.enum([
+  "gateway_timeout",
+  "gateway_unavailable",
+  "gateway_invalid_response",
+  "provider_refusal",
+  "policy_violation",
+  "provider_quota_exhausted",
+]);
+export type ProviderGatewayErrorCode = z.infer<typeof providerGatewayErrorCodeSchema>;
+
 export class ProviderGatewayError extends Error {
-  constructor(readonly code: "gateway_timeout" | "gateway_unavailable" | "gateway_invalid_response") {
+  constructor(readonly code: ProviderGatewayErrorCode) {
     super(code);
   }
+}
+
+async function internalGatewayHttpError(response: Response) {
+  try {
+    const parsed = z.object({ status: providerGatewayErrorCodeSchema }).safeParse(await response.json());
+    if (parsed.success) return new ProviderGatewayError(parsed.data.status);
+  } catch {
+    // The caller receives only the stable dependency state, never an upstream body.
+  }
+  return new ProviderGatewayError(response.status === 429 ? "provider_quota_exhausted" : "gateway_unavailable");
+}
+
+async function directProviderHttpError(response: Response) {
+  if (response.status === 429) return new ProviderGatewayError("provider_quota_exhausted");
+  if (response.status === 400 || response.status === 403) {
+    try {
+      const body = JSON.stringify(await response.json()).toLocaleLowerCase();
+      if (/content[_ -]?policy|policy[_ -]?violation|content[_ -]?filter|safety/.test(body)) {
+        return new ProviderGatewayError("policy_violation");
+      }
+    } catch {
+      // Non-JSON provider failures remain a stable dependency state.
+    }
+  }
+  return new ProviderGatewayError("gateway_unavailable");
 }
 
 const restrictedCustomerTerms = /\b(openai|anthropic|claude|gemini|xai|x\.ai|grok|gpt(?:-[a-z0-9.]+)?|model[_ -]?id|provider[_ -]?(?:name|key|id))\b/i;
@@ -67,7 +102,7 @@ export function createHttpTextProviderGateway(config: Readonly<{
         if (error instanceof DOMException && error.name === "TimeoutError") throw new ProviderGatewayError("gateway_timeout");
         throw new ProviderGatewayError("gateway_unavailable");
       }
-      if (!response.ok) throw new ProviderGatewayError("gateway_unavailable");
+      if (!response.ok) throw await internalGatewayHttpError(response);
       try { return gatewayResultSchema.parse(await response.json()); }
       catch { throw new ProviderGatewayError("gateway_invalid_response"); }
     },
@@ -75,12 +110,13 @@ export function createHttpTextProviderGateway(config: Readonly<{
 }
 
 const openAiResponseSchema = z.object({
-  status: z.literal("completed"),
+  status: z.string(),
   output: z.array(z.object({
     type: z.string(),
     content: z.array(z.object({
       type: z.string(),
       text: z.string().optional(),
+      refusal: z.string().optional(),
     }).passthrough()).optional(),
   }).passthrough()),
   usage: z.object({
@@ -89,7 +125,8 @@ const openAiResponseSchema = z.object({
     input_tokens_details: z.object({
       cached_tokens: z.number().int().nonnegative().optional(),
     }).passthrough().optional(),
-  }).passthrough(),
+  }).passthrough().optional(),
+  incomplete_details: z.object({ reason: z.string().optional() }).passthrough().nullish(),
 }).passthrough();
 
 function responseOutputText(response: z.infer<typeof openAiResponseSchema>) {
@@ -154,9 +191,20 @@ export function createOpenAIResponsesGateway(config: Readonly<{
         }
         throw new ProviderGatewayError("gateway_unavailable");
       }
-      if (!response.ok) throw new ProviderGatewayError("gateway_unavailable");
+      if (!response.ok) throw await directProviderHttpError(response);
       try {
         const parsed = openAiResponseSchema.parse(await response.json());
+        if (parsed.output.some((item) => item.content?.some((part) => part.type === "refusal" || Boolean(part.refusal)))) {
+          throw new ProviderGatewayError("provider_refusal");
+        }
+        if (parsed.status !== "completed") {
+          throw new ProviderGatewayError(
+            /content[_ -]?filter|policy|safety/i.test(parsed.incomplete_details?.reason ?? "")
+              ? "policy_violation"
+              : "gateway_invalid_response",
+          );
+        }
+        if (!parsed.usage) throw new ProviderGatewayError("gateway_invalid_response");
         const output = JSON.parse(responseOutputText(parsed)) as unknown;
         assertProviderNeutralCustomerText(JSON.stringify(output));
         return gatewayResultSchema.parse({
@@ -177,7 +225,8 @@ export function createOpenAIResponsesGateway(config: Readonly<{
 
 const compatibleChatResponseSchema = z.object({
   choices: z.array(z.object({
-    message: z.object({ content: z.string() }).passthrough(),
+    message: z.object({ content: z.string().nullable().optional(), refusal: z.string().nullable().optional() }).passthrough(),
+    finish_reason: z.string().nullable().optional(),
   }).passthrough()).min(1),
   usage: z.object({
     prompt_tokens: z.number().int().nonnegative(),
@@ -245,10 +294,16 @@ export function createCompatibleChatTextGateway(config: Readonly<{
         }
         throw new ProviderGatewayError("gateway_unavailable");
       }
-      if (!response.ok) throw new ProviderGatewayError("gateway_unavailable");
+      if (!response.ok) throw await directProviderHttpError(response);
       try {
         const parsed = compatibleChatResponseSchema.parse(await response.json());
-        const output = JSON.parse(parsed.choices[0]!.message.content) as unknown;
+        const choice = parsed.choices[0]!;
+        if (choice.message.refusal) throw new ProviderGatewayError("provider_refusal");
+        if (/content[_ -]?filter|policy|safety/i.test(choice.finish_reason ?? "")) {
+          throw new ProviderGatewayError("policy_violation");
+        }
+        if (!choice.message.content) throw new ProviderGatewayError("gateway_invalid_response");
+        const output = JSON.parse(choice.message.content) as unknown;
         assertProviderNeutralCustomerText(JSON.stringify(output));
         return gatewayResultSchema.parse({
           output,

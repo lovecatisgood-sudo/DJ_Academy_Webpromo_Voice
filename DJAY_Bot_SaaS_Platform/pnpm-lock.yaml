@@ -591,6 +591,9 @@ importers:
       '@djay/platform-auth':
         specifier: workspace:*
         version: link:../platform-auth
+      '@djay/provider-gateway':
+        specifier: workspace:*
+        version: link:../provider-gateway
       '@djay/sales-core':
         specifier: workspace:*
         version: link:../sales-core

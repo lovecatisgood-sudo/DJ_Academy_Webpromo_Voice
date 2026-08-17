@@ -449,6 +449,31 @@ describe("AI text runtime", () => {
     await expect(result.then((response) => JSON.stringify(response))).resolves.not.toMatch(/restricted|upstream body|provider|model/i);
   });
 
+  it.each([
+    "provider_refusal",
+    "policy_violation",
+    "gateway_timeout",
+    "provider_quota_exhausted",
+    "gateway_unavailable",
+  ] as const)("commits an explicit provider-neutral %s fallback state", async (code) => {
+    let committedIntent = "";
+    const runtime = new AiTextRuntime({
+      ...repository([]),
+      async commit(input) { committedIntent = input.output.intent; return input.publicResponse; },
+    }, { async generate() { throw new ProviderGatewayError(code); } });
+    const response = await runtime.turn({
+      deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test",
+      inputId: ids.input, message: "hello",
+    });
+    expect(response).toMatchObject({
+      status: "completed",
+      text: "I could not confirm that from approved information. I can connect you with a person.",
+      actions: [],
+    });
+    expect(committedIntent).toBe(`safe_fallback.${code}`);
+    expect(JSON.stringify(response)).not.toMatch(/refusal|policy|quota|timeout|gateway|provider|model/i);
+  });
+
   it("releases the turn if the durable fallback cannot be committed", async () => {
     const events: string[] = [];
     const runtime = new AiTextRuntime({

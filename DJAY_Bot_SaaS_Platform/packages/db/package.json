@@ -25,6 +25,7 @@
     "@djay/flowbot-migration": "workspace:*",
     "@djay/notifications": "workspace:*",
     "@djay/platform-auth": "workspace:*",
+    "@djay/provider-gateway": "workspace:*",
     "@djay/sales-core": "workspace:*",
     "@djay/authorization": "workspace:*",
     "@djay/shared": "workspace:*",
