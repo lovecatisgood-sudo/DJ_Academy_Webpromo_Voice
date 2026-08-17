@@ -8,12 +8,13 @@ This checkpoint prevents later authoring publication or rollback from silently c
 
 - Migrations `0119`, `0120` and `0121` add tenant/resource-bound foreign keys from each deployment to its exact live Flow version or Text/Voice playbook. A web deployment cannot be live without a valid immutable pin.
 - Go-live atomically captures the current published artifact after entitlement, resource, origin and quota revalidation. Repeating go-live is unchanged only when both traffic and the exact pin already match.
+- When a newer artifact is published, the merchant UI exposes a separate **Update live version** command alongside **Stop traffic**. The update repeats every launch invariant and advances the pin atomically without requiring an inactive interval.
 - Flow resolution and configuration use `live_version_id`; AI configuration and session creation use `live_playbook_version_id`; Voice session grants use `live_playbook_version_id` before any session or usage authority is created.
 - Historical live deployments are backfilled to the published artifact that was current during migration. New deployments remain inactive and unpinned.
 
 ## Verification
 
-- `TEST_DB_PORT=55502 pnpm test:db` — all 117 migrations and the complete PostgreSQL suite passed, including version-pin foreign keys, Flow resolution after a newer publication, AI and Voice live-pin persistence, runtime admission, RLS, recovery and guarded legacy rollback.
+- `TEST_DB_PORT=55505 pnpm test:db` — all 117 migrations and the complete PostgreSQL suite passed, including version-pin foreign keys, persistence after a newer publication, explicit no-downtime repinning for Flow/Text/Voice, runtime admission, RLS, recovery and guarded legacy rollback.
 - Database and tenant-web TypeScript checks, 135 migration invariants and all database unit tests passed.
 - No browser or GUI was opened.
 

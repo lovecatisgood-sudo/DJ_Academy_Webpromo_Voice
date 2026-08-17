@@ -160,6 +160,19 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
     expect(liveListed.deployments).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: created.deploymentId, livePlaybookVersionId: publishedStudio.playbookVersionId }),
     ]));
+    const replacementStudio = await store.publishStudio(owner, created.deploymentId);
+    expect(replacementStudio).toMatchObject({ status: "published", version: 3 });
+    if (replacementStudio.status !== "published") throw new Error("Expected replacement Voice playbook.");
+    const beforeRepin = await store.list(owner);
+    expect(beforeRepin.deployments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: created.deploymentId, livePlaybookVersionId: publishedStudio.playbookVersionId }),
+    ]));
+    await expect(store.changeTraffic(owner, created.deploymentId, "go_live"))
+      .resolves.toEqual({ status: "updated", trafficStatus: "live" });
+    const afterRepin = await store.list(owner);
+    expect(afterRepin.deployments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: created.deploymentId, livePlaybookVersionId: replacementStudio.playbookVersionId }),
+    ]));
     await expect(runtime.issue({
       deploymentKey: created.deploymentKey, origin: "https://merchant.example", locale: "en",
       expiresAt: new Date(Date.now() + 60_000),
@@ -190,7 +203,7 @@ describe.runIf(enabled)("Voice tenant deployment operations", () => {
     `;
     expect(audit[0]?.actions).toEqual([
       "voice.deployment.created", "voice.studio.saved", "voice.playbook.published",
-      "voice.deployment.go_live",
+      "voice.deployment.go_live", "voice.playbook.published", "voice.deployment.go_live",
       "voice.deployment.disable", "voice.deployment.enable", "voice.deployment.go_live",
       "voice.deployment.stop_traffic",
       "voice.deployment.revoke",

@@ -123,6 +123,13 @@ describe.runIf(enabled)("P4 FlowBot restricted public runtime", () => {
       SELECT flow_version_id FROM tenancy.resolve_flowbot_deployment(${hashOpaqueToken(deploymentKey)})
     `;
     expect(pinnedDeployment[0]?.flow_version_id).toBe(versionId);
+    const authoring = new FlowBotStore(tenantClient!);
+    await expect(authoring.changeDeploymentTraffic(notificationContext, deploymentId, "go_live"))
+      .resolves.toEqual({ status: "updated", trafficStatus: "live" });
+    const repinnedDeployment = await adminClient!<{ flow_version_id: string }[]>`
+      SELECT flow_version_id FROM tenancy.resolve_flowbot_deployment(${hashOpaqueToken(deploymentKey)})
+    `;
+    expect(repinnedDeployment[0]?.flow_version_id).toBe(replacementVersionId);
     const inputId = randomUUID();
     const completed = await runtime.advance({
       sessionToken: started.sessionToken,

@@ -176,6 +176,12 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
     expect(await authoring.listDeployments(context, agent.agentId)).toMatchObject([
       { id: deployment.deploymentId, livePlaybookVersionId: published.playbookVersionId },
     ]);
+    if (replacement.status !== "published") throw new Error("Expected replacement AI playbook.");
+    await expect(authoring.changeDeploymentTraffic(context, deployment.deploymentId, "go_live"))
+      .resolves.toEqual({ status: "updated", trafficStatus: "live" });
+    expect(await authoring.listDeployments(context, agent.agentId)).toMatchObject([
+      { id: deployment.deploymentId, livePlaybookVersionId: replacement.playbookVersionId },
+    ]);
     const history = await authoring.listVersions(context, agent.agentId);
     expect(history).toHaveLength(2);
     expect(history[0]?.knowledgeCount).toBe(1);
@@ -341,6 +347,7 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       ORDER BY created_at
     `;
     expect(trafficAudit).toEqual([
+      { action: "ai_chat.deployment.go_live" },
       { action: "ai_chat.deployment.go_live" },
       { action: "ai_chat.deployment.stop_traffic" },
     ]);
