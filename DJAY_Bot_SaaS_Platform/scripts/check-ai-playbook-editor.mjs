@@ -16,6 +16,8 @@ for (const marker of [
   "behaviorBoundaries",
   "approvedFaqs",
   "selectRelevantFaqs",
+  "customerMessages",
+  "Use the approved fixed operational message verbatim",
 ]) {
   if (!domain.includes(marker)) failures.push(`Sales Core playbook authority is missing ${marker}`);
 }
@@ -32,6 +34,8 @@ for (const marker of [
   'data-ai-playbook-path="behaviorInstructions"',
   'data-ai-playbook-path="behaviorBoundaries"',
   'data-ai-playbook-path="approvedFaqs"',
+  "CUSTOMER_MESSAGE_FIELDS",
+  "customerMessages.${key}",
   'aria-label="Advanced AI sales playbook JSON"',
   "Your JSON text is preserved",
 ]) {

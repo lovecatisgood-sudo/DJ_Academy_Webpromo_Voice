@@ -9,7 +9,7 @@ Acceptance effect: none; no requirement is formally accepted and all packages re
 ## Implemented
 
 - Text and Voice expose a dedicated side-by-side English/Thai translation section.
-- Greetings, AI disclosures, the Voice opening disclosure and every FAQ question/answer persist inside the server-saved Text/Voice configuration.
+- Greetings, AI disclosures, the Voice opening disclosure, fallback, pending handover, consent-aware contact prompt, request-only booking prompt, role opening, outside-hours response and every FAQ question/answer persist inside the server-saved Text/Voice configuration.
 - Each record tracks its English source, Thai value, reviewed flag and derived `missing`, `stale`, `needs_review` or `current` status.
 - Editing English invalidates the prior review and marks an existing Thai value stale. Generated or manually edited Thai copy requires merchant review.
 - Translation generation remains signed-session and exact-saved-revision-bound. Bulk generation includes only missing or stale source strings from the saved draft.
@@ -25,4 +25,4 @@ Acceptance effect: none; no requirement is formally accepted and all packages re
 | `pnpm verify` | Passed lint, typecheck, all tests and production builds across all 35 packages |
 | `git diff --check` | Passed |
 
-No browser-backed check is claimed. Translation coverage for fallback, handover, booking/contact prompts and generated role messages, maintained component extraction, account claim and responsive/accessibility acceptance remain open.
+No browser-backed check is claimed. Maintained component extraction and responsive/accessibility acceptance remain open.

@@ -59,7 +59,11 @@ describe("Sales Conversation Core contract", () => {
       locale: "en", agentRole: "sales", businessName: "Studio", agentName: "Mali", tone: "Warm",
       salesGoal: "Qualify interest", behaviorInstructions: "Ask one focused question at a time",
       behaviorBoundaries: "Escalate regulated requests", approvedClaims: [], prohibitedClaims: [],
-      discoveryQuestions: [], ctaPolicy: [], knowledge: [], recentMessages: [], customerMessage: "Hello",
+      discoveryQuestions: [], ctaPolicy: [], customerMessages: {
+        fallback: { en: "Approved fallback", th: "คำตอบสำรอง" }, handover: { en: "Approved handover", th: "ส่งต่อ" },
+        contactPrompt: { en: "Approved contact prompt", th: "ข้อมูลติดต่อ" }, bookingPrompt: { en: "Approved booking prompt", th: "ขอนัดหมาย" },
+        rolePrompt: { en: "Approved role prompt", th: "คำถามตามบทบาท" },
+      }, knowledge: [], recentMessages: [], customerMessage: "Hello",
     });
     expect(policy).toContain("only when the same proposedActions array also contains a valid lead.capture action");
     expect(policy).toContain("if and only if proposedActions contains handover.request");
@@ -74,6 +78,8 @@ describe("Sales Conversation Core contract", () => {
     expect(policy).toContain("Do not offer to send, email, schedule, register, book");
     expect(policy).toContain("Conversation behavior: Ask one focused question at a time");
     expect(policy).toContain("Behavior boundaries and human handover: Escalate regulated requests");
+    expect(policy).toContain('"fallback":"Approved fallback"');
+    expect(policy).toContain("Use the approved fixed operational message verbatim");
     expect(policy).not.toContain("After two clear refusals");
   });
 
@@ -104,6 +110,10 @@ describe("Sales Conversation Core contract", () => {
     const source = "Hello, how can I help?";
     const disclosure = "I am an AI assistant.";
     const voiceDisclosure = "I am an AI voice assistant and this call may be transcribed.";
+    const customerMessages = {
+      fallback: "Approved fallback", handover: "Approved handover", contactPrompt: "Approved contact prompt",
+      bookingPrompt: "Approved booking prompt", rolePrompt: "Approved booking opener", outsideHours: "Approved outside-hours response",
+    };
     const faqKey = "64000000-0000-4000-8000-000000000099";
     const translated = (en: string, th: string) => ({ en, th, sourceEn: en, status: "needs_review", reviewed: false });
     const converted = convertClaimedBuilderPlaybook({
@@ -114,9 +124,16 @@ describe("Sales Conversation Core contract", () => {
           agentBehavior: "Confirm details", agentBoundaries: "Never claim confirmation", faqs: [{ question: "When?", answer: "Weekdays", translationKey: faqKey }] },
         botName: "Siamese Booking Assistant", language: "English and Thai", greeting: source,
         tone: "Warm and concise", disclosure, neverInvent: "Never invent availability", voice: { disclosure: voiceDisclosure },
+        customerMessages,
         translations: { customerCopy: { greeting: translated(source, "สวัสดี มีอะไรให้ช่วย"),
           disclosure: translated(disclosure, "ฉันเป็นผู้ช่วย AI"),
-          voiceDisclosure: translated(voiceDisclosure, "ฉันเป็นผู้ช่วยเสียง AI และสายนี้อาจถูกถอดความ") },
+          voiceDisclosure: translated(voiceDisclosure, "ฉันเป็นผู้ช่วยเสียง AI และสายนี้อาจถูกถอดความ"),
+          fallback: translated(customerMessages.fallback, "คำตอบสำรองที่อนุมัติ"),
+          handover: translated(customerMessages.handover, "ข้อความส่งต่อที่อนุมัติ"),
+          contactPrompt: translated(customerMessages.contactPrompt, "ข้อความขอข้อมูลติดต่อที่อนุมัติ"),
+          bookingPrompt: translated(customerMessages.bookingPrompt, "ข้อความขอนัดหมายที่อนุมัติ"),
+          rolePrompt: translated(customerMessages.rolePrompt, "คำถามเปิดการจองที่อนุมัติ"),
+          outsideHours: translated(customerMessages.outsideHours, "ข้อความนอกเวลาที่อนุมัติ") },
           faqs: { [faqKey]: { question: translated("When?", "เปิดเมื่อไร"), answer: translated("Weekdays", "วันธรรมดา") } } },
       } },
     }, "54000000-0000-4000-8000-000000000099");
@@ -124,6 +141,9 @@ describe("Sales Conversation Core contract", () => {
     if (converted.status !== "converted") throw new Error("Expected conversion.");
     expect(converted.playbook).toMatchObject({ agentRole: "booking", languages: ["th", "en"],
       greeting: { en: source, th: "สวัสดี มีอะไรให้ช่วย" }, behaviorInstructions: "Confirm details",
+      offlineMessage: { en: customerMessages.outsideHours, th: "ข้อความนอกเวลาที่อนุมัติ" },
+      customerMessages: { bookingPrompt: { en: customerMessages.bookingPrompt, th: "ข้อความขอนัดหมายที่อนุมัติ" },
+        rolePrompt: { en: customerMessages.rolePrompt, th: "คำถามเปิดการจองที่อนุมัติ" } },
       behaviorBoundaries: "Never claim confirmation", approvedFaqs: [{ question: { en: "When?", th: "เปิดเมื่อไร" }, answer: { en: "Weekdays", th: "วันธรรมดา" } }],
       builderContext: { productFamily: "voice",
         businessHours: "Mon-Fri", faqs: [{ question: "When?", answer: "Weekdays" }] } });
@@ -144,9 +164,16 @@ describe("Sales Conversation Core contract", () => {
       schemaVersion: 1, locale: "th", family: "text", templateOrRole: { role: "sales" },
       configuration: { textDraft: { business: { name: "Studio", agentObjective: "Qualify needs" },
         botName: "Studio Assistant", language: "English and Thai", greeting: "Hello", tone: "Warm", disclosure: "AI assistant",
+        customerMessages: { fallback: "Fallback", handover: "Handover", contactPrompt: "Contact", bookingPrompt: "Booking", rolePrompt: "Role", outsideHours: "Outside" },
         translations: { customerCopy: {
-          greeting: { en: "Hello", th: "สวัสดี", sourceEn: "Older", status: "stale", reviewed: false },
+          greeting: { en: "Hello", th: "สวัสดี", sourceEn: "Hello", status: "current", reviewed: true },
           disclosure: { en: "AI assistant", th: "ผู้ช่วย AI", sourceEn: "AI assistant", status: "current", reviewed: true },
+          fallback: { en: "Fallback", th: "สำรอง", sourceEn: "Older fallback", status: "stale", reviewed: false },
+          handover: { en: "Handover", th: "ส่งต่อ", sourceEn: "Handover", status: "current", reviewed: true },
+          contactPrompt: { en: "Contact", th: "ติดต่อ", sourceEn: "Contact", status: "current", reviewed: true },
+          bookingPrompt: { en: "Booking", th: "จอง", sourceEn: "Booking", status: "current", reviewed: true },
+          rolePrompt: { en: "Role", th: "บทบาท", sourceEn: "Role", status: "current", reviewed: true },
+          outsideHours: { en: "Outside", th: "นอกเวลา", sourceEn: "Outside", status: "current", reviewed: true },
         } } } },
     }, "54000000-0000-4000-8000-000000000098")).toMatchObject({ status: "invalid", reasonCode: "builder_translation_incomplete" });
   });

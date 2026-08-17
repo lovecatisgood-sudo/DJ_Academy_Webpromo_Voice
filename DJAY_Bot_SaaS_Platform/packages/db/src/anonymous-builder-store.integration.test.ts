@@ -343,6 +343,10 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
         expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60_000), now });
       const greeting = "Hello, how can I help?"; const disclosure = "I am an AI assistant.";
       const voiceDisclosure = "I am an AI voice assistant and this call may be transcribed.";
+      const customerMessages = {
+        fallback: "Approved fallback", handover: "Approved handover", contactPrompt: "Approved contact prompt",
+        bookingPrompt: "Approved booking prompt", rolePrompt: "Approved booking opener", outsideHours: "Approved outside-hours response",
+      };
       const faqKey = randomUUID();
       const translated = (en: string, th: string) => ({ en, th, sourceEn: en, status: "needs_review", reviewed: false });
       const state = {
@@ -354,9 +358,16 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
             agentBehavior: "Confirm details", agentBoundaries: "Never claim confirmation", faqs: [{ question: "When?", answer: "Weekdays", translationKey: faqKey }] },
           botName: `${family} Booking Assistant`, language: "English and Thai", greeting, tone: "Warm and concise",
           disclosure, neverInvent: "Never invent availability", voice: { disclosure: voiceDisclosure },
+          customerMessages,
           translations: { customerCopy: { greeting: translated(greeting, "สวัสดี มีอะไรให้ช่วย"),
             disclosure: translated(disclosure, "ฉันเป็นผู้ช่วย AI"),
-            voiceDisclosure: translated(voiceDisclosure, "ฉันเป็นผู้ช่วยเสียง AI และสายนี้อาจถูกถอดความ") },
+            voiceDisclosure: translated(voiceDisclosure, "ฉันเป็นผู้ช่วยเสียง AI และสายนี้อาจถูกถอดความ"),
+            fallback: translated(customerMessages.fallback, "คำตอบสำรองที่อนุมัติ"),
+            handover: translated(customerMessages.handover, "ข้อความส่งต่อที่อนุมัติ"),
+            contactPrompt: translated(customerMessages.contactPrompt, "ข้อความขอข้อมูลติดต่อที่อนุมัติ"),
+            bookingPrompt: translated(customerMessages.bookingPrompt, "ข้อความขอนัดหมายที่อนุมัติ"),
+            rolePrompt: translated(customerMessages.rolePrompt, "คำถามเปิดการจองที่อนุมัติ"),
+            outsideHours: translated(customerMessages.outsideHours, "ข้อความนอกเวลาที่อนุมัติ") },
             faqs: { [faqKey]: { question: translated("When?", "เปิดเมื่อไร"), answer: translated("Weekdays", "วันธรรมดา") } } },
         } } };
       await expect(store.updateDraft({ sessionId, revision: draft!.revision, schemaVersion: 1, productFamily: family,
@@ -392,6 +403,10 @@ describe.runIf(enabled)("anonymous Builder drafts", () => {
       expect(evidence[0]).toMatchObject({ agents: 1, drafts: 1, versions: 0, voice_deployments: 0,
         product_family: family, audits: 1, definition: {
           behaviorInstructions: "Confirm details", behaviorBoundaries: "Never claim confirmation",
+          offlineMessage: { en: customerMessages.outsideHours, th: "ข้อความนอกเวลาที่อนุมัติ" },
+          customerMessages: { fallback: { en: customerMessages.fallback, th: "คำตอบสำรองที่อนุมัติ" },
+            handover: { en: customerMessages.handover, th: "ข้อความส่งต่อที่อนุมัติ" },
+            bookingPrompt: { en: customerMessages.bookingPrompt, th: "ข้อความขอนัดหมายที่อนุมัติ" } },
           approvedFaqs: [{ question: { en: "When?", th: "เปิดเมื่อไร" }, answer: { en: "Weekdays", th: "วันธรรมดา" } }],
         } });
       expect(evidence[0]?.materialized_ai_agent_id).toMatch(/^[0-9a-f-]{36}$/);

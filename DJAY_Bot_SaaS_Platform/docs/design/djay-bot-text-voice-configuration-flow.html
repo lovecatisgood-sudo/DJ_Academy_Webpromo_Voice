@@ -1565,6 +1565,19 @@
         boundaries: 'Never claim an appointment is confirmed before calendar success. Do not invent availability, override booking rules, or collect unnecessary personal information.'
       }
     };
+    const rolePromptDefaults = {
+      support: 'What issue would you like help resolving?',
+      sales: 'What outcome are you trying to achieve?',
+      booking: 'Which service and preferred time would you like to request?'
+    };
+    const customerMessageDefaults = {
+      fallback: 'I could not confirm that from approved information. I can connect you with a person.',
+      handover: 'I can send this conversation to the team. A person has not accepted it yet.',
+      contactPrompt: 'Please share your name and either an email address or phone number, with consent for follow-up.',
+      bookingPrompt: 'Please share the service, preferred date and time, timezone, name, and contact method. The appointment is not confirmed until the business confirms it.',
+      rolePrompt: rolePromptDefaults.sales,
+      outsideHours: 'Our team will follow up during business hours.'
+    };
 
     const state = { product: 'text', role: 'sales', publishedProduct: 'text', publishedRole: 'sales', section: 'business', testMode: 'draft', pendingRole: null, version: 0, configured: false, dirty: false, chatInitialized: false, testMessages: [], accountCreated: false, deployReturn: null };
     const builderVoice = {active:false,starting:false,terminal:false,responseCapped:false,stream:null,socket:null,audioContext:null,inputSource:null,inputProcessor:null,inputSilence:null,playbackCursor:0,playbackSources:new Set(),timer:null,customerText:'',agentText:''};
@@ -2092,6 +2105,7 @@
       greeting: '',
       tone: 'Warm and concise',
       disclosure: '',
+      customerMessages: cloneCustomerMessages(),
       uncertain: 'Say what is unknown and offer a person',
       unsupported: 'Do not guess or invent an answer',
       text: { suggestions: 'Show up to 3 suggested replies', links: 'Open business links in a new tab', forms: 'Ask in conversation, one field at a time', formatting: 'Short paragraphs and simple lists', citations: 'Show approved source links when useful' },
@@ -2126,6 +2140,9 @@
       reviewed: {},
       install: { snippetCopied: false, domain: '', verified: false, live: false, cardPromptOpen: false, cardVerified: false }
     };
+    function cloneCustomerMessages(role = 'sales') {
+      return {...JSON.parse(JSON.stringify(customerMessageDefaults)),rolePrompt:rolePromptDefaults[role] || rolePromptDefaults.sales};
+    }
     const clone = value => JSON.parse(JSON.stringify(value));
     let draft = clone(defaultDraft);
     let publishedDraft = clone(defaultDraft);
@@ -2201,13 +2218,20 @@
       return next;
     }
 
-    function ensureTextVoiceTranslations(target) {
+    function ensureTextVoiceTranslations(target, role = state.role) {
+      target.customerMessages = Object.assign(cloneCustomerMessages(role),target.customerMessages || {});
       target.translations ||= {};
       target.translations.customerCopy ||= {};
       const copy = target.translations.customerCopy;
       copy.greeting = normalizeTranslationRecord(copy.greeting,target.greeting);
       copy.disclosure = normalizeTranslationRecord(copy.disclosure,target.disclosure);
       copy.voiceDisclosure = normalizeTranslationRecord(copy.voiceDisclosure,target.voice?.disclosure);
+      copy.fallback = normalizeTranslationRecord(copy.fallback,target.customerMessages.fallback);
+      copy.handover = normalizeTranslationRecord(copy.handover,target.customerMessages.handover);
+      copy.contactPrompt = normalizeTranslationRecord(copy.contactPrompt,target.customerMessages.contactPrompt);
+      copy.bookingPrompt = normalizeTranslationRecord(copy.bookingPrompt,target.customerMessages.bookingPrompt);
+      copy.rolePrompt = normalizeTranslationRecord(copy.rolePrompt,target.customerMessages.rolePrompt);
+      copy.outsideHours = normalizeTranslationRecord(copy.outsideHours,target.customerMessages.outsideHours);
       target.translations.faqs ||= {};
       const activeFaqKeys = new Set();
       (target.business?.faqs || []).forEach(faq => {
@@ -2222,8 +2246,8 @@
       Object.keys(target.translations.faqs).forEach(key => { if (!activeFaqKeys.has(key)) delete target.translations.faqs[key]; });
       return target;
     }
-    ensureTextVoiceTranslations(draft);
-    ensureTextVoiceTranslations(publishedDraft);
+    ensureTextVoiceTranslations(draft,state.role);
+    ensureTextVoiceTranslations(publishedDraft,state.publishedRole);
     let undoStack = [];
     let redoStack = [];
     let lastDraftSnapshot = JSON.stringify(draft);
@@ -2315,9 +2339,9 @@
       if (!configuration?.textDraft || !configuration?.flowDraft) return false;
       draft = configuration.textDraft;
       publishedDraft = configuration.textPublishedDraft || clone(defaultDraft);
-      ensureTextVoiceTranslations(draft);
-      ensureTextVoiceTranslations(publishedDraft);
       Object.assign(state,configuration.textUi || {});
+      ensureTextVoiceTranslations(draft,state.role);
+      ensureTextVoiceTranslations(publishedDraft,state.publishedRole);
       flowDraft = normalizeFlowDraftTranslations(configuration.flowDraft);
       flowPublishedDraft = normalizeFlowDraftTranslations(configuration.flowPublishedDraft || clone(flowDraft));
       Object.assign(flowState,configuration.flowUi || {});
@@ -3559,6 +3583,8 @@
       draft.business.agentObjective = behaviorDefaults[role].objective;
       draft.business.agentBehavior = behaviorDefaults[role].behavior;
       draft.business.agentBoundaries = behaviorDefaults[role].boundaries;
+      draft.customerMessages.rolePrompt = rolePromptDefaults[role];
+      ensureTextVoiceTranslations(draft);
     }
 
     function renderBusinessFaqs() {
@@ -3905,7 +3931,8 @@
     function businessSection() {
       return sectionHeader('Business profile and bot identity', 'Review what the bot knows about your business and how it introduces itself. Edit any field and continue in any order.') +
         `<div class="panel"><h2>Business profile</h2><p>Generated during onboarding and always editable.</p><div class="field-grid"><label>Business name<input data-bind="business.name" value="${escapeHtml(draft.business.name)}"></label><label>Business type<input data-bind="business.type" value="${escapeHtml(draft.business.type)}"></label><label class="wide">Business summary<textarea data-bind="business.summary">${escapeHtml(draft.business.summary)}</textarea></label><label class="wide">Products and services<textarea data-bind="business.offers">${escapeHtml(draft.business.offers)}</textarea></label><label>Business hours<input data-bind="business.hours" value="${escapeHtml(draft.business.hours)}"></label><label>Primary contact<input data-bind="business.contact" value="${escapeHtml(draft.business.contact)}"></label></div></div>` +
-        `<div class="panel"><h2>Customer-facing identity</h2><p>Changes affect the next message sent in the draft tester.</p><div class="field-grid"><label>Bot name<input id="botNameInput" data-bind="botName" value="${escapeHtml(draft.botName)}"></label><label>Supported customer languages<select data-bind="language">${optionList(['English','Thai','English and Thai'], draft.language)}</select><span class="help">When both are enabled, each customer chooses English or ไทย for their conversation.</span></label><label class="wide">Welcome message<textarea id="greetingInput" data-bind="greeting" maxlength="200">${escapeHtml(draft.greeting)}</textarea><span class="help"><span class="counter" id="greetingCount"></span>Shown at the start of a conversation.</span><span class="validation-error hidden" id="greetingError">Use 200 visible characters or fewer.</span></label><label>Tone<select data-bind="tone">${optionList(['Warm and concise','Professional','Friendly','Direct and helpful'], draft.tone)}</select></label><label>Reply policy<input value="Concise by default · 200 words maximum" disabled></label><label class="wide">AI disclosure<textarea data-bind="disclosure" maxlength="200">${escapeHtml(draft.disclosure)}</textarea></label></div></div>`;
+        `<div class="panel"><h2>Customer-facing identity</h2><p>Changes affect the next message sent in the draft tester.</p><div class="field-grid"><label>Bot name<input id="botNameInput" data-bind="botName" value="${escapeHtml(draft.botName)}"></label><label>Supported customer languages<select data-bind="language">${optionList(['English','Thai','English and Thai'], draft.language)}</select><span class="help">When both are enabled, each customer chooses English or ไทย for their conversation.</span></label><label class="wide">Welcome message<textarea id="greetingInput" data-bind="greeting" maxlength="200">${escapeHtml(draft.greeting)}</textarea><span class="help"><span class="counter" id="greetingCount"></span>Shown at the start of a conversation.</span><span class="validation-error hidden" id="greetingError">Use 200 visible characters or fewer.</span></label><label>Tone<select data-bind="tone">${optionList(['Warm and concise','Professional','Friendly','Direct and helpful'], draft.tone)}</select></label><label>Reply policy<input value="Concise by default · 200 words maximum" disabled></label><label class="wide">AI disclosure<textarea data-bind="disclosure" maxlength="200">${escapeHtml(draft.disclosure)}</textarea></label></div></div>` +
+        `<div class="panel"><h2>Operational customer messages</h2><p>These fixed messages keep fallback, handover, contact, and appointment states truthful. Review the Thai versions in Translations.</p><div class="field-grid"><label class="wide">Role opening question<textarea data-bind="customerMessages.rolePrompt" maxlength="500">${escapeHtml(draft.customerMessages.rolePrompt)}</textarea></label><label class="wide">Knowledge or provider fallback<textarea data-bind="customerMessages.fallback" maxlength="500">${escapeHtml(draft.customerMessages.fallback)}</textarea></label><label class="wide">Human handover message<textarea data-bind="customerMessages.handover" maxlength="500">${escapeHtml(draft.customerMessages.handover)}</textarea></label><label class="wide">Contact details prompt<textarea data-bind="customerMessages.contactPrompt" maxlength="500">${escapeHtml(draft.customerMessages.contactPrompt)}</textarea></label><label class="wide">Appointment request prompt<textarea data-bind="customerMessages.bookingPrompt" maxlength="500">${escapeHtml(draft.customerMessages.bookingPrompt)}</textarea></label><label class="wide">Outside-hours response<textarea data-bind="customerMessages.outsideHours" maxlength="500">${escapeHtml(draft.customerMessages.outsideHours)}</textarea></label></div></div>`;
     }
 
     function rowEditor(sectionKey, title, description, firstLabel, secondLabel, options = {}) {
@@ -3957,7 +3984,13 @@
       const copy = draft.translations.customerCopy;
       const entries = [
         {key:'greeting',label:'Welcome message',sourcePath:'greeting',record:copy.greeting},
-        {key:'disclosure',label:'AI disclosure',sourcePath:'disclosure',record:copy.disclosure}
+        {key:'disclosure',label:'AI disclosure',sourcePath:'disclosure',record:copy.disclosure},
+        {key:'rolePrompt',label:'Role opening question',sourcePath:'customerMessages.rolePrompt',record:copy.rolePrompt},
+        {key:'fallback',label:'Knowledge or provider fallback',sourcePath:'customerMessages.fallback',record:copy.fallback},
+        {key:'handover',label:'Human handover message',sourcePath:'customerMessages.handover',record:copy.handover},
+        {key:'contactPrompt',label:'Contact details prompt',sourcePath:'customerMessages.contactPrompt',record:copy.contactPrompt},
+        {key:'bookingPrompt',label:'Appointment request prompt',sourcePath:'customerMessages.bookingPrompt',record:copy.bookingPrompt},
+        {key:'outsideHours',label:'Outside-hours response',sourcePath:'customerMessages.outsideHours',record:copy.outsideHours}
       ];
       if (state.product === 'voice') entries.push({key:'voiceDisclosure',label:'Voice opening disclosure',sourcePath:'voice.disclosure',record:copy.voiceDisclosure});
       draft.business.faqs.forEach((faq,index) => {
@@ -4075,7 +4108,7 @@
         control.addEventListener(eventName, () => {
           const installationField = control.dataset.bind.startsWith('install.');
           setPath(draft, control.dataset.bind, control.value);
-          if (['greeting','disclosure','voice.disclosure'].includes(control.dataset.bind)) ensureTextVoiceTranslations(draft);
+          if (['greeting','disclosure','voice.disclosure'].includes(control.dataset.bind) || control.dataset.bind.startsWith('customerMessages.')) ensureTextVoiceTranslations(draft);
           if (control.dataset.bind === 'botName') $('#botNameLabel').textContent = control.value || 'Untitled bot';
           if (control.dataset.bind === 'greeting') {
             $('#greetingCount').textContent = `${visibleLength(control.value)} / 200`;
@@ -4207,7 +4240,7 @@
     function revertCurrentSection() {
       const copy = path => setPath(draft, path, clone(getPath(publishedDraft, path)));
       const common = {
-        business:['business.name','business.type','business.summary','business.offers','business.hours','business.contact','botName','language','greeting','tone','disclosure'],
+        business:['business.name','business.type','business.summary','business.offers','business.hours','business.contact','botName','language','greeting','tone','disclosure','customerMessages'],
         knowledge:['sources','business.faqs','conflictPolicy','sourceVisibility','neverInvent'],
         channel: state.product === 'voice' ? ['voice'] : ['text'],
         translations:['translations'],
@@ -4229,7 +4262,7 @@
     function openPublishReview() {
       const coreConfigured = Boolean(draft.botName.trim() && draft.greeting.trim() && draft.sources.some(source => source.status === 'Ready'));
       const testsPassed = draft.rows.test.length > 0 && draft.rows.test.every(test => test.passed);
-      const lengthsPass = [draft.greeting,draft.disclosure,draft.voice.disclosure].every(value => visibleWordCount(value || '',/[\u0e00-\u0e7f]/.test(value || '') ? 'th' : 'en') <= 200);
+      const lengthsPass = [draft.greeting,draft.disclosure,draft.voice.disclosure,...Object.values(draft.customerMessages)].every(value => visibleWordCount(value || '',/[\u0e00-\u0e7f]/.test(value || '') ? 'th' : 'en') <= 200);
       const setResult = (iconId, textId, pass, passText, failText) => {
         const icon = $('#' + iconId); icon.textContent = pass ? '✓' : '!'; icon.classList.toggle('pending', !pass);
         $('#' + textId).textContent = pass ? passText : failText;
@@ -4813,7 +4846,7 @@
         const result = await request.json().catch(() => ({}));
         if (!request.ok) {
           const failureCopy = {
-            test_quota_exhausted: `This builder has reached its ${Number(result.cap) || 500}-test maximum for the 30-day test period. Your deployed trial allowance is unchanged.`,
+            test_quota_exhausted: `This builder has reached its ${Number(result.cap) || 50}-test maximum for the 30-day test period. Your deployed trial allowance is unchanged.`,
             gateway_timeout: 'The AI took too long to answer. Retry this message; your draft is unchanged.',
             gateway_invalid_response: 'The AI returned a response that did not pass DJBOT safety and format checks. Retry this message; your draft is unchanged.',
             gateway_unavailable: 'The AI service is temporarily unavailable. Retry shortly; your draft is unchanged.',

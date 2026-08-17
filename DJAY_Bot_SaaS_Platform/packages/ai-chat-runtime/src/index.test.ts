@@ -298,7 +298,13 @@ describe("AI text runtime", () => {
         nativeUsage: { inputUnits: 10, outputUnits: 10 },
       }; } },
       inputId: ids.input,
-      playbook: context.playbook,
+      playbook: { ...(context.playbook as object), customerMessages: {
+        fallback: { en: "Merchant-approved safe fallback", th: "คำตอบสำรองที่ร้านค้าอนุมัติ" },
+        handover: { en: "Handover pending", th: "กำลังรอส่งต่อ" },
+        contactPrompt: { en: "Share contact details", th: "แจ้งข้อมูลติดต่อ" },
+        bookingPrompt: { en: "Share appointment details", th: "แจ้งรายละเอียดนัดหมาย" },
+        rolePrompt: { en: "How can I help?", th: "ให้ช่วยเรื่องใด" },
+      } },
       language: "en",
       knowledgeChunks: context.knowledgeChunks,
       message: "What can you help with?",
@@ -314,12 +320,18 @@ describe("AI text runtime", () => {
         return { output: { malformed: true }, nativeUsage: { inputUnits: 10, outputUnits: 2 } };
       } },
       inputId: ids.input,
-      playbook: context.playbook,
+      playbook: { ...(context.playbook as object), customerMessages: {
+        fallback: { en: "Merchant-approved safe fallback", th: "คำตอบสำรองที่ร้านค้าอนุมัติ" },
+        handover: { en: "Handover pending", th: "กำลังรอส่งต่อ" },
+        contactPrompt: { en: "Share contact details", th: "แจ้งข้อมูลติดต่อ" },
+        bookingPrompt: { en: "Share appointment details", th: "แจ้งรายละเอียดนัดหมาย" },
+        rolePrompt: { en: "How can I help?", th: "ให้ช่วยเรื่องใด" },
+      } },
       language: "en",
       knowledgeChunks: context.knowledgeChunks,
       message: "What can you help with?",
     });
-    await expect(preview).resolves.toMatchObject({ status: "completed", fallbackApplied: true, citationCount: 0 });
+    await expect(preview).resolves.toMatchObject({ status: "completed", text: "Merchant-approved safe fallback", fallbackApplied: true, citationCount: 0 });
     expect(calls).toBe(2);
   });
 

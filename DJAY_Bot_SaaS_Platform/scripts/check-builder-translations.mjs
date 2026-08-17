@@ -44,6 +44,9 @@ for (const marker of [
   "faq.translationKey", "voiceDisclosure", "function publicationBlockers()",
   "Missing or stale customer-facing translations are structural publication blockers",
   "Review and tests remain advisory",
+  "Operational customer messages", "customerMessages.fallback", "customerMessages.handover",
+  "customerMessages.contactPrompt", "customerMessages.bookingPrompt", "customerMessages.rolePrompt",
+  "customerMessages.outsideHours", "Knowledge or provider fallback", "Outside-hours response",
 ]) assert.ok(source.includes(marker), `Builder translation lifecycle is missing ${marker}`);
 
 assert.ok(source.includes("else if (state.section === 'translations') html = textVoiceTranslationsSection()"));

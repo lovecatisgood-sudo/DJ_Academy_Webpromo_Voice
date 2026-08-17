@@ -531,7 +531,7 @@ export async function generateAiTurn(input: Readonly<{
     behaviorInstructions: playbook.behaviorInstructions, behaviorBoundaries: playbook.behaviorBoundaries,
     approvedClaims: approvedEvidence,
     prohibitedClaims: playbook.prohibitedClaims, discoveryQuestions: playbook.discoveryQuestions,
-    ctaPolicy: playbook.ctaPolicy, knowledge: selectedChunks, recentMessages,
+    ctaPolicy: playbook.ctaPolicy, customerMessages: playbook.customerMessages, knowledge: selectedChunks, recentMessages,
     customerMessage: input.message,
   });
   const generated = await generateConciseOutput(input.gateway, {
@@ -688,6 +688,7 @@ export async function runAiTextPreview(input: Readonly<{
     prohibitedClaims: playbook.prohibitedClaims,
     discoveryQuestions: playbook.discoveryQuestions,
     ctaPolicy: playbook.ctaPolicy,
+    customerMessages: playbook.customerMessages,
     knowledge: selectedChunks,
     recentMessages,
     customerMessage: input.message,
@@ -719,9 +720,7 @@ export async function runAiTextPreview(input: Readonly<{
       responseGoal: "clarify the customer's current requirement",
       proposedActions: [],
       handover: null,
-      customerResponse: input.language === "th"
-        ? "ตอนนี้ไม่สามารถสร้างคำตอบเฉพาะได้ครับ ข้อกำหนดหรือผลลัพธ์ส่วนไหนสำคัญที่สุด? ผมจะตอบจากข้อมูลธุรกิจที่ได้รับอนุมัติ"
-        : "I could not generate a specific answer just now. Which requirement or outcome matters most? I will answer from the approved business information.",
+      customerResponse: playbook.customerMessages.fallback[input.language],
       channelResponse: { format: "text", quickReplies: [] },
     });
     const output = activeSalesObjection(playbook.agentRole, gatewayRequest)

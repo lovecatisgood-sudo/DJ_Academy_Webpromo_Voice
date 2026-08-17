@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createOpaqueToken, hashOpaqueToken } from "@djay/auth";
-import { aiPlaybookSchema, type AiPlaybook } from "@djay/sales-core";
+import { aiPlaybookSchema, defaultCustomerMessages, type AiPlaybook } from "@djay/sales-core";
 import { normalizeExactWebsiteOrigin } from "@djay/shared";
 import type { TenantContext } from "@djay/tenancy";
 import type postgres from "postgres";
@@ -112,6 +112,7 @@ export class AiChatStore {
         ctaPolicy: ["Offer a merchant-confirmed consultation when the customer is ready"],
         requiredContactFields: ["name", "email"],
         greeting: { th: "สวัสดีครับ มีอะไรให้ช่วยเกี่ยวกับธุรกิจของคุณได้บ้าง?", en: "Hello. What would you like to improve in your business?" },
+        customerMessages: defaultCustomerMessages,
         offlineMessage: { th: "ทีมงานจะติดต่อกลับในเวลาทำการ", en: "Our team will follow up during business hours." },
         confidenceThreshold: 0.6,
         publicActions: [],

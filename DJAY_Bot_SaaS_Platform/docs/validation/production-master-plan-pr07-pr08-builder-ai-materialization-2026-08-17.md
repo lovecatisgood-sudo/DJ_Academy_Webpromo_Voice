@@ -8,10 +8,10 @@ This checkpoint creates honest pre-deployment Text and Voice configuration resou
 
 - Migration `0123_predeployment_ai_configurations.sql` labels every AI agent `text` or `voice`, backfills deployed Voice agents, and links each Builder claim to at most one same-tenant AI agent.
 - One-time onboarding converts complete Text/Voice Builder state into exactly one draft agent and one unpublished playbook draft.
-- Role, business profile, behavior, boundaries, FAQ, disclosure, Voice disclosure and bilingual greeting context are preserved.
+- Role, business profile, behavior, boundaries, FAQ, disclosure, Voice disclosure and bilingual greeting plus operational customer messages are preserved.
 - Agent objective, conversation behavior, human-handover boundaries and bilingual FAQs are promoted into typed playbook authority and exposed in the shared authenticated Text/Voice guided editor.
 - The shared Text/Voice AI turn runtime selects query-relevant approved FAQs in the active locale as grounding without inventing a knowledge citation or forcing an unnecessary low-confidence handover.
-- Required Thai greeting, disclosure and FAQ copy may be complete but unreviewed; missing or stale copy fails with immutable audit evidence.
+- Required Thai greeting, disclosure, operational messages and FAQ copy may be complete but unreviewed; missing or stale copy fails with immutable audit evidence.
 - Existing same-family agents are never overwritten. Voice materialization creates zero deployment rows, keys, origins or traffic state.
 - Authenticated `/workspace/voice/configuration` lists and reopens the preserved agent draft before deployment, including for an inactive subscription in honest read-only mode.
 - Active Voice authority permits optimistic draft saving and immutable publication. Exact-origin installation then reuses that published agent/version and creates traffic as inactive without duplicating configuration resources.

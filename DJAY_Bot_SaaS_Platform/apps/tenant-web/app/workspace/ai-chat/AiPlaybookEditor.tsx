@@ -5,6 +5,13 @@ import { aiPlaybookFieldLimits, type AiPlaybook } from "@djay/sales-core";
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 const CONTACT_FIELDS = ["name", "email", "phone"] as const;
 const ACTION_TYPES = ["booking", "quotation", "checkout", "call", "line", "website"] as const;
+const CUSTOMER_MESSAGE_FIELDS = [
+  ["fallback", "Knowledge or provider fallback", "คำตอบสำรองเมื่อข้อมูลหรือผู้ให้บริการไม่พร้อม"],
+  ["handover", "Human handover message", "ข้อความส่งต่อให้เจ้าหน้าที่"],
+  ["contactPrompt", "Contact details prompt", "ข้อความขอข้อมูลติดต่อ"],
+  ["bookingPrompt", "Appointment request prompt", "ข้อความขอรายละเอียดนัดหมาย"],
+  ["rolePrompt", "Role opening question", "คำถามเปิดตามบทบาท"],
+] as const;
 
 type Props = Readonly<{
   definition: AiPlaybook;
@@ -151,6 +158,10 @@ export function AiPlaybookEditor(props: Props) {
         <label>คำทักทายภาษาไทย<textarea id="ai-playbook-greeting-th" data-ai-playbook-path="greeting.th" value={props.definition.greeting.th} rows={3} maxLength={aiPlaybookFieldLimits.localizedMessage.maxLength} required aria-invalid={issueFor(props.validationPath, "greeting.th") || undefined} onChange={(event) => update("greeting", { ...props.definition.greeting, th: event.target.value })} /></label>
         <label>ข้อความนอกเวลาภาษาอังกฤษ<textarea id="ai-playbook-offlineMessage-en" data-ai-playbook-path="offlineMessage.en" value={props.definition.offlineMessage.en} rows={3} maxLength={aiPlaybookFieldLimits.localizedMessage.maxLength} required aria-invalid={issueFor(props.validationPath, "offlineMessage.en") || undefined} onChange={(event) => update("offlineMessage", { ...props.definition.offlineMessage, en: event.target.value })} /></label>
         <label>ข้อความนอกเวลาภาษาไทย<textarea id="ai-playbook-offlineMessage-th" data-ai-playbook-path="offlineMessage.th" value={props.definition.offlineMessage.th} rows={3} maxLength={aiPlaybookFieldLimits.localizedMessage.maxLength} required aria-invalid={issueFor(props.validationPath, "offlineMessage.th") || undefined} onChange={(event) => update("offlineMessage", { ...props.definition.offlineMessage, th: event.target.value })} /></label>
+        {CUSTOMER_MESSAGE_FIELDS.map(([key, englishLabel, thaiLabel]) => <div className="ai-playbook-window" key={key} data-ai-playbook-path={`customerMessages.${key}`}>
+          <label>{englishLabel} in English<textarea value={props.definition.customerMessages[key].en} rows={3} maxLength={aiPlaybookFieldLimits.localizedMessage.maxLength} required aria-invalid={issueFor(props.validationPath, `customerMessages.${key}.en`) || undefined} onChange={(event) => update("customerMessages", { ...props.definition.customerMessages, [key]: { ...props.definition.customerMessages[key], en: event.target.value } })} /></label>
+          <label>{thaiLabel}<textarea value={props.definition.customerMessages[key].th} rows={3} maxLength={aiPlaybookFieldLimits.localizedMessage.maxLength} required aria-invalid={issueFor(props.validationPath, `customerMessages.${key}.th`) || undefined} onChange={(event) => update("customerMessages", { ...props.definition.customerMessages, [key]: { ...props.definition.customerMessages[key], th: event.target.value } })} /></label>
+        </div>)}
         {props.definition.builderContext ? <>
           <label>AI disclosure in English<textarea data-ai-playbook-path="builderContext.disclosure.en" value={props.definition.builderContext.disclosure.en} rows={3} maxLength={500} onChange={(event) => updateBuilderContext({ ...props.definition.builderContext!, disclosure: { ...props.definition.builderContext!.disclosure, en: event.target.value } })} /></label>
           <label>คำแจ้ง AI ภาษาไทย<textarea data-ai-playbook-path="builderContext.disclosure.th" value={props.definition.builderContext.disclosure.th} rows={3} maxLength={500} onChange={(event) => updateBuilderContext({ ...props.definition.builderContext!, disclosure: { ...props.definition.builderContext!.disclosure, th: event.target.value } })} /></label>

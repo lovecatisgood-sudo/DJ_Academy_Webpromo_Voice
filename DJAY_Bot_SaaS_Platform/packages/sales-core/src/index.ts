@@ -30,6 +30,19 @@ export function isValidIanaTimeZone(value: string): boolean {
   }
 }
 
+const localizedOperationalMessageSchema = z.object({
+  th: z.string().trim().min(aiPlaybookFieldLimits.localizedMessage.minLength).max(aiPlaybookFieldLimits.localizedMessage.maxLength),
+  en: z.string().trim().min(aiPlaybookFieldLimits.localizedMessage.minLength).max(aiPlaybookFieldLimits.localizedMessage.maxLength),
+}).strict();
+
+export const defaultCustomerMessages = Object.freeze({
+  fallback: Object.freeze({ en: "I could not confirm that from approved information. I can connect you with a person.", th: "ฉันไม่สามารถยืนยันเรื่องนั้นจากข้อมูลที่ได้รับอนุมัติได้ และสามารถช่วยส่งต่อให้เจ้าหน้าที่ได้" }),
+  handover: Object.freeze({ en: "I can send this conversation to the team. A person has not accepted it yet.", th: "ฉันสามารถส่งบทสนทนานี้ให้ทีมงานได้ แต่ยังไม่มีเจ้าหน้าที่รับเรื่อง" }),
+  contactPrompt: Object.freeze({ en: "Please share your name and either an email address or phone number, with consent for follow-up.", th: "โปรดแจ้งชื่อและอีเมลหรือหมายเลขโทรศัพท์ พร้อมยินยอมให้ทีมงานติดต่อกลับ" }),
+  bookingPrompt: Object.freeze({ en: "Please share the service, preferred date and time, timezone, name, and contact method. The appointment is not confirmed until the business confirms it.", th: "โปรดแจ้งบริการ วันที่และเวลาที่ต้องการ เขตเวลา ชื่อ และช่องทางติดต่อ การนัดหมายยังไม่ยืนยันจนกว่าธุรกิจจะยืนยัน" }),
+  rolePrompt: Object.freeze({ en: "What outcome are you trying to achieve?", th: "คุณต้องการผลลัพธ์แบบใด" }),
+});
+
 export const aiPlaybookSchema = z.object({
   schemaVersion: z.literal(1),
   playbookVersionId: z.uuid(),
@@ -60,6 +73,13 @@ export const aiPlaybookSchema = z.object({
     th: z.string().trim().min(aiPlaybookFieldLimits.localizedMessage.minLength).max(aiPlaybookFieldLimits.localizedMessage.maxLength),
     en: z.string().trim().min(aiPlaybookFieldLimits.localizedMessage.minLength).max(aiPlaybookFieldLimits.localizedMessage.maxLength),
   }).strict(),
+  customerMessages: z.object({
+    fallback: localizedOperationalMessageSchema,
+    handover: localizedOperationalMessageSchema,
+    contactPrompt: localizedOperationalMessageSchema,
+    bookingPrompt: localizedOperationalMessageSchema,
+    rolePrompt: localizedOperationalMessageSchema,
+  }).strict().default(defaultCustomerMessages),
   offlineMessage: z.object({
     th: z.string().trim().min(aiPlaybookFieldLimits.localizedMessage.minLength).max(aiPlaybookFieldLimits.localizedMessage.maxLength),
     en: z.string().trim().min(aiPlaybookFieldLimits.localizedMessage.minLength).max(aiPlaybookFieldLimits.localizedMessage.maxLength),
@@ -123,10 +143,18 @@ const claimedBuilderPlaybookSchema = z.object({
     greeting: z.string().trim().min(1).max(500), tone: z.string().trim().min(2).max(200),
     disclosure: z.string().trim().min(1).max(500), uncertain: z.string().max(2000).default(""),
     unsupported: z.string().max(2000).default(""), neverInvent: z.string().max(5000).default(""),
+    customerMessages: z.object({
+      fallback: z.string().trim().min(1).max(500), handover: z.string().trim().min(1).max(500),
+      contactPrompt: z.string().trim().min(1).max(500), bookingPrompt: z.string().trim().min(1).max(500),
+      rolePrompt: z.string().trim().min(1).max(500), outsideHours: z.string().trim().min(1).max(500),
+    }).strict(),
     voice: z.object({ disclosure: z.string().trim().min(1).max(500) }).passthrough().optional(),
     translations: z.object({ customerCopy: z.object({
       greeting: builderTranslationSchema, disclosure: builderTranslationSchema,
       voiceDisclosure: builderTranslationSchema.optional(),
+      fallback: builderTranslationSchema, handover: builderTranslationSchema,
+      contactPrompt: builderTranslationSchema, bookingPrompt: builderTranslationSchema,
+      rolePrompt: builderTranslationSchema, outsideHours: builderTranslationSchema,
     }).passthrough(), faqs: z.record(z.string(), z.object({
       question: builderTranslationSchema, answer: builderTranslationSchema,
     }).passthrough()).default({}) }).passthrough(),
@@ -162,7 +190,18 @@ export function convertClaimedBuilderPlaybook(input: unknown, playbookVersionId:
   const voiceDisclosure = source.voice
     ? translatedCopy(source.voice.disclosure, source.translations.customerCopy.voiceDisclosure, thaiRequired,
       "ฉันเป็นผู้ช่วยเสียง AI และสายนี้อาจถูกถอดความ") : undefined;
-  if (!greeting || !disclosure || (parsed.data.family === "voice" && !voiceDisclosure)) {
+  const operationalDefaults = defaultCustomerMessages;
+  const customerMessages = {
+    fallback: translatedCopy(source.customerMessages.fallback, source.translations.customerCopy.fallback, thaiRequired, operationalDefaults.fallback.th),
+    handover: translatedCopy(source.customerMessages.handover, source.translations.customerCopy.handover, thaiRequired, operationalDefaults.handover.th),
+    contactPrompt: translatedCopy(source.customerMessages.contactPrompt, source.translations.customerCopy.contactPrompt, thaiRequired, operationalDefaults.contactPrompt.th),
+    bookingPrompt: translatedCopy(source.customerMessages.bookingPrompt, source.translations.customerCopy.bookingPrompt, thaiRequired, operationalDefaults.bookingPrompt.th),
+    rolePrompt: translatedCopy(source.customerMessages.rolePrompt, source.translations.customerCopy.rolePrompt, thaiRequired, operationalDefaults.rolePrompt.th),
+  };
+  const offlineMessage = translatedCopy(source.customerMessages.outsideHours, source.translations.customerCopy.outsideHours, thaiRequired,
+    "ทีมงานจะติดต่อกลับในเวลาทำการ");
+  if (!greeting || !disclosure || (parsed.data.family === "voice" && !voiceDisclosure)
+    || Object.values(customerMessages).some((message) => !message) || !offlineMessage) {
     return { status: "invalid", reasonCode: "builder_translation_incomplete", detail: "Required customer copy is missing or stale." };
   }
   const approvedFaqs = [];
@@ -176,9 +215,6 @@ export function convertClaimedBuilderPlaybook(input: unknown, playbookVersionId:
     approvedFaqs.push({ question, answer });
   }
   const role = parsed.data.templateOrRole.role;
-  const roleQuestion = role === "support" ? "What issue would you like help resolving?"
-    : role === "booking" ? "Which service and time would you like to request?"
-      : "What outcome are you trying to achieve?";
   const cta = role === "support" ? "Offer human help when the issue cannot be resolved from approved information"
     : role === "booking" ? "Create only a merchant-confirmed appointment request"
       : "Offer a relevant next step after understanding the customer's need";
@@ -192,8 +228,8 @@ export function convertClaimedBuilderPlaybook(input: unknown, playbookVersionId:
       behaviorBoundaries: source.business.agentBoundaries,
       approvedFaqs,
       approvedClaims: [], prohibitedClaims: [source.business.agentBoundaries, source.neverInvent].map((value) => value.trim()).filter(Boolean),
-      discoveryQuestions: [roleQuestion], ctaPolicy: [cta], requiredContactFields: ["name", "email", "phone"],
-      greeting, offlineMessage: { en: "Our team will follow up during business hours.", th: "ทีมงานจะติดต่อกลับในเวลาทำการ" },
+      discoveryQuestions: [customerMessages.rolePrompt!.en], ctaPolicy: [cta], requiredContactFields: ["name", "email", "phone"],
+      greeting, customerMessages, offlineMessage,
       timezone: "Asia/Bangkok", weeklyWindows: [1, 2, 3, 4, 5].map((dayOfWeek) => ({ dayOfWeek, startMinute: 540, endMinute: 1020 })),
       builderContext: { productFamily: parsed.data.family, disclosure, ...(voiceDisclosure ? { voiceDisclosure } : {}),
         businessType: source.business.type, businessSummary: source.business.summary, offers: source.business.offers,
@@ -312,6 +348,7 @@ export type SalesCoreContext = Readonly<{
   prohibitedClaims: readonly string[];
   discoveryQuestions: readonly string[];
   ctaPolicy: readonly string[];
+  customerMessages: AiPlaybook["customerMessages"];
   knowledge: readonly { sourceRevisionId: string; chunkId: string; content: string }[];
   recentMessages: readonly { role: "user" | "assistant"; content: string }[];
   customerMessage: string;
@@ -360,6 +397,14 @@ export function buildSalesCorePolicy(context: SalesCoreContext): string {
     `Prohibited claims: ${JSON.stringify(context.prohibitedClaims)}`,
     `Discovery questions: ${JSON.stringify(context.discoveryQuestions)}`,
     `CTA policy: ${JSON.stringify(context.ctaPolicy)}`,
+    `Approved fixed operational messages for locale ${context.locale}: ${JSON.stringify({
+      fallback: context.customerMessages.fallback[context.locale],
+      handover: context.customerMessages.handover[context.locale],
+      contactPrompt: context.customerMessages.contactPrompt[context.locale],
+      bookingPrompt: context.customerMessages.bookingPrompt[context.locale],
+      rolePrompt: context.customerMessages.rolePrompt[context.locale],
+    })}`,
+    "Use the approved fixed operational message verbatim when its named situation applies. Never use it to imply that a handover or appointment succeeded.",
     "Approved knowledge with citation IDs:", knowledge,
     "Return one strict sales-core.v1 object. Unknown facts remain absent; never invent contact details.",
   ].join("\n");
