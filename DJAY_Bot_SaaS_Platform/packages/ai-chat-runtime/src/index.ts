@@ -24,6 +24,8 @@ function responseInvariant(value: SalesCoreOutput) {
     schemaVersion: value.schemaVersion,
     stage: value.stage,
     intent: value.intent,
+    confidence: value.confidence,
+    safety: value.safety,
     facts: value.facts,
     knowledgeCitations: value.knowledgeCitations,
     responseGoal: value.responseGoal,
@@ -454,8 +456,8 @@ async function generateConciseOutput(
       return { output: repairedOutput, nativeUsage: repairedUsage };
     }
     if (repairObjection || repairGrounding || repairRepetition) {
-      const evidencePreserved = JSON.stringify([repairedOutput.facts, repairedOutput.knowledgeCitations])
-        === JSON.stringify([candidate.facts, candidate.knowledgeCitations]);
+      const evidencePreserved = JSON.stringify([repairedOutput.facts, repairedOutput.knowledgeCitations, repairedOutput.safety])
+        === JSON.stringify([candidate.facts, candidate.knowledgeCitations, candidate.safety]);
       const invalidObjection = repairObjection && objectionResponseInvalid(repairedOutput);
       if (!evidencePreserved || repairedOutput.proposedActions.length || repairedOutput.handover
         || invalidObjection || groundingResponseInvalid(repairedOutput, groundingText, request.customerMessage)
@@ -571,11 +573,12 @@ export async function generateAiTurn(input: Readonly<{
   assertProviderNeutralCustomerText(output.customerResponse);
   validateCitations(output, selectedChunks, generated.nativeUsage);
   const confidence = responseConfidence(output, selectedChunks.length, matchedClaimCount + selectedFaqs.length);
+  output = salesCoreOutputSchema.parse({ ...output, confidence });
   if (confidence < playbook.confidenceThreshold && !output.handover) {
     const reason = `confidence_below_threshold:${confidence.toFixed(2)}`;
     output = salesCoreOutputSchema.parse({ ...output,
       proposedActions: [...output.proposedActions, { type: "handover.request", reason, summary: output.customerResponse }],
-      handover: { reason, summary: output.customerResponse },
+      handover: { reason, department: playbook.routingTeamKey ?? "general", summary: output.customerResponse },
     });
   }
   validateActionAuthority(output, input.context.authority, generated.nativeUsage);

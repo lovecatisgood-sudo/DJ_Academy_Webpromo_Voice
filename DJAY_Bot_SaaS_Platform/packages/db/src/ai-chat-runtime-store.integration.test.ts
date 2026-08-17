@@ -240,6 +240,22 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       message: "I am Ada. Email ada@example.test. Please request a weekday consultation.",
     })).resolves.toEqual(publicResponse);
     expect(gatewayCalls).toBe(1);
+    const structuredEvidence = await adminClient!<{
+      confidence: number; safetyState: string; safetyReasonCount: number; actionTypes: string[];
+    }[]>`
+      SELECT (structured_output_json->>'confidence')::numeric::float8 AS confidence,
+        structured_output_json->'safety'->>'state' AS "safetyState",
+        jsonb_array_length(structured_output_json->'safety'->'reasonCodes')::int AS "safetyReasonCount",
+        ARRAY(SELECT action->>'type' FROM jsonb_array_elements(structured_output_json->'proposedActions') action) AS "actionTypes"
+      FROM tenancy.ai_turns
+      WHERE tenant_id = ${tenantId}::uuid AND input_id = ${inputId}::uuid
+    `;
+    expect(structuredEvidence).toEqual([{
+      confidence: 0.9,
+      safetyState: "allowed",
+      safetyReasonCount: 0,
+      actionTypes: ["lead.capture", "sales_fact.record", "appointment.request", "merchant_email.send"],
+    }]);
     await expect(repository.begin({
       deploymentKey: deployment.deploymentKey,
       sessionToken: started.sessionToken, origin: "https://merchant.example", inputId,
@@ -469,7 +485,8 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       deploymentKey: deployment.deploymentKey,
       sessionToken: takeoverSession.sessionToken, origin: "https://merchant.example", inputId: takeoverInputId,
       output: {
-        schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "request_human", facts: [],
+        schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "request_human",
+        confidence: 0.8, safety: { state: "allowed", reasonCodes: [] }, facts: [],
         knowledgeCitations: [], responseGoal: "offer help", proposedActions: [], handover: null,
         customerResponse: "This reply must not be emitted.", channelResponse: { format: "text", quickReplies: [] },
       },
@@ -500,7 +517,8 @@ describe.runIf(enabled)("P5 AI Chat Basic restricted runtime", () => {
       sessionToken: takeoverSession.sessionToken, origin: "https://merchant.example",
       inputId: resumedInputId,
       output: {
-        schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "continue_support", facts: [],
+        schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "continue_support",
+        confidence: 0.8, safety: { state: "allowed", reasonCodes: [] }, facts: [],
         knowledgeCitations: [], responseGoal: "resume safely", proposedActions: [], handover: null,
         customerResponse: "Yes, I can help again.", channelResponse: { format: "text", quickReplies: [] },
       },

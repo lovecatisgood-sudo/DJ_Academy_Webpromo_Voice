@@ -200,7 +200,8 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
     expect(turnContext).toMatchObject({ sessionId: issued.sessionId, language: "en", turnSequence: 1 });
     const turnOutput = {
       schemaVersion: "sales-core.v1" as const, stage: "S8_APPOINTMENT" as const,
-      intent: "appointment_request", facts: [], knowledgeCitations: [],
+      intent: "appointment_request", confidence: 0.9,
+      safety: { state: "allowed" as const, reasonCodes: [] }, facts: [], knowledgeCitations: [],
       responseGoal: "Record a lead and pending appointment request",
       proposedActions: [
         { type: "lead.capture" as const, name: "Alex", email: "alex@example.com", need: "Consultation" },
@@ -255,7 +256,8 @@ describe.runIf(enabled)("P7 Voice Basic restricted session authority", () => {
     const callbackDueAt = new Date(Date.now() + 86_400_000).toISOString();
     const callbackOutput = {
       schemaVersion: "sales-core.v1" as const, stage: "S9_ACTION_CLOSE" as const,
-      intent: "callback_request", facts: [], knowledgeCitations: [],
+      intent: "callback_request", confidence: 0.9,
+      safety: { state: "allowed" as const, reasonCodes: [] }, facts: [], knowledgeCitations: [],
       responseGoal: "Record the requested callback without claiming completion",
       proposedActions: [
         { type: "lead.capture" as const, name: "Alex", email: "alex@example.com", need: "Callback" },

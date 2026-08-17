@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { aiPlaybookFieldLimits, aiPlaybookSchema, buildSalesCorePolicy, chunkKnowledge, convertClaimedBuilderPlaybook, countVisibleCharacters, countVisibleWords, salesCoreOutputSchema, selectRelevantFaqs, selectRelevantKnowledge } from "./index";
 
 const ids = {
@@ -42,7 +43,28 @@ describe("Sales Conversation Core contract", () => {
       responseGoal: "clarify impact", proposedActions: [], handover: null,
       customerResponse: "เข้าใจครับ ตอนนี้คำถามจากลูกค้าหลุดช่วงเวลาไหนบ่อยที่สุด?",
       channelResponse: { format: "text", quickReplies: [] },
-    }).stage).toBe("S2_DISCOVERY");
+    })).toMatchObject({
+      stage: "S2_DISCOVERY",
+      confidence: 0,
+      safety: { state: "allowed", reasonCodes: [] },
+    });
+  });
+
+  it("exports required strict confidence, safety, and handover metadata", () => {
+    const schema = z.toJSONSchema(salesCoreOutputSchema, { target: "draft-7" }) as {
+      required?: string[];
+      properties?: Record<string, { required?: string[]; additionalProperties?: boolean }>;
+      additionalProperties?: boolean;
+    };
+    expect(schema.additionalProperties).toBe(false);
+    expect(schema.required).toEqual(expect.arrayContaining(["customerResponse", "intent", "facts", "knowledgeCitations", "confidence", "safety", "proposedActions", "handover"]));
+    expect(schema.properties?.safety).toMatchObject({ required: ["state", "reasonCodes"], additionalProperties: false });
+    expect(() => salesCoreOutputSchema.parse({
+      schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "refuse_request",
+      confidence: 0.2, safety: { state: "refused", reasonCodes: [] }, facts: [], knowledgeCitations: [],
+      responseGoal: "refuse safely", proposedActions: [], handover: null,
+      customerResponse: "I cannot help with that request.", channelResponse: { format: "text", quickReplies: [] },
+    })).toThrow(/requires a reason/);
   });
 
   it("rejects appointment or email effects without validated lead capture", () => {
@@ -67,6 +89,8 @@ describe("Sales Conversation Core contract", () => {
     });
     expect(policy).toContain("only when the same proposedActions array also contains a valid lead.capture action");
     expect(policy).toContain("if and only if proposedActions contains handover.request");
+    expect(policy).toContain("reason/department/summary");
+    expect(policy).toContain("explicit safety metadata");
     expect(policy).toContain("normally use about 40 to 80 words");
     expect(policy).toContain("never exceed 200 locale-aware words");
     expect(policy).toContain("regardless of how many concerns came before it");

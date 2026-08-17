@@ -35,7 +35,11 @@ function repository(events: string[]): AiTurnRepository {
 describe("AI text runtime", () => {
   it("validates grounding and commits one provider-neutral structured turn", async () => {
     const events: string[] = [];
-    const runtime = new AiTextRuntime(repository(events), { async generate() { return {
+    let committedOutput: unknown;
+    const runtime = new AiTextRuntime({
+      ...repository(events),
+      async commit(input) { events.push(`commit:${input.nativeUsage.inputUnits}`); committedOutput = input.output; return input.publicResponse; },
+    }, { async generate() { return {
       output: {
         schemaVersion: "sales-core.v1", stage: "S5_OBJECTION", intent: "handle_objection",
         facts: [], knowledgeCitations: [{ sourceRevisionId: ids.revision, chunkId: ids.chunk }],
@@ -46,6 +50,10 @@ describe("AI text runtime", () => {
     }; } });
     await expect(runtime.turn({ deploymentKey: "deployment", sessionToken: "opaque", origin: "https://merchant.test", inputId: ids.input, message: "Ads cost too much" }))
       .resolves.toMatchObject({ status: "completed", inputId: ids.input });
+    expect(committedOutput).toMatchObject({
+      confidence: 0.9,
+      safety: { state: "allowed", reasonCodes: [] },
+    });
     expect(events).toEqual(["begin", "commit:100"]);
   });
 
@@ -185,7 +193,10 @@ describe("AI text runtime", () => {
     const runtime = new AiTextRuntime(repository(events), { async generate() {
       calls += 1;
       return { output: {
-        schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: calls === 1 ? "discover_need" : "changed_intent",
+        schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover_need",
+        safety: calls === 1
+          ? { state: "allowed", reasonCodes: [] }
+          : { state: "refused", reasonCodes: ["policy_restriction"] },
         facts: [], knowledgeCitations: [{ sourceRevisionId: ids.revision, chunkId: ids.chunk }],
         responseGoal: "understand the need", proposedActions: [], handover: null,
         customerResponse: calls === 1

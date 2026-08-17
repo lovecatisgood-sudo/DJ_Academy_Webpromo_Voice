@@ -238,6 +238,7 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
       outboxId: retried.outboxId,
       output: {
         schemaVersion: "sales-core.v1", stage: "S8_APPOINTMENT", intent: "request_consultation",
+        confidence: 0.9, safety: { state: "allowed", reasonCodes: [] },
         facts: [], knowledgeCitations: [], responseGoal: "Capture and request consultation",
         proposedActions: [
           { type: "lead.capture", name: "LINE Customer", email: "line@example.test", phone: "+66 81-234-5678", need: "Consultation" },
@@ -474,6 +475,7 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
     const waResponse = "WhatsApp reply inside the service window.";
     await worker.commitTurn({ outboxId: waClaim.outboxId,
       output: { schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover",
+        confidence: 0.8, safety: { state: "allowed", reasonCodes: [] },
         facts: [], knowledgeCitations: [], responseGoal: "Continue discovery", proposedActions: [],
         handover: null, customerResponse: waResponse,
         channelResponse: { format: "text", quickReplies: [] } },
@@ -525,6 +527,7 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
     const waLateTurn = await worker.beginTurn(waLateClaim); const waLateResponse = "A later reply.";
     await worker.commitTurn({ outboxId: waLateClaim.outboxId,
       output: { schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover",
+        confidence: 0.8, safety: { state: "allowed", reasonCodes: [] },
         facts: [], knowledgeCitations: [], responseGoal: "Continue discovery", proposedActions: [],
         handover: null, customerResponse: waLateResponse,
         channelResponse: { format: "text", quickReplies: [] } },
@@ -582,6 +585,7 @@ describe.runIf(enabled)("P6 LINE connection and webhook receipt repositories", (
     const messengerResponse = "Messenger reply inside the service window.";
     await worker.commitTurn({ outboxId: messengerClaim.outboxId,
       output: { schemaVersion: "sales-core.v1", stage: "S2_DISCOVERY", intent: "discover",
+        confidence: 0.8, safety: { state: "allowed", reasonCodes: [] },
         facts: [], knowledgeCitations: [], responseGoal: "Continue discovery", proposedActions: [],
         handover: null, customerResponse: messengerResponse,
         channelResponse: { format: "text", quickReplies: ["Book"] } },

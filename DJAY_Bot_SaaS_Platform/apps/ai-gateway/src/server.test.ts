@@ -18,11 +18,19 @@ describe("restricted AI gateway", () => {
       provider: "openai",
       apiKey: "sk-restricted-abcdefghijklmnopqrstuvwxyz",
       model: "restricted-route",
-      fetchImpl: async () => new Response(JSON.stringify({
-        status: "completed",
-        output: [{ type: "message", content: [{ type: "output_text", text: "{\"response\":\"Hello\"}" }] }],
-        usage: { input_tokens: 3, output_tokens: 2 },
-      }), { status: 200 }),
+      fetchImpl: async (_input, init) => {
+        const body = JSON.parse(String(init?.body));
+        expect(body.text.format).toMatchObject({ type: "json_schema", strict: true });
+        expect(body.text.format.schema.required).toEqual(expect.arrayContaining([
+          "customerResponse", "intent", "facts", "knowledgeCitations", "confidence", "safety", "proposedActions", "handover",
+        ]));
+        expect(body.text.format.schema.additionalProperties).toBe(false);
+        return new Response(JSON.stringify({
+          status: "completed",
+          output: [{ type: "message", content: [{ type: "output_text", text: "{\"response\":\"Hello\"}" }] }],
+          usage: { input_tokens: 3, output_tokens: 2 },
+        }), { status: 200 });
+      },
     });
     const denied = await handler(new Request("https://internal.example/v1/generate", {
       method: "POST", body: JSON.stringify(requestBody),

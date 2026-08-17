@@ -263,6 +263,21 @@ export const knowledgeCitationSchema = z.object({
   chunkId: z.uuid(),
 }).strict();
 
+export const salesSafetyMetadataSchema = z.object({
+  state: z.enum(["allowed", "refused", "escalated"]),
+  reasonCodes: z.array(z.enum([
+    "unsafe_request", "policy_restriction", "sensitive_topic",
+    "insufficient_approved_information", "human_review_required",
+  ])).max(8),
+}).strict().superRefine((value, context) => {
+  if (value.state === "allowed" && value.reasonCodes.length > 0) {
+    context.addIssue({ code: "custom", path: ["reasonCodes"], message: "Allowed output cannot carry a refusal reason." });
+  }
+  if (value.state !== "allowed" && value.reasonCodes.length === 0) {
+    context.addIssue({ code: "custom", path: ["reasonCodes"], message: "Refused or escalated output requires a reason." });
+  }
+});
+
 const leadCaptureActionSchema = z.object({
   type: z.literal("lead.capture"),
   name: z.string().trim().min(1).max(200),
@@ -296,11 +311,17 @@ export const salesCoreOutputBaseSchema = z.object({
   schemaVersion: z.literal("sales-core.v1"),
   stage: salesStageSchema,
   intent: z.string().regex(/^[a-z][a-z0-9_.-]{1,99}$/),
+  confidence: z.number().min(0).max(1).default(0),
+  safety: salesSafetyMetadataSchema.default({ state: "allowed", reasonCodes: [] }),
   facts: z.array(salesFactSchema).max(30),
   knowledgeCitations: z.array(knowledgeCitationSchema).max(20),
   responseGoal: z.string().trim().min(2).max(300),
   proposedActions: z.array(salesActionProposalSchema).max(10),
-  handover: z.object({ reason: z.string().trim().min(2).max(500), summary: z.string().trim().min(2).max(2000) }).strict().nullable(),
+  handover: z.object({
+    reason: z.string().trim().min(2).max(500),
+    department: z.string().regex(/^[a-z][a-z0-9_.-]{1,79}$/).default("general"),
+    summary: z.string().trim().min(2).max(2000),
+  }).strict().nullable(),
   customerResponse: z.string().trim().min(1).max(5000),
   channelResponse: z.object({
     format: z.literal("text"),
@@ -381,9 +402,10 @@ export function buildSalesCorePolicy(context: SalesCoreContext): string {
     "When a requested fact is absent, say that detail is not confirmed in the approved information, then continue consultatively with one question about the customer's requirement. Do not fill the gap with plausible sales language.",
     "Use recent assistant and customer messages to avoid repeating the same feature list, claim, objection question, or next step. Each objection response must add a different useful angle based on the newest customer information.",
     "Propose effects only through the exact structured action allow-list. Never claim an action succeeded.",
+    "Return response-level confidence from 0 to 1 and explicit safety metadata. Use safety state refused or escalated only with one or more approved reason codes; allowed must have no reason codes.",
     "Do not offer to send, email, schedule, register, book, create a follow-up, or contact someone unless the matching structured action is both proposed and allowed. In a safe test with no public action, keep the next step inside the current conversation.",
     "A sales_fact.record, appointment.request, follow_up.create, or merchant_email.send action is allowed only when the same proposedActions array also contains a valid lead.capture action.",
-    "Set handover to a reason/summary object if and only if proposedActions contains handover.request; otherwise set handover to null.",
+    "Set handover to a reason/department/summary object if and only if proposedActions contains handover.request; otherwise set handover to null.",
     "An appointment action is a request pending merchant confirmation and requires two to five time options.",
     "For a requested phone callback, use follow_up.create with a due time. Never claim the callback has already happened.",
     "Match the customer language. If asked about internal technology, describe yourself only as the business's automated assistant.",
