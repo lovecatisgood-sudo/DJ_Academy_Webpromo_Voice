@@ -2188,6 +2188,42 @@
     publishedDraft.sources ||= clone(defaultDraft.sources);
     publishedDraft.sources.forEach(source => { if (source.status === 'Needs review') source.status = 'Not reviewed'; });
     publishedDraft.reviewed ||= {};
+
+    function normalizeTranslationRecord(record, english) {
+      const source = String(english || '').trim();
+      const next = record && typeof record === 'object' ? record : {en:source,th:'',sourceEn:'',status:'missing',reviewed:false};
+      if (next.en !== source) { next.en = source; next.reviewed = false; }
+      next.th = String(next.th || '').trim();
+      next.sourceEn = String(next.sourceEn || '');
+      if (!source || !next.th) next.status = 'missing';
+      else if (next.sourceEn !== source) next.status = 'stale';
+      else next.status = next.reviewed ? 'current' : 'needs_review';
+      return next;
+    }
+
+    function ensureTextVoiceTranslations(target) {
+      target.translations ||= {};
+      target.translations.customerCopy ||= {};
+      const copy = target.translations.customerCopy;
+      copy.greeting = normalizeTranslationRecord(copy.greeting,target.greeting);
+      copy.disclosure = normalizeTranslationRecord(copy.disclosure,target.disclosure);
+      copy.voiceDisclosure = normalizeTranslationRecord(copy.voiceDisclosure,target.voice?.disclosure);
+      target.translations.faqs ||= {};
+      const activeFaqKeys = new Set();
+      (target.business?.faqs || []).forEach(faq => {
+        faq.translationKey ||= crypto.randomUUID();
+        activeFaqKeys.add(faq.translationKey);
+        const existing = target.translations.faqs[faq.translationKey] || {};
+        target.translations.faqs[faq.translationKey] = {
+          question:normalizeTranslationRecord(existing.question,faq.question),
+          answer:normalizeTranslationRecord(existing.answer,faq.answer)
+        };
+      });
+      Object.keys(target.translations.faqs).forEach(key => { if (!activeFaqKeys.has(key)) delete target.translations.faqs[key]; });
+      return target;
+    }
+    ensureTextVoiceTranslations(draft);
+    ensureTextVoiceTranslations(publishedDraft);
     let undoStack = [];
     let redoStack = [];
     let lastDraftSnapshot = JSON.stringify(draft);
@@ -2275,6 +2311,8 @@
       if (!configuration?.textDraft || !configuration?.flowDraft) return false;
       draft = configuration.textDraft;
       publishedDraft = configuration.textPublishedDraft || clone(defaultDraft);
+      ensureTextVoiceTranslations(draft);
+      ensureTextVoiceTranslations(publishedDraft);
       Object.assign(state,configuration.textUi || {});
       flowDraft = normalizeFlowDraftTranslations(configuration.flowDraft);
       flowPublishedDraft = normalizeFlowDraftTranslations(configuration.flowPublishedDraft || clone(flowDraft));
@@ -3745,13 +3783,14 @@
 
     function effectiveSections() {
       const channel = {key:'channel', label:state.product === 'voice' ? 'Voice experience' : 'Text experience', group:'Channel'};
+      const translations = {key:'translations',label:'English & Thai translations',group:'Channel'};
       const release = {key:'release', label:!state.dirty && state.configured ? 'Install & verify' : 'Publish', group:'Quality'};
       if (state.role === 'support') return [
         {key:'business',label:'Business profile & identity',group:'Business'},
         {key:'knowledge',label:'Support knowledge & FAQs',group:'Knowledge'},
         {key:'behavior',label:'Issue handling behavior',group:'Behavior'},
         {key:'customer_handover',label:'Customer details & handover',group:'Behavior'},
-        channel,{key:'test',label:'Test your bot',group:'Quality'},release
+        channel,translations,{key:'test',label:'Test your bot',group:'Quality'},release
       ];
       if (state.role === 'booking') return [
         {key:'business',label:'Business profile & identity',group:'Business'},
@@ -3759,7 +3798,7 @@
         {key:'behavior',label:'Booking behavior & rules',group:'Behavior'},
         {key:'schedule',label:'Availability & customer details',group:'Behavior'},
         {key:'fallback',label:'Changes, fallback & handover',group:'Behavior'},
-        channel,{key:'test',label:'Test your bot',group:'Quality'},release
+        channel,translations,{key:'test',label:'Test your bot',group:'Quality'},release
       ];
       return [
         {key:'business',label:'Business profile & identity',group:'Business'},
@@ -3767,7 +3806,7 @@
         {key:'behavior',label:'Sales behavior & objections',group:'Behavior'},
         {key:'leads_actions',label:'Leads & appointments',group:'Behavior'},
         {key:'handover',label:'Human handover',group:'Behavior'},
-        channel,{key:'test',label:'Test your bot',group:'Quality'},release
+        channel,translations,{key:'test',label:'Test your bot',group:'Quality'},release
       ];
     }
 
@@ -3806,6 +3845,12 @@
       if (key === 'channel' && state.product === 'voice' && !draft.voice.disclosure.trim()) return 'Voice disclosure is blank.';
       if (key === 'channel' && state.product === 'voice' && visibleLength(draft.voice.disclosure) > 200) return 'Voice disclosure exceeds 200 visible characters.';
       if (key === 'channel' && state.product === 'text' && (!draft.text.suggestions || !draft.text.forms)) return 'Choose the Text Bot conversation controls.';
+      if (key === 'translations') {
+        const entries = textVoiceTranslationEntries();
+        if (entries.some(entry => entry.record.status === 'missing')) return 'One or more customer-facing fields are missing Thai text.';
+        if (entries.some(entry => entry.record.status === 'stale')) return 'One or more Thai translations are stale after an English edit.';
+        if (entries.some(entry => entry.record.status === 'needs_review')) return 'One or more Thai translations still need merchant review.';
+      }
       if (key === 'test' && incompleteRows('test')) return 'Some suggested test cases are incomplete.';
       if (key === 'test' && draft.rows.test.some(test => !test.passed)) return 'Some suggested test cases have not passed.';
       if (key === 'release' && !state.dirty && !draft.install.verified) return 'Verify the website installation.';
@@ -3894,6 +3939,36 @@
         `<div class="panel"><h2>Voice disclosure and recovery</h2><div class="field-grid"><label class="wide">Opening disclosure<textarea data-bind="voice.disclosure" maxlength="200">${escapeHtml(draft.voice.disclosure)}</textarea></label><label>Low transcription confidence<select data-bind="voice.lowConfidence">${optionList(['Ask the customer to repeat','Confirm what the bot heard','Offer callback'], draft.voice.lowConfidence)}</select></label><label>Repeated misunderstanding<select data-bind="voice.misunderstanding">${optionList(['Offer transfer or callback','Transfer immediately','End politely'], draft.voice.misunderstanding)}</select></label><label>Transfer unavailable<select data-bind="voice.unavailable">${optionList(['Collect callback consent and details','Provide business contact details','Ask the customer to call later'], draft.voice.unavailable)}</select></label><label>Call recording<select data-bind="voice.recording">${optionList(['Off','On with consent disclosure'], draft.voice.recording)}</select></label></div></div>`;
     }
 
+    function textVoiceTranslationEntries() {
+      ensureTextVoiceTranslations(draft);
+      const copy = draft.translations.customerCopy;
+      const entries = [
+        {key:'greeting',label:'Welcome message',sourcePath:'greeting',record:copy.greeting},
+        {key:'disclosure',label:'AI disclosure',sourcePath:'disclosure',record:copy.disclosure}
+      ];
+      if (state.product === 'voice') entries.push({key:'voiceDisclosure',label:'Voice opening disclosure',sourcePath:'voice.disclosure',record:copy.voiceDisclosure});
+      draft.business.faqs.forEach((faq,index) => {
+        const translated = draft.translations.faqs[faq.translationKey];
+        entries.push({key:`faq:${faq.translationKey}:question`,label:`FAQ ${index + 1} question`,sourcePath:`business.faqs.${index}.question`,record:translated.question});
+        entries.push({key:`faq:${faq.translationKey}:answer`,label:`FAQ ${index + 1} answer`,sourcePath:`business.faqs.${index}.answer`,record:translated.answer});
+      });
+      return entries;
+    }
+
+    function translationStatusCopy(status) {
+      return status === 'current' ? 'Current and reviewed'
+        : status === 'stale' ? 'Stale after English edit'
+        : status === 'needs_review' ? 'Needs merchant review' : 'Missing Thai';
+    }
+
+    function textVoiceTranslationsSection() {
+      const entries = textVoiceTranslationEntries();
+      const complete = entries.filter(entry => entry.record.status === 'current').length;
+      const cards = entries.map(entry => `<article class="flow-translation-card"><header><strong>${escapeHtml(entry.label)}</strong><span class="${entry.record.status === 'current' ? '' : 'status-missing'}">${escapeHtml(translationStatusCopy(entry.record.status))}</span></header><div class="flow-translation-fields"><label>English source<textarea data-customer-translation-en="${escapeHtml(entry.key)}">${escapeHtml(entry.record.en)}</textarea></label><label>ข้อความภาษาไทย<textarea data-customer-translation-th="${escapeHtml(entry.key)}">${escapeHtml(entry.record.th)}</textarea></label></div><div class="row" style="padding:0 12px 12px"><button class="btn" data-generate-customer-translation="${escapeHtml(entry.key)}">${entry.record.th ? 'Regenerate Thai' : 'Generate Thai'}</button><button class="btn ${entry.record.status === 'current' ? 'btn-green' : ''}" data-review-customer-translation="${escapeHtml(entry.key)}" ${!entry.record.th || entry.record.status === 'stale' ? 'disabled' : ''}>${entry.record.status === 'current' ? 'Reviewed' : 'Mark reviewed'}</button></div></article>`).join('');
+      return sectionHeader('English and Thai translations','Review every fixed customer-facing Text or Voice string side by side. English edits make the prior Thai copy stale; generated or manual Thai copy remains unreviewed until you approve it.') +
+        `<div class="panel"><div class="flow-translation-summary"><div><h2>Translation coverage</h2><p>${complete} of ${entries.length} items are current and reviewed. Missing, stale, and review states are advisory and remain visible.</p></div><button class="btn btn-green" id="translateAllCustomerCopy" ${entries.every(entry => entry.record.status === 'current') ? 'disabled' : ''}>Translate missing and stale Thai</button></div><div class="flow-translation-grid">${cards || '<div class="empty-box">Add customer-facing content to translate.</div>'}</div></div>`;
+    }
+
     function behaviorBrief() {
       return `<div class="panel"><h2>Agent behavior brief</h2><p>Generated during onboarding for the selected role. Edit it here and test the draft response immediately.</p><div class="field-grid"><label class="wide">Agent objective<textarea data-bind="business.agentObjective">${escapeHtml(draft.business.agentObjective)}</textarea></label><label class="wide">Conversation behavior<textarea data-bind="business.agentBehavior">${escapeHtml(draft.business.agentBehavior)}</textarea></label><label class="wide">Boundaries and human handover<textarea data-bind="business.agentBoundaries">${escapeHtml(draft.business.agentBoundaries)}</textarea></label></div></div>`;
     }
@@ -3921,15 +3996,28 @@
       const sections = effectiveSections().filter(section => !['test','release'].includes(section.key));
       const warnings = [];
       sections.forEach(section => {
-        if (!sectionValid(section.key)) warnings.push({section:section.key,label:section.label,message:sectionIssue(section.key)});
+        if (section.key === 'translations') {
+          if (textVoiceTranslationEntries().some(entry => entry.record.status === 'needs_review')) warnings.push({section:section.key,label:section.label,message:'One or more complete Thai translations still need merchant review.'});
+        } else if (!sectionValid(section.key)) warnings.push({section:section.key,label:section.label,message:sectionIssue(section.key)});
       });
       if (!sectionValid('test')) warnings.push({section:'test',label:'Test your bot',message:'Some suggested test cases have not been run or passed.'});
       return warnings;
     }
 
+    function publicationBlockers() {
+      const translations = textVoiceTranslationEntries();
+      const blockers = [];
+      if (translations.some(entry => entry.record.status === 'missing')) blockers.push({section:'translations',label:'English & Thai translations',message:'Add Thai text for every customer-facing field before publishing.'});
+      if (translations.some(entry => entry.record.status === 'stale')) blockers.push({section:'translations',label:'English & Thai translations',message:'Regenerate or update every stale Thai translation before publishing.'});
+      return blockers;
+    }
+
     function releaseSection() {
+      const blockers = publicationBlockers();
       if (!state.dirty && state.configured) return installSection();
       const warnings = releaseWarnings();
+      if (blockers.length) return sectionHeader('Complete required customer copy','Missing or stale customer-facing translations are structural publication blockers. Merchant review remains advisory after both languages are complete.') +
+        `<div class="panel"><div class="notice"><strong>!</strong><div><strong>Publishing is unavailable</strong><p>Complete the required English and Thai copy below. Testing and review recommendations do not become mandatory.</p></div></div><div class="editable-list" style="margin-top:16px">${blockers.map(blocker => `<div class="editable-row" style="grid-template-columns:minmax(180px,.8fr) minmax(220px,1.4fr) auto"><div><strong>${escapeHtml(blocker.label)}</strong></div><div>${escapeHtml(blocker.message)}</div><button class="btn" data-go-section="${blocker.section}">Open section</button></div>`).join('')}</div></div>`;
       if (!warnings.length) return sectionHeader('Publish when you are satisfied', 'No configuration warnings were found. Publishing creates a new immutable version.') +
         `<div class="panel"><h2>Your decision</h2><p>Publishing does not install the bot or enable customer traffic. Those actions remain separate.</p><ul class="checklist"><li><span class="checkmark">✓</span>Current configuration has no detected warnings</li><li><span class="checkmark">✓</span>Replies are concise by instruction and cannot exceed 200 locale-aware words</li><li><span class="checkmark">✓</span>You can return, edit, and publish another version later</li></ul><button class="btn btn-green" data-publish-from-page style="margin-top:16px">Publish version ${state.version + 1}</button></div>`;
       return sectionHeader('Publish when you are satisfied', `${warnings.length} optional ${warnings.length === 1 ? 'check is' : 'checks are'} highlighted below. They do not block publishing.`) +
@@ -3960,6 +4048,7 @@
       else if (state.section === 'behavior') html = behaviorSection();
       else if (['leads_actions','handover','customer_handover','schedule','fallback'].includes(state.section)) html = operationsSection();
       else if (state.section === 'channel') html = state.product === 'voice' ? voice() : textExperience();
+      else if (state.section === 'translations') html = textVoiceTranslationsSection();
       else if (state.section === 'test') html = sectionHeader('Test your bot', 'Testing is recommended, not required. Run suggested cases or use the persistent tester until you are satisfied.') + rowEditor('test','Suggested test cases','Edit expected behavior or run the safe simulation. You may publish without completing every test.','Test case','Expected result',{tests:true});
       else html = releaseSection();
       const footer = state.section === 'release' ? `<div class="section-actions"><span class="save-state">Saved automatically</span><button class="btn" data-previous-section>Previous section</button></div>` : `<div class="section-actions"><div class="row"><span class="save-state">Saved automatically</span><button class="text-button" data-revert-section>Revert this section</button></div><div class="row"><button class="btn" data-previous-section>Previous</button><button class="btn btn-green" data-next-section>Save and continue</button></div></div>`;
@@ -3973,6 +4062,7 @@
         control.addEventListener(eventName, () => {
           const installationField = control.dataset.bind.startsWith('install.');
           setPath(draft, control.dataset.bind, control.value);
+          if (['greeting','disclosure','voice.disclosure'].includes(control.dataset.bind)) ensureTextVoiceTranslations(draft);
           if (control.dataset.bind === 'botName') $('#botNameLabel').textContent = control.value || 'Untitled bot';
           if (control.dataset.bind === 'greeting') {
             $('#greetingCount').textContent = `${visibleLength(control.value)} / 200`;
@@ -3996,6 +4086,7 @@
       });
       $$('[data-config-faq-field]').forEach(control => control.addEventListener('input', () => {
         draft.business.faqs[Number(control.dataset.configFaqIndex)][control.dataset.configFaqField] = control.value;
+        ensureTextVoiceTranslations(draft);
         savePrototype(); markDraftUpdated(); renderNav();
       }));
       $$('[data-delete-config-faq]').forEach(button => button.addEventListener('click', () => {
@@ -4004,6 +4095,33 @@
       if ($('[data-add-config-faq]')) $('[data-add-config-faq]').addEventListener('click', () => {
         draft.business.faqs.push({question:'New customer question',answer:'Enter the approved answer'}); savePrototype(); render(); markDraftUpdated();
         setTimeout(() => { const inputs = $$('[data-config-faq-field="question"]'); inputs[inputs.length - 1]?.focus(); }, 0);
+      });
+      const translationEntry = key => textVoiceTranslationEntries().find(entry => entry.key === key);
+      $$('[data-customer-translation-en]').forEach(control => control.addEventListener('input', () => {
+        const entry = translationEntry(control.dataset.customerTranslationEn); if (!entry) return;
+        setPath(draft,entry.sourcePath,control.value); ensureTextVoiceTranslations(draft); savePrototype(); markDraftUpdated(); renderNav();
+      }));
+      $$('[data-customer-translation-th]').forEach(control => control.addEventListener('input', () => {
+        const entry = translationEntry(control.dataset.customerTranslationTh); if (!entry) return;
+        entry.record.th = control.value.trim(); entry.record.sourceEn = entry.record.en; entry.record.reviewed = false;
+        entry.record.status = entry.record.th ? 'needs_review' : 'missing'; savePrototype(); markDraftUpdated(); renderNav();
+      }));
+      $$('[data-review-customer-translation]').forEach(button => button.addEventListener('click', () => {
+        const entry = translationEntry(button.dataset.reviewCustomerTranslation); if (!entry || !entry.record.th || entry.record.status === 'stale') return;
+        entry.record.reviewed = true; entry.record.sourceEn = entry.record.en; entry.record.status = 'current'; savePrototype(true,true); render(); showToast(`${entry.label} marked reviewed.`);
+      }));
+      $$('[data-generate-customer-translation]').forEach(button => button.addEventListener('click', async () => {
+        const entry = translationEntry(button.dataset.generateCustomerTranslation); if (!entry || !entry.record.en) return;
+        button.disabled = true; button.textContent = 'Translating…';
+        try { const [translation] = await requestFlowTranslations([entry.record.en]); entry.record.th = translation; entry.record.sourceEn = entry.record.en; entry.record.reviewed = false; entry.record.status = 'needs_review'; savePrototype(); render(); showToast(`${entry.label} translated for review.`); }
+        catch { render(); showToast('Translation remains unchanged. Save the latest English source and retry.'); }
+      }));
+      if ($('#translateAllCustomerCopy')) $('#translateAllCustomerCopy').addEventListener('click', async () => {
+        const targets = textVoiceTranslationEntries().filter(entry => entry.record.en && ['missing','stale'].includes(entry.record.status));
+        if (!targets.length) return;
+        const button = $('#translateAllCustomerCopy'); button.disabled = true; button.textContent = 'Translating…';
+        try { const translations = await requestFlowTranslations(targets.map(entry => entry.record.en)); targets.forEach((entry,index) => { entry.record.th = translations[index]; entry.record.sourceEn = entry.record.en; entry.record.reviewed = false; entry.record.status = 'needs_review'; }); savePrototype(); render(); showToast(`${targets.length} Thai translation${targets.length === 1 ? '' : 's'} ready for review.`); }
+        catch { render(); showToast('Translations remain unchanged. Save the latest English source and retry.'); }
       });
       $$('[data-row-field]').forEach(control => control.addEventListener(control.tagName === 'SELECT' ? 'change' : 'input', () => {
         const rowSection = control.dataset.rowSection;
@@ -4079,6 +4197,7 @@
         business:['business.name','business.type','business.summary','business.offers','business.hours','business.contact','botName','language','greeting','tone','disclosure'],
         knowledge:['sources','business.faqs','conflictPolicy','sourceVisibility','neverInvent'],
         channel: state.product === 'voice' ? ['voice'] : ['text'],
+        translations:['translations'],
         test:['rows.test']
       };
       const rolePaths = {
@@ -4106,11 +4225,12 @@
       setResult('reviewTestsIcon','reviewTestsText',testsPassed,'All suggested role-specific test cases passed','Suggested tests are incomplete. Testing is optional');
       setResult('reviewLengthIcon','reviewLengthText',lengthsPass,'Configured replies are concise and within the 200-word maximum','A configured message exceeds 200 words and must be shortened before publication');
       const warnings = releaseWarnings();
-      $('#publishWarningSummary').classList.toggle('hidden', warnings.length === 0);
-      $('#publishWarningTitle').textContent = `${warnings.length} optional ${warnings.length === 1 ? 'check remains' : 'checks remain'}`;
-      $('#publishWarningText').textContent = 'These recommendations do not block publishing. Continue only if the current bot behavior is acceptable for your business.';
-      $('#confirmPublish').disabled = !state.dirty;
-      $('#confirmPublish').textContent = state.dirty ? (warnings.length ? `Publish version ${state.version + 1} with warnings` : `Publish version ${state.version + 1}`) : 'Draft already published';
+      const blockers = publicationBlockers();
+      $('#publishWarningSummary').classList.toggle('hidden', warnings.length === 0 && blockers.length === 0);
+      $('#publishWarningTitle').textContent = blockers.length ? `${blockers.length} required translation ${blockers.length === 1 ? 'issue remains' : 'issues remain'}` : `${warnings.length} optional ${warnings.length === 1 ? 'check remains' : 'checks remain'}`;
+      $('#publishWarningText').textContent = blockers.length ? 'Complete missing or stale customer-facing translations before publishing. Review and tests remain advisory.' : 'These recommendations do not block publishing. Continue only if the current bot behavior is acceptable for your business.';
+      $('#confirmPublish').disabled = !state.dirty || blockers.length > 0;
+      $('#confirmPublish').textContent = blockers.length ? 'Complete required translations' : state.dirty ? (warnings.length ? `Publish version ${state.version + 1} with warnings` : `Publish version ${state.version + 1}`) : 'Draft already published';
       $('#reviewDialog').showModal();
     }
 

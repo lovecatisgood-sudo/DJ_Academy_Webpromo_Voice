@@ -6466,14 +6466,16 @@
         "packages/db/src/anonymous-builder-import-store.integration.test.ts",
         "apps/api/lib/public-builder-draft.test.ts",
         "apps/api/lib/public-builder-import.test.ts",
-        "apps/api/lib/public-builder-test-quota.test.ts"
+        "apps/api/lib/public-builder-test-quota.test.ts",
+        "scripts/check-builder-translations.mjs"
       ],
       "runbooks": [
         "docs/implementation/djay-bots-production-ready-master-plan.md"
       ],
       "evidence": [
         "docs/validation/production-master-plan-pr02-server-draft-2026-08-17.md",
-        "docs/validation/production-master-plan-pr02-import-jobs-2026-08-17.md"
+        "docs/validation/production-master-plan-pr02-import-jobs-2026-08-17.md",
+        "docs/validation/production-master-plan-pr02-translations-2026-08-17.md"
       ],
       "status": "in_progress",
       "accepted_by": null
